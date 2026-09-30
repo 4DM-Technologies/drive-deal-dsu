@@ -1,0 +1,63 @@
+[build-system]
+requires = ["hatchling==1.27.0"]
+build-backend = "hatchling.build"
+
+[project]
+name = "drivedeal-api"
+version = "1.0.0"
+description = "DriveDeal reverse vehicle marketplace API"
+requires-python = ">=3.11,<3.14"
+dependencies = [
+  "fastapi==0.115.12",
+  "uvicorn[standard]==0.34.3",
+  "sqlalchemy[asyncio]==2.0.41",
+  "aiosqlite==0.21.0",
+  "asyncpg==0.30.0",
+  "psycopg[binary]==3.2.9",
+  "alembic==1.16.1",
+  "pydantic==2.11.5",
+  "pydantic-settings==2.9.1",
+  "pyjwt[crypto]==2.10.1",
+  "argon2-cffi==23.1.0",
+  "python-multipart==0.0.20",
+  "email-validator==2.2.0",
+  "boto3==1.38.27",
+  "structlog==25.4.0",
+  "openai==1.82.1",
+  "langgraph==0.4.8",
+  "langgraph-checkpoint>=2.0.26,<3",
+  "langgraph-prebuilt>=0.2,<0.3",
+  "langgraph-sdk>=0.1.42,<0.2",
+  "langchain-core==0.3.63",
+  "httpx==0.28.1"
+]
+
+[project.optional-dependencies]
+web = ["crawl4ai==0.6.3"]
+dev = [
+  "pytest==8.3.5",
+  "pytest-asyncio==0.26.0",
+  "pytest-cov==6.1.1",
+  "ruff==0.11.12",
+  "bandit==1.8.3"
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "ASYNC", "S"]
+ignore = ["S101", "S105", "B008", "E501"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+testpaths = ["tests"]
+addopts = "--cov=src --cov-report=term-missing --cov-fail-under=75"
+
+[tool.coverage.run]
+omit = ["*/seed.py", "*/run.py", "*/provision.py"]

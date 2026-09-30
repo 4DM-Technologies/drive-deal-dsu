@@ -1,0 +1,698 @@
+name: Secure DevOps CI/CD Pipeline (dev)
+
+on:
+  pull_request:
+    branches: [ dev ]
+  push:
+    branches: [ dev ]
+
+concurrency:
+  group: ci-cd-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # =========================================================================
+  # STAGE 1: PULL REQUEST VALIDATION
+  # =========================================================================
+  pr-validation:
+    name: "Stage 1: PR Description Format Check"
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - name: Validate Markdown Template Structural Anchors
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const body = context.payload.pull_request.body;
+            if (!body) {
+              core.setFailed("PR Description is completely empty. Please fill out the mandatory template.");
+              return;
+            }
+
+            const mandatoryHeaders = [
+              "## Pull Request",
+              "### 1. What this PR does / why we need it:",
+              "### Type of change:",
+              "Bug fix (non-breaking change that fixes an issue)",
+              "New feature (non-breaking change that adds functionality)",
+              "Refactoring (no functional changes)",
+              "Documentation update",
+              "CI/CD pipeline change",
+              "Configuration change",
+              "### 2. Does this change include any breaking changes?",
+              "### 3. Target Release:",
+              "### 4. Schema Migrations:",
+              "### 5. Unit and Integration Test Coverage:",
+              "### 6. Test instructions:"
+            ];
+
+            const missingElements = mandatoryHeaders.filter(element => !body.includes(element));
+
+            if (missingElements.length > 0) {
+              core.setFailed(
+                `PR validation failed. Do not alter or delete the mandatory structural headers. Missing elements:\n${missingElements.join('\n')}`
+              );
+            }
+
+  # =========================================================================
+  # STAGE 2: COMPLIANCE CHECK (FOLDER STRUCTURE VALIDATION)
+  # =========================================================================
+  compliance-check:
+    name: "Stage 2: Directory Structure Compliance"
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code Repository
+        uses: actions/checkout@v4
+
+      - name: Verify Mandatory Workspace Partitions
+        run: |
+          echo "Verifying mandatory root partitions..."
+
+          test -d frontend || (
+            echo "❌ Compliance Break: Root directory missing mandatory 'frontend/' folder" &&
+            exit 1
+          )
+
+          test -d backend || (
+            echo "❌ Compliance Break: Root directory missing mandatory 'backend/' folder" &&
+            exit 1
+          )
+
+          echo "Verifying React MVVM Structural Directories..."
+
+          test -d frontend/src/ui || (
+            echo "❌ Compliance Break: Missing 'frontend/src/ui/'" &&
+            exit 1
+          )
+
+          test -d frontend/src/ui/navigations || (
+            echo "❌ Compliance Break: Missing 'frontend/src/ui/navigations/'" &&
+            exit 1
+          )
+
+          test -d frontend/src/ui/screens || (
+            echo "❌ Compliance Break: Missing 'frontend/src/ui/screens/'" &&
+            exit 1
+          )
+
+          test -d frontend/src/ui/reusables || (
+            echo "❌ Compliance Break: Missing 'frontend/src/ui/reusables/'" &&
+            exit 1
+          )
+
+          test -d frontend/src/services || (
+            echo "❌ Compliance Break: Missing 'frontend/src/services/'" &&
+            exit 1
+          )
+
+          test -d frontend/src/services/bff || (
+            echo "❌ Compliance Break: Missing 'frontend/src/services/bff/'" &&
+            exit 1
+          )
+
+          test -d frontend/src/services/generated || (
+            echo "❌ Compliance Break: Missing 'frontend/src/services/generated/'" &&
+            exit 1
+          )
+
+          test -d frontend/src/services/screens || (
+            echo "❌ Compliance Break: Missing 'frontend/src/services/screens/'" &&
+            exit 1
+          )
+
+          test -d frontend/src/services/domains || (
+            echo "❌ Compliance Break: Missing 'frontend/src/services/domains/'" &&
+            exit 1
+          )
+
+          test -d frontend/src/services/platform || (
+            echo "❌ Compliance Break: Missing 'frontend/src/services/platform/'" &&
+            exit 1
+          )
+
+          test -d frontend/src/types || (
+            echo "❌ Compliance Break: Missing 'frontend/src/types/'" &&
+            exit 1
+          )
+
+          test -d frontend/src/helpers || (
+            echo "❌ Compliance Break: Missing 'frontend/src/helpers/'" &&
+            exit 1
+          )
+
+          test -d frontend/src/assets || (
+            echo "❌ Compliance Break: Missing 'frontend/src/assets/'" &&
+            exit 1
+          )
+
+          echo "Verifying FastAPI Layered Architecture Directories..."
+
+          test -d backend/src/routes || (
+            echo "❌ Compliance Break: Missing 'backend/src/routes/'" &&
+            exit 1
+          )
+
+          test -d backend/src/middleware || (
+            echo "❌ Compliance Break: Missing 'backend/src/middleware/'" &&
+            exit 1
+          )
+
+          test -d backend/src/services || (
+            echo "❌ Compliance Break: Missing 'backend/src/services/'" &&
+            exit 1
+          )
+
+          test -d backend/src/repositories || (
+            echo "❌ Compliance Break: Missing 'backend/src/repositories/'" &&
+            exit 1
+          )
+
+          test -d backend/src/repositories/schema || (
+            echo "❌ Compliance Break: Missing 'backend/src/repositories/schema/'" &&
+            exit 1
+          )
+
+          test -d backend/src/models || (
+            echo "❌ Compliance Break: Missing 'backend/src/models/'" &&
+            exit 1
+          )
+
+          test -d backend/src/client || (
+            echo "❌ Compliance Break: Missing 'backend/src/client/'" &&
+            exit 1
+          )
+
+          test -d backend/src/utils || (
+            echo "❌ Compliance Break: Missing 'backend/src/utils/'" &&
+            exit 1
+          )
+
+          test -d backend/src/utils/exceptions || (
+            echo "❌ Compliance Break: Missing 'backend/src/utils/exceptions/'" &&
+            exit 1
+          )
+
+          echo "Verifying Mandatory Root Files & Mirror Testing Layout..."
+
+          test -d backend/tests || (
+            echo "❌ Compliance Break: Missing mandatory root-level 'backend/tests/' folder" &&
+            exit 1
+          )
+
+          test -f backend/main.py || (
+            echo "❌ Compliance Break: Missing application entry point 'backend/main.py'" &&
+            exit 1
+          )
+
+          test -f backend/src/settings.py || (
+            echo "❌ Compliance Break: Missing mandatory 'backend/src/settings.py'" &&
+            exit 1
+          )
+
+          test -f backend/src/__init__.py || (
+            echo "❌ Compliance Break: Missing mandatory 'backend/src/__init__.py'" &&
+            exit 1
+          )
+
+          echo "✅ All directory and file compliance checks passed successfully according to standard specifications."
+
+  # =========================================================================
+  # STAGE 3: LINTING (React ESLint + Python Ruff)
+  # =========================================================================
+  code-linting:
+    name: "Stage 3: Code Linting & Quality Verification"
+    needs: [compliance-check]
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code Codebase
+        uses: actions/checkout@v4
+
+      # Frontend (React) Environment Setup & ESLint
+      - name: Setup Node Environment
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install and Execute React ESLint
+        run: |
+          cd frontend
+
+          if [ -f package.json ]; then
+            if [ -f package-lock.json ]; then
+              npm ci
+            else
+              npm install
+            fi
+
+            # --no-install forces use of the project's local ESLint
+            # instead of npx downloading a random version
+            npx --no-install eslint . --max-warnings=0
+          else
+            echo "⚠️ Notice: package.json missing in frontend directory. Skipping ESLint step."
+          fi
+
+      # Backend (Python) Environment Setup & Ruff
+      - name: Setup Python Runtime Environment
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Explicitly Download and Install Ruff Tooling
+        run: |
+          python -m pip install --upgrade pip
+          pip install ruff
+
+      - name: Execute Ruff Quality Formatting Terminal Checks
+        run: |
+          cd backend
+          ruff check src/
+          ruff format --check src/
+
+  # =========================================================================
+  # STAGE 4: CODE COVERAGE (AUTOMATED PYTEST & FLOOR RULES)
+  # =========================================================================
+  code-coverage:
+    name: "Stage 4: Automated Testing & 75% Coverage Floor"
+    needs: [code-linting]
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python Environment
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Download Test Runner and Core Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pytest pytest-cov pytest-asyncio
+
+          if [ -f backend/requirements.txt ]; then
+            pip install -r backend/requirements.txt
+          fi
+
+      - name: Execute Test Coverage Verification Logic
+        run: |
+          cd backend
+
+          python -m pytest --cov=src --cov-report=term-missing tests/
+
+          COVERAGE=$(python -m coverage report | grep TOTAL | awk '{print $4}' | sed 's/%//')
+
+          echo "Current Calculated System Code Coverage Metrics: $COVERAGE%"
+
+          if [ "$COVERAGE" -lt 75 ]; then
+            echo "❌ Pipeline Interrupted: Application testing code coverage ($COVERAGE%) drops below the 75% minimum floor constraint!"
+            exit 1
+          fi
+
+          echo "✅ Code coverage compliance matches target rules."
+
+  # =========================================================================
+  # STAGE 5: SECRETS-CODE-DOCKERFILE-SCAN
+  # =========================================================================
+  secrets-code-dockerfile-scan:
+    name: "Stage 5: Secrets Code & Dockerfile Scan"
+    needs: [code-coverage]
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code Base
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # Gitleaks for Code Secret Identification
+      - name: Explicitly Download and Install Gitleaks CLI Tool
+        run: |
+          VERSION="8.18.2"
+
+          curl -sSLo gitleaks.tar.gz \
+            "https://github.com/gitleaks/gitleaks/releases/download/v${VERSION}/gitleaks_${VERSION}_linux_x64.tar.gz"
+
+          tar -zxf gitleaks.tar.gz gitleaks
+
+          sudo mv gitleaks /usr/local/bin/
+
+          rm gitleaks.tar.gz
+
+      - name: Scan Code for Hardcoded Secrets
+        run: |
+          gitleaks detect \
+            --config .gitleaks.toml \
+            --verbose \
+            --source=.
+
+      # Hadolint for Dockerfile Rules Configuration Checking
+      - name: Explicitly Download and Install Hadolint CLI Tool
+        run: |
+          sudo curl -sSLo /usr/local/bin/hadolint \
+            "https://github.com/hadolint/hadolint/releases/download/v2.12.0/hadolint-Linux-x86_64"
+
+          sudo chmod +x /usr/local/bin/hadolint
+
+      - name: Scan Dockerfiles for Structural Formatting Flaws
+        run: |
+          if [ -f backend/Dockerfile ]; then
+            echo "Scanning backend/Dockerfile..."
+            hadolint backend/Dockerfile --failure-threshold error
+          else
+            echo "⚠️ Notice: Dockerfile not found in backend/ directory. Skipping."
+          fi
+
+          if [ -f frontend/Dockerfile ]; then
+            echo "Scanning frontend/Dockerfile..."
+            hadolint frontend/Dockerfile --failure-threshold error
+          else
+            echo "⚠️ Notice: Dockerfile not found in frontend/ directory. Skipping."
+          fi
+
+  # =========================================================================
+  # STAGE 6 & 7: SECURITY SCANNING (SAST + SCA)
+  # =========================================================================
+  security-scans:
+    name: "Stage 6 & 7: SAST and SCA Security Audits"
+    needs: [secrets-code-dockerfile-scan]
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code Repository
+        uses: actions/checkout@v4
+
+      # STAGE 6: SAST (Static Application Security Testing)
+      - name: Setup Python for Bandit SAST Scan
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install and Execute Bandit SAST Analyzer
+        run: |
+          pip install bandit
+
+          cd backend
+
+          # -x: excludes tests and virtual environments from generating false alerts
+          # -lll -iii: fails ONLY on HIGH issues
+          # Bandit has no CRITICAL tier
+          # Nosec handling remains enabled
+          bandit -r src/ -x tests/,migration/,venv/,.venv/ -lll -iii
+
+      # STAGE 7: SCA (Software Composition Analysis - Dependency Vulnerabilities)
+      - name: Install Trivy Dependency Scanner CLI
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y wget apt-transport-https gnupg lsb-release
+
+          wget -qO - https://aquasecurity.github.io/trivy-repo/deb/public.key \
+            | gpg --dearmor \
+            | sudo tee /usr/share/keyrings/trivy.gpg > /dev/null
+
+          echo "deb [signed-by=/usr/share/keyrings/trivy.gpg] https://aquasecurity.github.io/trivy-repo/deb $(lsb_release -sc) main" \
+            | sudo tee /etc/apt/sources.list.d/trivy.list
+
+          sudo apt-get update
+          sudo apt-get install -y trivy
+
+      - name: Execute Trivy SCA Scan on External Dependencies
+        run: |
+          echo "Auditing Backend Python packages for vulnerabilities..."
+
+          if [ -f backend/requirements.txt ]; then
+            trivy fs \
+              --exit-code 0 \
+              backend/requirements.txt
+
+            trivy fs \
+              --exit-code 1 \
+              --severity CRITICAL \
+              --ignore-unfixed \
+              backend/requirements.txt
+          fi
+
+          echo "Auditing Frontend Node dependencies for vulnerabilities..."
+
+          if [ -f frontend/package-lock.json ]; then
+            # Scan the lockfile only, NOT the whole frontend/ folder
+            trivy fs \
+              --exit-code 0 \
+              frontend/package-lock.json
+
+            trivy fs \
+              --exit-code 1 \
+              --severity CRITICAL \
+              --ignore-unfixed \
+              frontend/package-lock.json
+
+          elif [ -f frontend/package.json ]; then
+            echo "⚠️ Notice: package-lock.json missing in frontend/. Skipping SCA scan for frontend."
+          fi
+
+  # =========================================================================
+  # STAGE 8: DOCKER BUILD & PUSH
+  #
+  # Each successful dev deployment pushes:
+  #
+  #   drive-deal-dsu-api:latest
+  #   drive-deal-dsu-api:<git-sha>
+  #
+  #   drive-deal-dsu-web:latest
+  #   drive-deal-dsu-web:<git-sha>
+  #
+  # The SHA tag gives us a permanent version for rollback.
+  # =========================================================================
+  docker-build-push:
+    name: "Stage 8: Docker Hub Compilation & Push (dev)"
+    needs: [security-scans]
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code Repository
+        uses: actions/checkout@v4
+
+      - name: Log in to Free Docker Hub Account
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DEV_DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DEV_DOCKERHUB_TOKEN }}
+
+      # -----------------------------------------------------------------------
+      # BACKEND IMAGE
+      # -----------------------------------------------------------------------
+      - name: Build and Push Backend Image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./backend
+          file: ./backend/Dockerfile
+          push: true
+          tags: |
+            ${{ secrets.DEV_DOCKERHUB_USERNAME }}/drive-deal-dsu-api:latest
+            ${{ secrets.DEV_DOCKERHUB_USERNAME }}/drive-deal-dsu-api:${{ github.sha }}
+
+      # -----------------------------------------------------------------------
+      # FRONTEND ENVIRONMENT
+      # -----------------------------------------------------------------------
+      - name: Generate Frontend .env.production from Task Definition
+        env:
+          SECRETS_JSON: ${{ toJSON(secrets) }}
+          VARS_JSON: ${{ toJSON(vars) }}
+        run: |
+          python -m pip install --quiet pyyaml
+
+          python scripts/generate_env.py \
+            frontend \
+            --out frontend/.env.production
+
+      # -----------------------------------------------------------------------
+      # FRONTEND IMAGE
+      # -----------------------------------------------------------------------
+      - name: Build and Push Frontend Image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./frontend
+          file: ./frontend/Dockerfile
+          push: true
+          tags: |
+            ${{ secrets.DEV_DOCKERHUB_USERNAME }}/drive-deal-dsu-web:latest
+            ${{ secrets.DEV_DOCKERHUB_USERNAME }}/drive-deal-dsu-web:${{ github.sha }}
+
+  # =========================================================================
+  # STAGE 9: AWS EC2 DEPLOYMENT
+  #
+  # IMPORTANT:
+  # We deploy the exact Git SHA image rather than blindly pulling :latest.
+  #
+  # This guarantees that the image deployed to EC2 is exactly the image
+  # created by this GitHub Actions run.
+  #
+  # Docker named volumes:
+  #
+  #   drive-deal-dsu-data
+  #   drive-deal-dsu-uploads
+  #
+  # are automatically created if they do not exist.
+  # If they already exist, Docker reuses them.
+  #
+  # These volumes are for persistent application data, NOT image versioning.
+  # Image versioning is handled by the Git SHA tags above.
+  # =========================================================================
+  ec2-deployment:
+    name: "Stage 9: Remote Live EC2 Deployment (dev)"
+    needs: [docker-build-push]
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code Repository
+        uses: actions/checkout@v4
+
+      # -----------------------------------------------------------------------
+      # BACKEND ENVIRONMENT
+      # -----------------------------------------------------------------------
+      - name: Generate Backend Env File from Task Definition
+        env:
+          SECRETS_JSON: ${{ toJSON(secrets) }}
+          VARS_JSON: ${{ toJSON(vars) }}
+        run: |
+          python -m pip install --quiet pyyaml
+
+          python scripts/generate_env.py \
+            backend \
+            --out backend.env
+
+      # -----------------------------------------------------------------------
+      # UPLOAD BACKEND ENVIRONMENT TO EC2
+      # -----------------------------------------------------------------------
+      - name: Upload Backend Env File to EC2 Host
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.DEV_EC2_HOST }}
+          username: ubuntu
+          key: ${{ secrets.DEV_EC2_SSH_KEY }}
+          source: backend.env
+          target: /tmp/
+
+      # -----------------------------------------------------------------------
+      # DEPLOY TO EC2
+      # -----------------------------------------------------------------------
+      - name: Execute Safe Remote SSH Deployment Script
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DEV_EC2_HOST }}
+          username: ubuntu
+          key: ${{ secrets.DEV_EC2_SSH_KEY }}
+
+          script: |
+            set -euo pipefail
+
+            # =================================================================
+            # DOCKER HUB LOGIN
+            # =================================================================
+
+            echo "${{ secrets.DEV_DOCKERHUB_TOKEN }}" | \
+              sudo docker login \
+                -u "${{ secrets.DEV_DOCKERHUB_USERNAME }}" \
+                --password-stdin
+
+            # =================================================================
+            # BACKEND ENVIRONMENT
+            # =================================================================
+
+            # Env file shipped:
+            # GitHub Actions -> /tmp -> /opt/drive-deal-dsu/backend.env
+
+            sudo mkdir -p /opt/drive-deal-dsu
+
+            sudo mv \
+              /tmp/backend.env \
+              /opt/drive-deal-dsu/backend.env
+
+            # =================================================================
+            # BACKEND CONTAINER
+            # =================================================================
+
+            echo "Stopping previous backend container..."
+
+            sudo docker stop drive-deal-dsu-api || true
+            sudo docker rm drive-deal-dsu-api || true
+
+            echo "Pulling backend image version: ${{ github.sha }}"
+
+            sudo docker pull \
+              ${{ secrets.DEV_DOCKERHUB_USERNAME }}/drive-deal-dsu-api:${{ github.sha }}
+
+            # The named volumes below:
+            #
+            #   drive-deal-dsu-data
+            #   drive-deal-dsu-uploads
+            #
+            # are automatically created by Docker if they don't exist.
+            #
+            # If they already exist, Docker reuses them.
+            #
+            # Therefore application data/uploads survive container replacement.
+
+            sudo docker run -d \
+              --name drive-deal-dsu-api \
+              -p 8000:8000 \
+              --restart unless-stopped \
+              --env-file /opt/drive-deal-dsu/backend.env \
+              -v drive-deal-dsu-data:/app/data \
+              -v drive-deal-dsu-uploads:/app/uploads \
+              ${{ secrets.DEV_DOCKERHUB_USERNAME }}/drive-deal-dsu-api:${{ github.sha }}
+
+            # =================================================================
+            # FRONTEND CONTAINER
+            # =================================================================
+
+            # Remove legacy proxy container if it exists.
+            sudo docker stop restaurant-proxy || true
+            sudo docker rm restaurant-proxy || true
+
+            echo "Stopping previous frontend container..."
+
+            sudo docker stop drive-deal-dsu-web || true
+            sudo docker rm drive-deal-dsu-web || true
+
+            echo "Pulling frontend image version: ${{ github.sha }}"
+
+            sudo docker pull \
+              ${{ secrets.DEV_DOCKERHUB_USERNAME }}/drive-deal-dsu-web:${{ github.sha }}
+
+            sudo docker run -d \
+              --name drive-deal-dsu-web \
+              -p 80:80 \
+              --restart unless-stopped \
+              ${{ secrets.DEV_DOCKERHUB_USERNAME }}/drive-deal-dsu-web:${{ github.sha }}
+
+            # =================================================================
+            # DO NOT RUN docker system prune -af
+            #
+            # Old image versions are intentionally retained on the EC2 host
+            # for rollback.
+            # =================================================================
+
+            echo "============================================================"
+            echo "🚀 DRIVE-DEAL-DSU DEPLOYMENT SUCCESSFUL"
+            echo "============================================================"
+            echo "Backend:"
+            echo "  Container : drive-deal-dsu-api"
+            echo "  Port      : 8000"
+            echo "  Image     : ${{ secrets.DEV_DOCKERHUB_USERNAME }}/drive-deal-dsu-api:${{ github.sha }}"
+            echo ""
+            echo "Frontend:"
+            echo "  Container : drive-deal-dsu-web"
+            echo "  Port      : 80"
+            echo "  Image     : ${{ secrets.DEV_DOCKERHUB_USERNAME }}/drive-deal-dsu-web:${{ github.sha }}"
+            echo ""
+            echo "Persistent volumes:"
+            echo "  drive-deal-dsu-data"
+            echo "  drive-deal-dsu-uploads"
+            echo ""
+            echo "Image tag : ${{ github.sha }}"
+            echo "============================================================"
