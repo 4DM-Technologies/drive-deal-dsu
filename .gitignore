@@ -79,3 +79,6 @@ uploads/*
 *.sqlite
 *.sqlite3
 *.db-journal
+
+# Sign in with ChatGPT (SIWC) cached OAuth tokens — never commit
+.codex_oauth_state/
