@@ -17,7 +17,6 @@ import time
 import urllib.parse
 import uuid
 import webbrowser
-from pathlib import Path
 from typing import Any
 
 import httpx
