@@ -47,7 +47,7 @@ export function AppShell() {
 
   const nav = links[session.role];
   const roleHome = ['support', 'support-admin', 'admin'].includes(session.role) ? '/support' : '/home';
-  const signOut = () => { window.localStorage.removeItem('drivedeal.accessToken'); window.localStorage.removeItem('drivedeal.refreshToken'); logout(); navigate('/login'); };
+  const signOut = () => { window.localStorage.removeItem('drivedeal.accessToken'); window.localStorage.removeItem('drivedeal.refreshToken'); logout(); navigate('/login', { replace: true, state: null }); };
 
   return (
     <div className="page">

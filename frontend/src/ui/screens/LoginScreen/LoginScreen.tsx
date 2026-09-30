@@ -23,6 +23,21 @@ const demoEmails: Record<Role, string> = {
   admin: 'alex@drivedeal.demo',
 };
 
+const roleRoutes: Record<Role, string[]> = {
+  buyer: ['/home', '/requests', '/orders', '/chat', '/chatbot', '/profiles'],
+  dealer: ['/home', '/feed', '/quotes', '/deals', '/chat', '/profiles'],
+  support: ['/support', '/help-support', '/tickets', '/verifications', '/support-members', '/profiles'],
+  'support-admin': ['/support', '/help-support', '/tickets', '/verifications', '/support-members', '/support-administration', '/profiles'],
+  admin: ['/support', '/help-support', '/tickets', '/verifications', '/support-members', '/support-administration', '/profiles'],
+};
+
+function safeDestination(role: Role, requested?: string) {
+  const home = ['support', 'support-admin', 'admin'].includes(role) ? '/support' : '/home';
+  if (!requested) return home;
+  const allowed = roleRoutes[role].some((route) => requested === route || requested.startsWith(`${route}/`) || requested.startsWith(`${route}?`));
+  return allowed ? requested : home;
+}
+
 export default function LoginScreen() {
   const setSession = useDemoStore((state) => state.setSession);
   const navigate = useNavigate();
@@ -51,7 +66,7 @@ export default function LoginScreen() {
       const authenticated = await client.auth.login(asRole ? demoEmails[asRole] : email, password);
       setSession(authenticated);
       const state = location.state as { next?: string } | null;
-      navigate(state?.next ?? (['support', 'support-admin', 'admin'].includes(authenticated.role) ? '/support' : '/home'));
+      navigate(safeDestination(authenticated.role, state?.next), { replace: true, state: null });
     } catch (cause) {
       setAuthError(cause instanceof Error ? cause.message : 'Sign-in failed. Please try again.');
     } finally {
