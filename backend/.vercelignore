@@ -1,0 +1,14 @@
+.env
+.env.*
+!.env.example
+.codex_oauth_state
+.venv
+__pycache__
+*.pyc
+tests
+uploads
+data
+alembic
+alembic.ini
+.pytest_cache
+.ruff_cache
