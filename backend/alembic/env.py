@@ -11,7 +11,13 @@ config = context.config
 if config.config_file_name:
     fileConfig(config.config_file_name)
 
-url = get_settings().database_url.replace("+aiosqlite", "").replace("+asyncpg", "+psycopg")
+url = (
+    get_settings().database_url
+    .replace("+aiosqlite", "")
+    .replace("+asyncpg", "+psycopg")
+    .replace("?ssl=", "?sslmode=")
+    .replace("&ssl=", "&sslmode=")
+)
 config.set_main_option("sqlalchemy.url", url)
 target_metadata = Base.metadata
 

@@ -35,7 +35,15 @@ async function* streamReply(message: string, threadId: string = crypto.randomUUI
 }
 
 export const mockClient: DriveDealClient = {
-  auth: { me: async () => { await latency(); const session = useDemoStore.getState().session; if (!session) throw new Error('UNAUTHENTICATED'); return session; } },
+  auth: {
+    login: async (email) => {
+      await latency();
+      const role = email.startsWith('naveen') ? 'dealer' : email.startsWith('maya') ? 'support' : email.startsWith('priya') ? 'support-admin' : 'buyer';
+      useDemoStore.getState().loginAs(role);
+      return useDemoStore.getState().session!;
+    },
+    me: async () => { await latency(); const session = useDemoStore.getState().session; if (!session) throw new Error('UNAUTHENTICATED'); return session; },
+  },
   requests: {
     list: async () => { await latency(); return useDemoStore.getState().requests; },
     get: async (id) => { await latency(); const item = useDemoStore.getState().requests.find((request) => request.id === id); if (!item) throw new Error('REQUEST_NOT_FOUND'); return item; },
@@ -52,7 +60,27 @@ export const mockClient: DriveDealClient = {
   },
   chats: { list: async (quoteId) => { await latency(); return useDemoStore.getState().messages.filter((message) => message.quoteId === quoteId); } },
   inventory: { list: async () => { await latency(); return useDemoStore.getState().inventory; } },
-  support: { listTickets: async () => { await latency(); return useDemoStore.getState().tickets; } },
+  support: {
+    listTickets: async () => { await latency(); return useDemoStore.getState().tickets; },
+    createTicket: async (input) => {
+      await latency();
+      return { id: crypto.randomUUID(), publicId: `TIC-${Date.now().toString().slice(-6)}`, callerName: useDemoStore.getState().session?.fullName ?? 'Member', category: useDemoStore.getState().session?.role === 'dealer' ? 'dealer' : 'customer', summary: input.issueSummary, description: input.issueDescription, status: 'open', priority: input.priority, createdAt: new Date().toISOString() };
+    },
+    members: async () => { await latency(); return useDemoStore.getState().supportMembers; },
+    member: async (id) => {
+      await latency();
+      const member = useDemoStore.getState().supportMembers.find((item) => item.id === id);
+      if (!member) throw new Error('SUPPORT_MEMBER_NOT_FOUND');
+      return member;
+    },
+    updateMemberRole: async (id, role) => {
+      await latency();
+      const member = useDemoStore.getState().supportMembers.find((item) => item.id === id);
+      if (!member) throw new Error('SUPPORT_MEMBER_NOT_FOUND');
+      useDemoStore.getState().setSupportMemberRole(member.email, role);
+      return { ...member, role };
+    },
+  },
   verifications: { list: async () => { await latency(); return useDemoStore.getState().verifications; } },
   ai: {
     chat: ({ message, threadId, requestIds }) => streamReply(message, threadId, requestIds),

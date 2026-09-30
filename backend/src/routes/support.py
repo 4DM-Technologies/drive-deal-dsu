@@ -80,6 +80,11 @@ async def members(profile: Profile = Depends(require_roles("support", "support-a
     return await SupportService(session).members()
 
 
+@router.get("/members/{profile_id}")
+async def member_detail(profile_id: str, profile: Profile = Depends(require_roles("support", "support-admin", "admin")), session: AsyncSession = Depends(get_session)):
+    return await SupportService(session).member(profile_id)
+
+
 @router.patch("/members/{profile_id}/support-role")
 async def update_support_role(profile_id: str, payload: SupportRoleUpdate, actor: Profile = Depends(require_roles("support-admin", "admin")), session: AsyncSession = Depends(get_session)):
     if profile_id == actor.id:

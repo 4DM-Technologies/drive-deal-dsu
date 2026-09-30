@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { initialInventory, initialMessages, initialQuotes, initialRequests, initialTickets, initialVerifications, personas } from '@/services/mocks/fixtures';
-import type { AiMessage, AiThread, BuyerRequest, ChatMessage, InventoryCar, Quote, Role, Session, Ticket, Verification, VerificationStatus } from '@/types/domain';
+import type { AiMessage, AiThread, BuyerRequest, ChatMessage, InventoryCar, Quote, Role, Session, SupportMember, Ticket, Verification, VerificationStatus } from '@/types/domain';
 
 interface DemoState {
   session: Session | null;
@@ -13,9 +13,10 @@ interface DemoState {
   verifications: Verification[];
   preferences: string[];
   aiThreads: AiThread[];
-  supportMembers: Array<{ id: string; name: string; email: string; role: 'support' | 'support-admin'; status: 'active' | 'pending' | 'suspended' }>;
+  supportMembers: SupportMember[];
   sidebarOpen: boolean;
   setSidebarOpen: (open: boolean) => void;
+  setSession: (session: Session | null) => void;
   loginAs: (role: Role) => void;
   logout: () => void;
   addRequest: (request: BuyerRequest) => void;
@@ -49,10 +50,10 @@ const defaults = () => ({
     { id: 'thread-2', type: 'sera', title: 'Family SUV shortlist', updatedAt: new Date(Date.now() - 2 * 86_400_000).toISOString(), messages: [{ id: 't2u', role: 'user', body: 'Help me shortlist a comfortable family SUV.' }, { id: 't2a', role: 'assistant', body: 'I would start with space, safety, and running cost. Tell me how many seats you use regularly and whether hybrid fuel economy matters.' }] },
   ] satisfies AiThread[],
   supportMembers: [
-    { id: 'support-maya', name: 'Maya Lewis', email: 'maya@drivedeal.demo', role: 'support', status: 'active' },
-    { id: 'support-admin-priya', name: 'Priya Shah', email: 'priya@drivedeal.demo', role: 'support-admin', status: 'active' },
-    { id: 'support-daniel', name: 'Daniel Kim', email: 'daniel@drivedeal.demo', role: 'support', status: 'suspended' },
-  ] as Array<{ id: string; name: string; email: string; role: 'support' | 'support-admin'; status: 'active' | 'pending' | 'suspended' }>,
+    { id: 'support-maya', name: 'Maya Lewis', email: 'maya@drivedeal.demo', role: 'support', status: 'active', phone: '+1 214 555 0144', address: 'Dallas, TX', lastLoginAt: new Date(Date.now() - 42 * 60_000).toISOString(), createdAt: '2026-06-12T09:00:00Z' },
+    { id: 'support-admin-priya', name: 'Priya Shah', email: 'priya@drivedeal.demo', role: 'support-admin', status: 'active', phone: '+1 214 555 0155', address: 'Dallas, TX', lastLoginAt: new Date(Date.now() - 8 * 60_000).toISOString(), createdAt: '2026-05-04T09:00:00Z' },
+    { id: 'support-daniel', name: 'Daniel Kim', email: 'daniel@drivedeal.demo', role: 'support', status: 'suspended', phone: '+1 469 555 0198', address: 'Plano, TX', lastLoginAt: '2026-09-18T15:20:00Z', createdAt: '2026-07-22T09:00:00Z' },
+  ] satisfies SupportMember[],
 });
 
 export const useDemoStore = create<DemoState>()(
@@ -62,6 +63,7 @@ export const useDemoStore = create<DemoState>()(
       ...defaults(),
       sidebarOpen: false,
       setSidebarOpen: (sidebarOpen) => set({ sidebarOpen }),
+      setSession: (session) => set({ session }),
       loginAs: (role) => set({ session: personas[role] ?? personas.buyer! }),
       logout: () => set({ session: null }),
       addRequest: (request) => set((state) => ({ requests: [request, ...state.requests] })),

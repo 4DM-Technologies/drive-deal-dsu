@@ -2,6 +2,7 @@ import { ArrowLeft, ArrowRight, Building2, ChevronDown, Headphones, LockKeyhole,
 import { useMemo, useState } from 'react';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import heroImage from '@/assets/vehicles/drivedeal-hero.png';
+import { client } from '@/services/platform/client';
 import { useDemoStore } from '@/services/platform/demoStore';
 import { Brand } from '@/ui/reusables/Brand/Brand';
 import type { Role } from '@/types/domain';
@@ -14,8 +15,16 @@ const access = {
 
 type LoginRole = keyof typeof access;
 
+const demoEmails: Record<Role, string> = {
+  buyer: 'rahul@drivedeal.demo',
+  dealer: 'naveen@naveemotors.demo',
+  support: 'maya@drivedeal.demo',
+  'support-admin': 'priya@drivedeal.demo',
+  admin: 'alex@drivedeal.demo',
+};
+
 export default function LoginScreen() {
-  const loginAs = useDemoStore((state) => state.loginAs);
+  const setSession = useDemoStore((state) => state.setSession);
   const navigate = useNavigate();
   const location = useLocation();
   const [params, setParams] = useSearchParams();
@@ -24,6 +33,8 @@ export default function LoginScreen() {
   const [role, setRole] = useState<LoginRole>(initialRole);
   const [email, setEmail] = useState<string>(access[initialRole].email);
   const [password, setPassword] = useState('demo1234');
+  const [signingIn, setSigningIn] = useState(false);
+  const [authError, setAuthError] = useState('');
   const current = useMemo(() => access[role], [role]);
   const teamMode = role === 'support';
 
@@ -33,10 +44,19 @@ export default function LoginScreen() {
     setParams({ role: next }, { replace: true });
   }
 
-  function signIn(asRole: Role = role) {
-    loginAs(asRole);
-    const state = location.state as { next?: string } | null;
-    navigate(state?.next ?? (['support', 'support-admin', 'admin'].includes(asRole) ? '/support' : '/home'));
+  async function signIn(asRole?: Role) {
+    setSigningIn(true);
+    setAuthError('');
+    try {
+      const authenticated = await client.auth.login(asRole ? demoEmails[asRole] : email, password);
+      setSession(authenticated);
+      const state = location.state as { next?: string } | null;
+      navigate(state?.next ?? (['support', 'support-admin', 'admin'].includes(authenticated.role) ? '/support' : '/home'));
+    } catch (cause) {
+      setAuthError(cause instanceof Error ? cause.message : 'Sign-in failed. Please try again.');
+    } finally {
+      setSigningIn(false);
+    }
   }
 
   return (
@@ -50,16 +70,17 @@ export default function LoginScreen() {
             {(['buyer', 'dealer'] as LoginRole[]).map((key) => { const item = access[key]; const Icon = item.icon; return <button key={key} type="button" role="tab" aria-selected={role === key} className={role === key ? 'active' : ''} onClick={() => chooseRole(key)}><Icon size={18} /><span><strong>{item.label}</strong><small>{item.helper}</small></span></button>; })}
           </div>}
           {teamMode && <div className="team-access-note"><Headphones size={18} /><span><strong>Operational workspace</strong><small>Access is audited and requires an approved account.</small></span></div>}
-          <form className="grid auth-form" onSubmit={(event) => { event.preventDefault(); signIn(teamMode && email.toLowerCase() === 'priya@drivedeal.demo' ? 'support-admin' : role); }}>
+          <form className="grid auth-form" onSubmit={(event) => { event.preventDefault(); void signIn(); }}>
             <div className="field"><label htmlFor="email">{current.label} email</label><input id="email" className="input" type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} required /></div>
             <div className="field"><div className="field-label-row"><label htmlFor="password">Password</label><Link to="/forgot-password">Forgot password?</Link></div><input id="password" className="input" type="password" autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} minLength={6} required /></div>
-            <button className="button button-primary button-wide">Sign in to {current.label.toLowerCase()} workspace <ArrowRight size={17} /></button>
+            {authError && <div className="inline-warning" role="alert">{authError}</div>}
+            <button className="button button-primary button-wide" disabled={signingIn}>{signingIn ? 'Signing in…' : `Sign in to ${current.label.toLowerCase()} workspace`} {!signingIn && <ArrowRight size={17} />}</button>
           </form>
           {!teamMode && <p className="auth-alternate">New to Deal&amp;Drive? <Link to={current.signup}>{role === 'buyer' ? 'Create buyer account' : 'Apply as a dealer'}</Link></p>}
           {teamMode && <div className="team-login-links"><p className="auth-alternate">Need an approved team account? <Link to="/signup/support">Request support access</Link></p><p className="auth-alternate"><Link to="/login?role=buyer" onClick={() => chooseRole('buyer')}><ArrowLeft size={14} /> Back to customer sign in</Link></p></div>}
           <details className="demo-access">
             <summary><span><LockKeyhole size={15} /> Developer demo access</span><ChevronDown size={16} /></summary>
-            <div className="demo-access-body"><p>Development only. Choose a ready-made workspace:</p><div className="demo-buttons"><button onClick={() => signIn('buyer')}>Buyer</button><button onClick={() => signIn('dealer')}>Dealer</button><button onClick={() => signIn('support')}>Support</button><button onClick={() => signIn('support-admin')}>Support admin</button></div></div>
+            <div className="demo-access-body"><p>Development only. Choose a ready-made workspace:</p><div className="demo-buttons"><button onClick={() => void signIn('buyer')}>Buyer</button><button onClick={() => void signIn('dealer')}>Dealer</button><button onClick={() => void signIn('support')}>Support</button><button onClick={() => void signIn('support-admin')}>Support admin</button></div></div>
           </details>
         </div>
       </section>

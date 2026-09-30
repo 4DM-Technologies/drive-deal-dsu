@@ -190,11 +190,19 @@ def test_complete_request_quote_chat_and_deal_flow() -> None:
 def test_ticket_creation_update_and_password_reset_contract() -> None:
     with TestClient(app) as client:
         buyer = login(client, "adithyaa@drivedeal.demo")
-        created = client.post("/api/v1/support/tickets", headers=buyer, json={"category": "customer", "issue_summary": "I need help understanding a quote", "priority": "medium"})
+        created = client.post("/api/v1/support/tickets", headers=buyer, json={"issue_summary": "I need help understanding a quote", "issue_description": "The total shown on the request does not match the quote detail.", "issue_type": "incorrect_data", "page_context": "/requests/demo", "priority": "medium"})
         assert created.status_code == 201
+        assert created.json()["category"] == "customer"
+        assert created.json()["issue_type"] == "incorrect_data"
+        assert created.json()["page_context"] == "/requests/demo"
         ticket_id = created.json()["id"]
         assert client.get(f"/api/v1/support/tickets/{ticket_id}", headers=buyer).status_code == 200
         assert client.patch(f"/api/v1/support/tickets/{ticket_id}", headers=buyer, json={"status": "closed", "note": "Resolved"}).status_code == 200
+        dealer = login(client, "naveen@naveemotors.demo")
+        dealer_ticket = client.post("/api/v1/support/tickets", headers=dealer, json={"issue_summary": "Buyer feed is showing stale request data", "issue_type": "incorrect_data", "page_context": "/feed", "priority": "high"})
+        assert dealer_ticket.status_code == 201
+        assert dealer_ticket.json()["category"] == "dealer"
+        assert dealer_ticket.json()["ticket_id"].startswith("DS")
         assert client.post("/api/v1/auth/forgot-password", json={"email": "nobody@example.com"}).status_code == 202
         assert client.post("/api/v1/auth/reset-password", json={"email": "nobody@example.com", "reset_code": "invalid", "new_password": "new-password"}).status_code == 400
 
@@ -284,6 +292,12 @@ def test_support_admin_can_provision_role_and_force_new_sign_in() -> None:
         assert members.status_code == 200
         maya = next(item for item in members.json() if item["email"] == "maya@drivedeal.demo")
         priya = next(item for item in members.json() if item["email"] == "priya@drivedeal.demo")
+        member_detail = client.get(f"/api/v1/members/{maya['id']}", headers=support_admin)
+        assert member_detail.status_code == 200
+        assert member_detail.json()["email"] == "maya@drivedeal.demo"
+        assert member_detail.json()["role"] == "support"
+        assert member_detail.json()["is_active"] is True
+        assert client.get(f"/api/v1/members/{uuid4()}", headers=support_admin).status_code == 404
         assert client.patch(
             f"/api/v1/members/{priya['id']}/support-role",
             headers=support_admin,
@@ -321,8 +335,7 @@ def test_support_admin_can_provision_role_and_force_new_sign_in() -> None:
         assert client.get(f"/api/v1/support/tickets/{uuid4()}", headers=support_admin).status_code == 404
 
         admin = login(client, "alex@drivedeal.demo")
-        admin_members = client.get("/api/v1/members", headers=admin).json()
-        alex = next(item for item in admin_members if item["email"] == "alex@drivedeal.demo")
+        alex = client.get("/api/v1/auth/me", headers=admin).json()
         assert client.post(f"/api/v1/members/{alex['id']}/suspend", headers=admin).status_code == 409
         assert client.post(f"/api/v1/members/{uuid4()}/suspend", headers=admin).status_code == 404
         suspended = client.post(f"/api/v1/members/{maya['id']}/suspend", headers=admin)

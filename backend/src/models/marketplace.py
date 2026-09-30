@@ -78,8 +78,11 @@ class DealStatusUpdate(BaseModel):
 
 
 class TicketCreate(BaseModel):
-    category: Literal["customer", "dealer"]
-    issue_summary: str = Field(min_length=5, max_length=4000)
+    issue_summary: str = Field(min_length=5, max_length=200)
+    issue_description: str | None = Field(default=None, max_length=10000)
+    issue_type: Literal["bug", "incorrect_data", "account_access", "other"] = "bug"
+    page_context: str | None = Field(default=None, max_length=500)
+    issue_image_url: str | None = Field(default=None, max_length=2048)
     priority: Literal["low", "medium", "high", "urgent"] = "medium"
 
 
