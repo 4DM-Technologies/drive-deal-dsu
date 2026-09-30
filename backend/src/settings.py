@@ -15,7 +15,7 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=PROJECT_ROOT / ".env", env_file_encoding="utf-8", extra="ignore")
 
     app_env: str = "development"
-    app_name: str = "DriveDeal API"
+    app_name: str = "Deal&Drive API"
     api_prefix: str = "/api/v1"
     database_url: str = "sqlite+aiosqlite:///./data/drivedeal.db"
     jwt_secret_key: str = "local-development-secret-change-before-production"

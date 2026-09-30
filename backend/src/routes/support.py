@@ -1,9 +1,16 @@
 from fastapi import APIRouter, Depends, status
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.database import get_session
 from src.middleware.auth import get_current_profile, require_roles
-from src.models.marketplace import TicketCreate, TicketUpdate, VerificationDecision, VerificationReasonRequest
+from src.models.marketplace import (
+    SupportRoleUpdate,
+    TicketCreate,
+    TicketUpdate,
+    VerificationDecision,
+    VerificationReasonRequest,
+)
 from src.repositories.schema import Profile, User
 from src.services.support_service import SupportService
 from src.utils.exceptions import AppError, error_codes
@@ -36,49 +43,63 @@ async def update_own_ticket(ticket_id: str, payload: TicketUpdate, profile: Prof
 
 
 @router.get("/support/queue/tickets")
-async def ticket_queue(profile: Profile = Depends(require_roles("support", "admin")), session: AsyncSession = Depends(get_session)):
+async def ticket_queue(profile: Profile = Depends(require_roles("support", "support-admin", "admin")), session: AsyncSession = Depends(get_session)):
     return await SupportService(session).list_tickets(profile, queue=True)
 
 
 @router.patch("/support/queue/tickets/{ticket_id}")
-async def update_queue_ticket(ticket_id: str, payload: TicketUpdate, profile: Profile = Depends(require_roles("support", "admin")), session: AsyncSession = Depends(get_session)):
+async def update_queue_ticket(ticket_id: str, payload: TicketUpdate, profile: Profile = Depends(require_roles("support", "support-admin", "admin")), session: AsyncSession = Depends(get_session)):
     return await SupportService(session).update_ticket(ticket_id, payload, profile)
 
 
 @router.get("/verifications")
-async def verifications(profile: Profile = Depends(require_roles("support", "admin")), session: AsyncSession = Depends(get_session)):
+async def verifications(profile: Profile = Depends(require_roles("support", "support-admin", "admin")), session: AsyncSession = Depends(get_session)):
     return await SupportService(session).list_verifications()
 
 
 @router.post("/verifications/{verification_id}/approve")
-async def approve(verification_id: str, payload: VerificationReasonRequest, profile: Profile = Depends(require_roles("support", "admin")), session: AsyncSession = Depends(get_session)):
+async def approve(verification_id: str, payload: VerificationReasonRequest, profile: Profile = Depends(require_roles("support", "support-admin", "admin")), session: AsyncSession = Depends(get_session)):
     decision = VerificationDecision(decision="approved", reason=payload.reason)
     return await SupportService(session).decide_verification(verification_id, decision, profile)
 
 
 @router.post("/verifications/{verification_id}/deny")
-async def deny(verification_id: str, payload: VerificationReasonRequest, profile: Profile = Depends(require_roles("support", "admin")), session: AsyncSession = Depends(get_session)):
+async def deny(verification_id: str, payload: VerificationReasonRequest, profile: Profile = Depends(require_roles("support", "support-admin", "admin")), session: AsyncSession = Depends(get_session)):
     decision = VerificationDecision(decision="denied", reason=payload.reason)
     return await SupportService(session).decide_verification(verification_id, decision, profile)
 
 
 @router.post("/verifications/{verification_id}/reject")
-async def reject(verification_id: str, payload: VerificationReasonRequest, profile: Profile = Depends(require_roles("support", "admin")), session: AsyncSession = Depends(get_session)):
+async def reject(verification_id: str, payload: VerificationReasonRequest, profile: Profile = Depends(require_roles("support", "support-admin", "admin")), session: AsyncSession = Depends(get_session)):
     decision = VerificationDecision(decision="rejected", reason=payload.reason)
     return await SupportService(session).decide_verification(verification_id, decision, profile)
 
 
 @router.get("/members")
-async def members(profile: Profile = Depends(require_roles("support", "admin")), session: AsyncSession = Depends(get_session)):
+async def members(profile: Profile = Depends(require_roles("support", "support-admin", "admin")), session: AsyncSession = Depends(get_session)):
     return await SupportService(session).members()
+
+
+@router.patch("/members/{profile_id}/support-role")
+async def update_support_role(profile_id: str, payload: SupportRoleUpdate, actor: Profile = Depends(require_roles("support-admin", "admin")), session: AsyncSession = Depends(get_session)):
+    if profile_id == actor.id:
+        raise AppError(error_codes.CONFLICT, "You cannot change your own support role.", 409)
+    profile = await session.get(Profile, profile_id)
+    if profile is None or profile.role not in {"support", "support-admin"}:
+        raise AppError(error_codes.RESOURCE_NOT_FOUND, "Support member not found.", 404)
+    profile.role = payload.role
+    profile.updated_by = actor.id
+    user = (await session.execute(select(User).where(User.profile_id == profile_id))).scalar_one()
+    user.refresh_token_hash = None
+    user.updated_by = actor.id
+    await session.commit()
+    return {"profile_id": profile.id, "role": profile.role, "requires_sign_in": True}
 
 
 @router.post("/members/{profile_id}/suspend")
 async def suspend_member(profile_id: str, actor: Profile = Depends(require_roles("admin")), session: AsyncSession = Depends(get_session)):
     if profile_id == actor.id:
         raise AppError(error_codes.CONFLICT, "You cannot suspend your own account.", 409)
-    from sqlalchemy import select
-
     user = (await session.execute(select(User).where(User.profile_id == profile_id))).scalar_one_or_none()
     if user is None:
         raise AppError(error_codes.RESOURCE_NOT_FOUND, "Member not found.", 404)

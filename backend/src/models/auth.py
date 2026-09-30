@@ -66,7 +66,7 @@ class SessionProfile(BaseModel):
     full_name: str
     email: EmailStr
     phone: str
-    role: Literal["buyer", "dealer", "support", "admin"]
+    role: Literal["buyer", "dealer", "support", "support-admin", "admin"]
     is_active: bool
 
 

@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { initialInventory, initialMessages, initialQuotes, initialRequests, initialTickets, initialVerifications, personas } from '@/services/mocks/fixtures';
-import type { BuyerRequest, ChatMessage, InventoryCar, Quote, Role, Session, Ticket, Verification, VerificationStatus } from '@/types/domain';
+import type { AiMessage, AiThread, BuyerRequest, ChatMessage, InventoryCar, Quote, Role, Session, Ticket, Verification, VerificationStatus } from '@/types/domain';
 
 interface DemoState {
   session: Session | null;
@@ -12,6 +12,8 @@ interface DemoState {
   tickets: Ticket[];
   verifications: Verification[];
   preferences: string[];
+  aiThreads: AiThread[];
+  supportMembers: Array<{ id: string; name: string; email: string; role: 'support' | 'support-admin'; status: 'active' | 'pending' | 'suspended' }>;
   sidebarOpen: boolean;
   setSidebarOpen: (open: boolean) => void;
   loginAs: (role: Role) => void;
@@ -29,6 +31,8 @@ interface DemoState {
   decideVerification: (id: string, status: VerificationStatus, reason: string) => void;
   updateTicket: (id: string, status: Ticket['status'], note?: string, rca?: string) => void;
   updatePreferences: (preferences: string[]) => void;
+  saveAiTurn: (threadId: string, user: string, assistant: string, type?: AiThread['type']) => void;
+  setSupportMemberRole: (email: string, role: 'support' | 'support-admin') => void;
   resetDemo: () => void;
 }
 
@@ -40,6 +44,15 @@ const defaults = () => ({
   tickets: initialTickets,
   verifications: initialVerifications,
   preferences: ['SUVs', 'Automatic', 'Adaptive cruise', 'Under $75k', 'Low mileage'],
+  aiThreads: [
+    { id: 'thread-1', type: 'compare', title: 'Bronco offer comparison', updatedAt: new Date(Date.now() - 18 * 60_000).toISOString(), messages: [{ id: 't1u', role: 'user', body: 'Which Bronco quote gives me the best complete value?' }, { id: 't1a', role: 'assistant', body: '## Best current value\nNavee Motors is leading at $70,229 out the door.\n## Check before accepting\n- Confirm the exact trim and hard-top equipment\n- Verify the delivery date\n- Ask whether any accessories are mandatory' }] },
+    { id: 'thread-2', type: 'sera', title: 'Family SUV shortlist', updatedAt: new Date(Date.now() - 2 * 86_400_000).toISOString(), messages: [{ id: 't2u', role: 'user', body: 'Help me shortlist a comfortable family SUV.' }, { id: 't2a', role: 'assistant', body: 'I would start with space, safety, and running cost. Tell me how many seats you use regularly and whether hybrid fuel economy matters.' }] },
+  ] satisfies AiThread[],
+  supportMembers: [
+    { id: 'support-maya', name: 'Maya Lewis', email: 'maya@drivedeal.demo', role: 'support', status: 'active' },
+    { id: 'support-admin-priya', name: 'Priya Shah', email: 'priya@drivedeal.demo', role: 'support-admin', status: 'active' },
+    { id: 'support-daniel', name: 'Daniel Kim', email: 'daniel@drivedeal.demo', role: 'support', status: 'suspended' },
+  ] as Array<{ id: string; name: string; email: string; role: 'support' | 'support-admin'; status: 'active' | 'pending' | 'suspended' }>,
 });
 
 export const useDemoStore = create<DemoState>()(
@@ -78,8 +91,20 @@ export const useDemoStore = create<DemoState>()(
       decideVerification: (id, status, reason) => set((state) => ({ verifications: state.verifications.map((item) => item.id === id ? { ...item, status, decisionReason: reason } : item) })),
       updateTicket: (id, status, note, rca) => set((state) => ({ tickets: state.tickets.map((item) => item.id === id ? { ...item, status, ...(rca ? { rca } : {}), ...(note ? { notes: [...(item.notes ?? []), { at: new Date().toISOString(), author: state.session?.fullName ?? 'Support', body: note }] } : {}) } : item) })),
       updatePreferences: (preferences) => set({ preferences }),
+      saveAiTurn: (threadId, user, assistant, type = 'sera') => set((state) => {
+        const turn: AiMessage[] = [{ id: crypto.randomUUID(), role: 'user', body: user }, { id: crypto.randomUUID(), role: 'assistant', body: assistant }];
+        const existing = state.aiThreads.find((thread) => thread.id === threadId);
+        const next: AiThread = existing
+          ? { ...existing, updatedAt: new Date().toISOString(), messages: [...existing.messages, ...turn] }
+          : { id: threadId, type, title: user.slice(0, 58), updatedAt: new Date().toISOString(), messages: turn };
+        return { aiThreads: [next, ...state.aiThreads.filter((thread) => thread.id !== threadId)] };
+      }),
+      setSupportMemberRole: (email, role) => set((state) => ({
+        supportMembers: state.supportMembers.map((member) => member.email === email ? { ...member, role } : member),
+        session: state.session?.email === email ? null : state.session,
+      })),
       resetDemo: () => set({ ...defaults(), session: null }),
     }),
-    { name: 'drivedeal-demo-v2', partialize: (state) => ({ session: state.session, requests: state.requests, quotes: state.quotes, messages: state.messages, inventory: state.inventory, tickets: state.tickets, verifications: state.verifications, preferences: state.preferences }) },
+    { name: 'deal-and-drive-demo-v3', partialize: (state) => ({ session: state.session, requests: state.requests, quotes: state.quotes, messages: state.messages, inventory: state.inventory, tickets: state.tickets, verifications: state.verifications, preferences: state.preferences, aiThreads: state.aiThreads, supportMembers: state.supportMembers }) },
   ),
 );

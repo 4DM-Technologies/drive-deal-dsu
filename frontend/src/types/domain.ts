@@ -1,4 +1,4 @@
-export type Role = 'buyer' | 'dealer' | 'support' | 'admin';
+export type Role = 'buyer' | 'dealer' | 'support' | 'support-admin' | 'admin';
 export type RequestStatus = 'draft' | 'open' | 'closed' | 'expired' | 'fulfilled';
 export type QuoteStatus = 'pending' | 'negotiating' | 'accepted' | 'declined' | 'withdrawn' | 'expired';
 export type DealStatus = 'paperwork_going_on' | 'funds_arrived' | 'dispatch' | 'delivery' | 'completed' | 'cancelled';
@@ -69,6 +69,40 @@ export interface ChatMessage {
   body: string;
   createdAt: string;
   read: boolean;
+}
+
+export interface AiMessage {
+  id: string;
+  role: 'user' | 'assistant';
+  body: string;
+}
+
+export interface AiThread {
+  id: string;
+  type: 'sera' | 'compare';
+  title: string;
+  updatedAt: string;
+  messages: AiMessage[];
+}
+
+export interface DealDocument {
+  id: string;
+  quoteId: string;
+  type: string;
+  name: string;
+  status: string;
+  downloadUrl: string;
+}
+
+export interface QuoteCreateInput {
+  buyerRequestId: string;
+  vehiclePrice: string;
+  docFee: string;
+  salesTax: string;
+  titleReg: string;
+  tradeInCredit: string;
+  message: string;
+  expiresAt: string;
 }
 
 export interface Ticket {

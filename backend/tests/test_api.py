@@ -7,6 +7,7 @@ from starlette.websockets import WebSocketDisconnect
 
 from main import app
 from src.seed import IDS
+from src.services.storage.s3_storage import S3Storage
 
 
 def login(client: TestClient, email: str) -> dict[str, str]:
@@ -17,7 +18,7 @@ def login(client: TestClient, email: str) -> dict[str, str]:
 
 def test_health_and_reference_data() -> None:
     with TestClient(app) as client:
-        assert client.get("/api/v1/").json()["name"] == "DriveDeal API"
+        assert client.get("/api/v1/").json()["name"] == "Deal&Drive API"
         assert client.get("/api/v1/health").json() == {"status": "ok"}
         assert client.get("/api/v1/health/ready").status_code == 200
         assert len(client.get("/api/v1/reference/states").json()) == 51
@@ -268,3 +269,75 @@ def test_realtime_connection_and_acknowledgement() -> None:
         with pytest.raises(WebSocketDisconnect):
             with client.websocket_connect("/api/v1/ws?token=invalid") as socket:
                 socket.receive_json()
+
+
+def test_support_admin_can_provision_role_and_force_new_sign_in() -> None:
+    with TestClient(app) as client:
+        maya_login = client.post("/api/v1/auth/login", json={"email": "maya@drivedeal.demo", "password": "demo1234"})
+        assert maya_login.status_code == 200
+        support = {"Authorization": f"Bearer {maya_login.json()['access_token']}"}
+        support_admin_login = client.post("/api/v1/auth/login", json={"email": "priya@drivedeal.demo", "password": "demo1234"})
+        assert support_admin_login.status_code == 200
+        support_admin = {"Authorization": f"Bearer {support_admin_login.json()['access_token']}"}
+        assert client.get("/api/v1/auth/me", headers=support_admin).json()["role"] == "support-admin"
+        members = client.get("/api/v1/members", headers=support_admin)
+        assert members.status_code == 200
+        maya = next(item for item in members.json() if item["email"] == "maya@drivedeal.demo")
+        priya = next(item for item in members.json() if item["email"] == "priya@drivedeal.demo")
+        assert client.patch(
+            f"/api/v1/members/{priya['id']}/support-role",
+            headers=support_admin,
+            json={"role": "support"},
+        ).status_code == 409
+        assert client.patch(
+            f"/api/v1/members/{uuid4()}/support-role",
+            headers=support_admin,
+            json={"role": "support-admin"},
+        ).status_code == 404
+        denied = client.patch(
+            f"/api/v1/members/{maya['id']}/support-role",
+            headers=support,
+            json={"role": "support-admin"},
+        )
+        assert denied.status_code == 403
+        promoted = client.patch(
+            f"/api/v1/members/{maya['id']}/support-role",
+            headers=support_admin,
+            json={"role": "support-admin"},
+        )
+        assert promoted.status_code == 200
+        assert promoted.json() == {"profile_id": maya["id"], "role": "support-admin", "requires_sign_in": True}
+        assert client.get("/api/v1/support/queue/tickets", headers=support).status_code == 401
+        assert client.post(
+            "/api/v1/auth/refresh",
+            json={"refresh_token": maya_login.json()["refresh_token"]},
+        ).status_code == 401
+        queue = client.get("/api/v1/support/queue/tickets", headers=support_admin).json()
+        assert client.patch(
+            f"/api/v1/support/queue/tickets/{queue[0]['id']}",
+            headers=support_admin,
+            json={"status": "in_progress", "note": "Assigned during support-admin validation."},
+        ).status_code == 200
+        assert client.get(f"/api/v1/support/tickets/{uuid4()}", headers=support_admin).status_code == 404
+
+        admin = login(client, "alex@drivedeal.demo")
+        admin_members = client.get("/api/v1/members", headers=admin).json()
+        alex = next(item for item in admin_members if item["email"] == "alex@drivedeal.demo")
+        assert client.post(f"/api/v1/members/{alex['id']}/suspend", headers=admin).status_code == 409
+        assert client.post(f"/api/v1/members/{uuid4()}/suspend", headers=admin).status_code == 404
+        suspended = client.post(f"/api/v1/members/{maya['id']}/suspend", headers=admin)
+        assert suspended.status_code == 200
+        assert suspended.json()["is_active"] is False
+
+
+def test_s3_storage_creates_scoped_upload_and_download_urls(monkeypatch: pytest.MonkeyPatch) -> None:
+    class FakeS3:
+        def generate_presigned_url(self, operation: str, **_: object) -> str:
+            return f"https://s3.example/{operation}"
+
+    monkeypatch.setattr("src.services.storage.s3_storage.boto3.client", lambda *_args, **_kwargs: FakeS3())
+    storage = S3Storage()
+    upload = storage.create_upload("quote/image.webp", "image/webp")
+    assert upload["method"] == "PUT"
+    assert upload["headers"] == {"content-type": "image/webp"}
+    assert storage.create_download("quote/image.webp") == "https://s3.example/get_object"

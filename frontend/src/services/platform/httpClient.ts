@@ -1,5 +1,5 @@
 import type { DriveDealClient, AiStreamEvent } from '@/services/generated/client';
-import type { BuyerRequest, ChatMessage, InventoryCar, Quote, Session, Ticket, Verification } from '@/types/domain';
+import type { AiThread, BuyerRequest, ChatMessage, DealDocument, InventoryCar, Quote, Session, Ticket, Verification } from '@/types/domain';
 
 const baseUrl = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000/api/v1';
 
@@ -82,10 +82,30 @@ export const httpClient: DriveDealClient = {
   quotes: {
     list: async (requestId) => (await request<Record<string, unknown>[]>(`/quotes${requestId ? `?request_id=${requestId}` : ''}`)).map(quoteToDomain),
     get: async (id) => quoteToDomain(await request(`/quotes/${id}`)),
+    create: async (input) => quoteToDomain(await request('/quotes', { method: 'POST', body: JSON.stringify({ buyer_request_id: input.buyerRequestId, vehicle_price: input.vehiclePrice, doc_fee: input.docFee, sales_tax: input.salesTax, title_reg: input.titleReg, trade_in_credit: input.tradeInCredit, message: input.message, expires_at: input.expiresAt }) })),
+  },
+  documents: {
+    list: async (quoteId) => (await request<Record<string, unknown>[]>(`/documents/${quoteId}`)).map((row): DealDocument => ({ id: String(row.id), quoteId: String(row.quote_id), type: String(row.document_type), name: String(row.document_path).split('/').at(-1) ?? 'Attachment', status: String(row.status), downloadUrl: String(row.download_url) })),
+    upload: async (quoteId, file, type) => {
+      const presigned = await request<{ url: string; key: string; headers: Record<string, string> }>('/documents/presign', { method: 'POST', body: JSON.stringify({ filename: file.name, content_type: file.type || 'application/octet-stream', quote_id: quoteId }) });
+      const upload = await fetch(presigned.url, { method: 'PUT', headers: presigned.headers, body: file });
+      if (!upload.ok) throw new Error(`Upload failed (${upload.status})`);
+      const documentId = crypto.randomUUID();
+      const row = await request<Record<string, unknown>>(`/documents/${documentId}/confirm`, { method: 'POST', body: JSON.stringify({ quote_id: quoteId, document_type: type, object_key: presigned.key }) });
+      const confirmed = (await request<Record<string, unknown>[]>(`/documents/${quoteId}`)).find((item) => String(item.id) === String(row.id));
+      return { id: String(row.id), quoteId: String(row.quote_id), type: String(row.document_type), name: file.name, status: String(row.status), downloadUrl: String(confirmed?.download_url ?? '') };
+    },
   },
   chats: { list: async (quoteId) => (await request<Record<string, unknown>[]>(`/chats/${quoteId}`)).map((row): ChatMessage => ({ id: String(row.id), quoteId: String(row.quote_id), senderId: String(row.sender_id), senderName: String(row.sender_name ?? 'Member'), body: String(row.message), createdAt: String(row.created_at), read: Boolean(row.read_at) })) },
   inventory: { list: async () => (await request<Record<string, unknown>[]>('/cars')).map((row): InventoryCar => ({ id: String(row.id), title: String(row.title), brand: String(row.brand_name ?? 'Vehicle'), model: String(row.model), year: Number(row.model_year), bodyType: String(row.body_type ?? ''), fuel: String(row.fuel ?? ''), transmission: String(row.transmission ?? ''), mileage: Number(row.mileage), price: String(row.price), status: row.status as InventoryCar['status'], image: '/src/assets/vehicles/studio-sedan.png' })) },
   support: { listTickets: async () => (await request<Record<string, unknown>[]>('/support/tickets')).map((row): Ticket => ({ id: String(row.id), publicId: String(row.ticket_id), callerName: String(row.caller_name ?? 'Member'), category: row.category as Ticket['category'], summary: String(row.issue_summary), status: row.status as Ticket['status'], priority: row.priority as Ticket['priority'], createdAt: String(row.created_at) })) },
   verifications: { list: async () => (await request<Record<string, unknown>[]>('/verifications')).map((row): Verification => ({ id: String(row.id), ticketId: String(row.ticket_id), category: row.category as Verification['category'], profileName: String(row.profile_name ?? 'Applicant'), businessName: row.business_name as string | null, state: String(row.state ?? ''), status: row.status as Verification['status'], submittedAt: String(row.created_at) })) },
-  ai: { chat: streamAi },
+  ai: {
+    chat: streamAi,
+    threads: async () => (await request<Array<Record<string, unknown>>>('/ai/threads')).map((row): AiThread => ({ id: String(row.id), type: row.type as AiThread['type'], title: String(row.title), updatedAt: String(row.updated_at), messages: [] })),
+    thread: async (id) => {
+      const row = await request<{ id: string; checkpoints: Array<{ user?: string; assistant?: string }> }>(`/ai/threads/${id}`);
+      return { id: row.id, type: 'sera', title: 'Conversation', updatedAt: new Date().toISOString(), messages: row.checkpoints.flatMap((checkpoint, index) => [{ id: `${id}-${index}-user`, role: 'user' as const, body: checkpoint.user ?? '' }, { id: `${id}-${index}-assistant`, role: 'assistant' as const, body: checkpoint.assistant ?? '' }]).filter((message) => message.body) };
+    },
+  },
 };

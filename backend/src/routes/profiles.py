@@ -80,7 +80,7 @@ async def save_preferences(payload: PreferenceUpdate, profile: Profile = Depends
 
 
 @router.get("/{profile_id}")
-async def profile_by_id(profile_id: str, _: Profile = Depends(require_roles("support", "admin")), session: AsyncSession = Depends(get_session)) -> dict:
+async def profile_by_id(profile_id: str, _: Profile = Depends(require_roles("support", "support-admin", "admin")), session: AsyncSession = Depends(get_session)) -> dict:
     row = (await session.execute(select(Profile).join(User).where(Profile.id == profile_id))).scalar_one_or_none()
     if row is None:
         raise AppError(error_codes.RESOURCE_NOT_FOUND, "Profile not found.", 404)

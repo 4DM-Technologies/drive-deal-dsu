@@ -54,10 +54,11 @@ async def confirm(document_id: str, payload: ConfirmUploadRequest, profile: Prof
 @router.get("/{quote_id}")
 async def list_documents(quote_id: str, profile: Profile = Depends(get_current_profile), session: AsyncSession = Depends(get_session)):
     quote = await session.get(DealQuote, quote_id)
-    if quote is None or (profile.role not in {"support", "admin"} and profile.id not in {quote.buyer_id, quote.dealer_id}):
+    if quote is None or (profile.role not in {"support", "support-admin", "admin"} and profile.id not in {quote.buyer_id, quote.dealer_id}):
         raise AppError(error_codes.RESOURCE_NOT_FOUND, "Deal not found.", 404)
     rows = (await session.execute(select(DealDocument).where(DealDocument.quote_id == quote_id))).scalars()
-    return [model_dict(row) for row in rows]
+    storage = get_storage()
+    return [{**model_dict(row), "download_url": storage.create_download(row.document_path)} for row in rows]
 
 
 @router.delete("/{quote_id}/{document_id}", status_code=status.HTTP_204_NO_CONTENT)

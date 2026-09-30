@@ -2,7 +2,7 @@ import asyncio
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
-from sqlalchemy import func, select
+from sqlalchemy import func, select, text
 
 from src.auth.security import hash_password
 from src.database import SessionFactory, create_schema
@@ -41,13 +41,23 @@ IDS = {
     "tx": "00000000-0000-4000-8000-000000000044", "buyer": "10000000-0000-4000-8000-000000000001",
     "adithyaa": "10000000-0000-4000-8000-000000000002", "dealer": "20000000-0000-4000-8000-000000000001",
     "dealer2": "20000000-0000-4000-8000-000000000002", "dealer3": "20000000-0000-4000-8000-000000000003",
-    "support": "30000000-0000-4000-8000-000000000001", "admin": "40000000-0000-4000-8000-000000000001",
+    "support": "30000000-0000-4000-8000-000000000001", "support_admin": "30000000-0000-4000-8000-000000000002",
+    "admin": "40000000-0000-4000-8000-000000000001",
     "ford": "50000000-0000-4000-8000-000000000001", "honda": "50000000-0000-4000-8000-000000000002",
     "bmw": "50000000-0000-4000-8000-000000000003",
     "bronco": "0b77057f-ed69-44bd-910d-34bf19f42e3e", "jazz": "15cd4afa-fcf7-4fc0-9af6-ca56d49f5fbb",
     "bmw_req": "2d2db297-0598-480b-87d8-f2b0a811fe57", "mustang": "15348fd2-764e-4e06-a5ec-6ffa6a08ecc5",
     "q1": "118bd33a-9443-4951-a038-a3ab811284e4", "q2": "2fa7ac94-8871-4909-8175-438a4ca16c41",
 }
+
+
+async def ensure_support_admin_role(session) -> None:
+    """Keep existing PostgreSQL databases compatible with the support-admin role."""
+    if session.get_bind().dialect.name != "postgresql":
+        return
+    await session.execute(text("ALTER TABLE profiles DROP CONSTRAINT IF EXISTS ck_profiles_role"))
+    await session.execute(text("ALTER TABLE profiles ADD CONSTRAINT ck_profiles_role CHECK (role IN ('buyer','dealer','support','support-admin','admin'))"))
+    await session.commit()
 
 
 async def expand_demo_data(session, now: datetime) -> dict[str, int]:
@@ -57,6 +67,14 @@ async def expand_demo_data(session, now: datetime) -> dict[str, int]:
     if texas is None or not brand_rows:
         return {}
 
+    support_admin = await session.scalar(select(Profile).where(Profile.email == "priya@drivedeal.demo"))
+    if support_admin is None:
+        support_admin = Profile(id=IDS["support_admin"], state_id=texas.id, full_name="Priya Shah", email="priya@drivedeal.demo", role="support-admin", phone="+12145550155", address="Dallas, TX", terms_accepted=True, terms_version="2026-09-30", terms_accepted_at=now)
+        session.add(support_admin)
+        await session.flush()
+        session.add(User(profile_id=support_admin.id, password_hash=hash_password("demo1234"), is_active=True))
+    elif support_admin.role != "support-admin":
+        support_admin.role = "support-admin"
     profiles = list((await session.scalars(select(Profile).order_by(Profile.created_at))).all())
     buyers = [profile for profile in profiles if profile.role == "buyer"]
     dealers = [profile for profile in profiles if profile.role == "dealer"]
@@ -159,6 +177,7 @@ async def expand_demo_data(session, now: datetime) -> dict[str, int]:
 async def seed_database(force: bool = False) -> None:
     await create_schema()
     async with SessionFactory() as session:
+        await ensure_support_admin_role(session)
         count = await session.scalar(select(func.count()).select_from(State))
         if count and not force:
             now = datetime.now(UTC)
@@ -171,12 +190,12 @@ async def seed_database(force: bool = False) -> None:
                     models = ["Bronco", "Civic", "5 Series", "Q5", "Tahoe", "Tucson", "Telluride", "XUV700", "E-Class", "Rogue", "Model Y", "RAV4"]
                     for index in range(car_count, 120):
                         brand = brand_rows[index % len(brand_rows)]
-                        session.add(Car(seller_id=dealer.id, brand_id=brand.id, state_id=texas.id, title=f"{2022 + index % 5} {brand.name} {models[index % len(models)]}", model=models[index % len(models)], model_year=2022 + index % 5, body_type=["SUV", "Hatchback", "Sedan", "Pickup"][index % 4], seating_capacity=5 + (2 if index % 7 == 0 else 0), condition="new" if index % 4 else "used", mileage=24 if index % 4 else 4500 + index * 137, fuel=["Gasoline", "Hybrid", "Electric"][index % 3], transmission="Automatic", price=Decimal(str(24500 + (index % 24) * 2750)), rating=Decimal(str(4.2 + (index % 8) / 10)), reviews=[{"rating": 5, "summary": "Transparent DriveDeal inventory"}], image_paths=[f"cars/demo-{index % 12 + 1}.webp"], status="reserved" if index % 17 == 0 else "available"))
+                        session.add(Car(seller_id=dealer.id, brand_id=brand.id, state_id=texas.id, title=f"{2022 + index % 5} {brand.name} {models[index % len(models)]}", model=models[index % len(models)], model_year=2022 + index % 5, body_type=["SUV", "Hatchback", "Sedan", "Pickup"][index % 4], seating_capacity=5 + (2 if index % 7 == 0 else 0), condition="new" if index % 4 else "used", mileage=24 if index % 4 else 4500 + index * 137, fuel=["Gasoline", "Hybrid", "Electric"][index % 3], transmission="Automatic", price=Decimal(str(24500 + (index % 24) * 2750)), rating=Decimal(str(4.2 + (index % 8) / 10)), reviews=[{"rating": 5, "summary": "Transparent Deal&Drive inventory"}], image_paths=[f"cars/demo-{index % 12 + 1}.webp"], status="reserved" if index % 17 == 0 else "available"))
                     await session.commit()
-                    print(f"DriveDeal inventory expanded from {car_count} to 120 vehicles.")
+                    print(f"Deal&Drive inventory expanded from {car_count} to 120 vehicles.")
             counts = await expand_demo_data(session, now)
             await session.commit()
-            print(f"DriveDeal demo data is current: {counts}")
+            print(f"Deal&Drive demo data is current: {counts}")
             return
         now = datetime.now(UTC)
         states = []
@@ -204,6 +223,7 @@ async def seed_database(force: bool = False) -> None:
             Profile(id=IDS["dealer2"], state_id=IDS["tx"], full_name="Elena Ruiz", email="elena@lonestar.demo", role="dealer", phone="+14695550191", dealership_name="Lone Star Ford", branch_name="McKinney", dealer_license="TX-DLR-88042", website="https://lonestar.example", supported_brands=[IDS["ford"]], terms_accepted=True, terms_version="2026-09-30", terms_accepted_at=now),
             Profile(id=IDS["dealer3"], state_id=IDS["tx"], full_name="Jordan Blake", email="jordan@northtexas.demo", role="dealer", phone="+19405550125", dealership_name="North Texas Auto", branch_name="Denton", dealer_license="TX-DLR-88043", website="https://northtexas.example", supported_brands=[IDS["ford"]], terms_accepted=True, terms_version="2026-09-30", terms_accepted_at=now),
             Profile(id=IDS["support"], state_id=IDS["tx"], full_name="Maya Lewis", email="maya@drivedeal.demo", role="support", phone="+12145550133", address="Dallas, TX", terms_accepted=True, terms_version="2026-09-30", terms_accepted_at=now),
+            Profile(id=IDS["support_admin"], state_id=IDS["tx"], full_name="Priya Shah", email="priya@drivedeal.demo", role="support-admin", phone="+12145550155", address="Dallas, TX", terms_accepted=True, terms_version="2026-09-30", terms_accepted_at=now),
             Profile(id=IDS["admin"], state_id=IDS["tx"], full_name="Alex Morgan", email="alex@drivedeal.demo", role="admin", phone="+12145550144", address="Dallas, TX", terms_accepted=True, terms_version="2026-09-30", terms_accepted_at=now),
         ]
         session.add_all(profiles)
@@ -263,7 +283,7 @@ async def seed_database(force: bool = False) -> None:
         ])
         counts = await expand_demo_data(session, now)
         await session.commit()
-        print(f"DriveDeal database seeded with coherent cross-table demo data: {counts}")
+        print(f"Deal&Drive database seeded with coherent cross-table demo data: {counts}")
 
 
 if __name__ == "__main__":
