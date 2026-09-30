@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from 'motion/react';
-import { BriefcaseBusiness, ClipboardCheck, FileText, Gauge, Headphones, Home, LogOut, Menu, MessageCircle, PackageCheck, ScrollText, Search, Sparkles, TicketCheck, UserRound, Users, X } from 'lucide-react';
+import { BriefcaseBusiness, ClipboardCheck, FileText, Gauge, Headphones, Home, LogOut, Menu, MessageCircle, PackageCheck, ScrollText, Search, ShieldCheck, Sparkles, TicketCheck, UserRound, Users, X } from 'lucide-react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useEffect } from 'react';
 import { SerraWidget } from '@/ui/reusables/SerraWidget/SerraWidget';
@@ -22,6 +22,11 @@ const links: Record<Role, Array<{ to: string; label: string; icon: typeof Home }
     { to: '/support', label: 'Console', icon: Headphones }, { to: '/tickets', label: 'Tickets', icon: TicketCheck },
     { to: '/verifications', label: 'Verifications', icon: ClipboardCheck }, { to: '/support-members', label: 'Members', icon: Users },
   ],
+  'support-admin': [
+    { to: '/support', label: 'Console', icon: Headphones }, { to: '/tickets', label: 'Tickets', icon: TicketCheck },
+    { to: '/verifications', label: 'Verifications', icon: ClipboardCheck }, { to: '/support-members', label: 'Members', icon: Users },
+    { to: '/support-administration', label: 'Administrator', icon: ShieldCheck },
+  ],
   admin: [
     { to: '/support', label: 'Console', icon: Headphones }, { to: '/tickets', label: 'Tickets', icon: TicketCheck },
     { to: '/verifications', label: 'Verifications', icon: ClipboardCheck }, { to: '/support-members', label: 'Members', icon: Users },
@@ -39,14 +44,14 @@ export function AppShell() {
   if (!session) return null;
 
   const nav = links[session.role];
-  const roleHome = session.role === 'support' || session.role === 'admin' ? '/support' : '/home';
+  const roleHome = ['support', 'support-admin', 'admin'].includes(session.role) ? '/support' : '/home';
   const signOut = () => { logout(); navigate('/login'); };
 
   return (
     <div className="page">
       <header className="topbar">
         <div className="shell topbar-inner">
-          <NavLink to={roleHome} aria-label={`DriveDeal ${session.role} home`}><Brand /></NavLink>
+          <NavLink to={roleHome} aria-label={`Deal&Drive ${session.role} home`}><Brand /></NavLink>
           <nav className="main-nav" aria-label="Primary navigation">
             {nav.map(({ to, label, icon: Icon }) => <NavLink key={to} to={to} className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}><Icon size={16} />{label}</NavLink>)}
           </nav>

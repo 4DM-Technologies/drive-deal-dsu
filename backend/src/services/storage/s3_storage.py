@@ -13,3 +13,6 @@ class S3Storage(Storage):
     def create_upload(self, key: str, content_type: str) -> dict:
         url = self.client.generate_presigned_url("put_object", Params={"Bucket": self.bucket, "Key": key, "ContentType": content_type}, ExpiresIn=900)
         return {"driver": "s3", "method": "PUT", "url": url, "key": key, "headers": {"content-type": content_type}}
+
+    def create_download(self, key: str) -> str:
+        return self.client.generate_presigned_url("get_object", Params={"Bucket": self.bucket, "Key": key}, ExpiresIn=900)

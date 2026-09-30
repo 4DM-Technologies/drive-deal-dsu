@@ -72,6 +72,10 @@ class AuthService:
         profile = await self.repository.profile_with_user(payload["sub"])
         if profile is None or not profile.user.is_active or profile.user.refresh_token_hash != token_hash(refresh_token):
             raise AppError(error_codes.UNAUTHENTICATED, "The refresh token is no longer valid.", 401)
+        if payload.get("role") != profile.role:
+            profile.user.refresh_token_hash = None
+            await self.repository.commit()
+            raise AppError(error_codes.UNAUTHENTICATED, "Your access changed. Sign in again to refresh your permissions.", 401)
         response = self._tokens(profile, True)
         profile.user.refresh_token_hash = token_hash(response.refresh_token)
         await self.repository.commit()

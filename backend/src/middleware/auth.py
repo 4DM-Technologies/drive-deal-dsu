@@ -28,6 +28,8 @@ async def get_current_profile(
     profile = result.scalar_one_or_none()
     if profile is None:
         raise AppError(error_codes.UNAUTHENTICATED, "Your account is not active.", 401)
+    if payload.get("role") != profile.role:
+        raise AppError(error_codes.UNAUTHENTICATED, "Your access changed. Sign in again to refresh your permissions.", 401)
     return profile
 
 

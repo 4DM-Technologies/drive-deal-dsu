@@ -1,10 +1,10 @@
-# DriveDeal
+# Deal&Drive
 
-DriveDeal is a reverse marketplace where buyers describe the vehicle they want, verified dealers compete with itemized out-the-door quotes, and the buyer stays in control through negotiation and purchase completion.
+Deal&Drive is a reverse marketplace where buyers describe the vehicle they want, verified dealers compete with itemized out-the-door quotes, and the buyer stays in control through negotiation and purchase completion.
 
 ## What is included
 
-- Modern light-first React 19 frontend for buyer, dealer, support, and admin roles
+- Modern light-first React 19 frontend for buyer, dealer, support, support-admin, and admin roles
 - FastAPI backend with JWT authentication, role authorization, audit fields, structured errors, and WebSocket events
 - 15-table SQLAlchemy schema, Alembic baseline, and coherent RDS seed data including 120 vehicles
 - Buyer requests, dealer demand feed, itemized quotes with vehicle media and documents, bid position and revision, private-contact gate, chat approval, deal status, tickets, and verifications
@@ -15,17 +15,25 @@ DriveDeal is a reverse marketplace where buyers describe the vehicle they want, 
 
 ## Run locally
 
-Backend with Serra demo mode (PowerShell, recommended until an OpenAI key is available):
+The backend uses [uv](https://docs.astral.sh/uv/) with a committed `backend/uv.lock`. uv manages
+`backend/.venv`, so never create or activate a virtual environment by hand.
 
 ```powershell
 cd backend
-python -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -r requirements.txt
-.\.venv\Scripts\python.exe -m src.seed
-.\.venv\Scripts\python.exe -m src.run --reload --no-ai
+uv sync
+uv run python -m src.seed
+uv run python -m src.run --reload
 ```
 
-`--no-ai` completely skips LangGraph and OpenAI execution. The API still streams realistic Serra status, text, request-preview, and comparison events so the product can be demonstrated safely. Remove `--no-ai` after setting `OPENAI_API_KEY` (or the configured OAuth token) to run the real workflow.
+This starts the normal application flow. Add `--no-ai` to skip LangGraph and OpenAI entirely — the
+API still streams realistic Serra status, text, request-preview, and comparison events, so the
+product can be demonstrated safely without a credential.
+
+Serra reads its credential from `backend/.env`, preferring `OPENAI_API_KEY` and falling back to
+`CODEX_OAUTH_ACCESS_TOKEN`. With neither set, `src/agents/llm.py` leaves the client `None` and
+answers come from the deterministic fallback, so a missing key degrades instead of erroring.
+
+See `RUNNING_GUIDE.md` for credential setup, the Postgres provisioning step, and known issues.
 
 Frontend in a second terminal:
 
@@ -36,6 +44,8 @@ npm run dev -- --host 127.0.0.1
 ```
 
 Open `http://127.0.0.1:5173`. API documentation is at `http://127.0.0.1:8000/api/v1/docs`.
+
+`package.json` lives in `frontend/`, so `npm run dev` only works from that directory (or via `npm run dev --prefix frontend`).
 
 Use `VITE_USE_MOCKS=true` for the self-contained frontend demo. It includes the same streamed Serra preview without calling the backend. Set it to `false` to use the API; with the backend started using `--no-ai`, the server supplies deterministic streamed AI previews.
 
@@ -49,7 +59,10 @@ All demo accounts use password `demo1234`.
 | Buyer | `adithyaa@drivedeal.demo` |
 | Dealer | `naveen@naveemotors.demo` |
 | Support | `maya@drivedeal.demo` |
+| Support administrator | `priya@drivedeal.demo` |
 | Admin | `alex@drivedeal.demo` |
+
+Both support roles sign in through Team access. A support administrator can provision or remove another support administrator from Members. The changed member’s refresh token is revoked and role-aware access-token checks force a fresh sign-in before new controls are available.
 
 ## Verification
 
@@ -60,16 +73,16 @@ npm test
 npm run build
 
 cd ..\backend
-.\.venv\Scripts\ruff.exe check .
-.\.venv\Scripts\pytest.exe -q
-.\.venv\Scripts\bandit.exe -q -r src
+uv run ruff check .
+uv run pytest -q
+uv run bandit -q -r src
 ```
 
-The backend test gate requires 75% line coverage. The seed script is excluded because it is a data fixture/CLI, not runtime business logic.
+The backend test gate requires 75% line coverage. The seed script is excluded because it is a data fixture/CLI, not runtime business logic. `ruff check`, `pytest` and `bandit` currently pass; `uv run ruff format --check src` still reports 28 pre-existing unformatted files and is worth a separate pass.
 
 ## PostgreSQL and cloud configuration
 
-The ignored `backend/.env` is configured for the provided PostgreSQL RDS instance and S3 bucket; no cloud secrets are placed in frontend code or checked-in examples. The database named `drive-deal-dsu` has been created and seeded across every product surface. Run `python -m src.seed` again safely: it is idempotent and only fills missing demo rows to the documented targets.
+The ignored `backend/.env` is configured for the provided PostgreSQL RDS instance and S3 bucket; no cloud secrets are placed in frontend code or checked-in examples. The database named `drive-deal-dsu` has been created and seeded across every product surface. Run `uv run python -m src.seed` again safely: it is idempotent and only fills missing demo rows to the documented targets.
 
 For a deployed environment, move database and AWS credentials into a secret manager or workload role. Rotate the supplied AWS key before deployment because it was shared in plaintext in the development conversation.
 

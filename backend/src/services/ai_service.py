@@ -33,7 +33,7 @@ class AiService:
         }
         yield {"type": "status", "phase": "classifying", "label": "Understanding your question"}
         await asyncio.sleep(0)
-        yield {"type": "status", "phase": "searching", "label": "Checking DriveDeal knowledge"}
+        yield {"type": "status", "phase": "searching", "label": "Checking Deal&Drive knowledge"}
         main_graph = build_serra_graph(self.session, compare=payload.agent == "compare-agent")
         requirement_graph = build_requirement_graph()
         main_result, requirement_result = await asyncio.gather(main_graph.ainvoke(state), requirement_graph.ainvoke(state))
@@ -69,19 +69,21 @@ class AiService:
         lower = payload.message.lower()
         if payload.agent == "compare-agent" and (payload.request_ids or payload.quote_ids):
             comparison = await self._comparison_payload(payload, buyer)
-            answer = "I compared the selected offers by out-the-door price, dealer confidence, response speed, and reported gaps. Review the highlighted leader, then open the offer before making your final decision."
+            answer = "## Best value first\nThe leading offer has the lowest complete out-the-door total among your selected requests.\n## Check before accepting\n- Confirm the exact trim and installed equipment\n- Verify delivery timing and every dealer fee\n- Open the top two offers if you want to negotiate\n## My take\nUse price as the starting point, then choose the offer with the fewest unanswered details."
             card = {"type": "card", "kind": "compare", "payload": comparison}
         elif "request" in lower or "car" in lower or "buy" in lower:
-            answer = "I turned your conversation into an editable buying brief. Check the details below—nothing is published until you choose Post this request."
+            answer = "## Good start — I captured the essentials\nYour dealer brief now has the vehicle, search area, timing, and must-have equipment.\n## One useful next step\nTell me your preferred trim or color, and anything you will not compromise on.\nYou can edit the preview below. It stays private until you choose to post it."
             card = {"type": "card", "kind": "requestPreview", "payload": {"brand": "Ford", "model": "Bronco", "years": "2024–2026", "budget": "$65,000–$72,000 OTD", "area": "Austin, TX · 75 miles", "timeline": "Within 2 weeks", "mustHaves": "4WD, hard top, adaptive cruise"}}
         else:
-            answer = "I can help narrow your vehicle, explain ownership trade-offs, compare dealer quotes, and prepare a request for your approval. Tell me your budget, location, timing, and must-have features to begin."
+            answer = "## Let’s make this decision easier\nTell me what you care about most: daily comfort, family space, performance, running cost, or the lowest possible price.\n## I can help with\n- A focused vehicle shortlist\n- Side-by-side dealer quote comparisons\n- Questions worth asking before you accept\n- An editable request you approve before posting"
             card = None
         for index in range(0, len(answer), 14):
             yield {"type": "token", "text": answer[index:index + 14]}
             await asyncio.sleep(0.025)
         if card:
             yield card
+        await self._save_checkpoint(thread_id, buyer.id, payload, {"answer": answer}, {"requirements": {}})
+        await self.session.commit()
         yield {"type": "done", "threadId": thread_id, "messagesUsed": 1, "expandedUi": False}
 
     async def compare(self, payload: CompareRequest, buyer: Profile) -> dict:

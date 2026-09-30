@@ -16,7 +16,7 @@ class SupportService:
 
     async def list_tickets(self, actor: Profile, queue: bool = False) -> list[dict]:
         statement = select(SupportTicket).order_by(SupportTicket.created_at.desc())
-        if not queue or actor.role not in {"support", "admin"}:
+        if not queue or actor.role not in {"support", "support-admin", "admin"}:
             statement = statement.where(SupportTicket.caller_id == actor.id)
         rows = (await self.session.execute(statement)).scalars()
         return [model_dict(row) for row in rows]
@@ -33,7 +33,7 @@ class SupportService:
         ticket = await self.session.get(SupportTicket, ticket_id)
         if ticket is None:
             raise AppError(error_codes.RESOURCE_NOT_FOUND, "Ticket not found.", 404)
-        if actor.role not in {"support", "admin"} and ticket.caller_id != actor.id:
+        if actor.role not in {"support", "support-admin", "admin"} and ticket.caller_id != actor.id:
             raise AppError(error_codes.RESOURCE_NOT_FOUND, "Ticket not found.", 404)
         if payload.status:
             ticket.status = payload.status
@@ -54,8 +54,8 @@ class SupportService:
             raise AppError(error_codes.RESOURCE_NOT_FOUND, "Verification not found.", 404)
         if verification.status != "pending":
             raise AppError(error_codes.ILLEGAL_TRANSITION, "This verification has already been decided.", 422)
-        if verification.category == "agent" and actor.role != "admin":
-            raise AppError(error_codes.FORBIDDEN_ROLE, "Only an administrator can approve support accounts.", 403)
+        if verification.category == "agent" and actor.role not in {"support-admin", "admin"}:
+            raise AppError(error_codes.FORBIDDEN_ROLE, "Only a support administrator can approve support accounts.", 403)
         verification.status = payload.decision
         verification.decided_by = actor.id
         verification.decided_at = datetime.now(UTC)
@@ -68,5 +68,5 @@ class SupportService:
         return model_dict(verification)
 
     async def members(self) -> list[dict]:
-        rows = (await self.session.execute(select(Profile).where(Profile.role.in_(["support", "admin"])).order_by(Profile.full_name))).scalars()
+        rows = (await self.session.execute(select(Profile).where(Profile.role.in_(["support", "support-admin", "admin"])).order_by(Profile.full_name))).scalars()
         return [model_dict(row) for row in rows]

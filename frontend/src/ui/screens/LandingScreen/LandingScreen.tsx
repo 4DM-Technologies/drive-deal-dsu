@@ -1,13 +1,14 @@
-import { ArrowRight, BadgeCheck, CarFront, Check, Handshake, ShieldCheck, Sparkles } from 'lucide-react';
+import { ArrowRight, BadgeCheck, BellRing, Check, Handshake, Send, ShieldCheck, Sparkles, Trophy, UserRound } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import heroImage from '@/assets/vehicles/drivedeal-hero.png';
 import { Reveal } from '@/ui/reusables/Reveal/Reveal';
 import { Brand } from '@/ui/reusables/Brand/Brand';
 
 const steps = [
-  { icon: CarFront, title: 'Describe your ideal car', body: 'Share the model, budget, timing, location, and the features that matter. You can edit everything before it goes live.' },
-  { icon: Handshake, title: 'Verified dealers compete', body: 'Nearby dealers respond with an itemized out-the-door offer. No surprise math and no hidden ranking boosts.' },
-  { icon: BadgeCheck, title: 'Choose with confidence', body: 'Compare like for like, ask Serra for help, open a conversation, and accept only when the offer feels right.' },
+  { owner: 'You', icon: Send, title: 'Post your request', body: 'Share make, model, trim, color, target out-the-door price, and how far you will travel—or let Serra build it from a conversation.' },
+  { owner: 'We', icon: BellRing, title: 'Matching dealers are notified', body: 'Dealers inside your radius who can deliver the car see the request. Your name and contact details stay hidden.' },
+  { owner: 'Dealers', icon: Handshake, title: 'Quotes come to you', body: 'Each dealer submits an itemized out-the-door quote covering vehicle, tax, title, licence, and fees.' },
+  { owner: 'You', icon: Trophy, title: 'Compare, negotiate, accept', body: 'Quotes are ranked by final price. Compare with Serra, negotiate in-platform, and accept the offer you prefer.' },
 ];
 
 export default function LandingScreen() {
@@ -26,9 +27,10 @@ export default function LandingScreen() {
           </div>
         </div>
       </section>
-      <section className="section" id="how"><div className="shell"><Reveal><div className="section-head"><div><span className="eyebrow">A calmer way to buy</span><h2>Demand leads.<br />Dealers respond.</h2></div><p>DriveDeal shifts the work to the seller side while keeping identity and contact protected until you decide to open the door.</p></div></Reveal><div className="grid grid-3">{steps.map(({ icon: Icon, title, body }, index) => <Reveal key={title} delay={index * .07}><article className="card how-card"><div className="step-number"><Icon size={20} /></div><span className="eyebrow">Step {index + 1}</span><h3>{title}</h3><p>{body}</p></article></Reveal>)}</div></div></section>
+      <section className="section" id="how"><div className="shell"><Reveal><div className="section-head"><div><span className="eyebrow">How it works</span><h2>Four steps. One winner.</h2></div><p>From posting to picking, everything happens in one place—no showroom marathon and no phone tag.</p></div></Reveal><div className="how-journey">{steps.map(({ owner, icon: Icon, title, body }, index) => <Reveal key={title} delay={index * .06}><article className="card how-card"><div className="how-card-top"><span className="step-owner">{owner}</span><span className="step-number">{index + 1}</span></div><div className="how-icon"><Icon size={20} /></div><h3>{title}</h3><p>{body}</p></article></Reveal>)}</div></div></section>
+      <section className="section difference-section"><div className="shell difference-grid"><Reveal><article className="difference-copy"><span className="eyebrow">Our difference</span><h2>Why choose us</h2><p>Deal&amp;Drive is free for customers, with AI guidance that makes buying simpler and smarter. Dealers compete on your terms, every quote is itemized, and the price you compare includes tax, title, licence, and fees.</p><div className="difference-points"><span><BadgeCheck /> Complete out-the-door totals</span><span><ShieldCheck /> Private until you choose</span><span><Sparkles /> Buyer-side AI guidance</span></div></article></Reveal><Reveal delay={.08}><article className="card dealer-callout"><div className="dealer-callout-icon"><UserRound /></div><span className="eyebrow">For dealers</span><h2>Serious buyers. Zero cold leads.</h2><p>Every request is a real person who shared the exact car, location, and timeframe. Quote once, compete transparently, and win business your BDC never had to chase.</p><Link className="button button-primary" to="/signup/dealer">Join as a dealer <ArrowRight size={17} /></Link></article></Reveal></div></section>
       <section className="section surface-section"><div className="shell"><Reveal><div className="card" style={{ padding: 'clamp(1.5rem,5vw,4rem)', display: 'grid', gridTemplateColumns: 'minmax(0,1fr) auto', gap: '2rem', alignItems: 'center' }}><div><span className="eyebrow">Ready when you are</span><h2 style={{ fontSize: 'clamp(2rem,4vw,3.8rem)', margin: '.55rem 0 .7rem' }}>Make dealers compete for your business.</h2><p className="muted" style={{ maxWidth: 650 }}>A request takes a few minutes. Serra can help you work out the details without publishing anything until you approve it.</p></div><Link className="button button-primary" to="/signup/buyer">Build my request <ArrowRight size={18} /></Link></div></Reveal></div></section>
-      <footer className="public-footer"><div className="shell"><span>© 2026 DriveDeal. Built for confident car buying.</span><span><Link to="/login?role=dealer">Dealer portal</Link> · <Link to="/login?role=support">Team access</Link> · <Link to="/terms">Terms</Link> · <Link to="/privacy">Privacy</Link></span></div></footer>
+      <footer className="public-footer"><div className="shell"><span>© 2026 Deal&amp;Drive. Built for confident car buying.</span><span><Link to="/login?role=dealer">Dealer portal</Link> · <Link to="/login?role=support">Team access</Link> · <Link to="/terms">Terms</Link> · <Link to="/privacy">Privacy</Link></span></div></footer>
     </div>
   );
 }

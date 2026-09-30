@@ -1,13 +1,13 @@
-# DriveDeal API contract.
+# Deal&Drive API contract.
 # OpenAPI 3.0.3. Converted from 3.1.0: 3.1's `type: [x, 'null']` unions are
 # spelled `type: x` + `nullable: true`, and schema-level `examples` arrays
 # became a single `example` (the full value lists live in `description`).
 openapi: 3.0.3
 info:
-  title: DriveDeal — Reverse Car Marketplace API
+  title: Deal&Drive — Reverse Car Marketplace API
   version: 1.0.0
   description: |-
-    Backend API for DriveDeal: a reverse car marketplace where buyers post the
+    Backend API for Deal&Drive: a reverse car marketplace where buyers post the
     car they want and dealers compete on price for it.
 
     Handles:
@@ -42,11 +42,11 @@ info:
     - Server-computed columns are not accepted in request bodies. deal_quotes
       .final_price is a GENERATED column; sending it is a 422.
     - Role guards: buyer, dealer (requires approved verification), support,
-      admin. The AI surface is **buyer-only** (solution-frontend.md §3.8).
+      support-admin, admin. The AI surface is **buyer-only** (solution-frontend.md §3.8).
     - Rate limits: auth 5/min per IP, signup 3/hour per email, AI 20/min per
       profile, document upload 30/min per dealer.
   contact:
-    name: DriveDeal Dev Team
+    name: Deal&Drive Dev Team
 servers:
 - url: http://localhost:8000/api/v1
   description: Local development
@@ -2156,7 +2156,7 @@ paths:
       summary: Get an S3 upload URL
       description: |-
         Returns a presigned PUT and the S3 key the client must upload to. The
-        file is **not** stored by DriveDeal — it never touches the API server.
+        file is **not** stored by Deal&Drive — it never touches the API server.
 
         Keys are deterministic: `{quote_id}/{epoch_ms}.{ext}`. Content type and
         size are declared here and re-verified in /documents/{id}/confirm by
@@ -2718,6 +2718,62 @@ paths:
           $ref: '#/components/responses/forbidden'
         '404':
           $ref: '#/components/responses/not_found'
+  /members/{id}/support-role:
+    patch:
+      summary: Provision or remove support administrator access
+      description: |-
+        Support-admin or admin only. Changes a support team member between
+        `support` and `support-admin`, clears their refresh token, and causes
+        every existing access token to fail its database-role check. The member
+        must sign in again to receive controls for the new role.
+      operationId: updateSupportMemberRole
+      tags:
+      - Members
+      parameters:
+      - $ref: '#/components/parameters/ProfileId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - role
+              properties:
+                role:
+                  type: string
+                  enum:
+                  - support
+                  - support-admin
+      responses:
+        '200':
+          description: Role changed; the target member must sign in again
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - profile_id
+                - role
+                - requires_sign_in
+                properties:
+                  profile_id:
+                    type: string
+                    format: uuid
+                  role:
+                    type: string
+                    enum: [support, support-admin]
+                  requires_sign_in:
+                    type: boolean
+                    enum: [true]
+        '401':
+          $ref: '#/components/responses/unauthorized'
+        '403':
+          $ref: '#/components/responses/forbidden'
+        '404':
+          $ref: '#/components/responses/not_found'
+        '409':
+          $ref: '#/components/responses/conflict'
   /cars:
     post:
       summary: Create a car listing
@@ -2937,7 +2993,7 @@ paths:
                     data: {"phase":"classifying","message":"Reading your requirements"}
 
                     event: status
-                    data: {"phase":"searching","message":"Searching DriveDeal inventory"}
+                    data: {"phase":"searching","message":"Searching Deal&Drive inventory"}
 
                     event: status
                     data: {"phase":"composing","message":"Putting it together"}
@@ -2963,7 +3019,7 @@ paths:
                     data: {"phase":"classifying","message":"Reading your requirements"}
 
                     event: status
-                    data: {"phase":"searching","message":"Searching DriveDeal inventory"}
+                    data: {"phase":"searching","message":"Searching Deal&Drive inventory"}
 
                     event: status
                     data: {"phase":"crawling","message":"Checking outside sources"}
@@ -3320,7 +3376,7 @@ paths:
                   value:
                     openapi: 3.0.3
                     info:
-                      title: DriveDeal API
+                      title: Deal&Drive API
                       version: 1.0.0
         '304':
           description: Not modified — honour `ETag` / `If-None-Match`
@@ -3754,6 +3810,7 @@ components:
       - buyer
       - dealer
       - support
+      - support-admin
       - admin
       description: |-
         Read from the `profiles` row on every request. Note this is
@@ -5534,6 +5591,11 @@ components:
         content_type:
           type: string
           nullable: true
+        download_url:
+          type: string
+          format: uri
+          nullable: true
+          description: Short-lived presigned GET URL returned to an authorized quote participant.
         size_bytes:
           type: integer
           nullable: true

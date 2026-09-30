@@ -12,6 +12,8 @@ npm run dev -- --host 127.0.0.1
 
 Open `http://127.0.0.1:5173`. `frontend/.env` defaults to `VITE_USE_MOCKS=true`, so no backend or cloud keys are required.
 
+`package.json` lives in `frontend/`, not the repository root. Running `npm run dev` from the root fails with `ENOENT ... package.json`; use `cd frontend` (above) or `npm run dev --prefix frontend`.
+
 Choose Buyer, Dealer, or Team directly on the redesigned sign-in screen. Developer persona shortcuts are collapsed by default. All seeded/demo personas use `demo1234`:
 
 | Persona | Email |
@@ -23,11 +25,20 @@ Choose Buyer, Dealer, or Team directly on the redesigned sign-in screen. Develop
 
 ## Connect the API
 
-Start the backend on port 8000. Until an OpenAI credential is provided, use:
+Start the backend on port 8000. It is managed with [uv](https://docs.astral.sh/uv/) from the
+`backend` directory:
 
 ```powershell
 cd ..\backend
-.\.venv\Scripts\python.exe -m src.run --reload --no-ai
+uv sync
+uv run python -m src.run --reload
+```
+
+This runs the normal application flow. To demonstrate Serra without any OpenAI credential, add the
+explicit opt-in flag instead:
+
+```powershell
+uv run python -m src.run --reload --no-ai
 ```
 
 Then set the frontend environment:

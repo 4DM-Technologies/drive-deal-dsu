@@ -36,7 +36,7 @@ export default function LoginScreen() {
   function signIn(asRole: Role = role) {
     loginAs(asRole);
     const state = location.state as { next?: string } | null;
-    navigate(state?.next ?? (asRole === 'support' || asRole === 'admin' ? '/support' : '/home'));
+    navigate(state?.next ?? (['support', 'support-admin', 'admin'].includes(asRole) ? '/support' : '/home'));
   }
 
   return (
@@ -44,22 +44,22 @@ export default function LoginScreen() {
       <section className="auth-art"><img src={heroImage} alt="Blue sedan on an open road" /><div className="auth-art-copy"><span className="eyebrow auth-eyebrow">A calmer way to buy</span><h2>Real dealer offers.<br />One clear decision.</h2><p>Create one request, compare itemized prices, and keep your contact details private until you choose.</p><div className="auth-proof"><ShieldCheck size={18} /> Buyer-controlled contact and AI-assisted comparisons</div></div></section>
       <section className="auth-panel">
         <div className="auth-card">
-          <Link to="/" aria-label="DriveDeal landing page"><Brand /></Link>
-          <div className="auth-title"><span className="eyebrow">{teamMode ? 'Restricted operations access' : 'Secure account access'}</span><h1>{teamMode ? 'DriveDeal team sign in' : 'Welcome back'}</h1><p className="muted">{teamMode ? 'For approved support and administration accounts only.' : 'Sign in as a buyer or verified dealer.'}</p></div>
+          <Link to="/" aria-label="Deal&Drive landing page"><Brand /></Link>
+          <div className="auth-title"><span className="eyebrow">{teamMode ? 'Restricted operations access' : 'Secure account access'}</span><h1>{teamMode ? 'Deal&Drive team sign in' : 'Welcome back'}</h1><p className="muted">{teamMode ? 'For approved support and administration accounts only.' : 'Sign in as a buyer or verified dealer.'}</p></div>
           {!teamMode && <div className="role-switcher role-switcher-public" role="tablist" aria-label="Account type">
             {(['buyer', 'dealer'] as LoginRole[]).map((key) => { const item = access[key]; const Icon = item.icon; return <button key={key} type="button" role="tab" aria-selected={role === key} className={role === key ? 'active' : ''} onClick={() => chooseRole(key)}><Icon size={18} /><span><strong>{item.label}</strong><small>{item.helper}</small></span></button>; })}
           </div>}
           {teamMode && <div className="team-access-note"><Headphones size={18} /><span><strong>Operational workspace</strong><small>Access is audited and requires an approved account.</small></span></div>}
-          <form className="grid auth-form" onSubmit={(event) => { event.preventDefault(); signIn(); }}>
+          <form className="grid auth-form" onSubmit={(event) => { event.preventDefault(); signIn(teamMode && email.toLowerCase() === 'priya@drivedeal.demo' ? 'support-admin' : role); }}>
             <div className="field"><label htmlFor="email">{current.label} email</label><input id="email" className="input" type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} required /></div>
             <div className="field"><div className="field-label-row"><label htmlFor="password">Password</label><Link to="/forgot-password">Forgot password?</Link></div><input id="password" className="input" type="password" autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} minLength={6} required /></div>
             <button className="button button-primary button-wide">Sign in to {current.label.toLowerCase()} workspace <ArrowRight size={17} /></button>
           </form>
-          {!teamMode && <p className="auth-alternate">New to DriveDeal? <Link to={current.signup}>{role === 'buyer' ? 'Create buyer account' : 'Apply as a dealer'}</Link></p>}
+          {!teamMode && <p className="auth-alternate">New to Deal&amp;Drive? <Link to={current.signup}>{role === 'buyer' ? 'Create buyer account' : 'Apply as a dealer'}</Link></p>}
           {teamMode && <div className="team-login-links"><p className="auth-alternate">Need an approved team account? <Link to="/signup/support">Request support access</Link></p><p className="auth-alternate"><Link to="/login?role=buyer" onClick={() => chooseRole('buyer')}><ArrowLeft size={14} /> Back to customer sign in</Link></p></div>}
           <details className="demo-access">
             <summary><span><LockKeyhole size={15} /> Developer demo access</span><ChevronDown size={16} /></summary>
-            <div className="demo-access-body"><p>Development only. Choose a ready-made workspace:</p><div className="demo-buttons"><button onClick={() => signIn('buyer')}>Buyer</button><button onClick={() => signIn('dealer')}>Dealer</button><button onClick={() => signIn('support')}>Support</button><button onClick={() => signIn('admin')}>Admin</button></div></div>
+            <div className="demo-access-body"><p>Development only. Choose a ready-made workspace:</p><div className="demo-buttons"><button onClick={() => signIn('buyer')}>Buyer</button><button onClick={() => signIn('dealer')}>Dealer</button><button onClick={() => signIn('support')}>Support</button><button onClick={() => signIn('support-admin')}>Support admin</button></div></div>
           </details>
         </div>
       </section>

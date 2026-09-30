@@ -98,6 +98,10 @@ class VerificationReasonRequest(BaseModel):
     reason: str = Field(min_length=3, max_length=2000)
 
 
+class SupportRoleUpdate(BaseModel):
+    role: Literal["support", "support-admin"]
+
+
 class AiChatRequest(BaseModel):
     message: str = Field(min_length=1, max_length=8000)
     thread_id: str | None = None

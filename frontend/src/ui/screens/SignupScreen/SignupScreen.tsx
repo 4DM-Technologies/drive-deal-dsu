@@ -12,7 +12,7 @@ export function SignupChooser() {
       <div className="auth-card signup-card">
         <Link to="/"><Brand /></Link>
         <span className="eyebrow">Create your account</span>
-        <h1>Choose your DriveDeal workspace</h1>
+        <h1>Choose your Deal&amp;Drive workspace</h1>
         <p className="muted">Buyer and dealer accounts have different tools, so each gets a purpose-built experience.</p>
         <div className="grid grid-2 signup-choices">
           <Link className="card card-pad card-hover signup-choice" to="/signup/buyer"><div className="step-number"><UserRound /></div><h2>I want to buy a car</h2><p className="muted">Post one clear request, compare dealer offers, and choose without pressure.</p><span>Create buyer account <ArrowRight size={16} /></span></Link>
@@ -49,7 +49,7 @@ export default function SignupScreen() {
             <div className="field"><label>Create password</label><input className="input" type="password" autoComplete="new-password" minLength={8} required /></div>
             {type === 'dealer' && <><div className="field"><label>Dealership name</label><input className="input" required /></div><div className="field"><label>Branch name</label><input className="input" required /></div><div className="field"><label>Dealer licence number</label><input className="input" required /></div><div className="field"><label>Website</label><input className="input" type="url" required /></div><div className="field"><label>State</label><select className="select" required defaultValue="Texas">{states.map((state) => <option key={state}>{state}</option>)}</select></div><div className="field"><label>Primary brand</label><select className="select" required defaultValue="Ford">{brands.map((brand) => <option key={brand}>{brand}</option>)}</select></div><div className="field form-span"><label>Business address</label><input className="input" required /></div></>}
             {type === 'support' && <><div className="field form-span"><label>Location address</label><input className="input" required /></div><div className="field"><label>State</label><select className="select" required defaultValue="Texas">{states.map((state) => <option key={state}>{state}</option>)}</select></div><div className="field form-span"><label>Verification note <span className="muted">(optional)</span></label><textarea className="textarea" rows={3} placeholder="Add anything that helps us verify your request" /></div></>}
-            <label className="checkbox-row form-span"><input type="checkbox" checked={terms} onChange={(event) => setTerms(event.target.checked)} required /><span>I agree to DriveDeal’s <Link to="/terms" target="_blank">Terms of Service</Link> and <Link to="/privacy" target="_blank">Privacy Policy</Link>.</span></label>
+            <label className="checkbox-row form-span"><input type="checkbox" checked={terms} onChange={(event) => setTerms(event.target.checked)} required /><span>I agree to Deal&amp;Drive’s <Link to="/terms" target="_blank">Terms of Service</Link> and <Link to="/privacy" target="_blank">Privacy Policy</Link>.</span></label>
             <button className="button button-primary form-span" disabled={!terms}>{type === 'buyer' ? 'Create buyer account' : 'Submit for review'} <ArrowRight size={17} /></button>
           </form>
           <p className="auth-alternate auth-alternate-bottom">Already registered? <Link to={`/login?role=${type}`}>Sign in</Link></p>

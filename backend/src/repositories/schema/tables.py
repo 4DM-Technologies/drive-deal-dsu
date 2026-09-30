@@ -57,7 +57,7 @@ class Brand(AuditMixin, Base):
 class Profile(AuditMixin, Base):
     __tablename__ = "profiles"
     __table_args__ = (
-        CheckConstraint("role IN ('buyer','dealer','support','admin')", name="ck_profiles_role"),
+        CheckConstraint("role IN ('buyer','dealer','support','support-admin','admin')", name="ck_profiles_role"),
         UniqueConstraint("dealer_license", name="uq_profiles_dealer_license"),
     )
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
