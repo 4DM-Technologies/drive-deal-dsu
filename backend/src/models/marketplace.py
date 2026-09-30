@@ -64,6 +64,10 @@ class ChatRequestCreate(BaseModel):
     message: str = Field(min_length=1, max_length=2000)
 
 
+class ChatDeclineRequest(BaseModel):
+    reason: str | None = Field(default=None, max_length=500)
+
+
 class ChatSend(BaseModel):
     id: str
     message: str = Field(min_length=1, max_length=4000)
@@ -87,6 +91,10 @@ class TicketUpdate(BaseModel):
 
 class VerificationDecision(BaseModel):
     decision: Literal["approved", "denied", "rejected"]
+    reason: str = Field(min_length=3, max_length=2000)
+
+
+class VerificationReasonRequest(BaseModel):
     reason: str = Field(min_length=3, max_length=2000)
 
 

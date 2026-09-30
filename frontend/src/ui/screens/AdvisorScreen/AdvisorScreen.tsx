@@ -1,5 +1,5 @@
 import { ArrowUp, Bot, Check, CheckCircle2, ChevronLeft, Circle, FileCheck2, Globe2, History, Menu, Pencil, Plus, Scale, Search, Sparkles, StopCircle, Trophy, X } from 'lucide-react';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { client } from '@/services/platform/client';
 import { formatMoney } from '@/helpers/currency';
@@ -11,6 +11,7 @@ interface CompareDraft { leader?: string; total?: string; difference?: string; r
 
 const prompts = ['Find a family SUV for me', 'Compare offers on my requests', 'Help me build a buyer request', 'What should I ask a dealer?'];
 const threads = ['Bronco offer comparison', 'Family SUV shortlist', 'BMW ownership costs', 'New request draft'];
+const greeting = 'Hi, I’m Serra—your buyer-side car advisor. Tell me what matters in your next car, share a question, or choose a quick start below. You approve every action.';
 const activity = [
   { phase: 'classifying', label: 'Understanding your intent', icon: Sparkles },
   { phase: 'searching', label: 'Checking DriveDeal knowledge', icon: Search },
@@ -32,7 +33,7 @@ export default function AdvisorScreen() {
   const requests = useDemoStore((state) => state.requests);
   const initialSelected = (params.get('compare') ?? '').split(',').filter(Boolean);
   const [selected, setSelected] = useState<string[]>(initialSelected);
-  const [messages, setMessages] = useState<AdvisorMessage[]>([{ id: 'welcome', role: 'assistant', body: 'Hi, I’m Serra. I can help you choose a vehicle, turn your needs into a dealer-ready request, or compare real offers. You approve every action.' }]);
+  const [messages, setMessages] = useState<AdvisorMessage[]>([]);
   const [input, setInput] = useState(params.get('prompt') === 'compare' || initialSelected.length ? 'Compare these dealer offers' : params.get('prompt') === 'request' ? 'Show my request draft' : '');
   const [status, setStatus] = useState('');
   const [phase, setPhase] = useState('');
@@ -45,14 +46,32 @@ export default function AdvisorScreen() {
   const [published, setPublished] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
   const abortRef = useRef(false);
+  const greetingRunRef = useRef(0);
   const activePhase = Math.max(0, activity.findIndex((item) => item.phase === phase));
   const requestGroups = useMemo(() => requests.map((request) => ({ request, quotes: quotes.filter((quote) => quote.requestId === request.id) })).filter((group) => group.quotes.length >= 1), [quotes, requests]);
 
+  const streamGreeting = useCallback(() => {
+    const run = ++greetingRunRef.current;
+    const id = crypto.randomUUID();
+    setMessages([{ id, role: 'assistant', body: '' }]);
+    setStatus('Serra is opening a fresh conversation');
+    setPhase('classifying');
+    void (async () => {
+      for (const piece of greeting.split(/(\s+)/)) {
+        await new Promise((resolve) => window.setTimeout(resolve, 18));
+        if (greetingRunRef.current !== run) return;
+        setStatus('');
+        setMessages((items) => items.map((item) => item.id === id ? { ...item, body: item.body + piece } : item));
+      }
+    })();
+  }, []);
+
+  useEffect(() => { const timer = window.setTimeout(streamGreeting, 0); return () => window.clearTimeout(timer); }, [streamGreeting]);
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }, [messages, status, draft, compare]);
 
   function newChat() {
-    setMessages([{ id: crypto.randomUUID(), role: 'assistant', body: 'Fresh chat, clean slate. What are you hoping to buy?' }]);
     setDraft(null); setCompare(null); setSelected([]); setThreadId(undefined); setPublished(false); setSidebarOpen(false);
+    streamGreeting();
   }
 
   function toggleRequest(requestId: string) {
@@ -106,7 +125,7 @@ export default function AdvisorScreen() {
             {compare && <ComparisonCard compare={compare} selected={selected} quotes={quotes} requests={requests} />}
             <div ref={endRef} />
           </div>
-          {messages.length <= 2 && <div className="advisor-prompts">{prompts.map((prompt) => <button key={prompt} onClick={() => void send(prompt)}><Sparkles size={14} />{prompt}</button>)}</div>}
+          {!status && <div className="advisor-prompts advisor-followups"><span>Try next</span>{prompts.map((prompt) => <button key={prompt} onClick={() => void send(prompt)}><Sparkles size={14} />{prompt}</button>)}</div>}
           <section className="compare-picker"><details open={params.has('compare')}><summary><span><Scale size={17} /><strong>Compare my requests</strong><small>{selected.length ? `${selected.length} selected` : 'Choose 2–5 requests with offers'}</small></span><ChevronLeft size={17} /></summary><div className="compare-picker-body">{requestGroups.length ? requestGroups.map(({ request, quotes: groupQuotes }) => { const best = [...groupQuotes].sort((a, b) => Number(a.finalPrice) - Number(b.finalPrice))[0]; return <label className={`compare-request-option ${selected.includes(request.id) ? 'selected' : ''}`} key={request.id}><input type="checkbox" checked={selected.includes(request.id)} onChange={() => toggleRequest(request.id)} /><span><strong>{request.brand} {request.model}</strong><small>{groupQuotes.length} dealer offers · best {best ? formatMoney(best.finalPrice) : 'not reported'}</small></span></label>; }) : <p className="muted">Requests appear here after at least one dealer responds.</p>}<button className="button button-secondary button-wide" disabled={selected.length < 2} onClick={() => void send('Compare the selected vehicle requests and their dealer offers, then explain the trade-offs')}>Compare {selected.length || ''} requests</button></div></details></section>
           <form className="advisor-composer" onSubmit={(event) => { event.preventDefault(); void send(); }}><div className="composer-input"><textarea value={input} onChange={(event) => setInput(event.target.value)} rows={1} placeholder="Ask about a car, an offer, or your requirements" onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); void send(); } }} /><button className="button button-primary" disabled={!input.trim() || Boolean(status)} aria-label="Send message"><ArrowUp size={18} /></button></div><small>Serra can make mistakes. Review prices and availability before deciding.</small></form>
         </main>

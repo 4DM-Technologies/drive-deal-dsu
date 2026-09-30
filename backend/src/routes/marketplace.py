@@ -1,13 +1,14 @@
 from datetime import UTC, datetime
 from uuid import uuid4
 
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Body, Depends, Query, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.database import get_session
 from src.middleware.auth import get_current_profile, require_roles
 from src.models.marketplace import (
+    ChatDeclineRequest,
     ChatRequestCreate,
     ChatSend,
     DealStatusUpdate,
@@ -153,13 +154,13 @@ async def accept_chat(quote_id: str, profile: Profile = Depends(require_roles("d
 
 
 @router.post("/chats/requests/{quote_id}/decline")
-async def decline_chat(quote_id: str, payload: ChatRequestCreate, profile: Profile = Depends(require_roles("dealer")), session: AsyncSession = Depends(get_session)):
+async def decline_chat(quote_id: str, payload: ChatDeclineRequest | None = Body(default=None), profile: Profile = Depends(require_roles("dealer")), session: AsyncSession = Depends(get_session)):
     service = MarketplaceService(session)
     row = await service._quote(quote_id)
     service._require_owner(row.dealer_id, profile.id)
     row.chat_request_status = "declined"
     row.chat_decided_at = datetime.now(UTC)
-    row.deal_history = [*row.deal_history, {"event": "chat_request_declined", "reason": payload.message, "actor_id": profile.id, "at": row.chat_decided_at.isoformat()}]
+    row.deal_history = [*row.deal_history, {"event": "chat_request_declined", "reason": payload.reason if payload else None, "actor_id": profile.id, "at": row.chat_decided_at.isoformat()}]
     await session.commit()
     await session.refresh(row)
     return model_dict(row)

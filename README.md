@@ -7,7 +7,7 @@ DriveDeal is a reverse marketplace where buyers describe the vehicle they want, 
 - Modern light-first React 19 frontend for buyer, dealer, support, and admin roles
 - FastAPI backend with JWT authentication, role authorization, audit fields, structured errors, and WebSocket events
 - 15-table SQLAlchemy schema, Alembic baseline, and coherent RDS seed data including 120 vehicles
-- Buyer requests, dealer feed, itemized quotes, private-contact gate, chat approval, deal status, documents, inventory, tickets, and verifications
+- Buyer requests, dealer demand feed, itemized quotes with vehicle media and documents, bid position and revision, private-contact gate, chat approval, deal status, tickets, and verifications
 - Serra buyer advisor and quote comparison workflows using LangGraph: classifier/memory → knowledge base → optional Crawl4AI web fallback → knowledge writeback
 - Human approval gate before Serra-created request drafts are published
 - Local-storage and S3 document adapters, SQLite local development and PostgreSQL/RDS-ready configuration
@@ -69,7 +69,7 @@ The backend test gate requires 75% line coverage. The seed script is excluded be
 
 ## PostgreSQL and cloud configuration
 
-The ignored `backend/.env` is configured for the provided PostgreSQL RDS instance and S3 bucket; no cloud secrets are placed in frontend code or checked-in examples. The database named `drive-deal-dsu` has been created and seeded. Run `python -m src.seed` again safely: it is idempotent and only expands inventory when fewer than 120 vehicles exist.
+The ignored `backend/.env` is configured for the provided PostgreSQL RDS instance and S3 bucket; no cloud secrets are placed in frontend code or checked-in examples. The database named `drive-deal-dsu` has been created and seeded across every product surface. Run `python -m src.seed` again safely: it is idempotent and only fills missing demo rows to the documented targets.
 
 For a deployed environment, move database and AWS credentials into a secret manager or workload role. Rotate the supplied AWS key before deployment because it was shared in plaintext in the development conversation.
 

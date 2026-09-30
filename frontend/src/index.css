@@ -155,7 +155,7 @@ h1, h2, h3, .display { font-family: 'Manrope', 'DM Sans', sans-serif; letter-spa
 .request-card { overflow: hidden; display: grid; grid-template-columns: 190px 1fr; }
 .request-image { width: 100%; height: 100%; min-height: 190px; object-fit: cover; background: var(--surface); }
 .request-card-body { padding: 1.25rem; display: flex; flex-direction: column; min-width: 0; }
-.request-card-top { display: flex; justify-content: space-between; gap: .8rem; }
+.request-card-top { display: flex; justify-content: space-between; align-items: flex-start; gap: .8rem; }
 .request-card h3 { margin: 0; font-size: 1.2rem; }
 .request-meta { display: flex; flex-wrap: wrap; gap: .45rem 1rem; color: var(--muted); font-size: .82rem; margin: .65rem 0 1rem; }
 .request-footer { margin-top: auto; padding-top: 1rem; border-top: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; gap: .8rem; }
@@ -312,6 +312,7 @@ h1, h2, h3, .display { font-family: 'Manrope', 'DM Sans', sans-serif; letter-spa
 .message-bubble ul { margin: .55rem 0 0; padding-left: 1.15rem; }
 .message-bubble li + li { margin-top: .35rem; }
 .agent-activity, .inline-notice, .ai-result-card { max-width: 720px; margin: 0 auto 1.25rem; }
+.ai-result-card { transform: translateX(18px); }
 .agent-activity { border: 1px solid #dce7f8; border-radius: 15px; background: #f7faff; padding: .9rem 1rem; }
 .activity-title { display: flex; align-items: center; gap: .6rem; margin-bottom: .65rem; color: var(--accent); }
 .agent-activity > div:not(.activity-title) { display: flex; align-items: center; gap: .55rem; min-height: 28px; color: var(--subtle); font-size: .78rem; }
@@ -341,6 +342,7 @@ h1, h2, h3, .display { font-family: 'Manrope', 'DM Sans', sans-serif; letter-spa
 .comparison-insight p { margin: 0; color: var(--ink); font-size: .8rem; line-height: 1.5; }
 .advisor-prompts { padding: .6rem 1rem; display: flex; gap: .45rem; overflow-x: auto; border-top: 1px solid var(--border); scrollbar-width: none; }
 .advisor-prompts button { flex: 0 0 auto; min-height: 38px; border: 1px solid var(--border); border-radius: 999px; background: var(--raised); color: var(--accent); padding: .55rem .75rem; display: inline-flex; align-items: center; gap: .4rem; font-size: .76rem; font-weight: 700; }
+.advisor-followups > span { flex: 0 0 auto; align-self: center; color: var(--muted); font-size: .72rem; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; }
 .compare-picker { padding: 0 1rem; }
 .compare-picker details { border-top: 1px solid var(--border); }
 .compare-picker summary { min-height: 48px; display: flex; align-items: center; justify-content: space-between; cursor: pointer; list-style: none; }
@@ -627,7 +629,7 @@ h1, h2, h3, .display { font-family: 'Manrope', 'DM Sans', sans-serif; letter-spa
 .demand-fit span, .demand-fit small { display: block; }
 .demand-fit small { color: var(--muted); }
 .dashboard-page { display: grid; gap: 1.2rem; }
-.dashboard-welcome { display: flex; align-items: end; justify-content: space-between; gap: 1.5rem; padding: 1.2rem 0 .6rem; }
+.dashboard-welcome { display: flex; align-items: end; justify-content: space-between; gap: 1.5rem; padding: clamp(1.4rem,4vw,3.2rem); border: 1px solid var(--border); border-radius: 22px; background: linear-gradient(90deg,rgba(250,249,246,.99) 0%,rgba(250,249,246,.94) 52%,rgba(250,249,246,.55) 100%),url('./assets/vehicles/drivedeal-hero.png') right 58% center/cover; box-shadow: var(--shadow-sm); }
 .dashboard-welcome h1 { margin: .35rem 0 .55rem; font-size: clamp(2.2rem,4.5vw,4rem); }
 .dashboard-welcome p { max-width: 680px; margin: 0; color: var(--muted); }
 .dashboard-actions { display: flex; gap: .6rem; }
@@ -650,6 +652,51 @@ h1, h2, h3, .display { font-family: 'Manrope', 'DM Sans', sans-serif; letter-spa
 .dashboard-next p { margin: 0; color: var(--muted); }
 .revenue-card h2 { font-size: clamp(2.3rem,4vw,3.4rem); margin: .5rem 0; }
 .revenue-card > div { display: flex; align-items: center; gap: .6rem; margin: 1rem 0; padding: .85rem; border-radius: 12px; background: var(--success-soft); color: var(--success); }
+.quote-detail-heading { margin-top: 1rem; }
+.quote-position { display: grid; grid-template-columns: auto minmax(0,1fr) auto; gap: 1rem; align-items: center; margin-bottom: 1rem; padding: 1rem 1.15rem; border: 1px solid var(--border); border-radius: 17px; }
+.quote-position > svg { width: 42px; height: 42px; padding: 10px; border-radius: 13px; }
+.quote-position h2, .quote-position p { margin: .2rem 0; }
+.quote-position.leading { border-color: #cde3d5; background: var(--success-soft); }
+.quote-position.leading > svg, .quote-position.accepted > svg { background: white; color: var(--success); }
+.quote-position.behind { border-color: #edd7b8; background: var(--warning-soft); }
+.quote-position.behind > svg { background: white; color: var(--warning); }
+.quote-position.accepted { border-color: #bad0f1; background: var(--accent-soft); }
+.revise-bar { display: grid; grid-template-columns: minmax(220px,1fr) minmax(180px,.7fr) auto auto; gap: 1rem; align-items: end; margin-bottom: 1rem; }
+.revise-bar h3 { margin: .25rem 0; }
+.revise-bar > div:nth-child(3) small, .revise-bar > div:nth-child(3) strong { display: block; }
+.revise-bar > div:nth-child(3) strong { font-size: 1.25rem; }
+.quote-gallery { overflow: hidden; }
+.quote-gallery-main img { width: 100%; aspect-ratio: 16/8.5; object-fit: cover; }
+.quote-gallery-thumbs { display: flex; gap: .5rem; align-items: center; padding: .6rem; }
+.quote-gallery-thumbs img { width: 72px; height: 52px; object-fit: cover; border-radius: 8px; }
+.quote-gallery-thumbs span { display: flex; align-items: center; gap: .35rem; margin-left: auto; color: var(--muted); font-size: .75rem; }
+.quote-total { font-size: 1.5rem !important; }
+.dealer-note { margin: 1rem 0 0; padding: 1rem; border: 0; border-left: 3px solid var(--accent); background: var(--surface); }
+.deal-progress { display: grid; gap: .7rem; margin: 1rem 0; }
+.deal-progress > div { display: flex; gap: .7rem; align-items: center; color: var(--subtle); }
+.deal-progress > div.complete { color: var(--success); }
+.deal-progress > div span { flex: 1; }
+.document-row { display: flex; align-items: center; gap: .6rem; padding: .75rem 0; border-top: 1px solid var(--border); }
+.document-row > span { flex: 1; }
+.document-row strong, .document-row small { display: block; }
+.document-row small { color: var(--muted); text-transform: capitalize; }
+.distance-chip { display: flex; align-items: center; gap: .6rem; padding: .75rem; border: 1px solid var(--border); border-radius: 13px; background: white; }
+.distance-chip span, .distance-chip small { display: block; }
+.distance-chip small { color: var(--muted); }
+.quote-builder > h2 { font-size: 1.8rem; margin: .35rem 0 1.2rem; }
+.upload-zone { position: relative; min-height: 112px; display: flex; align-items: center; justify-content: center; gap: .8rem; padding: 1rem; border: 1px dashed #aebfd8; border-radius: 13px; background: #f8fbff; color: var(--accent); text-align: left; }
+.upload-zone.compact { min-height: 82px; }
+.upload-zone input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+.upload-zone span, .upload-zone small { display: block; }
+.upload-zone small { color: var(--muted); }
+.upload-preview { display: grid; grid-template-columns: repeat(4,1fr); gap: .5rem; }
+.upload-preview img { width: 100%; aspect-ratio: 4/3; object-fit: cover; border-radius: 9px; }
+.uploaded-file { display: flex; align-items: center; gap: .4rem; color: var(--success); font-size: .8rem; }
+.quote-total-bar { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 1rem; border-radius: 14px; background: var(--navy); color: white; }
+.quote-total-bar span small, .quote-total-bar span strong { display: block; }
+.quote-total-bar span small { color: rgba(255,255,255,.65); }
+.quote-total-bar span strong { font-size: 2rem; }
+.spec-list.single { grid-template-columns: 1fr !important; }
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
 
 @media (max-width: 720px) {
@@ -678,6 +725,14 @@ h1, h2, h3, .display { font-family: 'Manrope', 'DM Sans', sans-serif; letter-spa
   .dashboard-main-grid { grid-template-columns: 1fr; }
   .dashboard-request-row { grid-template-columns: 48px minmax(0,1fr); }
   .dashboard-request-row > :last-child { grid-column: 2; justify-self: start; }
+  .dashboard-welcome { background: linear-gradient(rgba(250,249,246,.91),rgba(250,249,246,.97)),url('./assets/vehicles/drivedeal-hero.png') center/cover; }
+  .quote-position { grid-template-columns: auto minmax(0,1fr); }
+  .quote-position .button { grid-column: 1/-1; width: 100%; }
+  .revise-bar { grid-template-columns: 1fr; }
+  .quote-gallery-main img { aspect-ratio: 4/3; }
+  .quote-total-bar { align-items: stretch; flex-direction: column; }
+  .quote-total-bar .button { width: 100%; }
+  .ai-result-card { transform: none; }
 }
 
 @media (prefers-reduced-motion: reduce) {

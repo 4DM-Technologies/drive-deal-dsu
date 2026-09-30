@@ -10,7 +10,7 @@ const suggestions = ['Help me choose a car', 'Compare my Bronco quotes', 'Build 
 
 export function SerraWidget() {
   const [open, setOpen] = useState(false);
-  const [visible, setVisible] = useState(() => window.sessionStorage.getItem('drivedeal.serraDismissed') !== 'true');
+  const [visible, setVisible] = useState(true);
   const [showNudge, setShowNudge] = useState(false);
   const [input, setInput] = useState('');
   const [status, setStatus] = useState('');
@@ -61,7 +61,7 @@ export function SerraWidget() {
               <span className="ai-nudge-icon"><Sparkles size={17} /></span>
               <span><strong>Buying a car?</strong><small>Ask Serra to find, compare, or draft.</small></span>
             </button>
-            <button className="ai-nudge-close" aria-label="Dismiss Serra advisor for this visit" onClick={() => { window.sessionStorage.setItem('drivedeal.serraDismissed', 'true'); setShowNudge(false); setVisible(false); }}><X size={15} /></button>
+            <button className="ai-nudge-close" aria-label="Dismiss Serra advisor for now" onClick={() => { setShowNudge(false); setVisible(false); }}><X size={15} /></button>
           </motion.div>
         )}
       </AnimatePresence>

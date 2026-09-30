@@ -56,7 +56,7 @@ export default function LoginScreen() {
             <button className="button button-primary button-wide">Sign in to {current.label.toLowerCase()} workspace <ArrowRight size={17} /></button>
           </form>
           {!teamMode && <p className="auth-alternate">New to DriveDeal? <Link to={current.signup}>{role === 'buyer' ? 'Create buyer account' : 'Apply as a dealer'}</Link></p>}
-          {teamMode && <p className="auth-alternate"><Link to="/login?role=buyer" onClick={() => chooseRole('buyer')}><ArrowLeft size={14} /> Back to customer sign in</Link></p>}
+          {teamMode && <div className="team-login-links"><p className="auth-alternate">Need an approved team account? <Link to="/signup/support">Request support access</Link></p><p className="auth-alternate"><Link to="/login?role=buyer" onClick={() => chooseRole('buyer')}><ArrowLeft size={14} /> Back to customer sign in</Link></p></div>}
           <details className="demo-access">
             <summary><span><LockKeyhole size={15} /> Developer demo access</span><ChevronDown size={16} /></summary>
             <div className="demo-access-body"><p>Development only. Choose a ready-made workspace:</p><div className="demo-buttons"><button onClick={() => signIn('buyer')}>Buyer</button><button onClick={() => signIn('dealer')}>Dealer</button><button onClick={() => signIn('support')}>Support</button><button onClick={() => signIn('admin')}>Admin</button></div></div>

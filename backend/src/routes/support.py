@@ -3,7 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.database import get_session
 from src.middleware.auth import get_current_profile, require_roles
-from src.models.marketplace import TicketCreate, TicketUpdate, VerificationDecision
+from src.models.marketplace import TicketCreate, TicketUpdate, VerificationDecision, VerificationReasonRequest
 from src.repositories.schema import Profile, User
 from src.services.support_service import SupportService
 from src.utils.exceptions import AppError, error_codes
@@ -51,19 +51,19 @@ async def verifications(profile: Profile = Depends(require_roles("support", "adm
 
 
 @router.post("/verifications/{verification_id}/approve")
-async def approve(verification_id: str, payload: VerificationDecision, profile: Profile = Depends(require_roles("support", "admin")), session: AsyncSession = Depends(get_session)):
+async def approve(verification_id: str, payload: VerificationReasonRequest, profile: Profile = Depends(require_roles("support", "admin")), session: AsyncSession = Depends(get_session)):
     decision = VerificationDecision(decision="approved", reason=payload.reason)
     return await SupportService(session).decide_verification(verification_id, decision, profile)
 
 
 @router.post("/verifications/{verification_id}/deny")
-async def deny(verification_id: str, payload: VerificationDecision, profile: Profile = Depends(require_roles("support", "admin")), session: AsyncSession = Depends(get_session)):
+async def deny(verification_id: str, payload: VerificationReasonRequest, profile: Profile = Depends(require_roles("support", "admin")), session: AsyncSession = Depends(get_session)):
     decision = VerificationDecision(decision="denied", reason=payload.reason)
     return await SupportService(session).decide_verification(verification_id, decision, profile)
 
 
 @router.post("/verifications/{verification_id}/reject")
-async def reject(verification_id: str, payload: VerificationDecision, profile: Profile = Depends(require_roles("support", "admin")), session: AsyncSession = Depends(get_session)):
+async def reject(verification_id: str, payload: VerificationReasonRequest, profile: Profile = Depends(require_roles("support", "admin")), session: AsyncSession = Depends(get_session)):
     decision = VerificationDecision(decision="rejected", reason=payload.reason)
     return await SupportService(session).decide_verification(verification_id, decision, profile)
 

@@ -1210,6 +1210,13 @@ paths:
         **final_price is server-computed** as `(price - discount) * (1 +
         sales_tax_rate)`, using the request's state tax rate. Sending
         final_price is 422.
+
+        Buyer requests are specification-only and do not accept buyer photos.
+        After this quote exists, the dealer uploads actual vehicle images,
+        window stickers, inspection reports and buyer-order documents with
+        `/documents/presign` followed by `/documents/{document_id}/confirm`.
+        Those quote-scoped files are visible to the buyer from the request
+        detail and offer views.
       operationId: createQuote
       tags:
       - Quotes
@@ -2545,7 +2552,7 @@ paths:
             examples:
               approve_dealer:
                 value:
-                  note: License TX030202 verified against the state registry.
+                  reason: License TX030202 verified against the state registry.
       responses:
         '200':
           description: Verification approved, account activated
@@ -2581,10 +2588,48 @@ paths:
             examples:
               deny:
                 value:
-                  note: Dealership licence number does not match the state registry.
+                  reason: Dealership licence number does not match the state registry.
       responses:
         '200':
           description: Verification denied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Verification'
+        '401':
+          $ref: '#/components/responses/unauthorized'
+        '403':
+          $ref: '#/components/responses/forbidden'
+        '404':
+          $ref: '#/components/responses/not_found'
+        '409':
+          $ref: '#/components/responses/conflict'
+  /verifications/{id}/reject:
+    post:
+      summary: Reject a verification
+      description: |-
+        Support/admin only, with the same role rule as approve. This is the
+        explicit hard-rejection action used when submitted evidence is invalid
+        or the applicant is ineligible. A reason is required for the audit
+        timeline; the account remains inactive.
+      operationId: rejectVerification
+      tags:
+      - Verifications
+      parameters:
+      - $ref: '#/components/parameters/VerificationId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VerificationDecisionRequest'
+            examples:
+              reject:
+                value:
+                  reason: Submitted licence belongs to a different legal entity.
+      responses:
+        '200':
+          description: Verification rejected
           content:
             application/json:
               schema:
@@ -5707,11 +5752,11 @@ components:
     VerificationDecisionRequest:
       type: object
       required:
-      - note
+      - reason
       properties:
-        note:
+        reason:
           type: string
-          minLength: 1
+          minLength: 3
           maxLength: 2000
           description: |-
             Required on both approve and deny. Appended to the decision trail

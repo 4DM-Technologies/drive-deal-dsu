@@ -55,6 +55,13 @@ def test_buyer_marketplace_and_serra() -> None:
         compare = client.post("/api/v1/ai/compare", headers=headers, json={"quote_ids": [IDS["q1"], quotes.json()[1]["id"]]})
         assert compare.status_code == 200
         assert len(compare.json()["rows"]) == 2
+        request_compare = client.post(
+            "/api/v1/ai/compare",
+            headers=headers,
+            json={"request_ids": [IDS["bronco"], IDS["jazz"]]},
+        )
+        assert request_compare.status_code == 200
+        assert len(request_compare.json()["rows"]) == 2
         chat = client.post(
             "/api/v1/ai/chat",
             headers=headers,
@@ -71,7 +78,7 @@ def test_buyer_marketplace_and_serra() -> None:
         compare_stream = client.post(
             "/api/v1/ai/chat",
             headers=headers,
-            json={"message": "Compare these offers", "agent": "compare-agent", "quote_ids": [IDS["q1"], quotes.json()[1]["id"]]},
+            json={"message": "Compare these requests", "agent": "compare-agent", "request_ids": [IDS["bronco"], IDS["jazz"]]},
         )
         assert '"kind": "compare"' in compare_stream.text
         assert client.get("/api/v1/ai/threads", headers=headers).status_code == 200
@@ -91,12 +98,45 @@ def test_dealer_inventory_feed_and_quote() -> None:
         assert client.get("/api/v1/chats/requests", headers=headers).status_code == 200
 
 
+def test_dealer_can_decline_chat_request_with_reason() -> None:
+    with TestClient(app) as client:
+        headers = login(client, "elena@lonestar.demo")
+        pending = client.get("/api/v1/chats/requests", headers=headers)
+        assert pending.status_code == 200 and pending.json()
+        declined = client.post(
+            f"/api/v1/chats/requests/{pending.json()[0]['id']}/decline",
+            headers=headers,
+            json={"reason": "The requested delivery slot is no longer available."},
+        )
+        assert declined.status_code == 200
+        assert declined.json()["chat_request_status"] == "declined"
+
+
 def test_support_workflows_and_error_envelope() -> None:
     with TestClient(app) as client:
         support_headers = login(client, "maya@drivedeal.demo")
         assert client.get("/api/v1/support/queue/tickets", headers=support_headers).status_code == 200
         verifications = client.get("/api/v1/verifications", headers=support_headers)
         assert verifications.status_code == 200 and len(verifications.json()) >= 3
+        rejectable = next(item for item in verifications.json() if item["status"] == "pending")
+        rejected = client.post(
+            f"/api/v1/verifications/{rejectable['id']}/reject",
+            headers=support_headers,
+            json={"reason": "Submitted evidence could not be validated."},
+        )
+        assert rejected.status_code == 200
+        assert rejected.json()["status"] == "rejected"
+        another_pending = next(
+            item for item in verifications.json()
+            if item["status"] == "pending" and item["id"] != rejectable["id"]
+        )
+        denied_verification = client.post(
+            f"/api/v1/verifications/{another_pending['id']}/deny",
+            headers=support_headers,
+            json={"reason": "The submitted record does not match the applicant."},
+        )
+        assert denied_verification.status_code == 200
+        assert denied_verification.json()["status"] == "denied"
         assert client.get("/api/v1/members", headers=support_headers).status_code == 200
         denied = client.get("/api/v1/requests", headers=support_headers)
         assert denied.status_code == 403

@@ -56,6 +56,9 @@ export interface Quote {
   contactAvailable: boolean;
   chatRequestStatus: 'none' | 'pending' | 'accepted' | 'declined';
   chatRequestMessage?: string;
+  vehicleImages?: string[];
+  documents?: Array<{ name: string; status: 'uploaded' | 'verified' }>;
+  revisions?: Array<{ amount: string; at: string }>;
 }
 
 export interface ChatMessage {

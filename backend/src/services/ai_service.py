@@ -69,7 +69,6 @@ class AiService:
         lower = payload.message.lower()
         if payload.agent == "compare-agent" and (payload.request_ids or payload.quote_ids):
             comparison = await self._comparison_payload(payload, buyer)
-            rows = comparison["rows"]
             answer = "I compared the selected offers by out-the-door price, dealer confidence, response speed, and reported gaps. Review the highlighted leader, then open the offer before making your final decision."
             card = {"type": "card", "kind": "compare", "payload": comparison}
         elif "request" in lower or "car" in lower or "buy" in lower:

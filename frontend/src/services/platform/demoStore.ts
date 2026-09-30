@@ -17,6 +17,8 @@ interface DemoState {
   loginAs: (role: Role) => void;
   logout: () => void;
   addRequest: (request: BuyerRequest) => void;
+  addQuote: (quote: Quote) => void;
+  reviseQuote: (quoteId: string, vehiclePrice: string, finalPrice: string) => void;
   acceptQuote: (quoteId: string) => void;
   declineQuote: (quoteId: string) => void;
   requestChat: (quoteId: string, message: string) => void;
@@ -50,6 +52,8 @@ export const useDemoStore = create<DemoState>()(
       loginAs: (role) => set({ session: personas[role] ?? personas.buyer! }),
       logout: () => set({ session: null }),
       addRequest: (request) => set((state) => ({ requests: [request, ...state.requests] })),
+      addQuote: (quote) => set((state) => ({ quotes: [quote, ...state.quotes], requests: state.requests.map((item) => item.id === quote.requestId ? { ...item, quoteCount: item.quoteCount + 1 } : item) })),
+      reviseQuote: (quoteId, vehiclePrice, finalPrice) => set((state) => ({ quotes: state.quotes.map((item) => item.id === quoteId ? { ...item, vehiclePrice, finalPrice, status: 'pending', revisions: [...(item.revisions ?? []), { amount: finalPrice, at: new Date().toISOString() }] } : item) })),
       acceptQuote: (quoteId) => set((state) => {
         const quote = state.quotes.find((item) => item.id === quoteId);
         if (!quote) return state;

@@ -4,7 +4,6 @@ import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useEffect } from 'react';
 import { SerraWidget } from '@/ui/reusables/SerraWidget/SerraWidget';
 import { Brand } from '@/ui/reusables/Brand/Brand';
-import { ScrollControls } from '@/ui/reusables/ScrollControls/ScrollControls';
 import { useDemoStore } from '@/services/platform/demoStore';
 import type { Role } from '@/types/domain';
 
@@ -73,7 +72,6 @@ export function AppShell() {
         <Outlet />
       </motion.main>
       {session.role === 'buyer' && location.pathname !== '/chatbot' && <SerraWidget />}
-      <ScrollControls />
     </div>
   );
 }
