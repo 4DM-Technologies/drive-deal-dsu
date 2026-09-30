@@ -36,7 +36,13 @@ export default function ChatScreen() {
   const quote = available.find((item) => item.id === activeId);
   const request = requests.find((item) => item.id === quote?.requestId);
   const thread = useMemo(() => messages.filter((message) => message.quoteId === activeId), [activeId, messages]);
-  useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }, [thread]);
+  const scrolledFor = useRef('');
+  useEffect(() => {
+    // Jump instantly when switching conversations; animate only for new messages in the open one.
+    const switched = scrolledFor.current !== activeId;
+    scrolledFor.current = activeId;
+    endRef.current?.scrollIntoView({ behavior: switched ? 'auto' : 'smooth', block: 'nearest' });
+  }, [activeId, thread]);
 
   function chooseConversation(id: string) {
     setActiveId(id);
@@ -53,6 +59,7 @@ export default function ChatScreen() {
       <main className="chat-thread">{quote && <><header className="chat-thread-head"><span className="chat-thread-title"><strong>{request?.brand} {request?.model} · {isDealer ? 'Buyer' : quote.dealerName}</strong><small><i /> {quote.contactAvailable ? 'Conversation open' : 'Awaiting dealer approval'} · Quote attached</small></span><Link className="button button-secondary button-sm" to={`/quotes/${quote.id}`}>View offer</Link></header>
         {quote.contactAvailable ? <><div className="chat-scroll" aria-live="polite"><div className="chat-context"><MessageCircle size={18} /><span><strong>Conversation linked to {formatVehicle(request?.brand, request?.model)}.</strong><small>Offer changes remain visible in the quote history.</small></span></div>{thread.map((message) => <div key={message.id} className={`chat-message-row ${message.senderId === session?.id ? 'mine' : ''}`}><div className="chat-message"><strong>{message.senderName}</strong><p>{message.body}</p><small>{relativeTime(message.createdAt)} {message.senderId === session?.id && <CheckCheck size={13} />}</small></div></div>)}<div ref={endRef} /></div><form className="chat-composer modern-composer" onSubmit={(event) => { event.preventDefault(); if (input.trim()) { sendMessage(quote.id, input.trim()); setInput(''); } }}><input className="input" value={input} onChange={(event) => setInput(event.target.value)} placeholder="Write a message about this offer" aria-label="Message" /><button className="button button-primary" disabled={!input.trim()} aria-label="Send message"><ArrowUp size={18} /></button></form></>
           : <div className="chat-waiting"><div className="empty-icon"><LockKeyhole /></div><h3>{isDealer ? 'Buyer requested a negotiation' : 'Negotiation request sent'}</h3><p>{isDealer ? 'Review the buyer’s opening note. Contact details and messaging open only after you accept.' : 'The dealer can read your opening note. Contact and messages unlock only if they accept.'}</p><div className="opening-note"><span>{isDealer ? 'Buyer’s opening note' : 'Your opening note'}</span><p>“{quote.chatRequestMessage ?? 'I would like to discuss this offer before deciding.'}”</p></div>{isDealer ? <div className="chat-request-actions"><button className="button button-primary" onClick={() => acceptChatRequest(quote.id)}><UserCheck size={17} /> Accept &amp; open chat</button><button className="button button-secondary" onClick={() => { const reason = window.prompt('Brief reason shown to the buyer'); if (reason?.trim()) declineChatRequest(quote.id, reason.trim()); }}><X size={17} /> Decline</button></div> : <StatusBadge status="pending" />}</div>}
+        {!quote.contactAvailable && <form className="chat-composer modern-composer" onSubmit={(event) => event.preventDefault()}><input className="input" disabled placeholder={isDealer ? 'Accept the request to start messaging' : 'Messaging unlocks when the dealer accepts'} aria-label="Message (locked)" /><button className="button button-primary" disabled aria-label="Send message"><ArrowUp size={18} /></button></form>}
       </>}</main>
     </section>
   </div>;

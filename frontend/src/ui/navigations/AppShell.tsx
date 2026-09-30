@@ -17,7 +17,7 @@ const links: Record<Role, Array<{ to: string; label: string; icon: typeof Home }
   dealer: [
     { to: '/home', label: 'Overview', icon: Gauge }, { to: '/feed', label: 'Buyer feed', icon: Search },
     { to: '/quotes', label: 'Quotes', icon: ScrollText }, { to: '/deals', label: 'Deals', icon: BriefcaseBusiness },
-    { to: '/chat/requests', label: 'Chat requests', icon: MessageCircle }, { to: '/chat', label: 'Messages', icon: MessageCircle },
+    { to: '/chat', label: 'Messages', icon: MessageCircle },
   ],
   support: [
     { to: '/support', label: 'Console', icon: Headphones }, { to: '/tickets', label: 'Tickets', icon: TicketCheck },
@@ -42,7 +42,9 @@ export function AppShell() {
   const navigate = useNavigate();
   const location = useLocation();
   const [supportOpen, setSupportOpen] = useState(false);
-  useEffect(() => { window.scrollTo({ top: 0, left: 0 }); }, [location.pathname]);
+  // Switching conversations (/chat/:quoteId) is not a page change: keep the same page instance so nothing remounts or re-animates.
+  const pageKey = /^\/chat\/(?!requests$)[^/]+$/.test(location.pathname) ? '/chat' : location.pathname;
+  useEffect(() => { window.scrollTo({ top: 0, left: 0 }); }, [pageKey]);
   if (!session) return null;
 
   const nav = links[session.role];
@@ -76,7 +78,7 @@ export function AppShell() {
           </motion.div>
         )}
       </AnimatePresence>
-      <motion.main key={location.pathname} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: .18 }}>
+      <motion.main key={pageKey} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: .18 }}>
         <Outlet />
       </motion.main>
       {session.role === 'buyer' && location.pathname !== '/chatbot' && <SerraWidget />}
