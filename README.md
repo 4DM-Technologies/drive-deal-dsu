@@ -29,9 +29,10 @@ This starts the normal application flow. Add `--no-ai` to skip LangGraph and Ope
 API still streams realistic Serra status, text, request-preview, and comparison events, so the
 product can be demonstrated safely without a credential.
 
-Serra reads its credential from `backend/.env`, preferring `OPENAI_API_KEY` and falling back to
-`CODEX_OAUTH_ACCESS_TOKEN`. With neither set, `src/agents/llm.py` leaves the client `None` and
-answers come from the deterministic fallback, so a missing key degrades instead of erroring.
+Serra reads its credential from `backend/.env`: `OPENAI_API_KEY` first, then `CODEX_OAUTH_ACCESS_TOKEN`,
+then a cached "Sign in with ChatGPT" (SIWC) OAuth token (run `uv run python -m src.codex_login` once
+to sign in). With none available, `src/agents/llm.py` leaves the client `None` and answers come from
+the deterministic fallback, so a missing credential degrades instead of erroring.
 
 See `RUNNING_GUIDE.md` for credential setup, the Postgres provisioning step, and known issues.
 
