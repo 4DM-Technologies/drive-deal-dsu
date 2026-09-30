@@ -1,0 +1,205 @@
+%% DriveDeal v2 - Entity Relationship Diagram
+%% Companion to schema-visualizer.md (section 10)
+%% 15 tables. Renders at https://mermaid.live or via the VS Code extension
+%% "Markdown Preview Mermaid Support". CLI: mmdc -i schema-erd.mmd -o erd.svg
+
+erDiagram
+    states   ||--o{ profiles       : "location of"
+    brands   ||--o{ cars           : "brand of"
+    brands   ||--o{ buyer_requests : "wanted brand"
+    profiles ||--|| users          : "has credentials"
+    profiles ||--o{ cars           : "lists"
+    profiles ||--o{ buyer_requests : "submits"
+    profiles ||--o| buyer_preference : "has 1 preference record"
+    profiles ||--o{ conversation_history : "owns thread"
+    profiles ||--o{ deal_quotes    : "buys"
+    profiles ||--o{ deal_quotes    : "sells"
+    profiles ||--o{ deal_chats     : "sends"
+    profiles ||--o{ deal_documents : "uploads"
+    profiles ||--o{ support_tickets : "raises"
+    profiles ||--o{ support_verifications : "is verified by"
+    states   ||--o{ cars           : "listed in"
+    states   ||--o{ buyer_requests : "buyer area"
+    buyer_requests ||--o{ deal_quotes : "receives"
+    deal_quotes ||--o{ deal_chats : "has"
+    deal_quotes ||--o{ deal_documents : "has"
+    deal_quotes o|--o| deal_documents : "points at current set"
+
+    states {
+        uuid   id PK
+        text   name UK
+        text   code UK
+        bool   is_active
+    }
+    brands {
+        uuid   id PK
+        text   name UK
+        text   country_code
+        bool   is_premium
+        bool   is_active
+    }
+    profiles {
+        uuid        id PK
+        uuid        state_id FK
+        text        full_name
+        text        email UK
+        text        role
+        text        phone
+        text        address
+        text        dealership_name
+        text        branch_name
+        text        dealer_license UK
+        text        website
+        geography   coordinates
+        bool        terms_accepted
+        text        terms_version
+        timestamptz terms_accepted_at
+    }
+    users {
+        uuid        id PK
+        uuid        profile_id FK,UK
+        text        password_hash
+        bool        is_active
+        timestamptz last_login_at
+    }
+    cars {
+        uuid        id PK
+        uuid        seller_id FK
+        uuid        brand_id FK
+        uuid        state_id FK
+        text        title
+        text        model
+        int4        model_year
+        text        body_type
+        int2        seating_capacity
+        text        condition
+        int4        mileage
+        text        fuel
+        text        transmission
+        numeric     price
+        numeric     rating
+        jsonb       reviews
+        text        status
+    }
+    buyer_requests {
+        uuid        id PK
+        uuid        buyer_id FK
+        uuid        brand_id FK
+        uuid        buyer_area_state_id FK
+        text        model
+        text        body_type
+        int4        year_min
+        int4        year_max
+        numeric     budget_min
+        numeric     budget_max
+        numeric     target_otd_price
+        timestamptz request_expire
+        text        additional_information
+        text        status
+    }
+    deal_quotes {
+        uuid        id PK
+        uuid        buyer_request_id FK
+        uuid        buyer_id FK
+        uuid        dealer_id FK
+        uuid        deal_documents_id FK
+        numeric     vehicle_price
+        numeric     doc_fee
+        numeric     sales_tax
+        numeric     title_reg
+        numeric     trade_in_credit
+        numeric     final_price
+        text        message
+        bool        read_by_buyer
+        text        status
+        timestamptz expires_at
+    }
+    deal_chats {
+        uuid        id PK
+        uuid        quote_id FK
+        uuid        sender_id FK
+        text        message
+    }
+    deal_documents {
+        uuid        id PK
+        uuid        quote_id FK
+        uuid        dealer_id FK
+        jsonb       image_paths
+        text        document_path
+    }
+    conversation_history {
+        text        thread_id PK
+        text        checkpoint_id PK
+        text        parent_checkpoint_id
+        uuid        user_id FK
+        text        thread_type
+        jsonb       checkpoint
+        jsonb       metadata
+    }
+    buyer_preference {
+        uuid        profile_id PK,FK
+        uuid        brand_id FK
+        uuid[]      other_brand_ids
+        text        model_preference
+        text        body_type
+        int2        seater_count
+        text        transmission
+        text        drivetrain
+        text        fuel_type
+        text        condition
+        text        exterior_color
+        int4        min_year
+        int4        max_mileage
+        int4        budget_min
+        int4        budget_max
+        text[]      must_have_features
+        text[]      never_want_features
+        text        source
+        numeric     confidence
+    }
+    support_tickets {
+        uuid        id PK
+        text        ticket_id
+        text        category
+        uuid        caller_id FK
+        text        issue_summary
+        text        status
+        text        priority
+        jsonb       notes
+        text        rca
+    }
+    support_verifications {
+        uuid        id PK
+        text        ticket_id
+        text        category
+        uuid        profile_id FK
+        jsonb       proof_docs
+        text        status
+        jsonb       notes
+        bool        email_sent
+    }
+    llm_audits {
+        bigserial   id PK
+        uuid        uuid UK
+        text        task_type
+        text        provider
+        text        model_name
+        text        thread_id
+        int         input_tokens
+        int         output_tokens
+        int         total_tokens
+        int         latency_ms
+        text        status
+    }
+    error_logs {
+        bigserial   id PK
+        uuid        uuid UK
+        text        level
+        text        error_code
+        text        error_message
+        text        source
+        text        endpoint
+        text        thread_id
+        uuid        user_id FK
+        jsonb       error_context
+    }
