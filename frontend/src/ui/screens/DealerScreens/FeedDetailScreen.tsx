@@ -30,7 +30,7 @@ export default function FeedDetailScreen() {
     const id = `quote-${crypto.randomUUID()}`;
     try {
       if (import.meta.env.VITE_USE_MOCKS !== 'false') {
-        addQuote({ id, requestId: request!.id, dealerId: session?.id ?? 'dealer-navee', dealerName: 'Navee Motors', dealerCity: 'Plano, TX', rating: 4.9, responseMinutes: 1, vehiclePrice, docFee, salesTax: tax, titleReg, tradeInCredit: trade, finalPrice: String(total), status: 'pending', dealStatus: null, message, createdAt: new Date().toISOString(), expiresAt: new Date(Date.now() + 5 * 86_400_000).toISOString(), contactAvailable: false, chatRequestStatus: 'none', vehicleImages: images, documents: documentFiles.map((file) => ({ name: file.name, status: 'uploaded' })) });
+        addQuote({ id, requestId: request!.id, dealerId: session?.id ?? '20000000-0000-4000-8000-000000000001', dealerName: 'Navee Motors', dealerCity: 'Plano, TX', rating: 4.9, responseMinutes: 1, vehiclePrice, docFee, salesTax: tax, titleReg, tradeInCredit: trade, finalPrice: String(total), status: 'pending', dealStatus: null, message, createdAt: new Date().toISOString(), expiresAt: new Date(Date.now() + 5 * 86_400_000).toISOString(), contactAvailable: false, chatRequestStatus: 'none', vehicleImages: images, documents: documentFiles.map((file) => ({ name: file.name, status: 'uploaded' })) });
         navigate(`/quotes/${id}`);
         return;
       }

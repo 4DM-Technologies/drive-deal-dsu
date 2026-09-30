@@ -85,7 +85,7 @@ export const useDemoStore = create<DemoState>()(
       requestChat: (quoteId, message) => set((state) => ({ quotes: state.quotes.map((item) => item.id === quoteId ? { ...item, chatRequestStatus: 'pending', chatRequestMessage: message } : item) })),
       acceptChatRequest: (quoteId) => set((state) => ({
         quotes: state.quotes.map((item) => item.id === quoteId ? { ...item, chatRequestStatus: 'accepted', contactAvailable: true, status: item.status === 'pending' ? 'negotiating' : item.status } : item),
-        messages: [...state.messages, { id: crypto.randomUUID(), quoteId, senderId: 'buyer-rahul', senderName: 'Rahul', body: state.quotes.find((item) => item.id === quoteId)?.chatRequestMessage ?? 'I would like to discuss this offer before deciding.', createdAt: new Date().toISOString(), read: false }],
+        messages: [...state.messages, { id: crypto.randomUUID(), quoteId, senderId: '10000000-0000-4000-8000-000000000001', senderName: 'Rahul', body: state.quotes.find((item) => item.id === quoteId)?.chatRequestMessage ?? 'I would like to discuss this offer before deciding.', createdAt: new Date().toISOString(), read: false }],
       })),
       declineChatRequest: (quoteId, reason) => set((state) => ({ quotes: state.quotes.map((item) => item.id === quoteId ? { ...item, chatRequestStatus: 'declined', chatRequestMessage: reason } : item) })),
       sendMessage: (quoteId, body) => set((state) => ({ messages: [...state.messages, { id: crypto.randomUUID(), quoteId, senderId: state.session?.id ?? 'demo', senderName: state.session?.fullName ?? 'Demo user', body, createdAt: new Date().toISOString(), read: false }] })),
@@ -107,6 +107,6 @@ export const useDemoStore = create<DemoState>()(
       })),
       resetDemo: () => set({ ...defaults(), session: null }),
     }),
-    { name: 'deal-and-drive-demo-v3', partialize: (state) => ({ session: state.session, requests: state.requests, quotes: state.quotes, messages: state.messages, inventory: state.inventory, tickets: state.tickets, verifications: state.verifications, preferences: state.preferences, aiThreads: state.aiThreads, supportMembers: state.supportMembers }) },
+    { name: 'deal-and-drive-demo-v4', partialize: (state) => ({ session: state.session, requests: state.requests, quotes: state.quotes, messages: state.messages, inventory: state.inventory, tickets: state.tickets, verifications: state.verifications, preferences: state.preferences, aiThreads: state.aiThreads, supportMembers: state.supportMembers }) },
   ),
 );

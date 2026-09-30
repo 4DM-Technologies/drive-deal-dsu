@@ -22,7 +22,7 @@ export default function NewRequestScreen() {
 
   function publish() {
     const id = `req-${crypto.randomUUID()}`;
-    addRequest({ id, buyerId: session?.id ?? 'buyer-rahul', brand: form.brand, model: form.model, bodyType: form.bodyType || null, yearMin: Number(form.yearMin) || null, yearMax: Number(form.yearMax) || null, budgetMin: null, budgetMax: null, targetOtdPrice: null, area: `${form.area}, ${form.state}`, radiusMiles: Number(form.radius), timeline: form.timeline, status: 'open', quoteCount: 0, createdAt: new Date().toISOString(), expiresAt: new Date(Date.now() + 14 * 86_400_000).toISOString(), image: '', mustHaves: [form.trim, form.drivetrain, form.transmission, form.color, form.details].filter(Boolean) });
+    addRequest({ id, buyerId: session?.id ?? '10000000-0000-4000-8000-000000000001', brand: form.brand, model: form.model, bodyType: form.bodyType || null, yearMin: Number(form.yearMin) || null, yearMax: Number(form.yearMax) || null, budgetMin: null, budgetMax: null, targetOtdPrice: null, area: `${form.area}, ${form.state}`, radiusMiles: Number(form.radius), timeline: form.timeline, status: 'open', quoteCount: 0, createdAt: new Date().toISOString(), expiresAt: new Date(Date.now() + 14 * 86_400_000).toISOString(), image: '', mustHaves: [form.trim, form.drivetrain, form.transmission, form.color, form.details].filter(Boolean) });
     navigate(`/requests/${id}`);
   }
 
