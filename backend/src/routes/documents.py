@@ -12,6 +12,7 @@ from src.repositories.schema import DealDocument, DealQuote, Profile
 from src.services.storage import get_storage
 from src.settings import UPLOAD_DIRECTORY
 from src.utils.exceptions import AppError, error_codes
+from src.utils.logger import logger
 from src.utils.serialization import model_dict
 
 router = APIRouter(prefix="/documents", tags=["Documents"])
@@ -29,6 +30,7 @@ async def upload_local(key: str, request: Request) -> Response:
     path = _local_path(key)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_bytes(await request.body())
+    logger.info("local_upload", key=key)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
@@ -37,6 +39,7 @@ async def download_local(key: str):
     path = _local_path(key)
     if not path.is_file():
         raise AppError(error_codes.RESOURCE_NOT_FOUND, "File not found.", 404)
+    logger.info("local_download", key=key)
     return FileResponse(path)
 
 
@@ -73,6 +76,7 @@ async def confirm(document_id: str, payload: ConfirmUploadRequest, profile: Prof
         row.status = "confirmed"
     await session.commit()
     await session.refresh(row)
+    logger.info("upload_confirmed", document_id=document_id, quote_id=payload.quote_id, dealer_id=profile.id, document_type=payload.document_type)
     return model_dict(row)
 
 

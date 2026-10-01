@@ -14,6 +14,7 @@ from src.models.marketplace import (
 from src.repositories.schema import Profile, User
 from src.services.support_service import SupportService
 from src.utils.exceptions import AppError, error_codes
+from src.utils.logger import logger
 
 router = APIRouter(tags=["Support"])
 
@@ -98,6 +99,7 @@ async def update_support_role(profile_id: str, payload: SupportRoleUpdate, actor
     user.refresh_token_hash = None
     user.updated_by = actor.id
     await session.commit()
+    logger.info("support_role_changed", profile_id=profile.id, role=profile.role, actor_id=actor.id)
     return {"profile_id": profile.id, "role": profile.role, "requires_sign_in": True}
 
 
@@ -111,4 +113,5 @@ async def suspend_member(profile_id: str, actor: Profile = Depends(require_roles
     user.is_active = False
     user.updated_by = actor.id
     await session.commit()
+    logger.info("member_suspended", profile_id=profile_id, actor_id=actor.id)
     return {"profile_id": profile_id, "is_active": False}

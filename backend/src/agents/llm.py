@@ -80,6 +80,11 @@ class LlmClient:
             total_tokens=result.input_tokens + result.output_tokens, latency_ms=elapsed, status=status,
         ))
         await self.session.flush()
+        logger.info(
+            "agent_llm_call", thread_id=thread_id, task_type=task_type, provider=provider, model=model_name,
+            status=status, input_tokens=result.input_tokens, output_tokens=result.output_tokens, latency_ms=elapsed,
+            prompt_excerpt=_safe_error_value(prompt, limit=200),
+        )
         return result
 
     async def _complete(self, client: AsyncOpenAI, prompt: str) -> LlmResult:

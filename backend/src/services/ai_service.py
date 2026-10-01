@@ -6,7 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.agents.requirements import build_requirement_graph
-from src.agents.serra.graph import build_serra_graph
+from src.agents.serra.graph import main_agent
 from src.models.marketplace import AiChatRequest, CompareRequest
 from src.repositories.schema import BuyerRequest, ConversationHistory, DealQuote, Profile
 from src.settings import get_settings
@@ -30,11 +30,13 @@ class AiService:
             "thread_id": thread_id,
             "message": payload.message,
             "requirements": memory.get("requirements", {}),
+            "preferences": memory.get("preferences", {}),
+            "preferences_pending": memory.get("preferences_pending", False),
         }
         yield {"type": "status", "phase": "classifying", "label": "Understanding your question"}
         await asyncio.sleep(0)
         yield {"type": "status", "phase": "searching", "label": "Checking Deal&Drive knowledge"}
-        main_graph = build_serra_graph(self.session, compare=payload.agent == "compare-agent")
+        main_graph = main_agent(self.session, compare=payload.agent == "compare-agent")
         requirement_graph = build_requirement_graph()
         main_result, requirement_result = await asyncio.gather(main_graph.ainvoke(state), requirement_graph.ainvoke(state))
         if main_result.get("sources"):
@@ -99,7 +101,7 @@ class AiService:
                     request_ids.append(quote.buyer_request_id)
         rows = legacy_rows or await self._comparison_rows(request_ids, buyer)
         state = {"user_id": buyer.id, "thread_id": str(uuid4()), "message": f"Compare these buyer requests and their best offers: {rows}"}
-        result = await build_serra_graph(self.session, compare=True).ainvoke(state)
+        result = await main_agent(self.session, compare=True).ainvoke(state)
         await self.session.commit()
         return {"request_ids": request_ids, "rows": rows, "recommendation": result.get("answer"), "not_reported_policy": "Fields not supplied by a dealer are never inferred."}
 
@@ -127,7 +129,11 @@ class AiService:
         self.session.add(ConversationHistory(
             thread_id=thread_id, checkpoint_id=str(uuid4()), user_id=user_id,
             thread_type="compare" if payload.agent == "compare-agent" else "sera",
-            checkpoint={"user": payload.message, "assistant": main.get("answer"), "requirements": requirements.get("requirements", {}), "questions": requirements.get("suggested_questions", [])},
+            checkpoint={
+                "user": payload.message, "assistant": main.get("answer"), "requirements": requirements.get("requirements", {}),
+                "questions": requirements.get("suggested_questions", []), "preferences": main.get("preferences", {}),
+                "preferences_pending": main.get("preferences_pending", False),
+            },
             metadata_json={"title": payload.message[:72], "agent": payload.agent, "saved_at": datetime.now(UTC).isoformat()},
         ))
 

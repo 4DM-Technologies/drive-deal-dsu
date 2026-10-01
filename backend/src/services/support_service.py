@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.models.marketplace import TicketCreate, TicketUpdate, VerificationDecision
 from src.repositories.schema import Profile, State, SupportTicket, SupportVerification, User
 from src.utils.exceptions import AppError, error_codes
+from src.utils.logger import logger
 from src.utils.serialization import model_dict
 
 
@@ -23,12 +24,19 @@ class SupportService:
         state = await self.session.get(State, profile.state_id) if profile and profile.state_id else None
         return {**model_dict(row), "profile_name": profile.full_name if profile else None, "business_name": profile.dealership_name if profile else None, "state": state.name if state else None}
 
+    async def _profile_map(self, profile_ids: set[str]) -> dict[str, Profile]:
+        if not profile_ids:
+            return {}
+        rows = (await self.session.execute(select(Profile).where(Profile.id.in_(profile_ids)))).scalars()
+        return {row.id: row for row in rows}
+
     async def list_tickets(self, actor: Profile, queue: bool = False) -> list[dict]:
         statement = select(SupportTicket).order_by(SupportTicket.created_at.desc())
         if not queue or actor.role not in {"support", "support-admin", "admin"}:
             statement = statement.where(SupportTicket.caller_id == actor.id)
-        rows = (await self.session.execute(statement)).scalars()
-        return [await self._ticket_dict(row) for row in rows]
+        rows = list((await self.session.execute(statement)).scalars())
+        callers = await self._profile_map({row.caller_id for row in rows})
+        return [{**model_dict(row), "caller_name": callers[row.caller_id].full_name if row.caller_id in callers else None} for row in rows]
 
     async def create_ticket(self, payload: TicketCreate, actor: Profile) -> dict:
         category = "dealer" if actor.role == "dealer" else "customer"
@@ -42,6 +50,7 @@ class SupportService:
         self.session.add(ticket)
         await self.session.commit()
         await self.session.refresh(ticket)
+        logger.info("ticket_created", ticket_id=ticket.ticket_id, caller_id=actor.id, category=category)
         return await self._ticket_dict(ticket)
 
     async def update_ticket(self, ticket_id: str, payload: TicketUpdate, actor: Profile) -> dict:
@@ -57,11 +66,26 @@ class SupportService:
         if payload.rca:
             ticket.rca = payload.rca
         await self.session.commit()
+        logger.info("ticket_updated", ticket_id=ticket.ticket_id, actor_id=actor.id, status=ticket.status)
         return await self._ticket_dict(ticket)
 
     async def list_verifications(self) -> list[dict]:
-        rows = (await self.session.execute(select(SupportVerification).order_by(SupportVerification.created_at.desc()))).scalars()
-        return [await self._verification_dict(row) for row in rows]
+        rows = list((await self.session.execute(select(SupportVerification).order_by(SupportVerification.created_at.desc()))).scalars())
+        profiles = await self._profile_map({row.profile_id for row in rows})
+        state_ids = {profile.state_id for profile in profiles.values() if profile.state_id}
+        states = {}
+        if state_ids:
+            state_rows = (await self.session.execute(select(State).where(State.id.in_(state_ids)))).scalars()
+            states = {row.id: row for row in state_rows}
+        return [
+            {
+                **model_dict(row),
+                "profile_name": profiles[row.profile_id].full_name if row.profile_id in profiles else None,
+                "business_name": profiles[row.profile_id].dealership_name if row.profile_id in profiles else None,
+                "state": states[profiles[row.profile_id].state_id].name if row.profile_id in profiles and profiles[row.profile_id].state_id in states else None,
+            }
+            for row in rows
+        ]
 
     async def decide_verification(self, verification_id: str, payload: VerificationDecision, actor: Profile) -> dict:
         verification = await self.session.get(SupportVerification, verification_id)
@@ -80,6 +104,7 @@ class SupportService:
             user.is_active = True
             verification.email_sent = True
         await self.session.commit()
+        logger.info("verification_decided", verification_id=verification.ticket_id, actor_id=actor.id, decision=payload.decision)
         return await self._verification_dict(verification)
 
     async def members(self) -> list[dict]:

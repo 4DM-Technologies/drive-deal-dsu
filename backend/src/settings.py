@@ -10,6 +10,32 @@ UPLOAD_DIRECTORY = PROJECT_ROOT / "uploads"
 DEFAULT_TERMS_VERSION = "2026-09-30"
 SUPPORTED_ROLES = ("buyer", "dealer", "support", "admin")
 
+# Domains the web_search_agent is willing to crawl. Keep explicit rather than crawling
+# anything a search engine returns (ported from testing/car-scraper-poc/config.py).
+ALLOWED_DOMAINS = [
+    "tesla.com",
+    "ford.com",
+    "chevrolet.com",
+    "toyota.com",
+    "honda.com",
+    "cars.com",
+    "cargurus.com",
+    "bmwusa.com",
+]
+
+# Maps a manufacturer name to its domain in ALLOWED_DOMAINS so a brand-specific query
+# searches the relevant brand's site first instead of looping through every allowed
+# domain in list order.
+MAKE_DOMAIN_MAP = {
+    "tesla": "tesla.com",
+    "ford": "ford.com",
+    "chevrolet": "chevrolet.com",
+    "chevy": "chevrolet.com",
+    "toyota": "toyota.com",
+    "honda": "honda.com",
+    "bmw": "bmwusa.com",
+}
+
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=PROJECT_ROOT / ".env", env_file_encoding="utf-8", extra="ignore")
@@ -41,6 +67,14 @@ class Settings(BaseSettings):
     ai_max_input_tokens: int = 12_000
     ai_max_output_tokens: int = 1_800
     ai_request_timeout_seconds: float = 45
+    google_api_key: str | None = None
+    google_cse_id: str | None = None
+    web_search_max_results: int = 5
+    web_search_request_timeout_seconds: int = 20
+    langsmith_tracing: bool = False
+    langsmith_api_key: str | None = None
+    langsmith_project: str = "drivedeal-serra"
+    langsmith_endpoint: str | None = None
 
     @field_validator("cors_origins", mode="before")
     @classmethod
