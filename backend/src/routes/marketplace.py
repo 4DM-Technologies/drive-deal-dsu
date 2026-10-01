@@ -45,7 +45,8 @@ async def publish_request(request_id: str, profile: Profile = Depends(require_ro
     service._require_owner(row.buyer_id, profile.id)
     row.status = "open"
     await session.commit()
-    return {"id": row.id, "status": row.status}
+    await session.refresh(row)
+    return await service.request_dict(row)
 
 
 @router.post("/requests/{request_id}/close")
@@ -55,7 +56,8 @@ async def close_request(request_id: str, profile: Profile = Depends(require_role
     service._require_owner(row.buyer_id, profile.id)
     row.status = "closed"
     await session.commit()
-    return {"id": row.id, "status": row.status}
+    await session.refresh(row)
+    return await service.request_dict(row)
 
 
 @router.get("/requests/{request_id}/quotes")
@@ -88,7 +90,7 @@ async def quote_detail(quote_id: str, profile: Profile = Depends(get_current_pro
     service = MarketplaceService(session)
     row = await service._quote(quote_id)
     service._require_party(row, profile)
-    return model_dict(row)
+    return await service.quote_dict(row)
 
 
 @router.patch("/quotes/{quote_id}/revise")
@@ -109,7 +111,7 @@ async def decline_quote(quote_id: str, profile: Profile = Depends(require_roles(
     row.status = "declined"
     await session.commit()
     await session.refresh(row)
-    return model_dict(row)
+    return await service.quote_dict(row)
 
 
 @router.post("/quotes/{quote_id}/withdraw")
@@ -120,7 +122,7 @@ async def withdraw_quote(quote_id: str, profile: Profile = Depends(require_roles
     row.status = "withdrawn"
     await session.commit()
     await session.refresh(row)
-    return model_dict(row)
+    return await service.quote_dict(row)
 
 
 @router.post("/requests/{request_id}/compare-ids")
@@ -163,7 +165,7 @@ async def decline_chat(quote_id: str, payload: ChatDeclineRequest | None = Body(
     row.deal_history = [*row.deal_history, {"event": "chat_request_declined", "reason": payload.reason if payload else None, "actor_id": profile.id, "at": row.chat_decided_at.isoformat()}]
     await session.commit()
     await session.refresh(row)
-    return model_dict(row)
+    return await service.quote_dict(row)
 
 
 @router.get("/chats/{quote_id}")

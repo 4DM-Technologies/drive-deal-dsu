@@ -26,8 +26,9 @@ async def get_session() -> AsyncIterator[AsyncSession]:
 async def create_schema() -> None:
     from src.repositories.schema import tables  # noqa: F401
 
-    DATA_DIRECTORY.mkdir(parents=True, exist_ok=True)
-    UPLOAD_DIRECTORY.mkdir(parents=True, exist_ok=True)
+    if settings.storage_driver == "local":
+        DATA_DIRECTORY.mkdir(parents=True, exist_ok=True)
+        UPLOAD_DIRECTORY.mkdir(parents=True, exist_ok=True)
     async with engine.begin() as connection:
         await connection.run_sync(Base.metadata.create_all)
 

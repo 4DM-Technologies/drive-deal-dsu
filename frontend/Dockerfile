@@ -1,10 +1,8 @@
 FROM node:22-alpine AS build
 WORKDIR /app
-ARG VITE_USE_MOCKS=false
 ARG VITE_API_BASE_URL=http://localhost:8000/api/v1
 ARG VITE_WS_BASE_URL=ws://localhost:8000/api/v1/ws
-ENV VITE_USE_MOCKS=$VITE_USE_MOCKS \
-    VITE_API_BASE_URL=$VITE_API_BASE_URL \
+ENV VITE_API_BASE_URL=$VITE_API_BASE_URL \
     VITE_WS_BASE_URL=$VITE_WS_BASE_URL
 COPY package.json package-lock.json* ./
 RUN npm ci

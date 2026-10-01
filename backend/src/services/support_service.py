@@ -5,7 +5,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.models.marketplace import TicketCreate, TicketUpdate, VerificationDecision
-from src.repositories.schema import Profile, SupportTicket, SupportVerification, User
+from src.repositories.schema import Profile, State, SupportTicket, SupportVerification, User
 from src.utils.exceptions import AppError, error_codes
 from src.utils.serialization import model_dict
 
@@ -14,12 +14,21 @@ class SupportService:
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
 
+    async def _ticket_dict(self, row: SupportTicket) -> dict:
+        caller = await self.session.get(Profile, row.caller_id)
+        return {**model_dict(row), "caller_name": caller.full_name if caller else None}
+
+    async def _verification_dict(self, row: SupportVerification) -> dict:
+        profile = await self.session.get(Profile, row.profile_id)
+        state = await self.session.get(State, profile.state_id) if profile and profile.state_id else None
+        return {**model_dict(row), "profile_name": profile.full_name if profile else None, "business_name": profile.dealership_name if profile else None, "state": state.name if state else None}
+
     async def list_tickets(self, actor: Profile, queue: bool = False) -> list[dict]:
         statement = select(SupportTicket).order_by(SupportTicket.created_at.desc())
         if not queue or actor.role not in {"support", "support-admin", "admin"}:
             statement = statement.where(SupportTicket.caller_id == actor.id)
         rows = (await self.session.execute(statement)).scalars()
-        return [model_dict(row) for row in rows]
+        return [await self._ticket_dict(row) for row in rows]
 
     async def create_ticket(self, payload: TicketCreate, actor: Profile) -> dict:
         category = "dealer" if actor.role == "dealer" else "customer"
@@ -33,7 +42,7 @@ class SupportService:
         self.session.add(ticket)
         await self.session.commit()
         await self.session.refresh(ticket)
-        return model_dict(ticket)
+        return await self._ticket_dict(ticket)
 
     async def update_ticket(self, ticket_id: str, payload: TicketUpdate, actor: Profile) -> dict:
         ticket = await self.session.get(SupportTicket, ticket_id)
@@ -48,11 +57,11 @@ class SupportService:
         if payload.rca:
             ticket.rca = payload.rca
         await self.session.commit()
-        return model_dict(ticket)
+        return await self._ticket_dict(ticket)
 
     async def list_verifications(self) -> list[dict]:
         rows = (await self.session.execute(select(SupportVerification).order_by(SupportVerification.created_at.desc()))).scalars()
-        return [model_dict(row) for row in rows]
+        return [await self._verification_dict(row) for row in rows]
 
     async def decide_verification(self, verification_id: str, payload: VerificationDecision, actor: Profile) -> dict:
         verification = await self.session.get(SupportVerification, verification_id)
@@ -71,7 +80,7 @@ class SupportService:
             user.is_active = True
             verification.email_sent = True
         await self.session.commit()
-        return model_dict(verification)
+        return await self._verification_dict(verification)
 
     async def members(self) -> list[dict]:
         rows = (

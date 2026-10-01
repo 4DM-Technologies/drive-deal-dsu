@@ -1,16 +1,15 @@
 import { ArrowLeft, Calculator, FileUp, ImagePlus, MapPin, Send, ShieldCheck } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { computeOtd, formatMoney } from '@/helpers/currency';
 import { client } from '@/services/platform/client';
-import { useDemoStore } from '@/services/platform/demoStore';
+import type { BuyerRequest } from '@/types/domain';
 
 export default function FeedDetailScreen() {
   const { requestId = '' } = useParams();
   const navigate = useNavigate();
-  const session = useDemoStore((state) => state.session);
-  const request = useDemoStore((state) => state.requests.find((item) => item.id === requestId));
-  const addQuote = useDemoStore((state) => state.addQuote);
+  const [request, setRequest] = useState<BuyerRequest | null | undefined>(undefined);
+  useEffect(() => { void client.feed.get(requestId).then(setRequest).catch(() => setRequest(null)); }, [requestId]);
   const [vehiclePrice, setVehiclePrice] = useState('65000.00');
   const [docFee, setDocFee] = useState('650.00');
   const [titleReg, setTitleReg] = useState('225.00');
@@ -22,18 +21,13 @@ export default function FeedDetailScreen() {
   const images = useMemo(() => imageFiles.map((file) => URL.createObjectURL(file)), [imageFiles]);
   const tax = useMemo(() => (Number(vehiclePrice || 0) * .0625).toFixed(2), [vehiclePrice]);
   const total = computeOtd({ vehiclePrice, docFee, salesTax: tax, titleReg, tradeInCredit: trade });
+  if (request === undefined) return null;
   if (!request) return <div className="shell page-content"><section className="card card-pad"><h1>Request not found</h1><p className="muted">This buying request may have closed or moved outside your matched area.</p><Link className="button button-primary" to="/feed">Back to buyer feed</Link></section></div>;
 
   async function submit() {
     if (submitting) return;
     setSubmitting(true);
-    const id = `quote-${crypto.randomUUID()}`;
     try {
-      if (import.meta.env.VITE_USE_MOCKS !== 'false') {
-        addQuote({ id, requestId: request!.id, dealerId: session?.id ?? '20000000-0000-4000-8000-000000000001', dealerName: 'Navee Motors', dealerCity: 'Plano, TX', rating: 4.9, responseMinutes: 1, vehiclePrice, docFee, salesTax: tax, titleReg, tradeInCredit: trade, finalPrice: String(total), status: 'pending', dealStatus: null, message, createdAt: new Date().toISOString(), expiresAt: new Date(Date.now() + 5 * 86_400_000).toISOString(), contactAvailable: false, chatRequestStatus: 'none', vehicleImages: images, documents: documentFiles.map((file) => ({ name: file.name, status: 'uploaded' })) });
-        navigate(`/quotes/${id}`);
-        return;
-      }
       const created = await client.quotes.create({ buyerRequestId: request!.id, vehiclePrice, docFee, salesTax: tax, titleReg, tradeInCredit: trade, message, expiresAt: new Date(Date.now() + 5 * 86_400_000).toISOString() });
       await Promise.all([...imageFiles.map((file) => client.documents.upload(created.id, file, 'vehicle_image')), ...documentFiles.map((file) => client.documents.upload(created.id, file, 'quote_document'))]);
       navigate(`/quotes/${created.id}`);

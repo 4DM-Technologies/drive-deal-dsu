@@ -1,17 +1,23 @@
 import { ArrowRight, FilePlus2, MapPin, Search } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { useDemoStore } from '@/services/platform/demoStore';
+import { client } from '@/services/platform/client';
 import { EmptyState } from '@/ui/reusables/EmptyState/EmptyState';
 import { StatusBadge } from '@/ui/reusables/StatusBadge/StatusBadge';
+import type { BuyerRequest, Quote } from '@/types/domain';
 
 export default function RequestsScreen() {
-  const session = useDemoStore((state) => state.session);
-  const requests = useDemoStore((state) => state.requests);
-  const quotes = useDemoStore((state) => state.quotes);
+  const [requests, setRequests] = useState<BuyerRequest[]>([]);
+  const [quotes, setQuotes] = useState<Quote[]>([]);
   const [filter, setFilter] = useState<'all' | 'open' | 'fulfilled'>('all');
   const [search, setSearch] = useState('');
-  const items = useMemo(() => requests.filter((request) => request.buyerId === session?.id).filter((request) => filter === 'all' || request.status === filter).filter((request) => `${request.brand} ${request.model}`.toLowerCase().includes(search.toLowerCase())), [filter, requests, search, session?.id]);
+
+  useEffect(() => {
+    void client.requests.list().then(setRequests).catch(() => setRequests([]));
+    void client.quotes.list().then(setQuotes).catch(() => setQuotes([]));
+  }, []);
+
+  const items = useMemo(() => requests.filter((request) => filter === 'all' || request.status === filter).filter((request) => `${request.brand} ${request.model}`.toLowerCase().includes(search.toLowerCase())), [filter, requests, search]);
   return <div className="shell page-content"><div className="page-heading"><div><span className="eyebrow">Your private briefs</span><h1>Vehicle requests</h1><p>Track dealer interest, compare itemized offers, and decide when to open contact.</p></div><Link className="button button-primary" to="/requests/new"><FilePlus2 size={17} /> Start a request</Link></div>
     <div className="card card-pad list-toolbar"><label className="search-field"><Search size={17} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search brand or model" /></label><div className="filter-pills">{(['all', 'open', 'fulfilled'] as const).map((value) => <button key={value} className={`filter-pill ${filter === value ? 'active' : ''}`} onClick={() => setFilter(value)}>{value === 'all' ? 'All briefs' : value === 'open' ? 'Receiving offers' : 'Converted to order'}</button>)}</div></div>
     {items.length === 0 ? <div className="card"><EmptyState title="No requests match" description="Try another filter or create a new buyer request." action={<Link className="button button-primary" to="/requests/new">Start a request</Link>} /></div> : <div className="grid grid-2">{items.map((request) => {
