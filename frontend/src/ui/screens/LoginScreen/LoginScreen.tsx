@@ -8,7 +8,7 @@ import { Brand } from '@/ui/reusables/Brand/Brand';
 import type { Role } from '@/types/domain';
 
 const access = {
-  buyer: { label: 'Buyer', helper: 'Requests, quotes & Serra', icon: UserRound, email: 'rahul@drivedeal.demo', signup: '/signup/buyer' },
+  buyer: { label: 'Buyer', helper: 'Requests, quotes & Sera', icon: UserRound, email: 'rahul@drivedeal.demo', signup: '/signup/buyer' },
   dealer: { label: 'Dealer', helper: 'Demand, quotes & deals', icon: Building2, email: 'naveen@naveemotors.demo', signup: '/signup/dealer' },
   support: { label: 'Team', helper: 'Support operations', icon: Headphones, email: 'maya@drivedeal.demo', signup: '/signup/support' },
 } as const;

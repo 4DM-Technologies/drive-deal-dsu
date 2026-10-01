@@ -1,0 +1,19 @@
+/* Serra logo — Deal&Drive palette: navy #10233f · accent #1456b8/#1765d5 · deep #0d438f · sky #70a8ff · mist #bad0f0 */
+.serra-logo { position: relative; display: inline-block; flex: none; width: var(--serra-size); height: var(--serra-size); line-height: 0; }
+.serra-logo-defs { position: absolute; width: 0; height: 0; overflow: hidden; }
+.serra-logo-mark { position: absolute; inset: 0; display: block; filter: drop-shadow(0 calc(6 * var(--serra-k) * 1px) calc(14 * var(--serra-k) * 1px) rgba(16, 35, 63, .26)); }
+
+.serra-logo-flow { position: absolute; inset: 0; display: block; overflow: hidden; isolation: isolate; }
+.serra-logo-flow::before { content: ''; position: absolute; left: -40%; top: -40%; width: 180%; height: 180%; transform-origin: center; filter: blur(calc(7 * var(--serra-k) * 1px)) saturate(1.15); background: conic-gradient(from 0deg, #1456b8, #70a8ff, #ffffff, #bad0f0, #0d438f, #4a8df0, #ffffff, #1765d5, #10233f, #1456b8); }
+.serra-logo-flow::after { content: ''; position: absolute; left: -30%; top: -30%; width: 160%; height: 160%; mix-blend-mode: soft-light; opacity: .75; filter: blur(calc(10 * var(--serra-k) * 1px)); background: radial-gradient(closest-side at 30% 30%, #ffffff 0%, transparent 60%), radial-gradient(closest-side at 70% 60%, #1765d5 0%, transparent 55%), radial-gradient(closest-side at 55% 80%, #70a8ff 0%, transparent 55%); }
+.serra-logo-sheen { position: absolute; inset: 0; display: block; pointer-events: none; background: linear-gradient(115deg, transparent 42%, rgba(255, 255, 255, .55) 50%, transparent 58%); background-size: 250% 250%; background-position: 120% 0; }
+.serra-logo-rims { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+
+@media (prefers-reduced-motion: no-preference) {
+  .serra-logo.is-animated .serra-logo-flow::before { animation: serra-spin 14s linear infinite; }
+  .serra-logo.is-animated .serra-logo-flow::after { animation: serra-drift 9s ease-in-out infinite alternate; }
+  .serra-logo.is-animated .serra-logo-sheen { animation: serra-sweep 7s ease-in-out infinite; }
+}
+@keyframes serra-spin { to { transform: rotate(360deg); } }
+@keyframes serra-drift { from { transform: translate(-4%, -3%) scale(1); } to { transform: translate(5%, 4%) scale(1.12); } }
+@keyframes serra-sweep { 0%, 100% { background-position: 120% 0; } 50% { background-position: -40% 0; } }

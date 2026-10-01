@@ -7,6 +7,7 @@ import suvImage from '@/assets/vehicles/studio-suv.png';
 import { client } from '@/services/platform/client';
 import { useDemoStore } from '@/services/platform/demoStore';
 import type { BuyerRequest, DealDocument, Quote } from '@/types/domain';
+import { PageLoading } from '@/ui/reusables/PageLoading/PageLoading';
 import { StatusBadge } from '@/ui/reusables/StatusBadge/StatusBadge';
 
 const progression = ['paperwork_going_on', 'funds_arrived', 'dispatch', 'delivery', 'completed'] as const;
@@ -16,7 +17,7 @@ export default function QuoteDetailScreen({ deal = false }: { deal?: boolean }) 
   const id = params.id ?? params.quoteId ?? '';
   const session = useDemoStore((state) => state.session);
   const [quote, setQuote] = useState<Quote | null | undefined>(undefined);
-  const [request, setRequest] = useState<BuyerRequest | null>(null);
+  const [request, setRequest] = useState<BuyerRequest | null | undefined>(undefined);
   const [competing, setCompeting] = useState<Quote[]>([]);
   const [revising, setRevising] = useState(false);
   const [vehiclePrice, setVehiclePrice] = useState('0');
@@ -32,9 +33,10 @@ export default function QuoteDetailScreen({ deal = false }: { deal?: boolean }) 
     }).catch(() => setQuote(null));
     void client.documents.list(id).then(setAttachments).catch(() => setAttachments([]));
   };
-  useEffect(() => { refresh(); }, [id]);
+  // Start from a clean loading state whenever the quote changes, so a stale or half-loaded page never flashes "not found".
+  useEffect(() => { setQuote(undefined); setRequest(undefined); setCompeting([]); refresh(); }, [id]);
 
-  if (quote === undefined) return null;
+  if (quote === undefined || (quote && request === undefined)) return <PageLoading label="Opening quote" />;
   if (!quote || !request) return <div className="shell page-content"><section className="card card-pad"><h1>Quote not found</h1><p className="muted">This quote may no longer be available in your workspace.</p><Link className="button button-primary" to="/quotes">Back to quotes</Link></section></div>;
 
   const rank = competing.findIndex((item) => item.id === quote.id) + 1;

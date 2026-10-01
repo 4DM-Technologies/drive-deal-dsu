@@ -1,7 +1,7 @@
 import { AnimatePresence, motion } from 'motion/react';
 import { BriefcaseBusiness, ClipboardCheck, FileText, Gauge, Headphones, Home, LifeBuoy, LogOut, Menu, MessageCircle, PackageCheck, ScrollText, Search, ShieldCheck, Sparkles, TicketCheck, UserRound, Users, X } from 'lucide-react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { SerraWidget } from '@/ui/reusables/SerraWidget/SerraWidget';
 import { Brand } from '@/ui/reusables/Brand/Brand';
 import { useDemoStore } from '@/services/platform/demoStore';
@@ -12,7 +12,7 @@ const links: Record<Role, Array<{ to: string; label: string; icon: typeof Home }
   buyer: [
     { to: '/home', label: 'Overview', icon: Home }, { to: '/requests', label: 'Requests', icon: FileText },
     { to: '/orders', label: 'Orders', icon: PackageCheck }, { to: '/chat', label: 'Messages', icon: MessageCircle },
-    { to: '/chatbot', label: 'Ask Serra', icon: Sparkles }, { to: '/profiles', label: 'Profile', icon: UserRound },
+    { to: '/chatbot', label: 'Ask Sera', icon: Sparkles }, { to: '/profiles', label: 'Profile', icon: UserRound },
   ],
   dealer: [
     { to: '/home', label: 'Overview', icon: Gauge }, { to: '/feed', label: 'Buyer feed', icon: Search },
@@ -49,6 +49,16 @@ export function AppShell() {
 
   const nav = links[session.role];
   const roleHome = ['support', 'support-admin', 'admin'].includes(session.role) ? '/support' : '/home';
+  const [signOutOpen, setSignOutOpen] = useState(false);
+  const signOutRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!signOutOpen) return;
+    const close = (event: MouseEvent) => { if (!signOutRef.current?.contains(event.target as Node)) setSignOutOpen(false); };
+    const escape = (event: KeyboardEvent) => { if (event.key === 'Escape') setSignOutOpen(false); };
+    document.addEventListener('mousedown', close);
+    document.addEventListener('keydown', escape);
+    return () => { document.removeEventListener('mousedown', close); document.removeEventListener('keydown', escape); };
+  }, [signOutOpen]);
   const signOut = () => { window.localStorage.removeItem('drivedeal.accessToken'); window.localStorage.removeItem('drivedeal.refreshToken'); logout(); navigate('/login', { replace: true, state: null }); };
 
   return (
@@ -64,7 +74,10 @@ export function AppShell() {
             <span className="avatar">{session.avatarInitials}</span>
             <span className="profile-meta"><strong>{session.fullName}</strong><span>{session.role}</span></span>
           </button>
-          <button className="button button-ghost button-sm" onClick={signOut} aria-label="Sign out"><LogOut size={18} /></button>
+          <div className="signout-wrap" ref={signOutRef}>
+            <button className={`button button-ghost button-sm signout-trigger ${signOutOpen ? 'open' : ''}`} onClick={() => setSignOutOpen((open) => !open)} aria-label="Account menu" aria-haspopup="menu" aria-expanded={signOutOpen}><LogOut size={18} /></button>
+            {signOutOpen && <div className="signout-menu" role="menu"><button className="signout-item" role="menuitem" onClick={signOut} autoFocus><LogOut size={16} /> Sign out</button></div>}
+          </div>
           <button className="button button-ghost mobile-menu" onClick={() => setSidebarOpen(!sidebarOpen)} aria-label="Open menu"><Menu /></button>
         </div>
       </header>

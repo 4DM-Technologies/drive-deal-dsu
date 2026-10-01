@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { computeOtd, formatMoney } from '@/helpers/currency';
 import { client } from '@/services/platform/client';
+import { PageLoading } from '@/ui/reusables/PageLoading/PageLoading';
 import type { BuyerRequest } from '@/types/domain';
 
 export default function FeedDetailScreen() {
@@ -21,7 +22,7 @@ export default function FeedDetailScreen() {
   const images = useMemo(() => imageFiles.map((file) => URL.createObjectURL(file)), [imageFiles]);
   const tax = useMemo(() => (Number(vehiclePrice || 0) * .0625).toFixed(2), [vehiclePrice]);
   const total = computeOtd({ vehiclePrice, docFee, salesTax: tax, titleReg, tradeInCredit: trade });
-  if (request === undefined) return null;
+  if (request === undefined) return <PageLoading label="Opening buyer brief" />;
   if (!request) return <div className="shell page-content"><section className="card card-pad"><h1>Request not found</h1><p className="muted">This buying request may have closed or moved outside your matched area.</p><Link className="button button-primary" to="/feed">Back to buyer feed</Link></section></div>;
 
   async function submit() {

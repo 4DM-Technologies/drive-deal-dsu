@@ -3,7 +3,9 @@ import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { formatMoney } from '@/helpers/currency';
 import { client } from '@/services/platform/client';
+import { ConfirmDialog } from '@/ui/reusables/ConfirmDialog/ConfirmDialog';
 import { EmptyState } from '@/ui/reusables/EmptyState/EmptyState';
+import { PageLoading } from '@/ui/reusables/PageLoading/PageLoading';
 import { StatusBadge } from '@/ui/reusables/StatusBadge/StatusBadge';
 import type { BuyerRequest, Quote } from '@/types/domain';
 
@@ -14,6 +16,9 @@ export default function RequestDetailScreen() {
   const [request, setRequest] = useState<BuyerRequest | null | undefined>(undefined);
   const [quotes, setQuotes] = useState<Quote[]>([]);
   const [notice, setNotice] = useState('');
+  const [confirming, setConfirming] = useState<{ kind: 'accept' | 'decline'; quote: Quote } | null>(null);
+  const [confirmBusy, setConfirmBusy] = useState(false);
+  const [confirmError, setConfirmError] = useState('');
   const [negotiating, setNegotiating] = useState<string | null>(null);
   const [openingMessage, setOpeningMessage] = useState('I like this offer, but I would like to discuss the equipment and final price before deciding.');
 
@@ -23,23 +28,38 @@ export default function RequestDetailScreen() {
   };
   useEffect(() => { refresh(); }, [id]);
 
-  if (request === undefined) return null;
+  if (request === undefined) return <PageLoading label="Opening your request" />;
   if (!request) return <div className="shell page-content"><div className="card"><EmptyState title="Request not found" description="This request may have been removed or belongs to another buyer." action={<Link className="button button-primary" to="/requests">Back to requests</Link>} /></div></div>;
   const leader = quotes[0];
 
-  async function accept(idValue: string) {
-    if (window.confirm(`Accept this ${formatMoney(quotes.find((quote) => quote.id === idValue)?.finalPrice ?? 0)} offer? Other offers will be declined.`)) {
-      await client.quotes.accept(idValue);
-      setNotice('Offer accepted. The order and dealer conversation are now open.');
-      refresh();
-    }
+  function askAccept(idValue: string) {
+    const quote = quotes.find((item) => item.id === idValue);
+    if (quote) { setConfirmError(''); setConfirming({ kind: 'accept', quote }); }
   }
 
-  async function decline(idValue: string, dealerName: string, amount: string) {
-    if (window.confirm(`Decline the ${formatMoney(amount)} offer from ${dealerName}?`)) {
-      await client.quotes.decline(idValue);
-      setNotice('Offer declined.');
+  function askDecline(idValue: string) {
+    const quote = quotes.find((item) => item.id === idValue);
+    if (quote) { setConfirmError(''); setConfirming({ kind: 'decline', quote }); }
+  }
+
+  async function confirmAction() {
+    if (!confirming) return;
+    setConfirmBusy(true);
+    setConfirmError('');
+    try {
+      if (confirming.kind === 'accept') {
+        await client.quotes.accept(confirming.quote.id);
+        setNotice('Offer accepted. The order and dealer conversation are now open.');
+      } else {
+        await client.quotes.decline(confirming.quote.id);
+        setNotice('Offer declined.');
+      }
+      setConfirming(null);
       refresh();
+    } catch {
+      setConfirmError('That did not go through. Please try again.');
+    } finally {
+      setConfirmBusy(false);
     }
   }
 
@@ -53,7 +73,7 @@ export default function RequestDetailScreen() {
 
   return <div className="shell page-content">
     <Link className="button button-ghost" to="/requests"><ArrowLeft size={17} /> All requests</Link>
-    <div className="page-heading request-detail-heading"><div><span className="eyebrow">Private buyer request</span><h1>{request.brand} {request.model}</h1><p>{request.yearMin}–{request.yearMax} · {request.bodyType} · {request.area} · within {request.radiusMiles} miles</p></div><div className="heading-actions"><Link className="button button-secondary" to={`/chatbot?compare=${request.id}`}><Scale size={17} /> Compare with Serra</Link><StatusBadge status={request.status === 'open' ? 'live' : request.status} /></div></div>
+    <div className="page-heading request-detail-heading"><div><span className="eyebrow">Private buyer request</span><h1>{request.brand} {request.model}</h1><p>{request.yearMin}–{request.yearMax} · {request.bodyType} · {request.area} · within {request.radiusMiles} miles</p></div><div className="heading-actions"><Link className="button button-secondary" to={`/chatbot?compare=${request.id}`}><Scale size={17} /> Compare with Sera</Link><StatusBadge status={request.status === 'open' ? 'live' : request.status} /></div></div>
     {notice && <div className="inline-success" role="status"><Check size={18} />{notice}</div>}
     <div className="detail-grid">
       <main>
@@ -65,8 +85,9 @@ export default function RequestDetailScreen() {
           </>}
         </section>
       </main>
-      <aside className="sticky-card"><section className="card card-pad best-offer-card"><span className="eyebrow">Best current offer</span>{leader ? <><h2 className="price">{formatMoney(leader.finalPrice)}</h2><p><strong>{leader.dealerName}</strong><br /><span className="muted">{leader.message}</span></p><div className="grid"><button className="button button-primary" onClick={() => void accept(leader.id)} disabled={leader.status === 'accepted'}><Check size={17} /> {leader.status === 'accepted' ? 'Offer accepted' : 'Accept offer'}</button>{leader.chatRequestStatus === 'none' && !leader.contactAvailable && <button className="button button-secondary" onClick={() => { setNegotiating(leader.id); setOpeningMessage(`I like your ${request.brand} ${request.model} offer. I would like to discuss the equipment and final price before deciding.`); }}><MessageCircle size={17} /> Ask to negotiate</button>}{leader.chatRequestStatus === 'pending' && <Link className="button button-secondary" to={`/chat/${leader.id}`}><Clock3 size={17} /> Request pending</Link>}{leader.contactAvailable && <Link className="button button-secondary" to={`/chat/${leader.id}`}><MessageCircle size={17} /> Message dealer</Link>}<button className="button button-ghost" onClick={() => void decline(leader.id, leader.dealerName, leader.finalPrice)}><X size={17} /> Decline offer</button></div></> : <p className="muted">No quotes yet.</p>}</section><section className="card card-pad privacy-note"><ShieldCheck /><div><h3>Buyer-controlled contact</h3><p>Dealer details and chat unlock only after accepting an offer or when the dealer accepts your negotiation request.</p></div></section></aside>
+      <aside className="sticky-card"><section className="card card-pad best-offer-card"><span className="eyebrow">Best current offer</span>{leader ? <><h2 className="price">{formatMoney(leader.finalPrice)}</h2><p><strong>{leader.dealerName}</strong><br /><span className="muted">{leader.message}</span></p><div className="grid"><button className="button button-primary" onClick={() => askAccept(leader.id)} disabled={leader.status === 'accepted'}><Check size={17} /> {leader.status === 'accepted' ? 'Offer accepted' : 'Accept offer'}</button>{leader.chatRequestStatus === 'none' && !leader.contactAvailable && <button className="button button-secondary" onClick={() => { setNegotiating(leader.id); setOpeningMessage(`I like your ${request.brand} ${request.model} offer. I would like to discuss the equipment and final price before deciding.`); }}><MessageCircle size={17} /> Ask to negotiate</button>}{leader.chatRequestStatus === 'pending' && <Link className="button button-secondary" to={`/chat/${leader.id}`}><Clock3 size={17} /> Request pending</Link>}{leader.contactAvailable && <Link className="button button-secondary" to={`/chat/${leader.id}`}><MessageCircle size={17} /> Message dealer</Link>}<button className="button button-ghost" onClick={() => askDecline(leader.id)}><X size={17} /> Decline offer</button></div></> : <p className="muted">No quotes yet.</p>}</section><section className="card card-pad privacy-note"><ShieldCheck /><div><h3>Buyer-controlled contact</h3><p>Dealer details and chat unlock only after accepting an offer or when the dealer accepts your negotiation request.</p></div></section></aside>
     </div>
+    {confirming && <ConfirmDialog open title={confirming.kind === 'accept' ? 'Accept this offer?' : 'Decline this offer?'} description={confirming.kind === 'accept' ? 'Accepting opens a private conversation with this dealer. Your other offers on this request will be declined.' : 'The dealer will be told this offer was declined. You can keep comparing your other offers.'} details={<><span>{confirming.quote.dealerName}</span><strong className="price">{formatMoney(confirming.quote.finalPrice)}</strong><small>Out-the-door total</small></>} confirmLabel={confirming.kind === 'accept' ? 'Yes, accept offer' : 'Yes, decline offer'} tone={confirming.kind === 'accept' ? 'primary' : 'danger'} busy={confirmBusy} error={confirmError} onConfirm={() => void confirmAction()} onCancel={() => setConfirming(null)} />}
     {negotiating && <div className="modal-backdrop" role="presentation" onMouseDown={() => setNegotiating(null)}><section className="modal-card" role="dialog" aria-modal="true" aria-labelledby="negotiation-title" onMouseDown={(event) => event.stopPropagation()}><button className="modal-close" onClick={() => setNegotiating(null)} aria-label="Close"><X /></button><span className="eyebrow">Private negotiation request</span><h2 id="negotiation-title">Ask {quotes.find((quote) => quote.id === negotiating)?.dealerName} to chat</h2><p className="muted">This note is visible before your identity is shared. If the dealer accepts, it becomes the first message in the conversation.</p><div className="field"><label>Your opening note</label><textarea className="textarea" rows={5} maxLength={1000} value={openingMessage} onChange={(event) => setOpeningMessage(event.target.value)} /></div><small className="character-count">{openingMessage.length}/1000</small><button className="button button-primary button-wide" onClick={() => void submitNegotiation()} disabled={!openingMessage.trim()}><MessageCircle size={17} /> Send negotiation request</button></section></div>}
   </div>;
 }

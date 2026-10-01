@@ -1,6 +1,7 @@
 import { CalendarDays, Check, Clock3, Mail, MapPin, Phone, Search, ShieldCheck, UserRound, X } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { relativeTime } from '@/helpers/dateTime';
+import { PageLoading } from '@/ui/reusables/PageLoading/PageLoading';
 import { client } from '@/services/platform/client';
 import { useDemoStore } from '@/services/platform/demoStore';
 import { EmptyState } from '@/ui/reusables/EmptyState/EmptyState';
@@ -14,12 +15,13 @@ export function SupportMembers() {
   const [pendingChange, setPendingChange] = useState<SupportMember | null>(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [membersLoaded, setMembersLoaded] = useState(false);
   const [notice, setNotice] = useState('');
   const [error, setError] = useState('');
   const canAdminister = session?.role === 'support-admin' || session?.role === 'admin';
 
   useEffect(() => {
-    void client.support.members().then(setMembers).catch(() => setError('Support member data could not be loaded from the database.'));
+    void client.support.members().then(setMembers).catch(() => setError('Support member data could not be loaded from the database.')).finally(() => setMembersLoaded(true));
   }, []);
 
   const filtered = useMemo(() => {
@@ -55,6 +57,7 @@ export function SupportMembers() {
     }
   }
 
+  if (!membersLoaded) return <PageLoading label="Loading team members" />;
   return <div className="shell page-content members-page">
     <div className="page-heading"><div><span className="eyebrow">Team access</span><h1>Support members</h1><p>Find a teammate, review their account, and manage administrator access without leaving the roster.</p></div><div className="members-summary"><strong>{members.length}</strong><span>team members</span></div></div>
     {notice && <div className="inline-success" role="status"><Check size={17} /> {notice}</div>}
