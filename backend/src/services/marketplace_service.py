@@ -11,7 +11,7 @@ from src.models.marketplace import (
     RequestCreate,
 )
 from src.repositories.marketplace_repository import MarketplaceRepository
-from src.repositories.schema import BuyerRequest, DealChat, DealQuote, Profile
+from src.repositories.schema import Brand, BuyerRequest, DealChat, DealQuote, Profile
 from src.utils.exceptions import AppError, error_codes
 from src.utils.serialization import model_dict
 
@@ -23,9 +23,33 @@ class MarketplaceService:
         self.session = session
         self.repository = MarketplaceRepository(session)
 
+    async def request_dict(self, row: BuyerRequest, *, already_quoted: bool | None = None) -> dict:
+        brand = await self.session.get(Brand, row.brand_id)
+        extra = {} if already_quoted is None else {"already_quoted": already_quoted}
+        return {**model_dict(row), "brand_name": brand.name if brand else None, **extra}
+
+    async def quote_dict(self, row: DealQuote) -> dict:
+        dealer = await self.session.get(Profile, row.dealer_id)
+        request = await self.session.get(BuyerRequest, row.buyer_request_id)
+        brand = await self.session.get(Brand, request.brand_id) if request else None
+        return {
+            **model_dict(row),
+            "dealer_name": (dealer.dealership_name or dealer.full_name) if dealer else None,
+            "brand_name": brand.name if brand else None,
+            "model": request.model if request else None,
+            "year_min": request.year_min if request else None,
+            "year_max": request.year_max if request else None,
+            "body_type": request.body_type if request else None,
+            "buyer_area": request.buyer_area if request else None,
+        }
+
     async def list_requests(self, actor: Profile) -> list[dict]:
-        rows = await (self.repository.buyer_requests(actor.id) if actor.role == "buyer" else self.repository.request_feed())
-        return [model_dict(row) for row in rows]
+        if actor.role == "buyer":
+            rows = await self.repository.buyer_requests(actor.id)
+            return [await self.request_dict(row) for row in rows]
+        rows = await self.repository.request_feed()
+        quoted_ids = {quote.buyer_request_id for quote in await self.repository.quotes_for_dealer(actor.id)}
+        return [await self.request_dict(row, already_quoted=row.id in quoted_ids) for row in rows]
 
     async def get_request(self, request_id: str, actor: Profile) -> dict:
         row = await self._request(request_id)
@@ -33,14 +57,14 @@ class MarketplaceService:
             raise AppError(error_codes.RESOURCE_NOT_FOUND, "Request not found.", 404)
         if actor.role == "dealer" and row.status != "open":
             raise AppError(error_codes.RESOURCE_NOT_FOUND, "Request not found.", 404)
-        return model_dict(row)
+        return await self.request_dict(row)
 
     async def create_request(self, payload: RequestCreate, buyer: Profile) -> dict:
         row = BuyerRequest(buyer_id=buyer.id, **payload.model_dump())
         self.repository.add(row)
         await self.repository.commit()
         await self.session.refresh(row)
-        return model_dict(row)
+        return await self.request_dict(row)
 
     async def list_quotes(self, actor: Profile, request_id: str | None = None) -> list[dict]:
         if actor.role == "dealer":
@@ -54,7 +78,7 @@ class MarketplaceService:
             rows = []
             for request in requests:
                 rows.extend(await self.repository.quotes_for_request(request.id))
-        return [model_dict(row) for row in rows]
+        return [await self.quote_dict(row) for row in rows]
 
     async def create_quote(self, payload: QuoteCreate, dealer: Profile) -> dict:
         request = await self._request(payload.buyer_request_id)
@@ -64,7 +88,7 @@ class MarketplaceService:
         self.repository.add(row)
         await self.repository.commit()
         await self.session.refresh(row)
-        return model_dict(row)
+        return await self.quote_dict(row)
 
     async def revise_quote(self, quote_id: str, payload: QuoteRevision, dealer: Profile) -> dict:
         quote = await self._quote(quote_id)
@@ -78,7 +102,7 @@ class MarketplaceService:
         quote.deal_history = [*quote.deal_history, {"ts": datetime.now(UTC).isoformat(), "actor_id": dealer.id, "actor_role": dealer.role, "event": "quote_revised", "previous_final_price": previous}]
         await self.repository.commit()
         await self.session.refresh(quote)
-        return model_dict(quote)
+        return await self.quote_dict(quote)
 
     async def accept_quote(self, quote_id: str, buyer: Profile) -> dict:
         quote = await self._quote(quote_id)
@@ -96,7 +120,7 @@ class MarketplaceService:
                 sibling.status = "declined"
         await self.repository.commit()
         await self.session.refresh(quote)
-        return model_dict(quote)
+        return await self.quote_dict(quote)
 
     async def dealer_contact(self, quote_id: str, actor: Profile) -> dict:
         quote = await self._quote(quote_id)
@@ -114,7 +138,7 @@ class MarketplaceService:
         quote.chat_requested_at = datetime.now(UTC)
         await self.repository.commit()
         await self.session.refresh(quote)
-        return model_dict(quote)
+        return await self.quote_dict(quote)
 
     async def accept_chat(self, quote_id: str, dealer: Profile) -> dict:
         quote = await self._quote(quote_id)
@@ -128,7 +152,7 @@ class MarketplaceService:
         self.repository.add(DealChat(quote_id=quote.id, sender_id=quote.buyer_id, message=quote.chat_request_message or "I would like to discuss this offer."))
         await self.repository.commit()
         await self.session.refresh(quote)
-        return model_dict(quote)
+        return await self.quote_dict(quote)
 
     async def chat_messages(self, quote_id: str, actor: Profile) -> list[dict]:
         quote = await self._quote(quote_id)
@@ -166,7 +190,7 @@ class MarketplaceService:
         quote.deal_history = [*quote.deal_history, {"ts": datetime.now(UTC).isoformat(), "actor_id": actor.id, "actor_role": actor.role, "event": "deal_status_changed", "from": current, "to": payload.status}]
         await self.repository.commit()
         await self.session.refresh(quote)
-        return model_dict(quote)
+        return await self.quote_dict(quote)
 
     async def _request(self, request_id: str) -> BuyerRequest:
         row = await self.repository.request_by_id(request_id)

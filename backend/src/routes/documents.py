@@ -1,6 +1,7 @@
 from uuid import uuid4
 
-from fastapi import APIRouter, Depends, Response, status
+from fastapi import APIRouter, Depends, Request, Response, status
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -9,10 +10,34 @@ from src.database import get_session
 from src.middleware.auth import get_current_profile, require_roles
 from src.repositories.schema import DealDocument, DealQuote, Profile
 from src.services.storage import get_storage
+from src.settings import UPLOAD_DIRECTORY
 from src.utils.exceptions import AppError, error_codes
 from src.utils.serialization import model_dict
 
 router = APIRouter(prefix="/documents", tags=["Documents"])
+
+
+def _local_path(key: str):
+    resolved = (UPLOAD_DIRECTORY / key).resolve()
+    if UPLOAD_DIRECTORY.resolve() not in resolved.parents:
+        raise AppError(error_codes.VALIDATION_ERROR, "Invalid storage key.", 400)
+    return resolved
+
+
+@router.put("/local/{key:path}", status_code=status.HTTP_204_NO_CONTENT)
+async def upload_local(key: str, request: Request) -> Response:
+    path = _local_path(key)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(await request.body())
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.get("/local/{key:path}")
+async def download_local(key: str):
+    path = _local_path(key)
+    if not path.is_file():
+        raise AppError(error_codes.RESOURCE_NOT_FOUND, "File not found.", 404)
+    return FileResponse(path)
 
 
 class PresignRequest(BaseModel):

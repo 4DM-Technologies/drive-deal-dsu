@@ -4,8 +4,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { formatMoney } from '@/helpers/currency';
 import { relativeTime } from '@/helpers/dateTime';
 import { client } from '@/services/platform/client';
-import { useDemoStore } from '@/services/platform/demoStore';
-import type { AiMessage, AiThread } from '@/types/domain';
+import type { AiMessage, AiThread, BuyerRequest, Quote } from '@/types/domain';
 
 interface RequestDraft { brand: string; model: string; years: string; budget: string; area: string; timeline: string; mustHaves: string }
 interface CompareDraft { leader?: string; total?: string; difference?: string; requestIds?: string[] }
@@ -29,8 +28,8 @@ function Answer({ body }: { body: string }) {
 
 export default function AdvisorScreen() {
   const [params, setParams] = useSearchParams();
-  const quotes = useDemoStore((state) => state.quotes);
-  const requests = useDemoStore((state) => state.requests);
+  const [quotes, setQuotes] = useState<Quote[]>([]);
+  const [requests, setRequests] = useState<BuyerRequest[]>([]);
   const initialSelected = (params.get('compare') ?? '').split(',').filter(Boolean);
   const [selected, setSelected] = useState<string[]>(initialSelected);
   const [messages, setMessages] = useState<AiMessage[]>([]);
@@ -90,6 +89,8 @@ export default function AdvisorScreen() {
 
   useEffect(() => {
     void refreshThreads();
+    void client.requests.list().then(setRequests).catch(() => setRequests([]));
+    void client.quotes.list().then(setQuotes).catch(() => setQuotes([]));
     const initialThread = params.get('thread');
     if (initialThread) void openThread(initialThread);
     else streamGreeting();
@@ -160,7 +161,7 @@ export default function AdvisorScreen() {
   </div>;
 }
 
-function ComparisonCard({ compare, selected, quotes, requests }: { compare: CompareDraft; selected: string[]; quotes: ReturnType<typeof useDemoStore.getState>['quotes']; requests: ReturnType<typeof useDemoStore.getState>['requests'] }) {
+function ComparisonCard({ compare, selected, quotes, requests }: { compare: CompareDraft; selected: string[]; quotes: Quote[]; requests: BuyerRequest[] }) {
   const requestIds = compare.requestIds?.length ? compare.requestIds : selected;
   const rows = requestIds.flatMap((requestId) => { const quote = quotes.filter((item) => item.requestId === requestId).sort((a, b) => Number(a.finalPrice) - Number(b.finalPrice))[0]; return quote ? [quote] : []; });
   return <section className="ai-result-card comparison-card"><div className="result-card-head"><div><span className="eyebrow">Serra comparison</span><h3>Best offer from each selected request</h3></div><span className="comparison-count">{rows.length} requests</span></div>{rows.map((quote, index) => { const request = requests.find((item) => item.id === quote.requestId); return <Link to={`/requests/${quote.requestId}`} className={`comparison-row ${index === 0 ? 'winner' : ''}`} key={quote.id}><span className="comparison-rank">{index === 0 ? <Trophy size={17} /> : index + 1}</span><span><strong>{request?.brand} {request?.model}</strong><small>{quote.dealerName} · {quote.rating}★</small></span><span><strong>{formatMoney(quote.finalPrice)}</strong><small>Itemized out-the-door</small></span></Link>; })}<div className="comparison-insight"><Sparkles size={17} /><p><strong>Serra’s read:</strong> Compare total cost alongside use case, equipment, delivery confidence, and anything a dealer did not report—not price alone.</p></div></section>;

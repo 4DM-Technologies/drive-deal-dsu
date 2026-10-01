@@ -44,11 +44,18 @@ export interface BuyerRequest {
   expiresAt: string;
   image: string;
   mustHaves: string[];
+  alreadyQuoted: boolean;
 }
 
 export interface Quote {
   id: string;
   requestId: string;
+  brand: string;
+  model: string;
+  yearMin: number | null;
+  yearMax: number | null;
+  bodyType: string | null;
+  buyerArea: string;
   dealerId: string;
   dealerName: string;
   dealerCity: string;
@@ -154,6 +161,92 @@ export interface Verification {
   decisionReason?: string;
 }
 
+export interface StateRef {
+  id: string;
+  code: string;
+  name: string;
+  salesTaxRate?: string;
+}
+
+export interface BrandRef {
+  id: string;
+  name: string;
+}
+
+export interface SignupInput {
+  fullName: string;
+  email: string;
+  phone: string;
+  password: string;
+  stateId: string;
+  address?: string | null;
+  termsAccepted: boolean;
+  termsVersion: string;
+}
+
+export interface DealerSignupInput extends SignupInput {
+  dealershipName: string;
+  branchName: string;
+  dealerLicense: string;
+  website: string;
+  supportedBrandIds: string[];
+}
+
+export interface SupportSignupInput extends SignupInput {
+  extraInformation?: string;
+}
+
+export interface RequestCreateInput {
+  brandId: string;
+  buyerAreaStateId: string;
+  model: string;
+  bodyType?: string | null;
+  fuelType?: string | null;
+  yearMin?: number | null;
+  yearMax?: number | null;
+  trim?: string | null;
+  drivetrain?: string | null;
+  transmission?: string | null;
+  color?: string | null;
+  budgetMin?: string | null;
+  budgetMax?: string | null;
+  targetOtdPrice?: string | null;
+  buyerArea: string;
+  searchRadiusMiles: number;
+  timeline: BuyerRequest['timeline'];
+  mustHaves?: string[];
+  requestExpire: string;
+  status?: 'draft' | 'open';
+}
+
+export interface BuyerPreferences {
+  brandId?: string | null;
+  otherBrandIds?: string[];
+  modelPreference?: string | null;
+  bodyType?: string | null;
+  seaterCount?: number | null;
+  transmission?: string | null;
+  drivetrain?: string | null;
+  fuelType?: string | null;
+  condition?: string | null;
+  exteriorColor?: string | null;
+  minYear?: number | null;
+  maxMileage?: number | null;
+  budgetMin?: number | null;
+  budgetMax?: number | null;
+  mustHaveFeatures?: string[];
+  neverWantFeatures?: string[];
+}
+
+export interface ProfileUpdateInput {
+  fullName?: string;
+  phone?: string;
+  address?: string;
+  stateId?: string;
+  website?: string;
+  branchName?: string;
+}
+
 export interface InventoryCar {
   id: string;
   title: string;
@@ -165,6 +258,22 @@ export interface InventoryCar {
   transmission: string;
   mileage: number;
   price: string;
-  status: 'available' | 'reserved' | 'sold';
+  status: 'available' | 'reserved' | 'sold' | 'inactive';
   image: string;
+}
+
+export interface CarCreateInput {
+  brandId: string;
+  stateId: string;
+  title: string;
+  model: string;
+  modelYear: number;
+  bodyType?: string | null;
+  seatingCapacity?: number | null;
+  condition?: string;
+  mileage?: number;
+  fuel?: string | null;
+  transmission?: string | null;
+  price: string;
+  imagePaths?: string[];
 }
