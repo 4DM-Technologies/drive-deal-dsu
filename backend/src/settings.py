@@ -31,7 +31,9 @@ class Settings(BaseSettings):
     auto_seed_demo: bool = False
     openai_api_key: str | None = None
     codex_oauth_access_token: str | None = None
-    openai_model: str = "gpt-5.6-sol"
+    codex_oauth_client_id: str | None = None
+    codex_oauth_refresh_token: str | None = None
+    openai_model: str = "gpt-6-luna"
     openai_reasoning_effort: str = "medium"
     ai_provider: str = "openai"
     ai_disabled: bool = False

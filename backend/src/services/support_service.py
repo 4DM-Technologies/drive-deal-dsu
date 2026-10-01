@@ -22,8 +22,14 @@ class SupportService:
         return [model_dict(row) for row in rows]
 
     async def create_ticket(self, payload: TicketCreate, actor: Profile) -> dict:
-        prefix = "TIC" if payload.category == "customer" else "DS"
-        ticket = SupportTicket(ticket_id=f"{prefix}-{str(int(time()))[-6:]}", caller_id=actor.id, **payload.model_dump())
+        category = "dealer" if actor.role == "dealer" else "customer"
+        prefix = "DS" if category == "dealer" else "TIC-"
+        ticket = SupportTicket(
+            ticket_id=f"{prefix}{str(int(time()))[-6:]}",
+            category=category,
+            caller_id=actor.id,
+            **payload.model_dump(),
+        )
         self.session.add(ticket)
         await self.session.commit()
         await self.session.refresh(ticket)
@@ -68,5 +74,32 @@ class SupportService:
         return model_dict(verification)
 
     async def members(self) -> list[dict]:
-        rows = (await self.session.execute(select(Profile).where(Profile.role.in_(["support", "support-admin", "admin"])).order_by(Profile.full_name))).scalars()
-        return [model_dict(row) for row in rows]
+        rows = (
+            await self.session.execute(
+                select(Profile, User)
+                .join(User, User.profile_id == Profile.id)
+                .where(Profile.role.in_(["support", "support-admin"]))
+                .order_by(Profile.full_name)
+            )
+        ).all()
+        return [self._member_detail(profile, user) for profile, user in rows]
+
+    async def member(self, profile_id: str) -> dict:
+        row = (
+            await self.session.execute(
+                select(Profile, User)
+                .join(User, User.profile_id == Profile.id)
+                .where(Profile.id == profile_id, Profile.role.in_(["support", "support-admin"]))
+            )
+        ).one_or_none()
+        if row is None:
+            raise AppError(error_codes.RESOURCE_NOT_FOUND, "Support member not found.", 404)
+        return self._member_detail(*row)
+
+    @staticmethod
+    def _member_detail(profile: Profile, user: User) -> dict:
+        return {
+            **model_dict(profile),
+            "is_active": user.is_active,
+            "last_login_at": user.last_login_at.isoformat() if user.last_login_at else None,
+        }

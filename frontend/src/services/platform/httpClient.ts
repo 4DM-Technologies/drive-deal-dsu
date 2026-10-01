@@ -1,5 +1,5 @@
 import type { DriveDealClient, AiStreamEvent } from '@/services/generated/client';
-import type { AiThread, BuyerRequest, ChatMessage, DealDocument, InventoryCar, Quote, Session, Ticket, Verification } from '@/types/domain';
+import type { AiThread, BuyerRequest, ChatMessage, DealDocument, InventoryCar, Quote, Session, SupportMember, Ticket, Verification } from '@/types/domain';
 
 const baseUrl = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000/api/v1';
 
@@ -50,6 +50,30 @@ const quoteToDomain = (row: Record<string, unknown>): Quote => ({
   contactAvailable: row.status === 'accepted' || row.chat_request_status === 'accepted', chatRequestStatus: row.chat_request_status as Quote['chatRequestStatus'],
 });
 
+const memberToDomain = (row: Record<string, unknown>): SupportMember => ({
+  id: String(row.id),
+  name: String(row.full_name),
+  email: String(row.email),
+  role: row.role as SupportMember['role'],
+  status: row.is_active === false ? 'suspended' : 'active',
+  phone: row.phone == null ? null : String(row.phone),
+  address: row.address == null ? null : String(row.address),
+  lastLoginAt: row.last_login_at == null ? null : String(row.last_login_at),
+  createdAt: row.created_at == null ? null : String(row.created_at),
+});
+
+const ticketToDomain = (row: Record<string, unknown>): Ticket => ({
+  id: String(row.id),
+  publicId: String(row.ticket_id),
+  callerName: String(row.caller_name ?? 'Member'),
+  category: row.category as Ticket['category'],
+  summary: String(row.issue_summary),
+  ...(row.issue_description == null ? {} : { description: String(row.issue_description) }),
+  status: row.status as Ticket['status'],
+  priority: row.priority as Ticket['priority'],
+  createdAt: String(row.created_at),
+});
+
 async function* streamAi(input: { message: string; threadId?: string; agent?: 'sera-agent' | 'compare-agent'; requestIds?: string[] }): AsyncIterable<AiStreamEvent> {
   const response = await fetch(`${baseUrl}/ai/chat`, {
     method: 'POST', headers: { 'content-type': 'application/json', ...(token() ? { authorization: `Bearer ${token()}` } : {}) },
@@ -73,7 +97,15 @@ async function* streamAi(input: { message: string; threadId?: string; agent?: 's
 }
 
 export const httpClient: DriveDealClient = {
-  auth: { me: async () => profileToSession(await request('/auth/me')) },
+  auth: {
+    login: async (email, password) => {
+      const response = await request<{ access_token: string; refresh_token: string; profile: Record<string, unknown> }>('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) });
+      window.localStorage.setItem('drivedeal.accessToken', response.access_token);
+      window.localStorage.setItem('drivedeal.refreshToken', response.refresh_token);
+      return profileToSession(response.profile);
+    },
+    me: async () => profileToSession(await request('/auth/me')),
+  },
   requests: {
     list: async () => (await request<Record<string, unknown>[]>('/requests')).map(requestToDomain),
     get: async (id) => requestToDomain(await request(`/requests/${id}`)),
@@ -98,7 +130,16 @@ export const httpClient: DriveDealClient = {
   },
   chats: { list: async (quoteId) => (await request<Record<string, unknown>[]>(`/chats/${quoteId}`)).map((row): ChatMessage => ({ id: String(row.id), quoteId: String(row.quote_id), senderId: String(row.sender_id), senderName: String(row.sender_name ?? 'Member'), body: String(row.message), createdAt: String(row.created_at), read: Boolean(row.read_at) })) },
   inventory: { list: async () => (await request<Record<string, unknown>[]>('/cars')).map((row): InventoryCar => ({ id: String(row.id), title: String(row.title), brand: String(row.brand_name ?? 'Vehicle'), model: String(row.model), year: Number(row.model_year), bodyType: String(row.body_type ?? ''), fuel: String(row.fuel ?? ''), transmission: String(row.transmission ?? ''), mileage: Number(row.mileage), price: String(row.price), status: row.status as InventoryCar['status'], image: '/src/assets/vehicles/studio-sedan.png' })) },
-  support: { listTickets: async () => (await request<Record<string, unknown>[]>('/support/tickets')).map((row): Ticket => ({ id: String(row.id), publicId: String(row.ticket_id), callerName: String(row.caller_name ?? 'Member'), category: row.category as Ticket['category'], summary: String(row.issue_summary), status: row.status as Ticket['status'], priority: row.priority as Ticket['priority'], createdAt: String(row.created_at) })) },
+  support: {
+    listTickets: async () => (await request<Record<string, unknown>[]>('/support/tickets')).map(ticketToDomain),
+    createTicket: async (input) => ticketToDomain(await request<Record<string, unknown>>('/support/tickets', { method: 'POST', body: JSON.stringify({ issue_summary: input.issueSummary, issue_description: input.issueDescription, issue_type: input.issueType, page_context: input.pageContext, priority: input.priority }) })),
+    members: async () => (await request<Record<string, unknown>[]>('/members')).map(memberToDomain),
+    member: async (id) => memberToDomain(await request<Record<string, unknown>>(`/members/${id}`)),
+    updateMemberRole: async (id, role) => {
+      await request(`/members/${id}/support-role`, { method: 'PATCH', body: JSON.stringify({ role }) });
+      return memberToDomain(await request<Record<string, unknown>>(`/members/${id}`));
+    },
+  },
   verifications: { list: async () => (await request<Record<string, unknown>[]>('/verifications')).map((row): Verification => ({ id: String(row.id), ticketId: String(row.ticket_id), category: row.category as Verification['category'], profileName: String(row.profile_name ?? 'Applicant'), businessName: row.business_name as string | null, state: String(row.state ?? ''), status: row.status as Verification['status'], submittedAt: String(row.created_at) })) },
   ai: {
     chat: streamAi,

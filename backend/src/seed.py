@@ -75,6 +75,12 @@ async def expand_demo_data(session, now: datetime) -> dict[str, int]:
         session.add(User(profile_id=support_admin.id, password_hash=hash_password("demo1234"), is_active=True))
     elif support_admin.role != "support-admin":
         support_admin.role = "support-admin"
+    if not support_admin.phone:
+        support_admin.phone = "+12145550155"
+    if not support_admin.address:
+        support_admin.address = "Dallas, TX"
+    if not support_admin.state_id:
+        support_admin.state_id = texas.id
     profiles = list((await session.scalars(select(Profile).order_by(Profile.created_at))).all())
     buyers = [profile for profile in profiles if profile.role == "buyer"]
     dealers = [profile for profile in profiles if profile.role == "dealer"]

@@ -1,10 +1,11 @@
 import { AnimatePresence, motion } from 'motion/react';
-import { BriefcaseBusiness, ClipboardCheck, FileText, Gauge, Headphones, Home, LogOut, Menu, MessageCircle, PackageCheck, ScrollText, Search, ShieldCheck, Sparkles, TicketCheck, UserRound, Users, X } from 'lucide-react';
+import { BriefcaseBusiness, ClipboardCheck, FileText, Gauge, Headphones, Home, LifeBuoy, LogOut, Menu, MessageCircle, PackageCheck, ScrollText, Search, ShieldCheck, Sparkles, TicketCheck, UserRound, Users, X } from 'lucide-react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { SerraWidget } from '@/ui/reusables/SerraWidget/SerraWidget';
 import { Brand } from '@/ui/reusables/Brand/Brand';
 import { useDemoStore } from '@/services/platform/demoStore';
+import { SupportReporter } from '@/ui/reusables/SupportReporter/SupportReporter';
 import type { Role } from '@/types/domain';
 
 const links: Record<Role, Array<{ to: string; label: string; icon: typeof Home }>> = {
@@ -40,6 +41,7 @@ export function AppShell() {
   const logout = useDemoStore((state) => state.logout);
   const navigate = useNavigate();
   const location = useLocation();
+  const [supportOpen, setSupportOpen] = useState(false);
   // Switching conversations (/chat/:quoteId) is not a page change: keep the same page instance so nothing remounts or re-animates.
   const pageKey = /^\/chat\/(?!requests$)[^/]+$/.test(location.pathname) ? '/chat' : location.pathname;
   useEffect(() => { window.scrollTo({ top: 0, left: 0 }); }, [pageKey]);
@@ -47,7 +49,7 @@ export function AppShell() {
 
   const nav = links[session.role];
   const roleHome = ['support', 'support-admin', 'admin'].includes(session.role) ? '/support' : '/home';
-  const signOut = () => { logout(); navigate('/login'); };
+  const signOut = () => { window.localStorage.removeItem('drivedeal.accessToken'); window.localStorage.removeItem('drivedeal.refreshToken'); logout(); navigate('/login', { replace: true, state: null }); };
 
   return (
     <div className="page">
@@ -57,6 +59,7 @@ export function AppShell() {
           <nav className="main-nav" aria-label="Primary navigation">
             {nav.map(({ to, label, icon: Icon }) => <NavLink key={to} to={to} className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}><Icon size={16} />{label}</NavLink>)}
           </nav>
+          {(session.role === 'buyer' || session.role === 'dealer') && <button className="support-help-trigger" onClick={() => setSupportOpen(true)} aria-label="Open help and support"><LifeBuoy size={18} /><span>Help</span></button>}
           <button className="profile-menu" onClick={() => navigate('/profiles')} aria-label="Open profile">
             <span className="avatar">{session.avatarInitials}</span>
             <span className="profile-meta"><strong>{session.fullName}</strong><span>{session.role}</span></span>
@@ -79,6 +82,7 @@ export function AppShell() {
         <Outlet />
       </motion.main>
       {session.role === 'buyer' && location.pathname !== '/chatbot' && <SerraWidget />}
+      {(session.role === 'buyer' || session.role === 'dealer') && <SupportReporter open={supportOpen} onClose={() => setSupportOpen(false)} role={session.role} pageContext={location.pathname} />}
     </div>
   );
 }

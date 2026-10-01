@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { initialInventory, initialMessages, initialQuotes, initialRequests, initialTickets, initialVerifications, personas } from '@/services/mocks/fixtures';
-import type { AiMessage, AiThread, BuyerRequest, ChatMessage, InventoryCar, Quote, Role, Session, Ticket, Verification, VerificationStatus } from '@/types/domain';
+import type { AiMessage, AiThread, BuyerRequest, ChatMessage, InventoryCar, Quote, Role, Session, SupportMember, Ticket, Verification, VerificationStatus } from '@/types/domain';
 
 interface DemoState {
   session: Session | null;
@@ -13,9 +13,10 @@ interface DemoState {
   verifications: Verification[];
   preferences: string[];
   aiThreads: AiThread[];
-  supportMembers: Array<{ id: string; name: string; email: string; role: 'support' | 'support-admin'; status: 'active' | 'pending' | 'suspended' }>;
+  supportMembers: SupportMember[];
   sidebarOpen: boolean;
   setSidebarOpen: (open: boolean) => void;
+  setSession: (session: Session | null) => void;
   loginAs: (role: Role) => void;
   logout: () => void;
   addRequest: (request: BuyerRequest) => void;
@@ -49,10 +50,10 @@ const defaults = () => ({
     { id: 'thread-2', type: 'sera', title: 'Family SUV shortlist', updatedAt: new Date(Date.now() - 2 * 86_400_000).toISOString(), messages: [{ id: 't2u', role: 'user', body: 'Help me shortlist a comfortable family SUV.' }, { id: 't2a', role: 'assistant', body: 'I would start with space, safety, and running cost. Tell me how many seats you use regularly and whether hybrid fuel economy matters.' }] },
   ] satisfies AiThread[],
   supportMembers: [
-    { id: 'support-maya', name: 'Maya Lewis', email: 'maya@drivedeal.demo', role: 'support', status: 'active' },
-    { id: 'support-admin-priya', name: 'Priya Shah', email: 'priya@drivedeal.demo', role: 'support-admin', status: 'active' },
-    { id: 'support-daniel', name: 'Daniel Kim', email: 'daniel@drivedeal.demo', role: 'support', status: 'suspended' },
-  ] as Array<{ id: string; name: string; email: string; role: 'support' | 'support-admin'; status: 'active' | 'pending' | 'suspended' }>,
+    { id: 'support-maya', name: 'Maya Lewis', email: 'maya@drivedeal.demo', role: 'support', status: 'active', phone: '+1 214 555 0144', address: 'Dallas, TX', lastLoginAt: new Date(Date.now() - 42 * 60_000).toISOString(), createdAt: '2026-06-12T09:00:00Z' },
+    { id: 'support-admin-priya', name: 'Priya Shah', email: 'priya@drivedeal.demo', role: 'support-admin', status: 'active', phone: '+1 214 555 0155', address: 'Dallas, TX', lastLoginAt: new Date(Date.now() - 8 * 60_000).toISOString(), createdAt: '2026-05-04T09:00:00Z' },
+    { id: 'support-daniel', name: 'Daniel Kim', email: 'daniel@drivedeal.demo', role: 'support', status: 'suspended', phone: '+1 469 555 0198', address: 'Plano, TX', lastLoginAt: '2026-09-18T15:20:00Z', createdAt: '2026-07-22T09:00:00Z' },
+  ] satisfies SupportMember[],
 });
 
 export const useDemoStore = create<DemoState>()(
@@ -62,6 +63,7 @@ export const useDemoStore = create<DemoState>()(
       ...defaults(),
       sidebarOpen: false,
       setSidebarOpen: (sidebarOpen) => set({ sidebarOpen }),
+      setSession: (session) => set({ session }),
       loginAs: (role) => set({ session: personas[role] ?? personas.buyer! }),
       logout: () => set({ session: null }),
       addRequest: (request) => set((state) => ({ requests: [request, ...state.requests] })),
@@ -83,7 +85,7 @@ export const useDemoStore = create<DemoState>()(
       requestChat: (quoteId, message) => set((state) => ({ quotes: state.quotes.map((item) => item.id === quoteId ? { ...item, chatRequestStatus: 'pending', chatRequestMessage: message } : item) })),
       acceptChatRequest: (quoteId) => set((state) => ({
         quotes: state.quotes.map((item) => item.id === quoteId ? { ...item, chatRequestStatus: 'accepted', contactAvailable: true, status: item.status === 'pending' ? 'negotiating' : item.status } : item),
-        messages: [...state.messages, { id: crypto.randomUUID(), quoteId, senderId: 'buyer-rahul', senderName: 'Rahul', body: state.quotes.find((item) => item.id === quoteId)?.chatRequestMessage ?? 'I would like to discuss this offer before deciding.', createdAt: new Date().toISOString(), read: false }],
+        messages: [...state.messages, { id: crypto.randomUUID(), quoteId, senderId: '10000000-0000-4000-8000-000000000001', senderName: 'Rahul', body: state.quotes.find((item) => item.id === quoteId)?.chatRequestMessage ?? 'I would like to discuss this offer before deciding.', createdAt: new Date().toISOString(), read: false }],
       })),
       declineChatRequest: (quoteId, reason) => set((state) => ({ quotes: state.quotes.map((item) => item.id === quoteId ? { ...item, chatRequestStatus: 'declined', chatRequestMessage: reason } : item) })),
       sendMessage: (quoteId, body) => set((state) => ({ messages: [...state.messages, { id: crypto.randomUUID(), quoteId, senderId: state.session?.id ?? 'demo', senderName: state.session?.fullName ?? 'Demo user', body, createdAt: new Date().toISOString(), read: false }] })),
@@ -105,6 +107,6 @@ export const useDemoStore = create<DemoState>()(
       })),
       resetDemo: () => set({ ...defaults(), session: null }),
     }),
-    { name: 'deal-and-drive-demo-v3', partialize: (state) => ({ session: state.session, requests: state.requests, quotes: state.quotes, messages: state.messages, inventory: state.inventory, tickets: state.tickets, verifications: state.verifications, preferences: state.preferences, aiThreads: state.aiThreads, supportMembers: state.supportMembers }) },
+    { name: 'deal-and-drive-demo-v4', partialize: (state) => ({ session: state.session, requests: state.requests, quotes: state.quotes, messages: state.messages, inventory: state.inventory, tickets: state.tickets, verifications: state.verifications, preferences: state.preferences, aiThreads: state.aiThreads, supportMembers: state.supportMembers }) },
   ),
 );

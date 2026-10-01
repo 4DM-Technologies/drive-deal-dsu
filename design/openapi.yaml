@@ -2644,11 +2644,10 @@ paths:
           $ref: '#/components/responses/conflict'
   /members:
     get:
-      summary: List members
+      summary: List support members
       description: |-
-        Support/admin only. Every profile, any role, with account state. This
-        is the roster screen; buyer and dealer detail is not served from the
-        public /profiles/{id}.
+        Support, support-admin, or admin only. Returns the support-team roster
+        with current role and account state for instant client-side search.
       operationId: listMembers
       tags:
       - Members
@@ -2675,11 +2674,39 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/MemberList'
+                type: array
+                items:
+                  $ref: '#/components/schemas/Member'
         '401':
           $ref: '#/components/responses/unauthorized'
         '403':
           $ref: '#/components/responses/forbidden'
+  /members/{id}:
+    get:
+      summary: Get one support member
+      description: |-
+        Support, support-admin, or admin only. Returns the selected support
+        member’s contact details, role, account state, and last sign-in for the
+        roster details panel. Buyer and dealer profiles are deliberately not
+        exposed through this route.
+      operationId: getSupportMember
+      tags:
+      - Members
+      parameters:
+      - $ref: '#/components/parameters/ProfileId'
+      responses:
+        '200':
+          description: Support member details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Member'
+        '401':
+          $ref: '#/components/responses/unauthorized'
+        '403':
+          $ref: '#/components/responses/forbidden'
+        '404':
+          $ref: '#/components/responses/not_found'
   /members/{id}/suspend:
     post:
       summary: Suspend a member
@@ -5667,6 +5694,19 @@ components:
           type: string
           maxLength: 10000
           nullable: true
+        issue_type:
+          type: string
+          enum:
+          - bug
+          - incorrect_data
+          - account_access
+          - other
+          default: bug
+        page_context:
+          type: string
+          maxLength: 500
+          description: App route or screen where the issue was reported.
+          nullable: true
         issue_image_url:
           type: string
           format: uri
@@ -5718,6 +5758,16 @@ components:
         issue_summary:
           type: string
         issue_description:
+          type: string
+          nullable: true
+        issue_type:
+          type: string
+          enum:
+          - bug
+          - incorrect_data
+          - account_access
+          - other
+        page_context:
           type: string
           nullable: true
         issue_image_url:
@@ -5935,6 +5985,8 @@ components:
             type: string
             format: date-time
             nullable: true
+          is_active:
+            type: boolean
     MemberList:
       type: object
       required:

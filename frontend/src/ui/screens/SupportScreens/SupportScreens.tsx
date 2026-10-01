@@ -1,10 +1,11 @@
-import { AlertTriangle, ArrowLeft, Check, Clock3, FileText, Filter, MessageSquarePlus, Search, ShieldCheck, TicketCheck, UserRoundCheck, X } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, Check, FileText, Filter, MessageSquarePlus, Search, ShieldCheck, TicketCheck, UserRoundCheck, X } from 'lucide-react';
 import { useState } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { relativeTime } from '@/helpers/dateTime';
 import { useDemoStore } from '@/services/platform/demoStore';
 import { EmptyState } from '@/ui/reusables/EmptyState/EmptyState';
 import { StatusBadge } from '@/ui/reusables/StatusBadge/StatusBadge';
+import { SupportMembers } from '@/ui/screens/SupportScreens/SupportMembers';
 import type { Ticket, VerificationStatus } from '@/types/domain';
 
 export default function SupportScreens() {
@@ -13,10 +14,8 @@ export default function SupportScreens() {
   const { ticketId } = useParams();
   const tickets = useDemoStore((state) => state.tickets);
   const verifications = useDemoStore((state) => state.verifications);
-  const members = useDemoStore((state) => state.supportMembers);
   const decide = useDemoStore((state) => state.decideVerification);
   const updateTicket = useDemoStore((state) => state.updateTicket);
-  const setSupportMemberRole = useDemoStore((state) => state.setSupportMemberRole);
   const session = useDemoStore((state) => state.session);
   const canAdminister = session?.role === 'support-admin' || session?.role === 'admin';
 
@@ -57,8 +56,7 @@ export default function SupportScreens() {
   }
 
   function Members() {
-    const [message, setMessage] = useState('');
-    return <div className="shell page-content"><div className="page-heading"><div><span className="eyebrow">Team access</span><h1>Support members</h1><p>Operational accounts, permission level, approval state, and review history.</p></div></div>{message && <div className="inline-success"><Check size={17} /> {message}</div>}<div className="grid grid-3">{members.map((member) => <article className="card card-pad member-card" key={member.id}><div><h3>{member.name}</h3><p>{member.email}</p></div><StatusBadge status={member.status === 'active' ? 'approved' : member.status === 'suspended' ? 'denied' : 'pending'} /><strong>{member.role === 'support-admin' ? 'Support administrator' : 'Support agent'}</strong><small><Clock3 size={13} /> Role changes require a new sign-in</small>{canAdminister && member.status === 'active' && member.email !== session?.email && <button className="button button-secondary button-wide" onClick={() => { const nextRole = member.role === 'support-admin' ? 'support' : 'support-admin'; setSupportMemberRole(member.email, nextRole); setMessage(`${member.name} is now ${nextRole === 'support-admin' ? 'a support administrator' : 'a support agent'}. Their existing session is invalid and they must sign in again.`); }}>{member.role === 'support-admin' ? 'Remove administrator access' : 'Provision administrator access'}</button>}</article>)}</div>{!canAdminister && <div className="inline-warning"><ShieldCheck size={17} /> Only a support administrator can change team permissions.</div>}</div>;
+    return <SupportMembers />;
   }
 
   function Administration() {

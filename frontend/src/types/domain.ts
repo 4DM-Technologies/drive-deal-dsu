@@ -12,6 +12,18 @@ export interface Session {
   avatarInitials: string;
 }
 
+export interface SupportMember {
+  id: string;
+  name: string;
+  email: string;
+  role: 'support' | 'support-admin';
+  status: 'active' | 'pending' | 'suspended';
+  phone?: string | null;
+  address?: string | null;
+  lastLoginAt?: string | null;
+  createdAt?: string | null;
+}
+
 export interface BuyerRequest {
   id: string;
   buyerId: string;
@@ -117,6 +129,14 @@ export interface Ticket {
   description?: string;
   notes?: Array<{ at: string; author: string; body: string }>;
   rca?: string;
+}
+
+export interface SupportTicketCreate {
+  issueSummary: string;
+  issueDescription: string;
+  issueType: 'bug' | 'incorrect_data' | 'account_access' | 'other';
+  pageContext: string;
+  priority: 'low' | 'medium' | 'high' | 'urgent';
 }
 
 export interface Verification {

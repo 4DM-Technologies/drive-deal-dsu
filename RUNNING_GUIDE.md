@@ -43,20 +43,50 @@ workflow executes. Add the flag only when you want a credential-free product dem
 
 ### LLM credentials
 
-Credentials are read from `backend/.env` only. The client prefers `OPENAI_API_KEY` and falls back to
-`CODEX_OAUTH_ACCESS_TOKEN`:
+Credentials are read from `backend/.env`, in this order:
+
+1. `OPENAI_API_KEY` — a normal metered API key.
+2. `CODEX_OAUTH_ACCESS_TOKEN` — a fixed "Sign in with ChatGPT" (SIWC) access token pasted directly.
+   Short-lived (~1 hour) and does **not** auto-refresh; only useful for a quick manual test.
+3. `CODEX_OAUTH_CLIENT_ID` + `CODEX_OAUTH_REFRESH_TOKEN` — **self-refreshing**, recommended if you're
+   the only one signing in with a personal ChatGPT account. The backend mints a fresh short-lived
+   access token from the refresh token automatically whenever the cached one is near expiry — no
+   manual re-pasting.
+4. A cached local login from `uv run python -m src.codex_login` (see below) — same self-refresh
+   behavior as (3), but the refresh token lives in a local file instead of `.env`.
 
 ```env
 OPENAI_API_KEY=
 CODEX_OAUTH_ACCESS_TOKEN=
+CODEX_OAUTH_CLIENT_ID=
+CODEX_OAUTH_REFRESH_TOKEN=
 OPENAI_MODEL=gpt-5.6-sol
 OPENAI_REASONING_EFFORT=medium
 ```
 
-If neither key is set, `src/agents/llm.py:22-23` leaves the client as `None` and every request uses
-the deterministic fallback text. The API stays fully functional, so a missing credential degrades
-rather than errors. This is the current state of `backend/.env`, so the live path falls back unless
-a key is added.
+`CODEX_OAUTH_REFRESH_TOKEN` is a **long-lived secret** — equivalent to a password for that ChatGPT
+account, since it can mint new access tokens indefinitely until revoked. Treat it like
+`JWT_SECRET_KEY`/`AWS_SECRET_ACCESS_KEY`: never commit it, never log it, and if it's ever exposed,
+revoke the session from your OpenAI account and sign in again. `backend/.env` is gitignored, but
+putting all secrets in one file means a leaked `.env` exposes all of them together — know that
+tradeoff before choosing this over option (4).
+
+If you'd rather sign in interactively instead of setting env vars, run this once per machine (opens
+a browser):
+
+```powershell
+cd backend
+uv run python -m src.codex_login
+```
+
+This caches the token under `backend/.codex_oauth_state/` (gitignored). The running API server never
+opens a browser itself — it only reads and proactively refreshes the applicable cached/configured
+token (`src/auth/codex_oauth.py`). Either way this credential is bound to the individual who signed
+in and is meant for local/dev use, not as a shared production credential for all buyers/dealers.
+
+If none of the above is available, `src/agents/llm.py` leaves the client as `None` and every request
+uses the deterministic fallback text. The API stays fully functional, so a missing credential
+degrades rather than errors.
 
 Web search is off by default. Enable it with `AI_ENABLE_WEB_SEARCH=true` (requires
 `uv sync --extra web` for Crawl4AI).
