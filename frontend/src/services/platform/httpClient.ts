@@ -101,7 +101,7 @@ async function* streamAi(input: { message: string; threadId?: string; agent?: 's
     method: 'POST', headers: { 'content-type': 'application/json', ...(token() ? { authorization: `Bearer ${token()}` } : {}) },
     body: JSON.stringify({ message: input.message, thread_id: input.threadId, agent: input.agent ?? 'sera-agent', request_ids: input.requestIds ?? [] }),
   });
-  if (!response.ok || !response.body) throw new Error('Serra is temporarily unavailable.');
+  if (!response.ok || !response.body) throw new Error('Sera is temporarily unavailable.');
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
   let buffer = '';

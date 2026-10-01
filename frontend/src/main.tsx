@@ -5,6 +5,7 @@ import { RouterProvider } from 'react-router-dom';
 import { queryClient } from '@/services/platform/queryClient';
 import { router } from '@/ui/navigations/router';
 import '@/index.css';
+import '@/loaders.css';
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

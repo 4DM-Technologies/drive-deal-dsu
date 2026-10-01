@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { client } from '@/services/platform/client';
 import { useDemoStore } from '@/services/platform/demoStore';
+import { FullScreenLoader } from '@/ui/reusables/PageLoading/PageLoading';
 import type { Role } from '@/types/domain';
 
 export function RequireSession({ children }: { children: ReactNode }) {
@@ -23,7 +24,7 @@ export function RequireSession({ children }: { children: ReactNode }) {
     return () => { active = false; };
   }, []);
 
-  if (!checked) return null;
+  if (!checked) return <FullScreenLoader label="Securing your session" />;
   return session && window.localStorage.getItem('drivedeal.accessToken') ? children : <Navigate to="/login" state={{ next: location.pathname }} replace />;
 }
 

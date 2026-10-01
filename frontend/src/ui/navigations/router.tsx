@@ -2,6 +2,7 @@ import { createBrowserRouter } from 'react-router-dom';
 import { AppShell } from '@/ui/navigations/AppShell';
 import { RequireRole, RequireSession } from '@/ui/navigations/guards';
 import LandingScreen from '@/ui/screens/LandingScreen/LandingScreen';
+import DealerLandingScreen from '@/ui/screens/DealerLandingScreen/DealerLandingScreen';
 import LoginScreen from '@/ui/screens/LoginScreen/LoginScreen';
 import SignupScreen, { SignupChooser } from '@/ui/screens/SignupScreen/SignupScreen';
 import HomeScreen from '@/ui/screens/HomeScreen/HomeScreen';
@@ -18,7 +19,7 @@ import ProfileScreen from '@/ui/screens/ProfileScreen/ProfileScreen';
 import { ForgotPasswordScreen, LegalScreen, NotFoundScreen, UnauthorizedScreen } from '@/ui/screens/UtilityScreens/UtilityScreens';
 
 export const router = createBrowserRouter([
-  { path: '/', element: <LandingScreen /> }, { path: '/login', element: <LoginScreen /> },
+  { path: '/', element: <LandingScreen /> }, { path: '/dealers', element: <DealerLandingScreen /> }, { path: '/login', element: <LoginScreen /> },
   { path: '/signup', element: <SignupChooser /> }, { path: '/signup/:role', element: <SignupScreen /> },
   { path: '/terms', element: <LegalScreen type="terms" /> }, { path: '/privacy', element: <LegalScreen type="privacy" /> },
   { path: '/forgot-password', element: <ForgotPasswordScreen /> },

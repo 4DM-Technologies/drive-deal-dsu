@@ -1,8 +1,9 @@
 import { AnimatePresence, motion } from 'motion/react';
-import { ArrowUp, Bot, Check, Expand, MessageCircle, Sparkles, X } from 'lucide-react';
+import { ArrowUp, Check, Expand, MessageCircle, Sparkles, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { client } from '@/services/platform/client';
+import { SerraLogo } from '@/ui/reusables/SerraLogo/SerraLogo';
 
 interface Message { id: string; role: 'user' | 'assistant'; body: string }
 
@@ -19,12 +20,13 @@ export function SerraWidget() {
   const [open, setOpen] = useState(false);
   const [visible, setVisible] = useState(true);
   const [showNudge, setShowNudge] = useState(false);
+  const [bump, setBump] = useState(false);
   const [input, setInput] = useState('');
   const [status, setStatus] = useState('');
   const [threadId, setThreadId] = useState<string>();
   const [userTurns, setUserTurns] = useState(0);
   const [messages, setMessages] = useState<Message[]>([
-    { id: 'welcome', role: 'assistant', body: 'Hi, I’m Serra.\n- Find the right car\n- Compare dealer offers\n- Build a private request' },
+    { id: 'welcome', role: 'assistant', body: 'Hi, I’m Sera.\n- Find the right car\n- Compare dealer offers\n- Build a private request' },
   ]);
   const [preview, setPreview] = useState<Record<string, string> | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
@@ -32,8 +34,12 @@ export function SerraWidget() {
 
   useEffect(() => {
     if (!visible) return;
-    const timer = window.setTimeout(() => setShowNudge(true), 1400);
-    return () => window.clearTimeout(timer);
+    // The nudge floats above the launcher for 25 seconds, glides into it, and the launcher gives a small pulse.
+    const show = window.setTimeout(() => setShowNudge(true), 1400);
+    const leave = window.setTimeout(() => setShowNudge(false), 26_400);
+    const pulse = window.setTimeout(() => setBump(true), 26_800);
+    const calm = window.setTimeout(() => setBump(false), 27_700);
+    return () => { [show, leave, pulse, calm].forEach((timer) => window.clearTimeout(timer)); };
   }, [visible]);
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }, [messages, status]);
 
@@ -71,8 +77,8 @@ export function SerraWidget() {
 
   const fullChatUrl = threadId ? `/chatbot?thread=${threadId}` : '/chatbot';
   return <>
-    <AnimatePresence>{showNudge && !open && <motion.div className="ai-nudge" initial={{ opacity: 0, x: 16 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 12 }}><button className="ai-nudge-main" onClick={() => { setOpen(true); setShowNudge(false); }}><span className="ai-nudge-icon"><Sparkles size={17} /></span><span><strong>Buying a car?</strong><small>Ask Serra to find, compare, or draft.</small></span></button><button className="ai-nudge-close" aria-label="Dismiss Serra advisor for now" onClick={() => { setShowNudge(false); setVisible(false); }}><X size={15} /></button></motion.div>}</AnimatePresence>
-    <button className="ai-fab" onClick={() => setOpen((value) => !value)} aria-label={open ? 'Close Serra advisor' : 'Open Serra advisor'}>{open ? <X /> : <span className="ai-launcher-mark"><MessageCircle /><Sparkles size={13} /></span>}</button>
-    <AnimatePresence>{open && <motion.section className="ai-panel" initial={{ opacity: 0, y: 16, scale: .98 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 10, scale: .98 }} transition={{ duration: .22 }} aria-label="Serra AI advisor"><header className="ai-header"><div className="ai-header-icon"><Bot size={20} /></div><div className="ai-header-copy"><strong>Serra advisor</strong><span>Buyer guidance · you approve every action</span></div><Link className="button button-ghost button-sm" to={fullChatUrl} aria-label="Open full advisor"><Expand size={17} /></Link></header><div className="ai-messages" aria-live="polite">{messages.map((message) => <div key={message.id} className={`bubble bubble-${message.role === 'assistant' ? 'assistant' : 'user'}`}>{message.body ? <CompactAnswer body={message.body} /> : status ? null : '…'}</div>)}{status && <div className="thinking"><span className="dots"><i /><i /><i /></span><span>{status}</span></div>}{preview && <div className="ai-mini-card"><span className="eyebrow">Request ready to review</span><strong>{preview.brand} {preview.model}</strong><small>{preview.years} · {preview.budget}</small><Link to={fullChatUrl} className="button button-secondary button-sm"><Check size={14} /> Review draft</Link></div>}<div ref={endRef} /></div><div className="quick-prompts">{suggestions.map((suggestion) => <button className="quick-prompt" key={suggestion} onClick={() => void send(suggestion)}>{suggestion}</button>)}</div><form className="ai-composer" onSubmit={(event) => { event.preventDefault(); void send(); }}><input value={input} onChange={(event) => setInput(event.target.value)} placeholder="Ask Serra about your next car" aria-label="Message Serra" /><button className="button button-primary" disabled={!input.trim() || streaming} aria-label="Send message"><ArrowUp size={18} /></button></form></motion.section>}</AnimatePresence>
+    <AnimatePresence>{showNudge && !open && <motion.div className="ai-nudge" initial={{ opacity: 0, x: 16 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 8, y: 52, scale: .45 }} style={{ originX: 1, originY: 1 }} transition={{ duration: .55, ease: [.65, 0, .35, 1] }}><button className="ai-nudge-main" onClick={() => { setOpen(true); setShowNudge(false); }}><span className="ai-nudge-icon"><Sparkles size={17} /></span><span><strong>Buying a car?</strong><small>Ask Sera to find, compare, or draft.</small></span></button><button className="ai-nudge-close" aria-label="Dismiss Sera advisor for now" onClick={() => { setShowNudge(false); setVisible(false); }}><X size={15} /></button></motion.div>}</AnimatePresence>
+    <motion.button className="ai-fab" animate={bump ? { scale: [1, 1.16, 1] } : { scale: 1 }} transition={{ duration: .7, ease: [.34, 1.56, .64, 1] }} onClick={() => setOpen((value) => !value)} aria-label={open ? 'Close Sera advisor' : 'Open Sera advisor'}>{open ? <X /> : <span className="ai-launcher-mark"><MessageCircle /><Sparkles size={13} /></span>}</motion.button>
+    <AnimatePresence>{open && <motion.section className="ai-panel" initial={{ opacity: 0, y: 16, scale: .98 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 10, scale: .98 }} transition={{ duration: .22 }} aria-label="Sera AI advisor"><header className="ai-header"><div className="ai-header-icon"><SerraLogo size={40} title={null} /></div><div className="ai-header-copy"><strong>Sera advisor</strong><span>Buyer guidance · you approve every action</span></div><Link className="button button-ghost button-sm" to={fullChatUrl} aria-label="Open full advisor"><Expand size={17} /></Link></header><div className="ai-messages" aria-live="polite">{messages.map((message) => <div key={message.id} className={`bubble bubble-${message.role === 'assistant' ? 'assistant' : 'user'}`}>{message.body ? <CompactAnswer body={message.body} /> : status ? null : '…'}</div>)}{status && <div className="thinking"><span className="dots"><i /><i /><i /></span><span>{status}</span></div>}{preview && <div className="ai-mini-card"><span className="eyebrow">Request ready to review</span><strong>{preview.brand} {preview.model}</strong><small>{preview.years} · {preview.budget}</small><Link to={fullChatUrl} className="button button-secondary button-sm"><Check size={14} /> Review draft</Link></div>}<div ref={endRef} /></div><div className="quick-prompts">{suggestions.map((suggestion) => <button className="quick-prompt" key={suggestion} onClick={() => void send(suggestion)}>{suggestion}</button>)}</div><form className="ai-composer" onSubmit={(event) => { event.preventDefault(); void send(); }}><input value={input} onChange={(event) => setInput(event.target.value)} placeholder="Ask Sera about your next car" aria-label="Message Sera" /><button className="button button-primary" disabled={!input.trim() || streaming} aria-label="Send message"><ArrowUp size={18} /></button></form></motion.section>}</AnimatePresence>
   </>;
 }

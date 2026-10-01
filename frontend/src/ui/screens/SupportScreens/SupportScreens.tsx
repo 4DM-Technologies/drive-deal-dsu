@@ -4,6 +4,7 @@ import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { relativeTime } from '@/helpers/dateTime';
 import { client } from '@/services/platform/client';
 import { useDemoStore } from '@/services/platform/demoStore';
+import { PageLoading } from '@/ui/reusables/PageLoading/PageLoading';
 import { EmptyState } from '@/ui/reusables/EmptyState/EmptyState';
 import { StatusBadge } from '@/ui/reusables/StatusBadge/StatusBadge';
 import { SupportMembers } from '@/ui/screens/SupportScreens/SupportMembers';
@@ -19,11 +20,11 @@ export default function SupportScreens() {
   const [verifications, setVerifications] = useState<Verification[]>([]);
   const [loaded, setLoaded] = useState(false);
 
-  const refresh = () => {
-    void client.support.queue().then(setTickets).catch(() => setTickets([]));
-    void client.verifications.list().then(setVerifications).catch(() => setVerifications([]));
-  };
-  useEffect(() => { refresh(); setLoaded(true); }, []);
+  const refresh = () => Promise.all([
+    client.support.queue().then(setTickets).catch(() => setTickets([])),
+    client.verifications.list().then(setVerifications).catch(() => setVerifications([])),
+  ]);
+  useEffect(() => { void refresh().then(() => setLoaded(true)); }, []);
 
   async function updateTicket(id: string, status: Ticket['status'], note?: string, rca?: string) {
     const updated = await client.support.updateTicket(id, status, note, rca);
@@ -36,7 +37,12 @@ export default function SupportScreens() {
     setVerifications((items) => items.map((item) => item.id === id ? updated : item));
   }
 
-  if (!loaded) return null;
+  if (!loaded) {
+    if (path === '/support-members') return <PageLoading label="Loading team members" />;
+    if (path === '/verifications') return <PageLoading label="Loading verification cases" />;
+    if (path === '/tickets' || path === '/help-support' || ticketId) return <PageLoading label="Loading support tickets" />;
+    return <PageLoading label="Preparing the decision desk" />;
+  }
   if (ticketId) return <TicketDetail id={ticketId} />;
   if (path === '/support-members') return <Members />;
   if (path === '/support-administration') return <Administration />;
