@@ -18,7 +18,6 @@ from src.models.marketplace import (
 )
 from src.repositories.schema import DealChat, DealQuote, Profile
 from src.services.marketplace_service import MarketplaceService
-from src.utils.serialization import model_dict
 
 router = APIRouter(tags=["Marketplace"])
 

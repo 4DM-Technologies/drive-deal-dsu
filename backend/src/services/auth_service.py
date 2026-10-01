@@ -11,6 +11,7 @@ from src.repositories.auth_repository import AuthRepository
 from src.repositories.schema import Profile, SupportVerification, User
 from src.settings import DEFAULT_TERMS_VERSION, get_settings
 from src.utils.exceptions import AppError, error_codes
+from src.utils.logger import logger
 
 
 class AuthService:
@@ -23,6 +24,7 @@ class AuthService:
         response = self._tokens(profile, True)
         profile.user.refresh_token_hash = token_hash(response.refresh_token)
         await self.repository.commit()
+        logger.info("buyer_signup", profile_id=profile.id, role="buyer")
         return response
 
     async def signup_dealer(self, payload: DealerSignup) -> dict:
@@ -39,6 +41,7 @@ class AuthService:
         verification = SupportVerification(ticket_id=f"DV{int(time())}", category="dealer", profile_id=profile.id, status="pending", notes=[])
         self.session.add(verification)
         await self.repository.commit()
+        logger.info("dealer_signup", profile_id=profile.id, role="dealer", verification_id=verification.ticket_id)
         return {"status": "pending", "verification_id": verification.ticket_id, "email": profile.email}
 
     async def signup_support(self, payload: SupportSignup) -> dict:
@@ -49,6 +52,7 @@ class AuthService:
         )
         self.session.add(verification)
         await self.repository.commit()
+        logger.info("support_signup", profile_id=profile.id, role="support", verification_id=verification.ticket_id)
         return {"status": "pending", "verification_id": verification.ticket_id, "email": profile.email}
 
     async def login(self, payload: LoginRequest) -> TokenResponse:
@@ -62,6 +66,7 @@ class AuthService:
         response = self._tokens(profile, True)
         profile.user.refresh_token_hash = token_hash(response.refresh_token)
         await self.repository.commit()
+        logger.info("login_success", profile_id=profile.id, role=profile.role)
         return response
 
     async def refresh(self, refresh_token: str) -> TokenResponse:
@@ -79,6 +84,7 @@ class AuthService:
         response = self._tokens(profile, True)
         profile.user.refresh_token_hash = token_hash(response.refresh_token)
         await self.repository.commit()
+        logger.info("token_refreshed", profile_id=profile.id, role=profile.role)
         return response
 
     async def logout(self, profile: Profile) -> None:
@@ -86,6 +92,7 @@ class AuthService:
         if current:
             current.user.refresh_token_hash = None
             await self.repository.commit()
+            logger.info("logout", profile_id=profile.id, role=profile.role)
 
     async def _create_profile(self, payload, role: str, is_active: bool, **extra) -> Profile:
         if await self.repository.profile_by_email(str(payload.email)):

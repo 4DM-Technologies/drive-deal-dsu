@@ -1,5 +1,6 @@
 from datetime import UTC, datetime
 
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.models.marketplace import (
@@ -13,6 +14,7 @@ from src.models.marketplace import (
 from src.repositories.marketplace_repository import MarketplaceRepository
 from src.repositories.schema import Brand, BuyerRequest, DealChat, DealQuote, Profile
 from src.utils.exceptions import AppError, error_codes
+from src.utils.logger import logger
 from src.utils.serialization import model_dict
 
 DEAL_FLOW = ["paperwork_going_on", "funds_arrived", "dispatch", "delivery", "completed"]
@@ -43,13 +45,41 @@ class MarketplaceService:
             "buyer_area": request.buyer_area if request else None,
         }
 
+    async def _brand_map(self, brand_ids: set[str]) -> dict[str, Brand]:
+        if not brand_ids:
+            return {}
+        rows = (await self.session.execute(select(Brand).where(Brand.id.in_(brand_ids)))).scalars()
+        return {row.id: row for row in rows}
+
+    async def _profile_map(self, profile_ids: set[str]) -> dict[str, Profile]:
+        if not profile_ids:
+            return {}
+        rows = (await self.session.execute(select(Profile).where(Profile.id.in_(profile_ids)))).scalars()
+        return {row.id: row for row in rows}
+
+    async def _request_map(self, request_ids: set[str]) -> dict[str, BuyerRequest]:
+        if not request_ids:
+            return {}
+        rows = (await self.session.execute(select(BuyerRequest).where(BuyerRequest.id.in_(request_ids)))).scalars()
+        return {row.id: row for row in rows}
+
     async def list_requests(self, actor: Profile) -> list[dict]:
         if actor.role == "buyer":
             rows = await self.repository.buyer_requests(actor.id)
-            return [await self.request_dict(row) for row in rows]
-        rows = await self.repository.request_feed()
-        quoted_ids = {quote.buyer_request_id for quote in await self.repository.quotes_for_dealer(actor.id)}
-        return [await self.request_dict(row, already_quoted=row.id in quoted_ids) for row in rows]
+            already_quoted = None
+        else:
+            rows = await self.repository.request_feed()
+            quoted_ids = {quote.buyer_request_id for quote in await self.repository.quotes_for_dealer(actor.id)}
+            already_quoted = quoted_ids
+        brands = await self._brand_map({row.brand_id for row in rows})
+        return [
+            {
+                **model_dict(row),
+                "brand_name": brands[row.brand_id].name if row.brand_id in brands else None,
+                **({} if already_quoted is None else {"already_quoted": row.id in already_quoted}),
+            }
+            for row in rows
+        ]
 
     async def get_request(self, request_id: str, actor: Profile) -> dict:
         row = await self._request(request_id)
@@ -64,6 +94,7 @@ class MarketplaceService:
         self.repository.add(row)
         await self.repository.commit()
         await self.session.refresh(row)
+        logger.info("request_created", request_id=row.id, buyer_id=buyer.id, status=row.status)
         return await self.request_dict(row)
 
     async def list_quotes(self, actor: Profile, request_id: str | None = None) -> list[dict]:
@@ -75,10 +106,28 @@ class MarketplaceService:
             rows = await self.repository.quotes_for_request(request_id)
         else:
             requests = await self.repository.buyer_requests(actor.id)
-            rows = []
-            for request in requests:
-                rows.extend(await self.repository.quotes_for_request(request.id))
-        return [await self.quote_dict(row) for row in rows]
+            rows = await self.repository.quotes_for_requests([request.id for request in requests])
+
+        dealers = await self._profile_map({row.dealer_id for row in rows})
+        requests_by_id = await self._request_map({row.buyer_request_id for row in rows})
+        brands = await self._brand_map({request.brand_id for request in requests_by_id.values()})
+
+        def to_dict(row: DealQuote) -> dict:
+            dealer = dealers.get(row.dealer_id)
+            request = requests_by_id.get(row.buyer_request_id)
+            brand = brands.get(request.brand_id) if request else None
+            return {
+                **model_dict(row),
+                "dealer_name": (dealer.dealership_name or dealer.full_name) if dealer else None,
+                "brand_name": brand.name if brand else None,
+                "model": request.model if request else None,
+                "year_min": request.year_min if request else None,
+                "year_max": request.year_max if request else None,
+                "body_type": request.body_type if request else None,
+                "buyer_area": request.buyer_area if request else None,
+            }
+
+        return [to_dict(row) for row in rows]
 
     async def create_quote(self, payload: QuoteCreate, dealer: Profile) -> dict:
         request = await self._request(payload.buyer_request_id)
@@ -88,6 +137,7 @@ class MarketplaceService:
         self.repository.add(row)
         await self.repository.commit()
         await self.session.refresh(row)
+        logger.info("quote_created", quote_id=row.id, request_id=request.id, dealer_id=dealer.id)
         return await self.quote_dict(row)
 
     async def revise_quote(self, quote_id: str, payload: QuoteRevision, dealer: Profile) -> dict:
@@ -102,6 +152,7 @@ class MarketplaceService:
         quote.deal_history = [*quote.deal_history, {"ts": datetime.now(UTC).isoformat(), "actor_id": dealer.id, "actor_role": dealer.role, "event": "quote_revised", "previous_final_price": previous}]
         await self.repository.commit()
         await self.session.refresh(quote)
+        logger.info("quote_revised", quote_id=quote.id, dealer_id=dealer.id, previous_final_price=previous)
         return await self.quote_dict(quote)
 
     async def accept_quote(self, quote_id: str, buyer: Profile) -> dict:
@@ -120,6 +171,7 @@ class MarketplaceService:
                 sibling.status = "declined"
         await self.repository.commit()
         await self.session.refresh(quote)
+        logger.info("quote_accepted", quote_id=quote.id, buyer_id=buyer.id, request_id=request.id)
         return await self.quote_dict(quote)
 
     async def dealer_contact(self, quote_id: str, actor: Profile) -> dict:
@@ -138,6 +190,7 @@ class MarketplaceService:
         quote.chat_requested_at = datetime.now(UTC)
         await self.repository.commit()
         await self.session.refresh(quote)
+        logger.info("chat_requested", quote_id=quote.id, buyer_id=buyer.id)
         return await self.quote_dict(quote)
 
     async def accept_chat(self, quote_id: str, dealer: Profile) -> dict:
@@ -152,6 +205,7 @@ class MarketplaceService:
         self.repository.add(DealChat(quote_id=quote.id, sender_id=quote.buyer_id, message=quote.chat_request_message or "I would like to discuss this offer."))
         await self.repository.commit()
         await self.session.refresh(quote)
+        logger.info("chat_accepted", quote_id=quote.id, dealer_id=dealer.id)
         return await self.quote_dict(quote)
 
     async def chat_messages(self, quote_id: str, actor: Profile) -> list[dict]:
@@ -190,6 +244,7 @@ class MarketplaceService:
         quote.deal_history = [*quote.deal_history, {"ts": datetime.now(UTC).isoformat(), "actor_id": actor.id, "actor_role": actor.role, "event": "deal_status_changed", "from": current, "to": payload.status}]
         await self.repository.commit()
         await self.session.refresh(quote)
+        logger.info("deal_status_changed", quote_id=quote.id, actor_id=actor.id, from_status=current, to_status=payload.status)
         return await self.quote_dict(quote)
 
     async def _request(self, request_id: str) -> BuyerRequest:

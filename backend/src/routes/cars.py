@@ -9,6 +9,7 @@ from src.middleware.auth import get_current_profile, require_roles
 from src.repositories.marketplace_repository import MarketplaceRepository
 from src.repositories.schema import Car, Profile
 from src.utils.exceptions import AppError, error_codes
+from src.utils.logger import logger
 from src.utils.serialization import model_dict
 
 router = APIRouter(prefix="/cars", tags=["Inventory"])
@@ -47,6 +48,7 @@ async def create_car(payload: CarCreate, profile: Profile = Depends(require_role
     session.add(row)
     await session.commit()
     await session.refresh(row)
+    logger.info("car_created", car_id=row.id, seller_id=profile.id)
     return model_dict(row)
 
 
@@ -78,4 +80,5 @@ async def car_status(car_id: str, payload: CarStatus, profile: Profile = Depends
     row.status = payload.status
     row.updated_by = profile.id
     await session.commit()
+    logger.info("car_status_changed", car_id=row.id, seller_id=profile.id, status=row.status)
     return model_dict(row)

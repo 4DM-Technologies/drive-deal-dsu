@@ -23,6 +23,12 @@ class MarketplaceRepository:
         result = await self.session.execute(select(DealQuote).where(DealQuote.buyer_request_id == request_id).order_by(DealQuote.final_price, DealQuote.created_at))
         return list(result.scalars())
 
+    async def quotes_for_requests(self, request_ids: list[str]) -> list[DealQuote]:
+        if not request_ids:
+            return []
+        result = await self.session.execute(select(DealQuote).where(DealQuote.buyer_request_id.in_(request_ids)).order_by(DealQuote.final_price, DealQuote.created_at))
+        return list(result.scalars())
+
     async def quotes_for_dealer(self, dealer_id: str) -> list[DealQuote]:
         result = await self.session.execute(select(DealQuote).where(DealQuote.dealer_id == dealer_id).order_by(DealQuote.created_at.desc()))
         return list(result.scalars())

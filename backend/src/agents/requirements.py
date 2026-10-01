@@ -2,12 +2,14 @@ import re
 
 from langgraph.graph import END, START, StateGraph
 
+from src.agents.observability import log_agent_step
 from src.agents.state import AgentState
 
 REQUIRED = ["brand", "model", "buyer_area", "state", "timeline"]
 
 
 def gather_requirements(state: AgentState) -> AgentState:
+    step = log_agent_step("requirements", "gather", state)
     text = state.get("message", "")
     current = dict(state.get("requirements", {}))
     brands = ["Audi", "BMW", "Chevrolet", "Ford", "Honda", "Hyundai", "Kia", "Mahindra", "Mercedes-Benz", "Nissan", "Tesla", "Toyota"]
@@ -30,7 +32,7 @@ def gather_requirements(state: AgentState) -> AgentState:
         questions.append({"field": "buyer_area", "question": "What city and state should dealers search around?", "options": [], "multiple": False})
     if "timeline" in missing:
         questions.append({"field": "timeline", "question": "When are you hoping to buy?", "options": ["ASAP", "Within 1 week", "Within 2 weeks", "Just exploring"], "multiple": False})
-    return {"requirements": current, "missing_fields": missing, "suggested_questions": questions[:3]}
+    return {"requirements": current, "missing_fields": missing, "suggested_questions": questions[:3], "step": step}
 
 
 def build_requirement_graph():

@@ -230,16 +230,24 @@ async def get_cached_access_token() -> str | None:
     """
     configured_refresh_token = get_settings().codex_oauth_refresh_token
     if configured_refresh_token:
-        # The refresh token itself is never written to disk here — CODEX_OAUTH_REFRESH_TOKEN (env)
-        # is the durable secret; only the short-lived access token it mints gets cached, to avoid
-        # keeping two copies of the same long-lived secret at rest.
+        # CODEX_OAUTH_REFRESH_TOKEN (env) is the bootstrap secret, but this provider rotates the
+        # refresh token on every use — the server invalidates the old one and issues a new one in
+        # the same response. So the rotated token must be cached and preferred on the next refresh,
+        # or every refresh after the first fails with invalid_grant. The env var only matters again
+        # if the cache is ever lost (e.g. redeployed) or its cached refresh token itself goes stale.
         cached = _read_cache()
         if cached.get("access_token") and not _token_near_expiry(cached):
             return cached["access_token"]
+        refresh_token = cached.get("refresh_token") or configured_refresh_token
         try:
-            tokens = await _refresh_async({"refresh_token": configured_refresh_token}, persist_refresh_token=False)
+            tokens = await _refresh_async({"refresh_token": refresh_token})
         except RuntimeError:
-            return None
+            if refresh_token == configured_refresh_token:
+                return None
+            try:
+                tokens = await _refresh_async({"refresh_token": configured_refresh_token})
+            except RuntimeError:
+                return None
         return tokens.get("access_token")
 
     if not TOKENS_FILE.exists():

@@ -1,3 +1,4 @@
+import os
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
@@ -12,14 +13,28 @@ from src.seed import seed_database
 from src.settings import get_settings
 from src.utils.exceptions import AppError
 from src.utils.exceptions.handlers import app_error_handler, unexpected_error_handler, validation_error_handler
-from src.utils.logger import configure_logging
+from src.utils.logger import configure_logging, logger
 
 settings = get_settings()
+
+
+def _configure_langsmith() -> None:
+    """Bridges our Pydantic Settings into the raw env vars langchain-core's callback system reads
+    directly from os.environ — langsmith tracing activates automatically once these are set."""
+    if not (settings.langsmith_tracing and settings.langsmith_api_key):
+        return
+    os.environ["LANGCHAIN_TRACING_V2"] = "true"
+    os.environ["LANGCHAIN_API_KEY"] = settings.langsmith_api_key
+    os.environ["LANGCHAIN_PROJECT"] = settings.langsmith_project
+    if settings.langsmith_endpoint:
+        os.environ["LANGCHAIN_ENDPOINT"] = settings.langsmith_endpoint
+    logger.info("langsmith_tracing_enabled", project=settings.langsmith_project)
 
 
 @asynccontextmanager
 async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     configure_logging()
+    _configure_langsmith()
     await create_schema()
     if settings.auto_seed_demo:
         await seed_database()

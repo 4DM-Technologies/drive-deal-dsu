@@ -10,6 +10,7 @@ from src.models.auth import BuyerSignup, DealerSignup, LoginRequest, RefreshRequ
 from src.repositories.schema import Profile, User
 from src.services.auth_service import AuthService
 from src.utils.exceptions import AppError, error_codes
+from src.utils.logger import logger
 from src.utils.serialization import model_dict
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
@@ -72,6 +73,7 @@ async def reset_password(payload: ResetPasswordRequest, session: AsyncSession = 
     user.password_hash = hash_password(payload.new_password)
     user.refresh_token_hash = None
     await session.commit()
+    logger.info("password_reset", profile_id=user.profile_id)
     return {"reset": True}
 
 
