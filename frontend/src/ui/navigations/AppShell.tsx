@@ -69,24 +69,31 @@ export function AppShell() {
           <nav className="main-nav" aria-label="Primary navigation">
             {nav.map(({ to, label, icon: Icon }) => <NavLink key={to} to={to} className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}><Icon size={16} />{label}</NavLink>)}
           </nav>
-          {(session.role === 'buyer' || session.role === 'dealer') && <button className="support-help-trigger" onClick={() => setSupportOpen(true)} aria-label="Open help and support"><LifeBuoy size={18} /><span>Help</span></button>}
-          <button className="profile-menu" onClick={() => navigate('/profiles')} aria-label="Open profile">
-            <span className="avatar">{session.avatarInitials}</span>
-            <span className="profile-meta"><strong>{session.fullName}</strong><span>{session.role}</span></span>
-          </button>
-          <div className="signout-wrap" ref={signOutRef}>
-            <button className={`button button-ghost button-sm signout-trigger ${signOutOpen ? 'open' : ''}`} onClick={() => setSignOutOpen((open) => !open)} aria-label="Account menu" aria-haspopup="menu" aria-expanded={signOutOpen}><LogOut size={18} /></button>
-            {signOutOpen && <div className="signout-menu" role="menu"><button className="signout-item" role="menuitem" onClick={signOut} autoFocus><LogOut size={16} /> Sign out</button></div>}
+          <div className="topbar-actions">
+            {(session.role === 'buyer' || session.role === 'dealer') && <button className="support-help-trigger desktop-header-action" onClick={() => setSupportOpen(true)} aria-label="Open help and support"><LifeBuoy size={18} /><span>Help</span></button>}
+            <button className="profile-menu desktop-header-action" onClick={() => navigate('/profiles')} aria-label="Open profile">
+              <span className="avatar">{session.avatarInitials}</span>
+              <span className="profile-meta"><strong>{session.fullName}</strong><span>{session.role}</span></span>
+            </button>
+            <div className="signout-wrap desktop-header-action" ref={signOutRef}>
+              <button className={`button button-ghost button-sm signout-trigger ${signOutOpen ? 'open' : ''}`} onClick={() => setSignOutOpen((open) => !open)} aria-label="Account menu" aria-haspopup="menu" aria-expanded={signOutOpen}><LogOut size={18} /></button>
+              {signOutOpen && <div className="signout-menu" role="menu"><button className="signout-item" role="menuitem" onClick={signOut} autoFocus><LogOut size={16} /> Sign out</button></div>}
+            </div>
+            <button className="button button-ghost mobile-menu" onClick={() => setSidebarOpen(!sidebarOpen)} aria-label="Open menu"><Menu /></button>
           </div>
-          <button className="button button-ghost mobile-menu" onClick={() => setSidebarOpen(!sidebarOpen)} aria-label="Open menu"><Menu /></button>
         </div>
       </header>
       <AnimatePresence>
         {sidebarOpen && (
           <motion.div style={{ position: 'fixed', inset: 0, zIndex: 70, background: 'rgba(16,35,63,.28)' }} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setSidebarOpen(false)}>
-            <motion.nav style={{ width: 'min(340px,88vw)', height: '100%', padding: '1rem', background: 'var(--raised)', marginLeft: 'auto' }} initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }} transition={{ duration: .25 }} onClick={(event) => event.stopPropagation()}>
+            <motion.nav className="mobile-nav-drawer" style={{ width: 'min(340px,88vw)', height: '100%', padding: '1rem', background: 'var(--raised)', marginLeft: 'auto' }} initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }} transition={{ duration: .25 }} onClick={(event) => event.stopPropagation()}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}><Brand /><button className="button button-ghost" onClick={() => setSidebarOpen(false)}><X /></button></div>
-              {nav.map(({ to, label, icon: Icon }) => <NavLink key={to} to={to} onClick={() => setSidebarOpen(false)} className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`} style={{ display: 'flex', marginBottom: '.25rem' }}><Icon size={17} />{label}</NavLink>)}
+              <div className="mobile-nav-links">{nav.map(({ to, label, icon: Icon }) => <NavLink key={to} to={to} onClick={() => setSidebarOpen(false)} className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}><Icon size={17} />{label}</NavLink>)}</div>
+              <div className="mobile-nav-account">
+                <button type="button" onClick={() => { navigate('/profiles'); setSidebarOpen(false); }}><span className="avatar">{session.avatarInitials}</span><span><strong>{session.fullName}</strong><small>Profile</small></span></button>
+                {(session.role === 'buyer' || session.role === 'dealer') && <button type="button" onClick={() => { setSupportOpen(true); setSidebarOpen(false); }}><LifeBuoy size={18} /><span><strong>Help</strong><small>Contact support</small></span></button>}
+                <button type="button" className="mobile-signout" onClick={signOut}><LogOut size={18} /><span><strong>Sign out</strong><small>End this session</small></span></button>
+              </div>
             </motion.nav>
           </motion.div>
         )}

@@ -9,6 +9,7 @@ from src.middleware.auth import get_current_profile, require_roles
 from src.repositories.marketplace_repository import MarketplaceRepository
 from src.repositories.schema import Car, Profile
 from src.utils.exceptions import AppError, error_codes
+from src.utils.log_flow import log_flow
 from src.utils.logger import logger
 from src.utils.serialization import model_dict
 
@@ -36,6 +37,7 @@ class CarStatus(BaseModel):
 
 
 @router.get("")
+@log_flow(layer="route")
 async def cars(profile: Profile = Depends(get_current_profile), session: AsyncSession = Depends(get_session)):
     repository = MarketplaceRepository(session)
     rows = await (repository.cars_for_dealer(profile.id) if profile.role == "dealer" else repository.all_cars())
@@ -43,16 +45,18 @@ async def cars(profile: Profile = Depends(get_current_profile), session: AsyncSe
 
 
 @router.post("", status_code=status.HTTP_201_CREATED)
+@log_flow(layer="route")
 async def create_car(payload: CarCreate, profile: Profile = Depends(require_roles("dealer")), session: AsyncSession = Depends(get_session)):
-    row = Car(seller_id=profile.id, created_by=profile.id, updated_by=profile.id, **payload.model_dump())
+    row = Car(created_by=profile.id, updated_by=profile.id, **payload.model_dump())
     session.add(row)
     await session.commit()
     await session.refresh(row)
-    logger.info("car_created", car_id=row.id, seller_id=profile.id)
+    logger.info("car_created", car_id=row.id, created_by=profile.id)
     return model_dict(row)
 
 
 @router.get("/{car_id}")
+@log_flow(layer="route")
 async def car(car_id: str, _: Profile = Depends(get_current_profile), session: AsyncSession = Depends(get_session)):
     row = await session.get(Car, car_id)
     if row is None:
@@ -61,9 +65,10 @@ async def car(car_id: str, _: Profile = Depends(get_current_profile), session: A
 
 
 @router.patch("/{car_id}")
+@log_flow(layer="route")
 async def update_car(car_id: str, payload: CarCreate, profile: Profile = Depends(require_roles("dealer")), session: AsyncSession = Depends(get_session)):
     row = await session.get(Car, car_id)
-    if row is None or row.seller_id != profile.id:
+    if row is None or row.created_by != profile.id:
         raise AppError(error_codes.RESOURCE_NOT_FOUND, "Vehicle not found.", 404)
     for field, value in payload.model_dump().items():
         setattr(row, field, value)
@@ -73,12 +78,13 @@ async def update_car(car_id: str, payload: CarCreate, profile: Profile = Depends
 
 
 @router.patch("/{car_id}/status")
+@log_flow(layer="route")
 async def car_status(car_id: str, payload: CarStatus, profile: Profile = Depends(require_roles("dealer")), session: AsyncSession = Depends(get_session)):
     row = await session.get(Car, car_id)
-    if row is None or row.seller_id != profile.id:
+    if row is None or row.created_by != profile.id:
         raise AppError(error_codes.RESOURCE_NOT_FOUND, "Vehicle not found.", 404)
     row.status = payload.status
     row.updated_by = profile.id
     await session.commit()
-    logger.info("car_status_changed", car_id=row.id, seller_id=profile.id, status=row.status)
+    logger.info("car_status_changed", car_id=row.id, created_by=profile.id, status=row.status)
     return model_dict(row)

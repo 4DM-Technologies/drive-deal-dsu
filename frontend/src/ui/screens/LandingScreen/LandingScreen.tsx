@@ -6,7 +6,7 @@ import heroImage from '@/assets/vehicles/drivedeal-hero.png';
 import { useScrollTopOnPush } from '@/helpers/useScrollTopOnPush';
 import { Reveal } from '@/ui/reusables/Reveal/Reveal';
 import { Brand } from '@/ui/reusables/Brand/Brand';
-import { BenefitsSection, CompareSection, HowSection, JourneySection, Marquee, SeraSection } from './CustomerSections';
+import { BenefitsSection, CompareSection, HowSection, JourneySection, SeraSection } from './CustomerSections';
 import './LandingScreen.css';
 
 const steps = [
@@ -125,7 +125,6 @@ export default function LandingScreen() {
       <motion.div className="lp-progress" style={{ scaleX: progress }} aria-hidden="true" />
       <header className={`public-header${scrolled ? ' is-scrolled' : ''}`}><div className="shell public-nav"><Link to="/"><Brand /></Link><nav className="public-nav-links" aria-label="Sections"><a className="nav-link" href="#how">How it works</a><a className="nav-link" href="#why">Why choose us</a><Link className="nav-link" to="/dealers">For dealers</Link><Link className="nav-link dealer-entry" to="/login?role=dealer">Dealer sign in</Link></nav><div className="public-nav-actions"><Link className="button button-secondary public-login" to="/login">Log in</Link><Link className="button button-primary" to="/signup/buyer">Start buying <ArrowRight size={17} /></Link></div></div></header>
       <Hero />
-      <Marquee />
       <HowSection steps={steps} />
       <SeraSection />
       <CompareSection />

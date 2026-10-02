@@ -5,11 +5,13 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
 from src.auth.security import decode_token
 from src.services.websocket_manager import manager
+from src.utils.log_flow import log_flow
 
 router = APIRouter(tags=["Realtime"])
 
 
 @router.websocket("/ws")
+@log_flow(layer="route")
 async def websocket_endpoint(websocket: WebSocket, token: str):
     try:
         payload = decode_token(token)

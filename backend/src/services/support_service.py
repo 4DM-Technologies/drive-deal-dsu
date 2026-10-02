@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.models.marketplace import TicketCreate, TicketUpdate, VerificationDecision
 from src.repositories.schema import Profile, State, SupportTicket, SupportVerification, User
 from src.utils.exceptions import AppError, error_codes
+from src.utils.log_flow import log_flow
 from src.utils.logger import logger
 from src.utils.serialization import model_dict
 
@@ -15,21 +16,25 @@ class SupportService:
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
 
+    @log_flow(layer="service")
     async def _ticket_dict(self, row: SupportTicket) -> dict:
         caller = await self.session.get(Profile, row.caller_id)
         return {**model_dict(row), "caller_name": caller.full_name if caller else None}
 
+    @log_flow(layer="service")
     async def _verification_dict(self, row: SupportVerification) -> dict:
         profile = await self.session.get(Profile, row.profile_id)
         state = await self.session.get(State, profile.state_id) if profile and profile.state_id else None
         return {**model_dict(row), "profile_name": profile.full_name if profile else None, "business_name": profile.dealership_name if profile else None, "state": state.name if state else None}
 
+    @log_flow(layer="service")
     async def _profile_map(self, profile_ids: set[str]) -> dict[str, Profile]:
         if not profile_ids:
             return {}
         rows = (await self.session.execute(select(Profile).where(Profile.id.in_(profile_ids)))).scalars()
         return {row.id: row for row in rows}
 
+    @log_flow(layer="service")
     async def list_tickets(self, actor: Profile, queue: bool = False) -> list[dict]:
         statement = select(SupportTicket).order_by(SupportTicket.created_at.desc())
         if not queue or actor.role not in {"support", "support-admin", "admin"}:
@@ -38,6 +43,7 @@ class SupportService:
         callers = await self._profile_map({row.caller_id for row in rows})
         return [{**model_dict(row), "caller_name": callers[row.caller_id].full_name if row.caller_id in callers else None} for row in rows]
 
+    @log_flow(layer="service")
     async def create_ticket(self, payload: TicketCreate, actor: Profile) -> dict:
         category = "dealer" if actor.role == "dealer" else "customer"
         prefix = "DS" if category == "dealer" else "TIC-"
@@ -53,6 +59,7 @@ class SupportService:
         logger.info("ticket_created", ticket_id=ticket.ticket_id, caller_id=actor.id, category=category)
         return await self._ticket_dict(ticket)
 
+    @log_flow(layer="service")
     async def update_ticket(self, ticket_id: str, payload: TicketUpdate, actor: Profile) -> dict:
         ticket = await self.session.get(SupportTicket, ticket_id)
         if ticket is None:
@@ -69,6 +76,7 @@ class SupportService:
         logger.info("ticket_updated", ticket_id=ticket.ticket_id, actor_id=actor.id, status=ticket.status)
         return await self._ticket_dict(ticket)
 
+    @log_flow(layer="service")
     async def list_verifications(self) -> list[dict]:
         rows = list((await self.session.execute(select(SupportVerification).order_by(SupportVerification.created_at.desc()))).scalars())
         profiles = await self._profile_map({row.profile_id for row in rows})
@@ -87,6 +95,7 @@ class SupportService:
             for row in rows
         ]
 
+    @log_flow(layer="service")
     async def decide_verification(self, verification_id: str, payload: VerificationDecision, actor: Profile) -> dict:
         verification = await self.session.get(SupportVerification, verification_id)
         if verification is None:
@@ -107,6 +116,7 @@ class SupportService:
         logger.info("verification_decided", verification_id=verification.ticket_id, actor_id=actor.id, decision=payload.decision)
         return await self._verification_dict(verification)
 
+    @log_flow(layer="service")
     async def members(self) -> list[dict]:
         rows = (
             await self.session.execute(
@@ -118,6 +128,7 @@ class SupportService:
         ).all()
         return [self._member_detail(profile, user) for profile, user in rows]
 
+    @log_flow(layer="service")
     async def member(self, profile_id: str) -> dict:
         row = (
             await self.session.execute(
@@ -131,6 +142,7 @@ class SupportService:
         return self._member_detail(*row)
 
     @staticmethod
+    @log_flow(layer="service")
     def _member_detail(profile: Profile, user: User) -> dict:
         return {
             **model_dict(profile),

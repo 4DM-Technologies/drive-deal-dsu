@@ -14,6 +14,7 @@ from src.models.marketplace import (
 from src.repositories.marketplace_repository import MarketplaceRepository
 from src.repositories.schema import Brand, BuyerRequest, DealChat, DealQuote, Profile
 from src.utils.exceptions import AppError, error_codes
+from src.utils.log_flow import log_flow
 from src.utils.logger import logger
 from src.utils.serialization import model_dict
 
@@ -25,11 +26,13 @@ class MarketplaceService:
         self.session = session
         self.repository = MarketplaceRepository(session)
 
+    @log_flow(layer="service")
     async def request_dict(self, row: BuyerRequest, *, already_quoted: bool | None = None) -> dict:
         brand = await self.session.get(Brand, row.brand_id)
         extra = {} if already_quoted is None else {"already_quoted": already_quoted}
         return {**model_dict(row), "brand_name": brand.name if brand else None, **extra}
 
+    @log_flow(layer="service")
     async def quote_dict(self, row: DealQuote) -> dict:
         dealer = await self.session.get(Profile, row.dealer_id)
         request = await self.session.get(BuyerRequest, row.buyer_request_id)
@@ -45,24 +48,28 @@ class MarketplaceService:
             "buyer_area": request.buyer_area if request else None,
         }
 
+    @log_flow(layer="service")
     async def _brand_map(self, brand_ids: set[str]) -> dict[str, Brand]:
         if not brand_ids:
             return {}
         rows = (await self.session.execute(select(Brand).where(Brand.id.in_(brand_ids)))).scalars()
         return {row.id: row for row in rows}
 
+    @log_flow(layer="service")
     async def _profile_map(self, profile_ids: set[str]) -> dict[str, Profile]:
         if not profile_ids:
             return {}
         rows = (await self.session.execute(select(Profile).where(Profile.id.in_(profile_ids)))).scalars()
         return {row.id: row for row in rows}
 
+    @log_flow(layer="service")
     async def _request_map(self, request_ids: set[str]) -> dict[str, BuyerRequest]:
         if not request_ids:
             return {}
         rows = (await self.session.execute(select(BuyerRequest).where(BuyerRequest.id.in_(request_ids)))).scalars()
         return {row.id: row for row in rows}
 
+    @log_flow(layer="service")
     async def list_requests(self, actor: Profile) -> list[dict]:
         if actor.role == "buyer":
             rows = await self.repository.buyer_requests(actor.id)
@@ -81,6 +88,7 @@ class MarketplaceService:
             for row in rows
         ]
 
+    @log_flow(layer="service")
     async def get_request(self, request_id: str, actor: Profile) -> dict:
         row = await self._request(request_id)
         if actor.role == "buyer" and row.buyer_id != actor.id:
@@ -89,6 +97,7 @@ class MarketplaceService:
             raise AppError(error_codes.RESOURCE_NOT_FOUND, "Request not found.", 404)
         return await self.request_dict(row)
 
+    @log_flow(layer="service")
     async def create_request(self, payload: RequestCreate, buyer: Profile) -> dict:
         row = BuyerRequest(buyer_id=buyer.id, **payload.model_dump())
         self.repository.add(row)
@@ -97,6 +106,7 @@ class MarketplaceService:
         logger.info("request_created", request_id=row.id, buyer_id=buyer.id, status=row.status)
         return await self.request_dict(row)
 
+    @log_flow(layer="service")
     async def list_quotes(self, actor: Profile, request_id: str | None = None) -> list[dict]:
         if actor.role == "dealer":
             rows = await self.repository.quotes_for_dealer(actor.id)
@@ -129,6 +139,7 @@ class MarketplaceService:
 
         return [to_dict(row) for row in rows]
 
+    @log_flow(layer="service")
     async def create_quote(self, payload: QuoteCreate, dealer: Profile) -> dict:
         request = await self._request(payload.buyer_request_id)
         if request.status != "open":
@@ -140,6 +151,7 @@ class MarketplaceService:
         logger.info("quote_created", quote_id=row.id, request_id=request.id, dealer_id=dealer.id)
         return await self.quote_dict(row)
 
+    @log_flow(layer="service")
     async def revise_quote(self, quote_id: str, payload: QuoteRevision, dealer: Profile) -> dict:
         quote = await self._quote(quote_id)
         self._require_owner(quote.dealer_id, dealer.id)
@@ -155,6 +167,7 @@ class MarketplaceService:
         logger.info("quote_revised", quote_id=quote.id, dealer_id=dealer.id, previous_final_price=previous)
         return await self.quote_dict(quote)
 
+    @log_flow(layer="service")
     async def accept_quote(self, quote_id: str, buyer: Profile) -> dict:
         quote = await self._quote(quote_id)
         self._require_owner(quote.buyer_id, buyer.id)
@@ -174,6 +187,7 @@ class MarketplaceService:
         logger.info("quote_accepted", quote_id=quote.id, buyer_id=buyer.id, request_id=request.id)
         return await self.quote_dict(quote)
 
+    @log_flow(layer="service")
     async def dealer_contact(self, quote_id: str, actor: Profile) -> dict:
         quote = await self._quote(quote_id)
         self._require_party(quote, actor)
@@ -182,6 +196,7 @@ class MarketplaceService:
         dealer = await self.session.get(Profile, quote.dealer_id)
         return {"contact_available": True, "dealer": {"id": dealer.id, "name": dealer.full_name, "dealership_name": dealer.dealership_name, "phone": dealer.phone, "email": dealer.email}}
 
+    @log_flow(layer="service")
     async def request_chat(self, quote_id: str, payload: ChatRequestCreate, buyer: Profile) -> dict:
         quote = await self._quote(quote_id)
         self._require_owner(quote.buyer_id, buyer.id)
@@ -193,6 +208,7 @@ class MarketplaceService:
         logger.info("chat_requested", quote_id=quote.id, buyer_id=buyer.id)
         return await self.quote_dict(quote)
 
+    @log_flow(layer="service")
     async def accept_chat(self, quote_id: str, dealer: Profile) -> dict:
         quote = await self._quote(quote_id)
         self._require_owner(quote.dealer_id, dealer.id)
@@ -208,6 +224,7 @@ class MarketplaceService:
         logger.info("chat_accepted", quote_id=quote.id, dealer_id=dealer.id)
         return await self.quote_dict(quote)
 
+    @log_flow(layer="service")
     async def chat_messages(self, quote_id: str, actor: Profile) -> list[dict]:
         quote = await self._quote(quote_id)
         self._require_party(quote, actor)
@@ -215,6 +232,7 @@ class MarketplaceService:
             raise AppError(error_codes.CHAT_NOT_OPEN, "This conversation is not open.", 403)
         return [model_dict(row) for row in await self.repository.chat_messages(quote_id) if actor.id not in row.hidden_for]
 
+    @log_flow(layer="service")
     async def send_chat(self, quote_id: str, payload: ChatSend, actor: Profile) -> dict:
         quote = await self._quote(quote_id)
         self._require_party(quote, actor)
@@ -229,6 +247,7 @@ class MarketplaceService:
         await self.session.refresh(row)
         return model_dict(row)
 
+    @log_flow(layer="service")
     async def update_deal_status(self, quote_id: str, payload: DealStatusUpdate, actor: Profile) -> dict:
         quote = await self._quote(quote_id)
         self._require_party(quote, actor)
@@ -247,12 +266,14 @@ class MarketplaceService:
         logger.info("deal_status_changed", quote_id=quote.id, actor_id=actor.id, from_status=current, to_status=payload.status)
         return await self.quote_dict(quote)
 
+    @log_flow(layer="service")
     async def _request(self, request_id: str) -> BuyerRequest:
         row = await self.repository.request_by_id(request_id)
         if row is None:
             raise AppError(error_codes.RESOURCE_NOT_FOUND, "Request not found.", 404)
         return row
 
+    @log_flow(layer="service")
     async def _quote(self, quote_id: str) -> DealQuote:
         row = await self.repository.quote_by_id(quote_id)
         if row is None:
@@ -260,11 +281,13 @@ class MarketplaceService:
         return row
 
     @staticmethod
+    @log_flow(layer="service")
     def _require_owner(owner_id: str, actor_id: str) -> None:
         if owner_id != actor_id:
             raise AppError(error_codes.RESOURCE_NOT_FOUND, "Resource not found.", 404)
 
     @staticmethod
+    @log_flow(layer="service")
     def _require_party(quote: DealQuote, actor: Profile) -> None:
         if actor.role not in {"support", "admin"} and actor.id not in {quote.buyer_id, quote.dealer_id}:
             raise AppError(error_codes.RESOURCE_NOT_FOUND, "Resource not found.", 404)

@@ -11,6 +11,7 @@ from src.repositories.auth_repository import AuthRepository
 from src.repositories.schema import Profile, SupportVerification, User
 from src.settings import DEFAULT_TERMS_VERSION, get_settings
 from src.utils.exceptions import AppError, error_codes
+from src.utils.log_flow import log_flow
 from src.utils.logger import logger
 
 
@@ -19,6 +20,7 @@ class AuthService:
         self.session = session
         self.repository = AuthRepository(session)
 
+    @log_flow(layer="service")
     async def signup_buyer(self, payload: BuyerSignup) -> TokenResponse:
         profile = await self._create_profile(payload, "buyer", is_active=True)
         response = self._tokens(profile, True)
@@ -27,6 +29,7 @@ class AuthService:
         logger.info("buyer_signup", profile_id=profile.id, role="buyer")
         return response
 
+    @log_flow(layer="service")
     async def signup_dealer(self, payload: DealerSignup) -> dict:
         profile = await self._create_profile(
             payload,
@@ -44,6 +47,7 @@ class AuthService:
         logger.info("dealer_signup", profile_id=profile.id, role="dealer", verification_id=verification.ticket_id)
         return {"status": "pending", "verification_id": verification.ticket_id, "email": profile.email}
 
+    @log_flow(layer="service")
     async def signup_support(self, payload: SupportSignup) -> dict:
         profile = await self._create_profile(payload, "support", is_active=False)
         verification = SupportVerification(
@@ -55,6 +59,7 @@ class AuthService:
         logger.info("support_signup", profile_id=profile.id, role="support", verification_id=verification.ticket_id)
         return {"status": "pending", "verification_id": verification.ticket_id, "email": profile.email}
 
+    @log_flow(layer="service")
     async def login(self, payload: LoginRequest) -> TokenResponse:
         profile = await self.repository.profile_by_email(str(payload.email))
         if profile is None or not verify_password(payload.password, profile.user.password_hash):
@@ -69,6 +74,7 @@ class AuthService:
         logger.info("login_success", profile_id=profile.id, role=profile.role)
         return response
 
+    @log_flow(layer="service")
     async def refresh(self, refresh_token: str) -> TokenResponse:
         try:
             payload = decode_token(refresh_token, "refresh")
@@ -87,6 +93,7 @@ class AuthService:
         logger.info("token_refreshed", profile_id=profile.id, role=profile.role)
         return response
 
+    @log_flow(layer="service")
     async def logout(self, profile: Profile) -> None:
         current = await self.repository.profile_with_user(profile.id)
         if current:
@@ -94,6 +101,7 @@ class AuthService:
             await self.repository.commit()
             logger.info("logout", profile_id=profile.id, role=profile.role)
 
+    @log_flow(layer="service")
     async def _create_profile(self, payload, role: str, is_active: bool, **extra) -> Profile:
         if await self.repository.profile_by_email(str(payload.email)):
             raise AppError(error_codes.CONFLICT, "An account already exists for this email.", 409)
@@ -108,6 +116,7 @@ class AuthService:
         await self.repository.add_profile(profile, user)
         return profile
 
+    @log_flow(layer="service")
     def _tokens(self, profile: Profile, is_active: bool) -> TokenResponse:
         settings = get_settings()
         return TokenResponse(

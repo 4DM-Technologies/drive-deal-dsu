@@ -14,26 +14,6 @@ import { SpotlightCard } from '@/ui/reusables/SpotlightCard/SpotlightCard';
 const EASE = [.16, 1, .3, 1] as const;
 const money = (value: number) => formatMoney(Math.round(value));
 
-/* ---------- Marquee ---------- */
-const marqueeItems = [
-  'Free for buyers', 'Itemized out-the-door quotes', 'Dealers compete for you', 'Your details stay private',
-  'Sera, your AI car advisor', 'Compare offers like for like', 'Negotiate in the platform', 'Verified dealers only',
-];
-
-export function Marquee() {
-  return (
-    <div className="lp-marquee">
-      <div className="lp-marquee-track">
-        {[0, 1].map((copy) => (
-          <ul className="lp-marquee-group" key={copy} aria-hidden={copy === 1 ? true : undefined}>
-            {marqueeItems.map((item) => <li key={item}><Sparkles size={15} />{item}</li>)}
-          </ul>
-        ))}
-      </div>
-    </div>
-  );
-}
-
 /* ---------- How it works (cards + scroll-filled rail) ---------- */
 export type HowStep = { owner: string; icon: LucideIcon; title: string; body: string };
 

@@ -84,8 +84,9 @@ export interface DriveDealClient {
     taxRate(stateCode: string): Promise<{ stateCode: string; rate: string }>;
   };
   ai: {
-    chat(input: { message: string; threadId?: string; agent?: 'sera-agent' | 'compare-agent'; requestIds?: string[] }): AsyncIterable<AiStreamEvent>;
+    chat(input: { message: string; threadId?: string; agent?: 'sera-agent' | 'compare-agent'; requestIds?: string[]; quoteIds?: string[]; signal?: AbortSignal }): AsyncIterable<AiStreamEvent>;
     threads(): Promise<AiThread[]>;
     thread(id: string): Promise<AiThread>;
+    deleteThread(id: string): Promise<void>;
   };
 }

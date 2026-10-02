@@ -96,10 +96,11 @@ const carToDomain = (row: Record<string, unknown>): InventoryCar => ({
 
 const carInputToBody = (input: CarCreateInput) => ({ brand_id: input.brandId, state_id: input.stateId, title: input.title, model: input.model, model_year: input.modelYear, body_type: input.bodyType ?? null, seating_capacity: input.seatingCapacity ?? null, condition: input.condition ?? 'new', mileage: input.mileage ?? 0, fuel: input.fuel ?? null, transmission: input.transmission ?? null, price: input.price, image_paths: input.imagePaths ?? [] });
 
-async function* streamAi(input: { message: string; threadId?: string; agent?: 'sera-agent' | 'compare-agent'; requestIds?: string[] }): AsyncIterable<AiStreamEvent> {
+async function* streamAi(input: { message: string; threadId?: string; agent?: 'sera-agent' | 'compare-agent'; requestIds?: string[]; quoteIds?: string[]; signal?: AbortSignal }): AsyncIterable<AiStreamEvent> {
   const response = await fetch(`${baseUrl}/ai/chat`, {
     method: 'POST', headers: { 'content-type': 'application/json', ...(token() ? { authorization: `Bearer ${token()}` } : {}) },
-    body: JSON.stringify({ message: input.message, thread_id: input.threadId, agent: input.agent ?? 'sera-agent', request_ids: input.requestIds ?? [] }),
+    body: JSON.stringify({ message: input.message, thread_id: input.threadId, agent: input.agent ?? 'sera-agent', request_ids: input.requestIds ?? [], quote_ids: input.quoteIds ?? [] }),
+    ...(input.signal ? { signal: input.signal } : {}),
   });
   if (!response.ok || !response.body) throw new Error('Sera is temporarily unavailable.');
   const reader = response.body.getReader();
@@ -256,5 +257,6 @@ export const httpClient: DriveDealClient = {
       const row = await request<{ id: string; checkpoints: Array<{ user?: string; assistant?: string }> }>(`/ai/threads/${id}`);
       return { id: row.id, type: 'sera', title: 'Conversation', updatedAt: new Date().toISOString(), messages: row.checkpoints.flatMap((checkpoint, index) => [{ id: `${id}-${index}-user`, role: 'user' as const, body: checkpoint.user ?? '' }, { id: `${id}-${index}-assistant`, role: 'assistant' as const, body: checkpoint.assistant ?? '' }]).filter((message) => message.body) };
     },
+    deleteThread: async (id) => { await request(`/ai/threads/${encodeURIComponent(id)}`, { method: 'DELETE' }); },
   },
 };

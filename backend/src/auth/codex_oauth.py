@@ -8,6 +8,7 @@ time it only loads the cached token and refreshes it proactively when it is near
 Docs: https://developers.openai.com/siwc
 """
 
+import asyncio
 import base64
 import hashlib
 import http.server
@@ -21,6 +22,7 @@ from typing import Any
 
 import httpx
 
+from src.auth.codex_oauth_store import CodexOAuthS3Store
 from src.settings import PROJECT_ROOT, get_settings
 
 AUTH_URL = "https://auth.openai.com/api/accounts/authorize"
@@ -34,10 +36,43 @@ SCOPES = "openid profile email offline_access resource.invoke chatgpt.tokens.use
 # How much lead time to refresh before the access token's JWT `exp` claim is actually reached.
 _REFRESH_SKEW_SECONDS = 120
 
-STATE_DIR = PROJECT_ROOT / ".codex_oauth_state"
-HOST_ID_FILE = STATE_DIR / "host_id.txt"
-CLIENT_ID_FILE = STATE_DIR / "client_id.txt"
-TOKENS_FILE = STATE_DIR / "tokens.json"
+LEGACY_STATE_DIR = PROJECT_ROOT / ".codex_oauth_state"
+HOST_ID_NAME = "host_id.txt"
+CLIENT_ID_NAME = "client_id.txt"
+TOKENS_NAME = "tokens.json"
+
+
+def _state_store() -> CodexOAuthS3Store:
+    return CodexOAuthS3Store.from_settings()
+
+
+def _read_state(name: str) -> str | None:
+    """Read S3 first and migrate an old local file only after its upload succeeds."""
+    store = _state_store()
+    value = store.read_text(name)
+    legacy_file = LEGACY_STATE_DIR / name
+    if value is not None:
+        if legacy_file.exists():
+            legacy_file.unlink()
+            try:
+                LEGACY_STATE_DIR.rmdir()
+            except OSError:
+                pass
+        return value
+    if not legacy_file.exists():
+        return None
+    value = legacy_file.read_text(encoding="utf-8")
+    store.write_text(name, value, "application/json" if name.endswith(".json") else "text/plain")
+    legacy_file.unlink()
+    try:
+        LEGACY_STATE_DIR.rmdir()
+    except OSError:
+        pass
+    return value
+
+
+def _write_state(name: str, value: str) -> None:
+    _state_store().write_text(name, value, "application/json" if name.endswith(".json") else "text/plain")
 
 
 def _b64url(data: bytes) -> str:
@@ -63,11 +98,11 @@ def _jwt_claims(token: str) -> dict[str, Any]:
 
 
 def _host_id() -> str:
-    STATE_DIR.mkdir(exist_ok=True)
-    if HOST_ID_FILE.exists():
-        return HOST_ID_FILE.read_text().strip()
+    saved = _read_state(HOST_ID_NAME)
+    if saved:
+        return saved.strip()
     host_id = "urn:uuid:" + str(uuid.uuid4())
-    HOST_ID_FILE.write_text(host_id)
+    _write_state(HOST_ID_NAME, host_id)
     return host_id
 
 
@@ -75,26 +110,29 @@ def _saved_client_id() -> str:
     configured = get_settings().codex_oauth_client_id
     if configured:
         return configured
-    if CLIENT_ID_FILE.exists():
-        return CLIENT_ID_FILE.read_text().strip()
+    saved = _read_state(CLIENT_ID_NAME)
+    if saved:
+        return saved.strip()
     return BOOTSTRAP_CLIENT_ID
 
 
 def _read_cache() -> dict:
-    if not TOKENS_FILE.exists():
+    raw = _read_state(TOKENS_NAME)
+    if not raw:
         return {}
-    return json.loads(TOKENS_FILE.read_text())
+    try:
+        return json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise RuntimeError("Codex OAuth token state in S3 is not valid JSON.") from exc
 
 
 def _remember_client_id(client_id: str) -> None:
     if client_id and client_id != BOOTSTRAP_CLIENT_ID:
-        STATE_DIR.mkdir(exist_ok=True)
-        CLIENT_ID_FILE.write_text(client_id)
+        _write_state(CLIENT_ID_NAME, client_id)
 
 
 def _save_tokens(tokens: dict) -> None:
-    STATE_DIR.mkdir(exist_ok=True)
-    TOKENS_FILE.write_text(json.dumps(tokens, indent=2))
+    _write_state(TOKENS_NAME, json.dumps(tokens, indent=2))
 
 
 def _token_near_expiry(tokens: dict) -> bool:
@@ -199,13 +237,14 @@ def login() -> dict:
 
 
 async def _refresh_async(tokens: dict, *, persist_refresh_token: bool = True) -> dict:
+    client_id = await asyncio.to_thread(_saved_client_id)
     async with httpx.AsyncClient(timeout=30) as http_client:
         resp = await http_client.post(
             TOKEN_URL,
             data={
                 "grant_type": "refresh_token",
                 "refresh_token": tokens["refresh_token"],
-                "client_id": _saved_client_id(),
+                "client_id": client_id,
             },
         )
     if resp.status_code >= 400:
@@ -214,7 +253,7 @@ async def _refresh_async(tokens: dict, *, persist_refresh_token: bool = True) ->
     # Some refresh responses omit refresh_token, meaning the old one is still valid — keep it.
     refreshed.setdefault("refresh_token", tokens["refresh_token"])
     to_save = refreshed if persist_refresh_token else {k: v for k, v in refreshed.items() if k != "refresh_token"}
-    _save_tokens(to_save)
+    await asyncio.to_thread(_save_tokens, to_save)
     return refreshed
 
 
@@ -222,9 +261,9 @@ async def get_cached_access_token() -> str | None:
     """Non-interactive credential source for the running API server.
 
     Prefers the durable secret in `CODEX_OAUTH_REFRESH_TOKEN` (env) if set — this is the source of
-    truth on a shared/deployed machine. Falls back to the file cache written by `src.codex_login`
-    (local interactive sign-in) otherwise. Either way, the short-lived access token is cached to
-    `tokens.json` and only refreshed over the network when it is near expiry — never every call.
+    truth on a shared/deployed machine. Falls back to the private S3 state written by `src.codex_login`
+    (interactive sign-in) otherwise. Either way, the short-lived access token is cached under the
+    configured S3 prefix and only refreshed over the network when it is near expiry — never every call.
     Returns None (never opens a browser or blocks) if no credential is configured, so callers can
     fall back to another credential or the deterministic Serra fallback.
     """
@@ -235,7 +274,7 @@ async def get_cached_access_token() -> str | None:
         # the same response. So the rotated token must be cached and preferred on the next refresh,
         # or every refresh after the first fails with invalid_grant. The env var only matters again
         # if the cache is ever lost (e.g. redeployed) or its cached refresh token itself goes stale.
-        cached = _read_cache()
+        cached = await asyncio.to_thread(_read_cache)
         if cached.get("access_token") and not _token_near_expiry(cached):
             return cached["access_token"]
         refresh_token = cached.get("refresh_token") or configured_refresh_token
@@ -250,9 +289,9 @@ async def get_cached_access_token() -> str | None:
                 return None
         return tokens.get("access_token")
 
-    if not TOKENS_FILE.exists():
+    tokens = await asyncio.to_thread(_read_cache)
+    if not tokens:
         return None
-    tokens = _read_cache()
     if _token_near_expiry(tokens):
         if not tokens.get("refresh_token"):
             return None
@@ -266,9 +305,9 @@ async def get_cached_access_token() -> str | None:
 def load_or_login() -> dict:
     """Reuses a cached token if present (refreshing it if expired/near-expiry); otherwise logs in
     interactively. For local/dev use only (via `src.codex_login`)."""
-    if not TOKENS_FILE.exists():
+    tokens = _read_cache()
+    if not tokens:
         return login()
-    tokens = json.loads(TOKENS_FILE.read_text())
     if _token_near_expiry(tokens):
         if not tokens.get("refresh_token"):
             return login()

@@ -7,6 +7,7 @@ from src.database import get_session
 from src.middleware.auth import get_current_profile, require_roles
 from src.repositories.schema import BuyerPreference, Profile, User
 from src.utils.exceptions import AppError, error_codes
+from src.utils.log_flow import log_flow
 from src.utils.serialization import model_dict
 
 router = APIRouter(prefix="/profiles", tags=["Profiles"])
@@ -43,11 +44,13 @@ class PreferenceUpdate(BaseModel):
 
 
 @router.get("/me")
+@log_flow(layer="route")
 async def me(profile: Profile = Depends(get_current_profile)) -> dict:
     return model_dict(profile)
 
 
 @router.patch("/me")
+@log_flow(layer="route")
 async def update_me(payload: ProfileUpdate, profile: Profile = Depends(get_current_profile), session: AsyncSession = Depends(get_session)) -> dict:
     for field, value in payload.model_dump(exclude_unset=True).items():
         setattr(profile, field, value)
@@ -58,12 +61,14 @@ async def update_me(payload: ProfileUpdate, profile: Profile = Depends(get_curre
 
 
 @router.get("/me/preferences")
+@log_flow(layer="route")
 async def preferences(profile: Profile = Depends(require_roles("buyer")), session: AsyncSession = Depends(get_session)) -> dict:
     row = await session.get(BuyerPreference, profile.id)
     return model_dict(row) if row else {"profile_id": profile.id}
 
 
 @router.put("/me/preferences")
+@log_flow(layer="route")
 async def save_preferences(payload: PreferenceUpdate, profile: Profile = Depends(require_roles("buyer")), session: AsyncSession = Depends(get_session)) -> dict:
     row = await session.get(BuyerPreference, profile.id)
     values = payload.model_dump()
@@ -80,6 +85,7 @@ async def save_preferences(payload: PreferenceUpdate, profile: Profile = Depends
 
 
 @router.get("/{profile_id}")
+@log_flow(layer="route")
 async def profile_by_id(profile_id: str, _: Profile = Depends(require_roles("support", "support-admin", "admin")), session: AsyncSession = Depends(get_session)) -> dict:
     row = (await session.execute(select(Profile).join(User).where(Profile.id == profile_id))).scalar_one_or_none()
     if row is None:

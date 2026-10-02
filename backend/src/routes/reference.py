@@ -5,18 +5,21 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.database import get_session
 from src.repositories.schema import Brand, State
 from src.utils.exceptions import AppError, error_codes
+from src.utils.log_flow import log_flow
 from src.utils.serialization import model_dict
 
 router = APIRouter(prefix="/reference", tags=["Reference"])
 
 
 @router.get("/states")
+@log_flow(layer="route")
 async def list_states(session: AsyncSession = Depends(get_session)) -> list[dict]:
     rows = (await session.execute(select(State).where(State.is_active.is_(True)).order_by(State.name))).scalars()
     return [model_dict(row) for row in rows]
 
 
 @router.get("/states/{code}/tax-rate")
+@log_flow(layer="route")
 async def tax_rate(code: str, session: AsyncSession = Depends(get_session)) -> dict:
     row = (await session.execute(select(State).where(State.code == code.upper()))).scalar_one_or_none()
     if row is None:
@@ -25,6 +28,7 @@ async def tax_rate(code: str, session: AsyncSession = Depends(get_session)) -> d
 
 
 @router.get("/brands")
+@log_flow(layer="route")
 async def list_brands(session: AsyncSession = Depends(get_session)) -> list[dict]:
     rows = (await session.execute(select(Brand).where(Brand.is_active.is_(True)).order_by(Brand.name))).scalars()
     return [model_dict(row) for row in rows]

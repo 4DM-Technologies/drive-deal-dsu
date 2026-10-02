@@ -12,15 +12,6 @@
 .lp-line { display: block; overflow: clip; padding-bottom: .12em; margin-bottom: -.12em; }
 .lp-line-inner { display: inline-block; }
 
-/* ---------- Marquee ---------- */
-.lp-marquee { position: relative; z-index: 3; overflow: hidden; padding: 1.05rem 0; background: linear-gradient(90deg, #0a1b35, #10294f 50%, #0a1b35); border-block: 1px solid rgba(255, 255, 255, .06); color: rgba(226, 236, 252, .92); -webkit-mask-image: linear-gradient(90deg, transparent, #000 7%, #000 93%, transparent); mask-image: linear-gradient(90deg, transparent, #000 7%, #000 93%, transparent); }
-.lp-marquee-track { display: flex; width: max-content; animation: lp-marquee 44s linear infinite; }
-.lp-marquee:hover .lp-marquee-track { animation-play-state: paused; }
-.lp-marquee-group { display: flex; flex: none; margin: 0; padding: 0; list-style: none; }
-.lp-marquee-group li { display: inline-flex; align-items: center; gap: .65rem; padding: 0 1.9rem; font-size: .9rem; font-weight: 700; letter-spacing: .02em; white-space: nowrap; }
-.lp-marquee-group svg { color: var(--lp-sky); }
-@keyframes lp-marquee { to { transform: translateX(-50%); } }
-
 /* ---------- How it works: scroll-filled rail ---------- */
 .lp-how-rail { position: relative; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1rem; justify-items: center; margin-bottom: 1.35rem; }
 .lp-how-line { position: absolute; top: 50%; left: calc((100% - 3rem) / 8); right: calc((100% - 3rem) / 8); height: 4px; margin-top: -2px; border-radius: 4px; background: var(--border-strong); overflow: hidden; }

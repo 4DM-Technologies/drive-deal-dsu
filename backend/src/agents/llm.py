@@ -55,7 +55,9 @@ class LlmClient:
             return None
         return AsyncOpenAI(api_key=credential, timeout=self.settings.ai_request_timeout_seconds)
 
-    async def generate(self, prompt: str, task_type: str, thread_id: str | None = None) -> LlmResult:
+    async def generate(
+        self, prompt: str, task_type: str, thread_id: str | None = None, *, reasoning_effort: str | None = None
+    ) -> LlmResult:
         started = perf_counter()
         client = await self._resolve_client()
         status = "fallback"
@@ -65,7 +67,7 @@ class LlmClient:
             provider = "openai" if self._credential_source == "api_key" else self._credential_source
             model_name = self.settings.openai_model
             try:
-                result = await self._complete(client, prompt)
+                result = await self._complete(client, prompt, reasoning_effort)
                 status = "success"
             except Exception as exc:
                 logger.warning("llm_provider_fallback", task_type=task_type, provider=provider, error=_safe_error_value(str(exc)))
@@ -83,13 +85,17 @@ class LlmClient:
         logger.info(
             "agent_llm_call", thread_id=thread_id, task_type=task_type, provider=provider, model=model_name,
             status=status, input_tokens=result.input_tokens, output_tokens=result.output_tokens, latency_ms=elapsed,
+            reasoning_effort=reasoning_effort or self.settings.openai_reasoning_effort,
             prompt_excerpt=_safe_error_value(prompt, limit=200),
         )
         return result
 
-    async def _complete(self, client: AsyncOpenAI, prompt: str) -> LlmResult:
+    async def _complete(self, client: AsyncOpenAI, prompt: str, reasoning_effort: str | None = None) -> LlmResult:
         """Calls the Responses API, auto-dropping a parameter a model rejects and remembering that
         for next time — the same capability-adaptation pattern used by the SIWC reference client.
+
+        `reasoning_effort` overrides the configured default for cheap, non-analytical calls (greetings,
+        acknowledgements) where medium effort burns seconds for nothing.
 
         The Codex/ChatGPT OAuth backend behind `chatgpt_oauth_cache` requires `input` as a list of
         messages (not a bare string), `store=False`, and `stream=True` — a plain `create()` 400s."""
@@ -104,7 +110,7 @@ class LlmClient:
             if model not in _models_without_max_output_tokens:
                 kwargs["max_output_tokens"] = self.settings.ai_max_output_tokens
             if model not in _models_without_reasoning_effort:
-                kwargs["reasoning"] = {"effort": self.settings.openai_reasoning_effort}
+                kwargs["reasoning"] = {"effort": reasoning_effort or self.settings.openai_reasoning_effort}
 
         for _attempt in range(3):  # at most: drop max_output_tokens, then drop reasoning, then give up
             try:

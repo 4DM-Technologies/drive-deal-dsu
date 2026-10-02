@@ -6,7 +6,7 @@ from main import app
 from src.agents.tools.kb_db import describe_schema, query_data, update_preferences, write_car
 from src.database import SessionFactory
 from src.repositories.schema import Brand, BuyerPreference, Car
-from src.seed import IDS
+from tests.demo_data import IDS
 
 
 @pytest.fixture
@@ -20,7 +20,30 @@ async def test_describe_schema_lists_tables_without_hardcoding(seeded_app: TestC
     assert "cars" in schema
     assert "buyer_preference" in schema
     assert "price" in schema["cars"]
-    assert "must_have_features" in schema["buyer_preference"]
+    assert "preferences" in schema["buyer_preference"]
+
+
+async def test_preference_fields_round_trip_through_the_json_column(seeded_app: TestClient) -> None:
+    async with SessionFactory() as session:
+        row = await session.get(BuyerPreference, IDS["buyer"])
+        row.budget_max = 91000
+        row.must_have_features = ["Adaptive cruise", "Tow package"]
+        row.source = "advisor"
+        await session.commit()
+
+    async with SessionFactory() as session:
+        reloaded = await session.get(BuyerPreference, IDS["buyer"])
+        assert reloaded.budget_max == 91000
+        assert reloaded.must_have_features == ["Adaptive cruise", "Tow package"]
+        assert reloaded.preferences["budget_max"] == 91000
+
+
+async def test_legacy_preference_array_reads_back_as_must_have_features() -> None:
+    row = BuyerPreference(profile_id="buyer-legacy", created_by="buyer-legacy", updated_by="buyer-legacy")
+    row.preferences = ["Third-row seating", "Roof rack"]  # shape written before the granular fields existed
+    assert row.must_have_features == ["Third-row seating", "Roof rack"]
+    assert row.body_type is None
+    assert row.source == "advisor"
 
 
 async def test_query_data_is_read_only_and_returns_rows(seeded_app: TestClient) -> None:
@@ -79,7 +102,7 @@ async def test_write_car_only_touches_cars_table(seeded_app: TestClient) -> None
         car_count_before = len((await session.execute(select(Car))).scalars().all())
 
         result = await write_car(
-            session, seller_id=IDS["buyer"], brand_id=IDS["ford"], state_id=IDS["tx"],
+            session, created_by=IDS["buyer"], brand_id=IDS["ford"], state_id=IDS["tx"],
             model="F-150 Lightning", model_year=2026, price=54999.0,
         )
         await session.commit()
@@ -94,10 +117,10 @@ async def test_write_car_only_touches_cars_table(seeded_app: TestClient) -> None
 
 async def test_write_car_upserts_same_vehicle_instead_of_duplicating(seeded_app: TestClient) -> None:
     async with SessionFactory() as session:
-        first = await write_car(session, seller_id=IDS["buyer"], brand_id=IDS["ford"], state_id=IDS["tx"], model="Mach-E", model_year=2026, price=45000.0)
+        first = await write_car(session, created_by=IDS["buyer"], brand_id=IDS["ford"], state_id=IDS["tx"], model="Mach-E", model_year=2026, price=45000.0)
         await session.commit()
     async with SessionFactory() as session:
-        second = await write_car(session, seller_id=IDS["buyer"], brand_id=IDS["ford"], state_id=IDS["tx"], model="Mach-E", model_year=2026, price=43000.0)
+        second = await write_car(session, created_by=IDS["buyer"], brand_id=IDS["ford"], state_id=IDS["tx"], model="Mach-E", model_year=2026, price=43000.0)
         await session.commit()
         car = await session.get(Car, first["id"])
         assert float(car.price) == 43000.0

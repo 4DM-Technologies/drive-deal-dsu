@@ -12,13 +12,16 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.database import Base
 from src.repositories.schema import BuyerPreference, Car
+from src.utils.log_flow import log_flow
 
 
+@log_flow(layer="agent")
 def describe_schema() -> dict[str, list[str]]:
     """Read-only. Introspects Base.metadata so there is no hardcoded table list to maintain."""
     return {name: [column.name for column in table.columns] for name, table in Base.metadata.tables.items()}
 
 
+@log_flow(layer="agent")
 async def query_data(session: AsyncSession, table: str, filters: dict[str, Any] | None = None, limit: int = 20) -> list[dict[str, Any]]:
     """Read-only, parameterized SELECT against any mapped table. Never writes: the only statement it can ever
     build is a `select()`. Column names in `filters` are validated against the table's real columns before use,
@@ -37,6 +40,7 @@ async def query_data(session: AsyncSession, table: str, filters: dict[str, Any] 
     return [dict(row) for row in rows]
 
 
+@log_flow(layer="agent")
 async def update_preferences(session: AsyncSession, profile_id: str, features: list[str]) -> dict[str, Any]:
     """Write access, but intentionally narrower than PUT /profiles/me/preferences: this tool can only ever set
     must_have_features for the given profile_id. It never reads or writes budget_min, brand_id, or any other
@@ -52,10 +56,11 @@ async def update_preferences(session: AsyncSession, profile_id: str, features: l
     return {"profile_id": profile_id, "must_have_features": list(row.must_have_features)}
 
 
+@log_flow(layer="agent")
 async def write_car(
     session: AsyncSession,
     *,
-    seller_id: str,
+    created_by: str,
     brand_id: str,
     state_id: str,
     model: str,
@@ -70,7 +75,8 @@ async def write_car(
     status: str = "available",
 ) -> dict[str, Any]:
     """Write access, scoped ONLY to the `cars` table. Upserts by (brand_id, model, model_year) so a repeat
-    web-search extraction for the same vehicle updates the existing row instead of duplicating it."""
+    web-search extraction for the same vehicle updates the existing row instead of duplicating it.
+    The listing's owning dealer is recorded in `created_by`."""
     existing = (
         await session.execute(select(Car).where(Car.brand_id == brand_id, Car.model == model, Car.model_year == model_year))
     ).scalars().first()
@@ -81,13 +87,13 @@ async def write_car(
         existing.fuel = fuel or existing.fuel
         existing.transmission = transmission or existing.transmission
         existing.status = status
-        existing.updated_by = seller_id
+        existing.updated_by = created_by
         await session.flush()
         return {"id": existing.id, "model": existing.model, "model_year": existing.model_year, "upserted": "updated"}
     car = Car(
-        seller_id=seller_id, brand_id=brand_id, state_id=state_id, title=title or f"{model_year} {model}",
+        created_by=created_by, brand_id=brand_id, state_id=state_id, title=title or f"{model_year} {model}",
         model=model, model_year=model_year, body_type=body_type, condition=condition, mileage=mileage,
-        fuel=fuel, transmission=transmission, price=price, status=status, created_by=seller_id, updated_by=seller_id,
+        fuel=fuel, transmission=transmission, price=price, status=status, updated_by=created_by,
     )
     session.add(car)
     await session.flush()

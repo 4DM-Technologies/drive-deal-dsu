@@ -12,8 +12,10 @@ From PowerShell:
 ```powershell
 cd "C:\Users\Syed Thameemuddin\Desktop\Cube Simple\drive-deal-dsu\backend"
 uv sync
-uv run python -m src.seed
-uv run python -m src.run --reload
+# For getting the one-time token with opening the browser
+uv run python -m src.codex_login
+# Run the backend app
+uv run uvicorn main:app --reload
 ```
 
 Open the API docs at `http://127.0.0.1:8000/api/v1/docs`.
@@ -23,19 +25,19 @@ Open the API docs at `http://127.0.0.1:8000/api/v1/docs`.
 | Command | Purpose |
 |---|---|
 | `uv sync` | Creates/reuses `backend/.venv` and installs the project plus the `dev` dependency group (pytest, pytest-asyncio, pytest-cov, ruff, bandit). |
-| `uv run python -m src.seed` | Installs the demo dataset. Idempotent — safe to re-run; it only fills rows that are missing. |
-| `uv run python -m src.run --reload` | Starts uvicorn on `127.0.0.1:8000`. This is the normal application flow. |
-| `uv run python -m src.run --reload --no-ai` | Explicit opt-in demo mode (see below). |
+| `uv run uvicorn main:app --reload` | Starts uvicorn on `127.0.0.1:8000` from `backend/main.py`, the only application entry point. |
 
-Optional: `uv run python -m src.provision` creates the configured PostgreSQL database when the RDS
-instance is empty. It refuses to run unless `DATABASE_URL` points at a named PostgreSQL database.
+The database must already exist and hold its schema — the server calls `create_schema()` on startup,
+but it never creates a database and never seeds data. The provisioned RDS instance is already set up.
+To install the demo dataset into an empty local database, run `uv run python -m tests.demo_data`
+(idempotent — it only fills rows that are missing).
 
-### Serif AI layer: normal flow versus `--no-ai`
+### Serra AI layer: live versus demo mode
 
-`--no-ai` is **opt-in**. Without it, the normal application flow runs and the Serra LangGraph
-workflow executes. Add the flag only when you want a credential-free product demo.
+`AI_DISABLED` is **opt-in**. By default the Serra LangGraph workflow executes; set `AI_DISABLED=true`
+in `backend/.env` only when you want a credential-free product demo.
 
-| | Normal flow | `--no-ai` |
+| | Normal flow | `AI_DISABLED=true` |
 |---|---|---|
 | LangGraph graphs | Built and executed | Skipped entirely |
 | Serra answer | Model output, or the deterministic fallback | Canned scripted answer |

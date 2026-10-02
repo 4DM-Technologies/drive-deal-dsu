@@ -2,15 +2,16 @@ import asyncio
 from datetime import UTC, datetime
 from uuid import uuid4
 
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.agents.requirements import build_requirement_graph
-from src.agents.serra.graph import main_agent
+from src.agents.serra.graph import DIRECT_REPLY_ROUTES, is_direct_reply, main_agent
 from src.models.marketplace import AiChatRequest, CompareRequest
-from src.repositories.schema import BuyerRequest, ConversationHistory, DealQuote, Profile
+from src.repositories.schema import Brand, BuyerRequest, ConversationHistory, DealQuote, Profile
 from src.settings import get_settings
 from src.utils.exceptions import AppError, error_codes
+from src.utils.log_flow import log_flow
 from src.utils.serialization import model_dict
 
 
@@ -18,6 +19,7 @@ class AiService:
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
 
+    @log_flow(layer="service")
     async def stream_chat(self, payload: AiChatRequest, buyer: Profile):
         thread_id = payload.thread_id or str(uuid4())
         if get_settings().ai_disabled:
@@ -33,21 +35,46 @@ class AiService:
             "preferences": memory.get("preferences", {}),
             "preferences_pending": memory.get("preferences_pending", False),
         }
-        yield {"type": "status", "phase": "classifying", "label": "Understanding your question"}
+        yield {"type": "status", "phase": "classifying", "label": "Thinking"}
         await asyncio.sleep(0)
-        yield {"type": "status", "phase": "searching", "label": "Checking Deal&Drive knowledge"}
+        comparison_payload = None
+        if payload.agent == "compare-agent" and (payload.request_ids or payload.quote_ids):
+            comparison_payload = await self._comparison_payload(payload, buyer)
+            state["comparison_rows"] = comparison_payload["rows"]
         main_graph = main_agent(self.session, compare=payload.agent == "compare-agent")
-        requirement_graph = build_requirement_graph()
-        main_result, requirement_result = await asyncio.gather(main_graph.ainvoke(state), requirement_graph.ainvoke(state))
+        main_task = asyncio.create_task(main_graph.ainvoke(state))
+        if payload.agent == "compare-agent":
+            main_result = await main_task
+            requirement_result = {}
+        elif is_direct_reply(payload.message):
+            # A greeting or an instruction-override attempt is answered by the main model alone, so the
+            # requirements graph is never started: there is no requirement in the message to extract.
+            main_result = await main_task
+            requirement_result: dict = {}
+        else:
+            requirement_task = asyncio.create_task(build_requirement_graph(self.session).ainvoke(state))
+            try:
+                main_result = await main_task
+            except BaseException:
+                requirement_task.cancel()
+                raise
+            if main_result.get("route") in DIRECT_REPLY_ROUTES:
+                # The classifier ruled the message out of scope, so stop waiting on requirements entirely
+                # rather than letting gather delay the reply until that call finishes.
+                requirement_task.cancel()
+                requirement_result = {}
+            else:
+                yield {"type": "status", "phase": "searching", "label": "Searching Deal&Drive knowledge"}
+                requirement_result = await requirement_task
         if main_result.get("sources"):
-            yield {"type": "status", "phase": "crawling", "label": "Looking this up online"}
-        yield {"type": "status", "phase": "composing", "label": "Preparing a useful answer"}
+            yield {"type": "status", "phase": "crawling", "label": "Searching trusted sources"}
+        yield {"type": "status", "phase": "composing", "label": "Preparing response"}
         answer = main_result.get("answer", "I could not prepare an answer from the available evidence.")
         for index in range(0, len(answer), 18):
             yield {"type": "token", "text": answer[index:index + 18]}
             await asyncio.sleep(0)
-        if payload.agent == "compare-agent" and (payload.request_ids or payload.quote_ids):
-            yield {"type": "card", "kind": "compare", "payload": await self._comparison_payload(payload, buyer)}
+        if comparison_payload is not None:
+            yield {"type": "card", "kind": "compare", "payload": comparison_payload}
         if not requirement_result.get("missing_fields") and requirement_result.get("requirements"):
             yield {"type": "card", "kind": "requestPreview", "payload": {**requirement_result["requirements"], "confirmation_required": True}}
         elif requirement_result.get("suggested_questions"):
@@ -58,12 +85,13 @@ class AiService:
         await self.session.commit()
         yield {"type": "done", "threadId": thread_id, "messagesUsed": 1, "expandedUi": False}
 
+    @log_flow(layer="service")
     async def _stream_demo(self, payload: AiChatRequest, buyer: Profile, thread_id: str):
         """Stream a deterministic product demo without invoking any agent workflow."""
         phases = [
-            ("classifying", "Understanding your question"),
-            ("searching", "Checking the demo knowledge base"),
-            ("composing", "Preparing a preview response"),
+            ("classifying", "Thinking"),
+            ("searching", "Searching Deal&Drive knowledge"),
+            ("composing", "Preparing response"),
         ]
         for phase, label in phases:
             yield {"type": "status", "phase": phase, "label": label}
@@ -88,23 +116,28 @@ class AiService:
         await self.session.commit()
         yield {"type": "done", "threadId": thread_id, "messagesUsed": 1, "expandedUi": False}
 
+    @log_flow(layer="service")
     async def compare(self, payload: CompareRequest, buyer: Profile) -> dict:
-        request_ids = list(payload.request_ids)
-        legacy_rows: list[dict] = []
-        if not request_ids and payload.quote_ids:
-            for quote_id in payload.quote_ids:
-                quote = await self.session.get(DealQuote, quote_id)
-                if quote is None or quote.buyer_id != buyer.id:
-                    raise AppError(error_codes.RESOURCE_NOT_FOUND, "One or more quotes were not found.", 404)
-                legacy_rows.append(model_dict(quote))
-                if quote.buyer_request_id not in request_ids:
-                    request_ids.append(quote.buyer_request_id)
-        rows = legacy_rows or await self._comparison_rows(request_ids, buyer)
-        state = {"user_id": buyer.id, "thread_id": str(uuid4()), "message": f"Compare these buyer requests and their best offers: {rows}"}
+        comparison = await self._comparison_payload(payload, buyer)
+        request_ids = comparison["requestIds"]
+        rows = comparison["rows"]
+        state = {
+            "user_id": buyer.id,
+            "thread_id": str(uuid4()),
+            "message": "Compare the selected dealer offers and recommend the strongest option.",
+            "comparison_rows": rows,
+        }
         result = await main_agent(self.session, compare=True).ainvoke(state)
         await self.session.commit()
-        return {"request_ids": request_ids, "rows": rows, "recommendation": result.get("answer"), "not_reported_policy": "Fields not supplied by a dealer are never inferred."}
+        return {
+            "request_ids": request_ids,
+            "quote_ids": comparison.get("quoteIds", []),
+            "rows": rows,
+            "recommendation": result.get("answer"),
+            "not_reported_policy": "Fields not supplied by a dealer are never inferred.",
+        }
 
+    @log_flow(layer="service")
     async def list_threads(self, buyer: Profile) -> list[dict]:
         rows = (await self.session.execute(select(ConversationHistory).where(ConversationHistory.user_id == buyer.id, ConversationHistory.thread_type.in_(["sera", "compare"])).order_by(ConversationHistory.updated_at.desc()))).scalars()
         seen: set[str] = set()
@@ -115,16 +148,37 @@ class AiService:
                 seen.add(row.thread_id)
         return result
 
+    @log_flow(layer="service")
     async def get_thread(self, thread_id: str, buyer: Profile) -> dict:
         rows = (await self.session.execute(select(ConversationHistory).where(ConversationHistory.thread_id == thread_id, ConversationHistory.user_id == buyer.id).order_by(ConversationHistory.created_at))).scalars().all()
         if not rows:
             raise AppError(error_codes.RESOURCE_NOT_FOUND, "AI thread not found.", 404)
         return {"id": thread_id, "checkpoints": [row.checkpoint for row in rows]}
 
+    @log_flow(layer="service")
+    async def delete_thread(self, thread_id: str, buyer: Profile) -> None:
+        owned_thread = (await self.session.execute(
+            select(ConversationHistory.thread_id).where(
+                ConversationHistory.thread_id == thread_id,
+                ConversationHistory.user_id == buyer.id,
+                ConversationHistory.thread_type.in_(["sera", "compare"]),
+            ).limit(1)
+        )).scalar_one_or_none()
+        if owned_thread is None:
+            raise AppError(error_codes.RESOURCE_NOT_FOUND, "AI thread not found.", 404)
+        await self.session.execute(delete(ConversationHistory).where(
+            ConversationHistory.thread_id == thread_id,
+            ConversationHistory.user_id == buyer.id,
+            ConversationHistory.thread_type.in_(["sera", "compare"]),
+        ))
+        await self.session.commit()
+
+    @log_flow(layer="service")
     async def _latest_memory(self, thread_id: str, user_id: str) -> dict:
         row = (await self.session.execute(select(ConversationHistory).where(ConversationHistory.thread_id == thread_id, ConversationHistory.user_id == user_id).order_by(ConversationHistory.created_at.desc()).limit(1))).scalar_one_or_none()
         return row.checkpoint if row else {}
 
+    @log_flow(layer="service")
     async def _save_checkpoint(self, thread_id: str, user_id: str, payload: AiChatRequest, main: dict, requirements: dict) -> None:
         self.session.add(ConversationHistory(
             thread_id=thread_id, checkpoint_id=str(uuid4()), user_id=user_id,
@@ -137,6 +191,7 @@ class AiService:
             metadata_json={"title": payload.message[:72], "agent": payload.agent, "saved_at": datetime.now(UTC).isoformat()},
         ))
 
+    @log_flow(layer="service")
     async def _comparison_rows(self, request_ids: list[str], buyer: Profile) -> list[dict]:
         rows: list[dict] = []
         for request_id in request_ids:
@@ -144,10 +199,20 @@ class AiService:
             if buyer_request is None or buyer_request.buyer_id != buyer.id:
                 raise AppError(error_codes.RESOURCE_NOT_FOUND, "One or more buyer requests were not found.", 404)
             offers = (await self.session.execute(select(DealQuote).where(DealQuote.buyer_request_id == request_id).order_by(DealQuote.final_price))).scalars().all()
-            rows.append({"request": model_dict(buyer_request), "quotes": [model_dict(offer) for offer in offers], "best_quote": model_dict(offers[0]) if offers else None})
+            request_row = model_dict(buyer_request)
+            brand = await self.session.get(Brand, buyer_request.brand_id)
+            request_row["brand_name"] = brand.name if brand else "Vehicle"
+            quote_rows = []
+            for offer in offers:
+                quote_row = model_dict(offer)
+                dealer = await self.session.get(Profile, offer.dealer_id)
+                quote_row["dealer_name"] = (dealer.dealership_name or dealer.full_name) if dealer else "Verified dealer"
+                quote_rows.append(quote_row)
+            rows.append({"request": request_row, "quotes": quote_rows, "best_quote": quote_rows[0] if quote_rows else None})
         return rows
 
-    async def _comparison_payload(self, payload: AiChatRequest, buyer: Profile) -> dict:
+    @log_flow(layer="service")
+    async def _comparison_payload(self, payload: AiChatRequest | CompareRequest, buyer: Profile) -> dict:
         if payload.request_ids:
             return {"requestIds": payload.request_ids, "rows": await self._comparison_rows(payload.request_ids, buyer)}
         rows: list[dict] = []
@@ -156,7 +221,14 @@ class AiService:
             quote = await self.session.get(DealQuote, quote_id)
             if quote is None or quote.buyer_id != buyer.id:
                 raise AppError(error_codes.RESOURCE_NOT_FOUND, "One or more quotes were not found.", 404)
-            rows.append(model_dict(quote))
+            quote_row = model_dict(quote)
+            dealer = await self.session.get(Profile, quote.dealer_id)
+            quote_row["dealer_name"] = (dealer.dealership_name or dealer.full_name) if dealer else "Verified dealer"
+            buyer_request = await self.session.get(BuyerRequest, quote.buyer_request_id)
+            if buyer_request:
+                brand = await self.session.get(Brand, buyer_request.brand_id)
+                quote_row["vehicle"] = f"{brand.name if brand else 'Vehicle'} {buyer_request.model}"
+            rows.append(quote_row)
             if quote.buyer_request_id not in request_ids:
                 request_ids.append(quote.buyer_request_id)
-        return {"requestIds": request_ids, "rows": rows}
+        return {"requestIds": request_ids, "quoteIds": payload.quote_ids, "rows": rows}

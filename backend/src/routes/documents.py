@@ -12,12 +12,14 @@ from src.repositories.schema import DealDocument, DealQuote, Profile
 from src.services.storage import get_storage
 from src.settings import UPLOAD_DIRECTORY
 from src.utils.exceptions import AppError, error_codes
+from src.utils.log_flow import log_flow
 from src.utils.logger import logger
 from src.utils.serialization import model_dict
 
 router = APIRouter(prefix="/documents", tags=["Documents"])
 
 
+@log_flow(layer="route")
 def _local_path(key: str):
     resolved = (UPLOAD_DIRECTORY / key).resolve()
     if UPLOAD_DIRECTORY.resolve() not in resolved.parents:
@@ -26,6 +28,7 @@ def _local_path(key: str):
 
 
 @router.put("/local/{key:path}", status_code=status.HTTP_204_NO_CONTENT)
+@log_flow(layer="route")
 async def upload_local(key: str, request: Request) -> Response:
     path = _local_path(key)
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -35,6 +38,7 @@ async def upload_local(key: str, request: Request) -> Response:
 
 
 @router.get("/local/{key:path}")
+@log_flow(layer="route")
 async def download_local(key: str):
     path = _local_path(key)
     if not path.is_file():
@@ -56,6 +60,7 @@ class ConfirmUploadRequest(BaseModel):
 
 
 @router.post("/presign")
+@log_flow(layer="route")
 async def presign(payload: PresignRequest, profile: Profile = Depends(require_roles("dealer"))):
     extension = payload.filename.rsplit(".", 1)[-1].lower() if "." in payload.filename else "bin"
     key = f"deals/{payload.quote_id}/{profile.id}/{uuid4()}.{extension}"
@@ -63,6 +68,7 @@ async def presign(payload: PresignRequest, profile: Profile = Depends(require_ro
 
 
 @router.post("/{document_id}/confirm")
+@log_flow(layer="route")
 async def confirm(document_id: str, payload: ConfirmUploadRequest, profile: Profile = Depends(require_roles("dealer")), session: AsyncSession = Depends(get_session)):
     quote = await session.get(DealQuote, payload.quote_id)
     if quote is None or quote.dealer_id != profile.id:
@@ -81,6 +87,7 @@ async def confirm(document_id: str, payload: ConfirmUploadRequest, profile: Prof
 
 
 @router.get("/{quote_id}")
+@log_flow(layer="route")
 async def list_documents(quote_id: str, profile: Profile = Depends(get_current_profile), session: AsyncSession = Depends(get_session)):
     quote = await session.get(DealQuote, quote_id)
     if quote is None or (profile.role not in {"support", "support-admin", "admin"} and profile.id not in {quote.buyer_id, quote.dealer_id}):
@@ -91,6 +98,7 @@ async def list_documents(quote_id: str, profile: Profile = Depends(get_current_p
 
 
 @router.delete("/{quote_id}/{document_id}", status_code=status.HTTP_204_NO_CONTENT)
+@log_flow(layer="route")
 async def delete_document(quote_id: str, document_id: str, profile: Profile = Depends(require_roles("dealer")), session: AsyncSession = Depends(get_session)) -> Response:
     row = await session.get(DealDocument, document_id)
     if row is None or row.quote_id != quote_id or row.dealer_id != profile.id:

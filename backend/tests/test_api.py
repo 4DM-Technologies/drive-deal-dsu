@@ -6,8 +6,8 @@ from fastapi.testclient import TestClient
 from starlette.websockets import WebSocketDisconnect
 
 from main import app
-from src.seed import IDS
 from src.services.storage.s3_storage import S3Storage
+from tests.demo_data import IDS
 
 
 def login(client: TestClient, email: str) -> dict[str, str]:

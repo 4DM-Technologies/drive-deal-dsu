@@ -10,6 +10,15 @@ UPLOAD_DIRECTORY = PROJECT_ROOT / "uploads"
 DEFAULT_TERMS_VERSION = "2026-09-30"
 SUPPORTED_ROLES = ("buyer", "dealer", "support", "admin")
 
+# Structured logging and function-flow tracing
+LOG_LEVEL = "INFO"
+LOG_LEVELS = ("DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL")
+LOG_FLOW_LAYERS = ("middleware", "route", "service", "repository", "agent")
+LOG_FLOW_MAX_ARGS = 12
+LOG_FLOW_ARG_VALUE_LIMIT = 64
+LOG_FLOW_SENSITIVE_PARAMS = ("password", "token", "secret", "api_key", "apikey", "authorization", "cookie")
+LOG_QUERY_STRING = True
+
 # Domains the web_search_agent is willing to crawl. Keep explicit rather than crawling
 # anything a search engine returns (ported from testing/car-scraper-poc/config.py).
 ALLOWED_DOMAINS = [
@@ -54,11 +63,11 @@ class Settings(BaseSettings):
     aws_access_key_id: str | None = None
     aws_secret_access_key: str | None = None
     storage_driver: str = "local"
-    auto_seed_demo: bool = False
     openai_api_key: str | None = None
     codex_oauth_access_token: str | None = None
     codex_oauth_client_id: str | None = None
     codex_oauth_refresh_token: str | None = None
+    codex_oauth_s3_prefix: str = "private/codex-oauth"
     openai_model: str = "gpt-6-luna"
     openai_reasoning_effort: str = "medium"
     ai_provider: str = "openai"
@@ -75,6 +84,8 @@ class Settings(BaseSettings):
     langsmith_api_key: str | None = None
     langsmith_project: str = "drivedeal-serra"
     langsmith_endpoint: str | None = None
+    log_level: str = LOG_LEVEL
+    log_flow_enabled: bool = True
 
     @field_validator("cors_origins", mode="before")
     @classmethod
@@ -82,6 +93,14 @@ class Settings(BaseSettings):
         if isinstance(value, str):
             return [entry.strip() for entry in value.split(",") if entry.strip()]
         return value
+
+    @field_validator("log_level", mode="before")
+    @classmethod
+    def normalize_log_level(cls, value: object) -> object:
+        level = str(value).upper()
+        if level not in LOG_LEVELS:
+            raise ValueError(f"LOG_LEVEL must be one of {LOG_LEVELS}, received {value!r}")
+        return level
 
     @property
     def is_production(self) -> bool:

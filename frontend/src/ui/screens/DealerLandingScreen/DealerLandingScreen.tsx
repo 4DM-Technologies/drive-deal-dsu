@@ -29,13 +29,6 @@ const steps = [
   { n: '04', icon: Handshake, title: 'Deal Closes, Books Update', body: 'If the buyer accepts your offer, you receive their full contact details so you can finalize the deal in person.', tag: 'Contact details unlocked' },
 ];
 
-const perks = [
-  { icon: UserRound, title: 'Real buyers only', body: 'Every request names the exact car, location, and timeframe.' },
-  { icon: ReceiptText, title: 'Itemized quotes', body: 'One transparent out-the-door number, line by line.' },
-  { icon: LockKeyhole, title: 'Private until accepted', body: 'Buyer identity stays protected until they say yes.' },
-  { icon: CircleDollarSign, title: 'Pay when you win', body: 'Dealers pay only when a deal closes.' },
-];
-
 const platformPoints = [
   'A live feed you can filter by brand, body type, budget, distance, and timeframe',
   'Sales tax is calculated for you, so the quote is one clear out-the-door total',
@@ -140,25 +133,6 @@ function Hero() {
         </motion.div>
       </div>
     </section>
-  );
-}
-
-function PerkStrip() {
-  return (
-    <div className="dl-strip">
-      <div className="shell">
-        <Reveal once>
-          <div className="dl-strip-card">
-            {perks.map(({ icon: Icon, title, body }) => (
-              <div className="dl-perk" key={title}>
-                <span className="dl-perk-icon"><Icon size={20} /></span>
-                <div><strong>{title}</strong><p>{body}</p></div>
-              </div>
-            ))}
-          </div>
-        </Reveal>
-      </div>
-    </div>
   );
 }
 
@@ -619,7 +593,6 @@ export default function DealerLandingScreen() {
 
       <main>
         <Hero />
-        <PerkStrip />
 
         <section className="dl-section dl-how" id="dl-how">
           <div className="shell">

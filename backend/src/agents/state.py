@@ -16,6 +16,7 @@ class AgentState(TypedDict, total=False):
     requirements: dict[str, Any]
     missing_fields: list[str]
     suggested_questions: list[dict[str, Any]]
+    comparison_rows: list[dict[str, Any]]
     answer: str
     sources: list[dict[str, str]]
     step: int

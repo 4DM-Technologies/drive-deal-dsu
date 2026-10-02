@@ -1,24 +1,38 @@
-import { createBrowserRouter } from 'react-router-dom';
+import { AlertTriangle, RefreshCw } from 'lucide-react';
+import { lazy, Suspense } from 'react';
+import { createBrowserRouter, Link, Outlet, useRouteError } from 'react-router-dom';
 import { AppShell } from '@/ui/navigations/AppShell';
 import { RequireRole, RequireSession } from '@/ui/navigations/guards';
-import LandingScreen from '@/ui/screens/LandingScreen/LandingScreen';
-import DealerLandingScreen from '@/ui/screens/DealerLandingScreen/DealerLandingScreen';
-import LoginScreen from '@/ui/screens/LoginScreen/LoginScreen';
-import SignupScreen, { SignupChooser } from '@/ui/screens/SignupScreen/SignupScreen';
-import HomeScreen from '@/ui/screens/HomeScreen/HomeScreen';
-import RequestsScreen from '@/ui/screens/RequestsScreen/RequestsScreen';
-import NewRequestScreen from '@/ui/screens/RequestsScreen/NewRequestScreen';
-import RequestDetailScreen from '@/ui/screens/RequestDetailScreen/RequestDetailScreen';
-import DealerListScreen from '@/ui/screens/DealerScreens/DealerListScreen';
-import FeedDetailScreen from '@/ui/screens/DealerScreens/FeedDetailScreen';
-import QuoteDetailScreen from '@/ui/screens/DealerScreens/QuoteDetailScreen';
-import ChatScreen, { ChatRequestsScreen } from '@/ui/screens/ChatScreen/ChatScreen';
-import SupportScreens from '@/ui/screens/SupportScreens/SupportScreens';
-import AdvisorScreen from '@/ui/screens/AdvisorScreen/AdvisorScreen';
-import ProfileScreen from '@/ui/screens/ProfileScreen/ProfileScreen';
-import { ForgotPasswordScreen, LegalScreen, NotFoundScreen, UnauthorizedScreen } from '@/ui/screens/UtilityScreens/UtilityScreens';
+import { PageLoading } from '@/ui/reusables/PageLoading/PageLoading';
 
-export const router = createBrowserRouter([
+const LandingScreen = lazy(() => import('@/ui/screens/LandingScreen/LandingScreen'));
+const DealerLandingScreen = lazy(() => import('@/ui/screens/DealerLandingScreen/DealerLandingScreen'));
+const LoginScreen = lazy(() => import('@/ui/screens/LoginScreen/LoginScreen'));
+const SignupScreen = lazy(() => import('@/ui/screens/SignupScreen/SignupScreen'));
+const SignupChooser = lazy(() => import('@/ui/screens/SignupScreen/SignupScreen').then((module) => ({ default: module.SignupChooser })));
+const HomeScreen = lazy(() => import('@/ui/screens/HomeScreen/HomeScreen'));
+const RequestsScreen = lazy(() => import('@/ui/screens/RequestsScreen/RequestsScreen'));
+const NewRequestScreen = lazy(() => import('@/ui/screens/RequestsScreen/NewRequestScreen'));
+const RequestDetailScreen = lazy(() => import('@/ui/screens/RequestDetailScreen/RequestDetailScreen'));
+const DealerListScreen = lazy(() => import('@/ui/screens/DealerScreens/DealerListScreen'));
+const FeedDetailScreen = lazy(() => import('@/ui/screens/DealerScreens/FeedDetailScreen'));
+const QuoteDetailScreen = lazy(() => import('@/ui/screens/DealerScreens/QuoteDetailScreen'));
+const ChatScreen = lazy(() => import('@/ui/screens/ChatScreen/ChatScreen'));
+const ChatRequestsScreen = lazy(() => import('@/ui/screens/ChatScreen/ChatScreen').then((module) => ({ default: module.ChatRequestsScreen })));
+const SupportScreens = lazy(() => import('@/ui/screens/SupportScreens/SupportScreens'));
+const AdvisorScreen = lazy(() => import('@/ui/screens/AdvisorScreen/AdvisorScreen'));
+const ProfileScreen = lazy(() => import('@/ui/screens/ProfileScreen/ProfileScreen'));
+const ForgotPasswordScreen = lazy(() => import('@/ui/screens/UtilityScreens/UtilityScreens').then((module) => ({ default: module.ForgotPasswordScreen })));
+const LegalScreen = lazy(() => import('@/ui/screens/UtilityScreens/UtilityScreens').then((module) => ({ default: module.LegalScreen })));
+const NotFoundScreen = lazy(() => import('@/ui/screens/UtilityScreens/UtilityScreens').then((module) => ({ default: module.NotFoundScreen })));
+const UnauthorizedScreen = lazy(() => import('@/ui/screens/UtilityScreens/UtilityScreens').then((module) => ({ default: module.UnauthorizedScreen })));
+
+function RouteErrorScreen() {
+  useRouteError();
+  return <main className="route-error-page"><section className="card route-error-card" role="alert"><span className="route-error-icon"><AlertTriangle size={24} /></span><h1>Something didn’t load correctly</h1><p>Your account and saved work are safe. Refresh this page, or return to your workspace and try again.</p><div><button type="button" className="button button-primary" onClick={() => window.location.reload()}><RefreshCw size={16} /> Refresh page</button><Link className="button button-secondary" to="/home">Return home</Link></div></section></main>;
+}
+
+export const router = createBrowserRouter([{ errorElement: <RouteErrorScreen />, element: <Suspense fallback={<PageLoading label="Opening page" />}><Outlet /></Suspense>, children: [
   { path: '/', element: <LandingScreen /> }, { path: '/dealers', element: <DealerLandingScreen /> }, { path: '/login', element: <LoginScreen /> },
   { path: '/signup', element: <SignupChooser /> }, { path: '/signup/:role', element: <SignupScreen /> },
   { path: '/terms', element: <LegalScreen type="terms" /> }, { path: '/privacy', element: <LegalScreen type="privacy" /> },
@@ -49,4 +63,4 @@ export const router = createBrowserRouter([
     { path: '/support-administration', element: <RequireRole roles={['support-admin','admin']}><SupportScreens /></RequireRole> },
   ]},
   { path: '*', element: <NotFoundScreen /> },
-]);
+] }]);
