@@ -55,6 +55,22 @@ async def test_greeting_never_starts_the_requirements_graph() -> None:
     assert "Doing well - how can I help with your car search?" == "".join(e["text"] for e in events if e["type"] == "token")
 
 
+async def test_explicit_vehicle_search_starts_only_web_pipeline() -> None:
+    started, events, _ = await _drain(
+        "Can you search Tesla cars tell me about it.",
+        {
+            "route": "web_search",
+            "mode": "web_direct",
+            "answer": "Tesla currently offers several models.",
+            "sources": [{"title": "Tesla", "url": "https://www.tesla.com/"}],
+        },
+    )
+
+    assert started == ["main"]
+    assert events[0] == {"type": "status", "phase": "crawling", "label": "Searching trusted sources"}
+    assert not any(event.get("kind") == "requestPreview" for event in events)
+
+
 async def test_out_of_scope_message_stops_waiting_for_requirements() -> None:
     """The classifier may only rule out of scope *after* the parallel requirements task was created, so the
     reply must no longer wait on it: a 5s requirements graph must not delay a one-call answer."""

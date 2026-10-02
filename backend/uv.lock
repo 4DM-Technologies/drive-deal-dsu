@@ -719,16 +719,16 @@ wheels = [
 
 [[package]]
 name = "ddgs"
-version = "9.0.2"
+version = "9.16.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "click" },
     { name = "lxml" },
     { name = "primp" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/ed/75/3cb63483777a452f262b2bdf371d5ba6dbd03835cca74086ddb81d94ddc6/ddgs-9.0.2.tar.gz", hash = "sha256:66af856d1657dc625ef2140e7cf842ede26e32db1bea38700e583b199eeeff55", size = 23472, upload-time = "2025-07-11T15:46:02.715Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/68/30/dd2ff7d817573e30836fb99bdc04e167ce03ac5b878072b3e9e892aa810b/ddgs-9.16.0.tar.gz", hash = "sha256:161ca8e78ea08d40cd3f83fb12279b49322ffb342d981368bfa39bed9847d874", size = 38018, upload-time = "2026-08-26T21:52:33.604Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/f6/ed/84cc50b3ebd8d898d088451eaed84c363062ce6ad24ae6a537ce94cb5c67/ddgs-9.0.2-py3-none-any.whl", hash = "sha256:f913cef2381a0198b2af662332e16d25ae1d6227c3e7334ea8d29bd1505fc6d3", size = 23516, upload-time = "2025-07-11T15:46:01.5Z" },
+    { url = "https://files.pythonhosted.org/packages/f9/0c/b43a87e81e45caf2c30fea9a5914dfd17b83a9f3c2c59ae22b6257bcf083/ddgs-9.16.0-py3-none-any.whl", hash = "sha256:175d9198c958a263f51a06a54368ba0b41294942c0cd29f4aa71be03dbcd5f4a", size = 47580, upload-time = "2026-08-26T21:52:32.001Z" },
 ]
 
 [[package]]
@@ -807,7 +807,7 @@ requires-dist = [
     { name = "asyncpg", specifier = "==0.30.0" },
     { name = "boto3", specifier = "==1.38.27" },
     { name = "crawl4ai", specifier = "==0.9.4" },
-    { name = "ddgs", specifier = "==9.0.2" },
+    { name = "ddgs", specifier = "==9.16.0" },
     { name = "email-validator", specifier = "==2.2.0" },
     { name = "fastapi", specifier = "==0.115.12" },
     { name = "httpx", specifier = "==0.28.1" },

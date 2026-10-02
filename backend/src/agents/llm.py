@@ -1,3 +1,4 @@
+import json
 import re
 import threading
 from dataclasses import dataclass
@@ -153,4 +154,23 @@ class LlmClient:
             return "advice"
         if task_type == "compare":
             return "The lowest out-the-door total is the strongest starting point. Check delivery timing, included equipment, dealer rating, and every not-reported field before deciding."
+        if task_type == "advisor" and (match := re.search(
+            r'<web_sources trust="untrusted">(.*?)</web_sources>', prompt, re.DOTALL
+        )):
+            try:
+                sources = json.loads(match.group(1))
+            except (json.JSONDecodeError, TypeError):
+                sources = []
+            links = [
+                f"- [{str(source.get('title') or 'Trusted vehicle source')}]({source['url']})"
+                for source in sources[:5]
+                if isinstance(source, dict) and source.get("url")
+            ]
+            if links:
+                return (
+                    "## I found trusted sources\n"
+                    "I couldn’t finish processing the live vehicle details because the AI service is temporarily "
+                    "unavailable. I won’t guess at current models, prices, or availability.\n\n"
+                    "### Sources\n" + "\n".join(links) + "\n\nTry the search again in a few minutes."
+                )
         return "I can help narrow the vehicle, explain ownership trade-offs, compare itemized offers, and prepare an editable buyer request. Tell me your preferred model, budget, location, and timing to start."

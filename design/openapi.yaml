@@ -20,8 +20,9 @@ info:
       grounded in the database plus a Crawl4AI web search.
 
     Conventions:
-    - All JSON routes are under /api/v1 (this server URL). Exceptions: GET /health
-      (raw health object) and the /api/v1/ws WebSocket.
+    - All routes are under /api/v1 (this server URL). The only paths outside it
+      are the docs themselves (/api/v1/docs, /api/v1/openapi.json) and the
+      /api/v1/ws WebSocket upgrade.
     - **Success responses are envelope-free.** The payload is the resource itself.
       There is no {"success": true, "data": ...} wrapper — the frontend's mock
       client already returns bare objects and that shape is the contract
@@ -48,7 +49,7 @@ info:
   contact:
     name: Deal&Drive Dev Team
 servers:
-- url: http://localhost:8000/api/v1
+- url: http://localhost:8010/api/v1
   description: Local development
 - url: https://api.drivedeal.example/api/v1
   description: PLACEHOLDER — the production host is not decided yet.
@@ -103,6 +104,33 @@ tags:
 security:
 - bearer_auth: []
 paths:
+  /:
+    get:
+      summary: API banner
+      description: |-
+        Service name, version and the path to the rendered docs. Useful as a
+        cheap "is the right server answering?" probe.
+      operationId: getApiRoot
+      tags:
+      - Health
+      responses:
+        '200':
+          description: Service banner
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - name
+                - version
+                - docs
+                properties:
+                  name:
+                    type: string
+                  version:
+                    type: string
+                  docs:
+                    type: string
   /health:
     get:
       summary: Health check
@@ -603,7 +631,7 @@ paths:
           $ref: '#/components/responses/not_found'
         '401':
           $ref: '#/components/responses/unauthorized'
-    post:
+    put:
       summary: Set or replace my car preferences
       description: |-
         Upsert on `profile_id` — a full replacement, not a merge. Every nullable
@@ -916,37 +944,6 @@ paths:
           $ref: '#/components/responses/forbidden'
         '404':
           $ref: '#/components/responses/not_found'
-    patch:
-      summary: Update one of my requests
-      description: |-
-        Rejected with 422 once `status` is not `open` — once dealers are
-        quoting, the spec is frozen. Close the request to stop it.
-      operationId: updateRequest
-      tags:
-      - Requests
-      parameters:
-      - $ref: '#/components/parameters/RequestId'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/RequestUpsert'
-      responses:
-        '200':
-          description: Request updated
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/BuyerRequest'
-        '401':
-          $ref: '#/components/responses/unauthorized'
-        '403':
-          $ref: '#/components/responses/forbidden'
-        '404':
-          $ref: '#/components/responses/not_found'
-        '422':
-          $ref: '#/components/responses/validation_error'
   /requests/{id}/publish:
     post:
       summary: Publish an AI-drafted request
@@ -1004,38 +1001,6 @@ paths:
           $ref: '#/components/responses/not_found'
         '409':
           $ref: '#/components/responses/conflict'
-  /requests/{id}/ai-draft:
-    post:
-      summary: Persist an AI-drafted request
-      description: |-
-        Saves the agent's assembled spec as a `draft` request plus a
-        `buyer_preference` row (`source = 'ai_inferred'`, `confidence` set).
-        The response is rendered as a **fillable, editable confirmation form** —
-        the buyer can change any field before publishing.
-      operationId: saveAiRequestDraft
-      tags:
-      - Requests
-      parameters:
-      - $ref: '#/components/parameters/RequestId'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/AiRequestDraftInput'
-      responses:
-        '201':
-          description: Draft request persisted
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/AiRequestPreview'
-        '401':
-          $ref: '#/components/responses/unauthorized'
-        '403':
-          $ref: '#/components/responses/forbidden'
-        '422':
-          $ref: '#/components/responses/validation_error'
   /requests/{id}/quotes:
     get:
       summary: Live quote leaderboard for a request
@@ -1079,7 +1044,7 @@ paths:
         '404':
           $ref: '#/components/responses/not_found'
   /requests/{id}/compare-ids:
-    get:
+    post:
       summary: List request ids eligible for compare
       description: |-
         The compare agent's picker. Returns the buyer's own requests that are
@@ -1303,7 +1268,7 @@ paths:
         '404':
           $ref: '#/components/responses/not_found'
   /quotes/{id}/revise:
-    post:
+    patch:
       summary: Revise my quote
       description: |-
         Replaces price / discount / delivery estimate on a `pending` quote and
@@ -1549,7 +1514,7 @@ paths:
         '404':
           $ref: '#/components/responses/not_found'
   /deals/{id}/status:
-    post:
+    patch:
       summary: Advance the deal status
       description: |-
         Walks the deal through its lifecycle:
@@ -1604,32 +1569,6 @@ paths:
           $ref: '#/components/responses/not_found'
         '409':
           $ref: '#/components/responses/conflict'
-  /deals/{id}/documents/checklist:
-    get:
-      summary: Document checklist for a deal
-      description: |-
-        The five required artefacts and whether each has been uploaded and
-        confirmed: title transfer, bill of sale, odometer disclosure, service
-        records, insurance binder. Drives the progress indicator on the deal
-        screen.
-      operationId: getDealDocumentChecklist
-      tags:
-      - Documents
-      parameters:
-      - $ref: '#/components/parameters/DealId'
-      responses:
-        '200':
-          description: Checklist with per-item state
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/DealDocumentChecklist'
-        '401':
-          $ref: '#/components/responses/unauthorized'
-        '403':
-          $ref: '#/components/responses/forbidden'
-        '404':
-          $ref: '#/components/responses/not_found'
   /chats/ws-ticket:
     post:
       summary: Mint a one-shot WebSocket ticket
@@ -1716,27 +1655,6 @@ paths:
           $ref: '#/components/responses/unauthorized'
         '403':
           $ref: '#/components/responses/forbidden'
-  /chats/requests/{id}:
-    get:
-      summary: Get one chat access request
-      operationId: getChatRequest
-      tags:
-      - Chat
-      parameters:
-      - $ref: '#/components/parameters/ChatRequestId'
-      responses:
-        '200':
-          description: Chat access request
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ChatAccessRequest'
-        '401':
-          $ref: '#/components/responses/unauthorized'
-        '403':
-          $ref: '#/components/responses/forbidden'
-        '404':
-          $ref: '#/components/responses/not_found'
   /chats/requests/{id}/accept:
     post:
       summary: Accept a chat access request
@@ -2127,7 +2045,7 @@ paths:
         '404':
           $ref: '#/components/responses/not_found'
   /chats/{quote_id}/clear:
-    post:
+    delete:
       summary: Clear my side of a chat
       description: |-
         Soft-clears only the caller's side by stamping
@@ -2149,6 +2067,59 @@ paths:
           $ref: '#/components/responses/unauthorized'
         '403':
           $ref: '#/components/responses/forbidden'
+        '404':
+          $ref: '#/components/responses/not_found'
+  /documents/local/{key}:
+    put:
+      summary: Upload directly to the local storage driver
+      description: |-
+        The non-S3 upload path, used when `STORAGE_DRIVER=local`. The body is
+        the raw file bytes with no envelope, and the key is a caller-chosen path
+        (it may contain `/`). Returns 204 with no body.
+      operationId: uploadLocalDocument
+      tags:
+      - Documents
+      parameters:
+      - name: key
+        in: path
+        required: true
+        description: Destination path, relative to the upload directory
+        schema:
+          type: string
+      requestBody:
+        required: true
+        content:
+          application/octet-stream:
+            schema:
+              type: string
+              format: binary
+      responses:
+        '204':
+          description: Stored
+        '404':
+          $ref: '#/components/responses/not_found'
+    get:
+      summary: Download from the local storage driver
+      description: |-
+        The non-S3 download path. `key` may contain `/`.
+      operationId: downloadLocalDocument
+      tags:
+      - Documents
+      parameters:
+      - name: key
+        in: path
+        required: true
+        description: Path, relative to the upload directory
+        schema:
+          type: string
+      responses:
+        '200':
+          description: File bytes
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
         '404':
           $ref: '#/components/responses/not_found'
   /documents/presign:
@@ -2382,6 +2353,40 @@ paths:
       responses:
         '200':
           description: Ticket detail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SupportTicket'
+        '401':
+          $ref: '#/components/responses/unauthorized'
+        '403':
+          $ref: '#/components/responses/forbidden'
+        '404':
+          $ref: '#/components/responses/not_found'
+    patch:
+      summary: Update my own ticket
+      description: |-
+        Partial update - only the fields you send change. `status` moves the
+        ticket along the queue, `note` appends a progress note, and `rca`
+        captures the root cause when a ticket is being closed.
+
+        Scoped to the caller who raised it, so a buyer cannot edit a dealer's
+        ticket. The response is the whole updated `SupportTicket`, not just the
+        fields you changed.
+      operationId: updateTicket
+      tags:
+      - Support
+      parameters:
+      - $ref: '#/components/parameters/TicketId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TicketUpdate'
+      responses:
+        '200':
+          description: Ticket updated
           content:
             application/json:
               schema:
@@ -2923,7 +2928,7 @@ paths:
         '422':
           $ref: '#/components/responses/validation_error'
   /cars/{id}/status:
-    post:
+    patch:
       summary: Change a listing's status
       description: |-
         `draft → active → sold` / `removed`, server-validated. Only an `active`
@@ -3094,31 +3099,6 @@ paths:
           $ref: '#/components/responses/unauthorized'
         '403':
           $ref: '#/components/responses/forbidden'
-    post:
-      summary: Start a new AI thread
-      operationId: createAiThread
-      tags:
-      - AI
-      requestBody:
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                title:
-                  type: string
-                  maxLength: 200
-      responses:
-        '201':
-          description: Thread created
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/AiThread'
-        '401':
-          $ref: '#/components/responses/unauthorized'
-        '403':
-          $ref: '#/components/responses/forbidden'
   /ai/threads/{id}:
     get:
       summary: Get a thread with its full history
@@ -3155,6 +3135,25 @@ paths:
                       cards: []
                       sources: []
                       created_at: '2026-09-01 09:18:22+00:00'
+        '401':
+          $ref: '#/components/responses/unauthorized'
+        '403':
+          $ref: '#/components/responses/forbidden'
+        '404':
+          $ref: '#/components/responses/not_found'
+    delete:
+      summary: Delete a thread
+      description: |-
+        Removes the thread and every stored turn in it. Buyer-only. Returns no
+        body - the client should treat 204 as "gone, drop it from the list".
+      operationId: deleteAiThread
+      tags:
+      - AI
+      parameters:
+      - $ref: '#/components/parameters/ThreadId'
+      responses:
+        '204':
+          description: Thread deleted
         '401':
           $ref: '#/components/responses/unauthorized'
         '403':
@@ -5820,6 +5819,32 @@ components:
           type: string
           format: date-time
           nullable: true
+    TicketUpdate:
+      type: object
+      description: |-
+        Body for `PATCH /support/tickets/{id}`. Every field is optional, so the
+        patch is a partial update. Note that the response is the full
+        `SupportTicket`, not the fields that changed.
+      properties:
+        status:
+          type: string
+          enum:
+          - open
+          - in_progress
+          - on_hold
+          - resolved
+          - closed
+          nullable: true
+        note:
+          type: string
+          nullable: true
+          description: Free-text progress note appended to the ticket's history.
+        rca:
+          type: string
+          nullable: true
+          description: |-
+            Root-cause analysis. Set when the ticket is being closed so the
+            reason survives after the conversation is gone.
     SupportTicketList:
       type: object
       required:
@@ -6687,17 +6712,6 @@ components:
             of the pick.
           example: 0.78
         runner_up_request_id:
-          type: string
-          format: uuid
-          nullable: true
-    AiRequestDraftInput:
-      type: object
-      required:
-      - request
-      properties:
-        request:
-          $ref: '#/components/schemas/RequestUpsert'
-        thread_id:
           type: string
           format: uuid
           nullable: true

@@ -18,6 +18,20 @@ def test_deterministic_llm_routes_and_response_models() -> None:
     assert error.error.details is None
 
 
+def test_advisor_web_fallback_preserves_trusted_sources() -> None:
+    prompt = (
+        '<web_sources trust="untrusted">'
+        '[{"title":"Tesla official site","url":"https://www.tesla.com/"}]'
+        '</web_sources>'
+    )
+
+    answer = LlmClient._fallback(prompt, "advisor")
+
+    assert "temporarily unavailable" in answer
+    assert "[Tesla official site](https://www.tesla.com/)" in answer
+    assert "won’t guess" in answer
+
+
 def test_local_storage_factory_and_upload_shape() -> None:
     storage = get_storage()
     assert isinstance(storage, LocalStorage)

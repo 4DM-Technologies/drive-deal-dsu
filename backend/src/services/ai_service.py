@@ -6,7 +6,7 @@ from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.agents.requirements import build_requirement_graph
-from src.agents.serra.graph import DIRECT_REPLY_ROUTES, is_direct_reply, main_agent
+from src.agents.serra.graph import DIRECT_REPLY_ROUTES, is_direct_reply, is_explicit_web_search, main_agent
 from src.models.marketplace import AiChatRequest, CompareRequest
 from src.repositories.schema import Brand, BuyerRequest, ConversationHistory, DealQuote, Profile
 from src.settings import get_settings
@@ -35,7 +35,11 @@ class AiService:
             "preferences": memory.get("preferences", {}),
             "preferences_pending": memory.get("preferences_pending", False),
         }
-        yield {"type": "status", "phase": "classifying", "label": "Thinking"}
+        explicit_web_search = is_explicit_web_search(payload.message) and payload.agent != "compare-agent"
+        if explicit_web_search:
+            yield {"type": "status", "phase": "crawling", "label": "Searching trusted sources"}
+        else:
+            yield {"type": "status", "phase": "classifying", "label": "Thinking"}
         await asyncio.sleep(0)
         comparison_payload = None
         if payload.agent == "compare-agent" and (payload.request_ids or payload.quote_ids):
@@ -46,9 +50,9 @@ class AiService:
         if payload.agent == "compare-agent":
             main_result = await main_task
             requirement_result = {}
-        elif is_direct_reply(payload.message):
-            # A greeting or an instruction-override attempt is answered by the main model alone, so the
-            # requirements graph is never started: there is no requirement in the message to extract.
+        elif is_direct_reply(payload.message) or explicit_web_search:
+            # Greetings and explicit research requests are handled entirely by the main graph. Neither contains
+            # a buyer requirement to extract, so starting the requirements graph would add latency and UI cards.
             main_result = await main_task
             requirement_result: dict = {}
         else:
@@ -66,7 +70,7 @@ class AiService:
             else:
                 yield {"type": "status", "phase": "searching", "label": "Searching Deal&Drive knowledge"}
                 requirement_result = await requirement_task
-        if main_result.get("sources"):
+        if main_result.get("sources") and not explicit_web_search:
             yield {"type": "status", "phase": "crawling", "label": "Searching trusted sources"}
         yield {"type": "status", "phase": "composing", "label": "Preparing response"}
         answer = main_result.get("answer", "I could not prepare an answer from the available evidence.")

@@ -32,7 +32,7 @@ dependencies = [
   "langsmith==0.3.45",
   "httpx==0.28.1",
   "crawl4ai==0.9.4",
-  "ddgs==9.0.2"
+  "ddgs==9.16.0",
 ]
 
 [dependency-groups]

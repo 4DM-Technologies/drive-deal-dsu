@@ -69,10 +69,10 @@ DOMAIN_TERMS = (
     "transmission", "drivetrain", "awd", "fwd", "rwd", "4wd", "seats", "seating", "capacity", "body",
     "color", "colour", "miles", "range", "battery", "charge", "charging", "mpg", "towing", "cargo",
     "feature", "features", "option", "options", "package", "packages", "warranty", "insurance", "tax",
-    "dealer", "dealers", "showroom", "test\s+drive", "inventory", "listing", "listings", "stock",
-    "compare", "versus", "vs", "better", "best", "cheapest", "recommend", "recommendation", "should\s+i",
-    "worth\s+it", "reliable", "reliability", "maintenance", "resale", "depreciation", "ownership",
-    "total\s+cost", "out-the-door", "out\s+of\s+the\s+door", "odometer", "accident", "history",
+    "dealer", "dealers", "showroom", r"test\s+drive", "inventory", "listing", "listings", "stock",
+    "compare", "versus", "vs", "better", "best", "cheapest", "recommend", "recommendation", r"should\s+i",
+    r"worth\s+it", "reliable", "reliability", "maintenance", "resale", "depreciation", "ownership",
+    r"total\s+cost", "out-the-door", r"out\s+of\s+the\s+door", "odometer", "accident", "history",
 )
 
 SMALL_TALK_RE = re.compile("|".join(SMALL_TALK_PATTERNS), re.IGNORECASE)
@@ -91,9 +91,19 @@ PROMPT_INJECTION_RE = re.compile(
     re.IGNORECASE,
 )
 
+EXPLICIT_WEB_SEARCH_RE = re.compile(
+    r"\b(?:search|browse|look\s+up|find\s+(?:it\s+)?online|check\s+(?:the\s+)?(?:web|internet)|latest|current)\b",
+    re.IGNORECASE,
+)
+
 
 def _is_prompt_injection(message: str) -> bool:
     return bool(PROMPT_INJECTION_RE.search(message))
+
+
+def is_explicit_web_search(message: str) -> bool:
+    """True for an explicit live-research request that is also within the vehicle domain."""
+    return bool(EXPLICIT_WEB_SEARCH_RE.search(message)) and _has_domain_content(message)
 
 
 def is_direct_reply(message: str) -> bool:
@@ -165,6 +175,12 @@ def main_agent(session: AsyncSession, compare: bool = False):
             step = log_agent_step("serra", "triage", state, small_talk=True)
             logger.info("agent_small_talk_short_circuit", thread_id=state.get("thread_id"))
             return {"route": "small_talk", "step": step}
+        if is_explicit_web_search(message):
+            # The buyer explicitly requested current online research. Skip two LLM routing calls and enter the
+            # trusted-domain web pipeline directly; compose still turns the evidence into the final answer.
+            step = log_agent_step("serra", "triage", state, web_search=True)
+            logger.info("agent_web_search_direct", thread_id=state.get("thread_id"))
+            return {"route": "web_search", "mode": "web_direct", "step": step}
         return {"route": None, "step": log_agent_step("serra", "triage", state, small_talk=False)}
 
     async def small_talk(state: AgentState) -> AgentState:
@@ -270,12 +286,15 @@ def main_agent(session: AsyncSession, compare: bool = False):
         return "web_search_agent" if state.get("mode") == "web_per_car" else "compose"
 
     async def _resolve_one(name: str, preferences: dict, thread_id: str | None) -> CarSpecs | None:
-        make = (name.split() or [""])[0]
-        candidates = await get_urls(name, make=make)
-        for candidate in candidates:
-            specs = await process_url(llm, candidate["url"], thread_id)
-            if specs:
-                return specs
+        try:
+            make = (name.split() or [""])[0]
+            candidates = await get_urls(name, make=make)
+            for candidate in candidates:
+                specs = await process_url(llm, candidate["url"], thread_id)
+                if specs:
+                    return specs
+        except Exception as exc:
+            logger.warning("agent_web_search_item_failed", thread_id=thread_id, vehicle=name, error=str(exc)[:200])
         return None
 
     async def search_web(state: AgentState) -> AgentState:
@@ -283,22 +302,42 @@ def main_agent(session: AsyncSession, compare: bool = False):
         thread_id = state.get("thread_id")
         preferences = state.get("preferences") or {}
         specs: list[CarSpecs] = []
+        resolved_sources: dict[str, dict[str, str]] = {}
+        candidate_evidence: list[dict[str, str]] = []
 
         if state.get("mode") == "web_per_car" and state.get("car_names"):
             results = await asyncio.gather(*[_resolve_one(name, preferences, thread_id) for name in state["car_names"]])
             specs = [spec for spec in results if spec]
         else:
             query_terms = [state["message"]] + [str(value) for value in preferences.values() if value]
-            candidates = await get_urls(" ".join(query_terms))
-            for candidate in candidates[:3]:
-                spec = await process_url(llm, candidate["url"], thread_id)
-                if spec:
-                    specs.append(spec)
+            try:
+                candidates = await get_urls(" ".join(query_terms))
+                for candidate in candidates[:3]:
+                    candidate_evidence.append(candidate)
+                    resolved_sources[candidate["url"]] = {
+                        "title": candidate.get("title") or candidate.get("source_domain") or "Trusted vehicle source",
+                        "url": candidate["url"],
+                    }
+                    spec = await process_url(llm, candidate["url"], thread_id)
+                    if spec:
+                        specs.append(spec)
+            except Exception as exc:
+                # Compose can still give a transparent, useful fallback. A search-provider failure must not tear
+                # down the SSE stream and surface a framework traceback to the buyer.
+                logger.warning("agent_web_search_failed", thread_id=thread_id, error=str(exc)[:200])
 
-        sources = [{"title": spec.model or spec.source_url, "url": spec.source_url} for spec in specs]
+        for spec in specs:
+            resolved_sources[spec.source_url] = {"title": spec.model or spec.source_url, "url": spec.source_url}
+        sources = list(resolved_sources.values())
         if specs:
             await kb_insert(session, state["message"], [{"title": s.model or s.source_url, "url": s.source_url, "content": s.model_dump()} for s in specs], state["user_id"])
-        return {"car_specs": [spec.model_dump() for spec in specs], "web_results": [spec.model_dump() for spec in specs], "sources": sources, "step": step}
+        structured_specs = [spec.model_dump() for spec in specs]
+        return {
+            "car_specs": structured_specs,
+            "web_results": structured_specs or candidate_evidence,
+            "sources": sources,
+            "step": step,
+        }
 
     async def persist_cars(state: AgentState) -> AgentState:
         step = log_agent_step("serra", "persist_cars", state, count=len(state.get("car_specs") or []))
@@ -330,16 +369,19 @@ def main_agent(session: AsyncSession, compare: bool = False):
         # vehicle evidence instead of asking the buyer to select saved dealer offers.
         is_compare = compare
         system_prompt = compare_prompt if is_compare else compose_prompt
-        kb_block = f'<knowledge_base trust="internal">{state.get("kb_results") or []}</knowledge_base>'
-        web_block = f'<web_research trust="untrusted">{state.get("car_specs") or state.get("web_results") or []}</web_research>'
+        kb_block = f'<knowledge_base trust="internal">{json.dumps(state.get("kb_results") or [], default=str)}</knowledge_base>'
+        web_block = f'<web_research trust="untrusted">{json.dumps(state.get("car_specs") or state.get("web_results") or [], default=str)}</web_research>'
+        source_block = f'<web_sources trust="untrusted">{json.dumps(state.get("sources") or [], default=str)}</web_sources>'
         comparison_block = f'<selected_offers trust="internal">{json.dumps(state.get("comparison_rows") or [], default=str)}</selected_offers>'
         question_block = f'<buyer_question trust="untrusted">{state["message"]}</buyer_question>'
-        prompt = f"{system_prompt}\n\n{question_block}\n\n{comparison_block}\n\n{kb_block}\n\n{web_block}"
+        prompt = f"{system_prompt}\n\n{question_block}\n\n{comparison_block}\n\n{kb_block}\n\n{web_block}\n\n{source_block}"
         result = await llm.generate(prompt, "compare" if is_compare else "advisor", state.get("thread_id"))
         return {"answer": result.text, "step": step}
 
     async def route_from_triage(state: AgentState) -> str:
-        return "small_talk" if state.get("route") == "small_talk" else "classifier"
+        if state.get("route") == "small_talk":
+            return "small_talk"
+        return "web_search_agent" if state.get("route") == "web_search" else "classifier"
 
     graph = StateGraph(AgentState)
     graph.add_node("triage", triage)
@@ -352,7 +394,11 @@ def main_agent(session: AsyncSession, compare: bool = False):
     graph.add_node("compose", compose)
 
     graph.add_edge(START, "triage")
-    graph.add_conditional_edges("triage", route_from_triage, {"small_talk": "small_talk", "classifier": "classifier"})
+    graph.add_conditional_edges(
+        "triage",
+        route_from_triage,
+        {"small_talk": "small_talk", "web_search_agent": "web_search_agent", "classifier": "classifier"},
+    )
     graph.add_edge("small_talk", END)
     graph.add_conditional_edges(
         "classifier", route_from_classifier, {"small_talk": "small_talk", "orchestrator": "orchestrator"}

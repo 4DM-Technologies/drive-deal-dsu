@@ -4,7 +4,8 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 from src.agents.errors import OrchestratorPlanError
-from src.agents.serra.graph import _is_prompt_injection, _normalize_route, main_agent
+from src.agents.schemas import CarSpecs
+from src.agents.serra.graph import _is_prompt_injection, _normalize_route, is_explicit_web_search, main_agent
 
 
 @dataclass
@@ -116,6 +117,53 @@ async def test_vehicle_questions_still_run_the_full_pipeline() -> None:
     assert result["mode"] == "kb_only"
     assert result["answer"] == "We have three SUVs in that budget."
     kb_search.assert_called_once()
+
+
+async def test_explicit_tesla_search_goes_directly_to_web_research() -> None:
+    """An explicit online vehicle search skips classifier and orchestrator, then composes the crawled evidence."""
+    graph = main_agent(session=AsyncMock())
+    generate = AsyncMock(return_value=_FakeLlmResult(
+        "## Tesla models\nHere are the current models found online.\n\n### Sources\n- [Tesla](https://www.tesla.com/)"
+    ))
+    specs = CarSpecs(source_url="https://www.tesla.com/", make="Tesla", model="Model 3")
+    get_urls = AsyncMock(return_value=[{
+        "url": "https://www.tesla.com/",
+        "title": "Tesla official site",
+        "source_domain": "tesla.com",
+    }])
+    process_url = AsyncMock(return_value=specs)
+
+    with patch("src.agents.llm.LlmClient.generate", new=generate), \
+         patch("src.agents.serra.graph.get_urls", new=get_urls), \
+         patch("src.agents.serra.graph.process_url", new=process_url), \
+         patch("src.agents.serra.graph.kb_insert", new=AsyncMock()):
+        result = await graph.ainvoke({
+            "user_id": "u1",
+            "thread_id": "t1",
+            "message": "Can you search Tesla cars tell me about it.",
+        })
+
+    assert result["route"] == "web_search"
+    assert result["mode"] == "web_direct"
+    assert result["sources"] == [{"title": "Model 3", "url": "https://www.tesla.com/"}]
+    assert generate.await_count == 1
+    assert generate.await_args.args[1] == "advisor"
+    assert "https://www.tesla.com/" in generate.await_args.args[0]
+    get_urls.assert_awaited_once()
+    process_url.assert_awaited_once()
+
+
+@pytest.mark.parametrize(
+    ("message", "expected"),
+    [
+        ("Can you search Tesla cars tell me about it.", True),
+        ("Look up the latest BMW cars online", True),
+        ("Compare BMW and Audi cars", False),
+        ("Search for a good pasta recipe", False),
+    ],
+)
+def test_explicit_web_search_requires_vehicle_intent(message: str, expected: bool) -> None:
+    assert is_explicit_web_search(message) is expected
 
 
 async def test_natural_vehicle_comparison_uses_the_advisor_prompt() -> None:
