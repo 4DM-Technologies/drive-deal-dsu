@@ -101,7 +101,17 @@ def gather_requirements(state: AgentState) -> AgentState:
     return _finish(current, step)
 
 
-async def _llm_extract(llm: LlmClient, state: AgentState, current: dict, brands: list[str], states: list[dict[str, str]], missing: list[str]) -> dict:
+async def _llm_extract(
+    llm: LlmClient,
+    state: AgentState,
+    current: dict,
+    brands: list[str],
+    states: list[dict[str, str]],
+    missing: list[str],
+    prompt_overrides: dict[str, str] | None = None,
+    prompt_version: str = "v1",
+    agent_profile: dict | None = None,
+) -> dict:
     """Semantic pass for what lexical matching cannot do: model names and mapping a city to its state.
 
     Runs only while REQUIRED fields are still missing, and any failure falls back to the deterministic
@@ -109,7 +119,7 @@ async def _llm_extract(llm: LlmClient, state: AgentState, current: dict, brands:
     valid_states = {state_row["name"].lower(): state_row["name"] for state_row in states}
     state_lines = ", ".join(f"{row['name']} ({row['code']})" for row in states)
     prompt = (
-        f"{load_prompt('requirements.md')}\n\n"
+        f"{load_prompt('requirements.md', prompt_overrides)}\n\n"
         f"ALLOWED BRANDS: {', '.join(brands)}\n"
         f"US STATES AND CODES: {state_lines}\n"
         f"ALREADY CAPTURED (do not repeat): {current}\n"
@@ -121,7 +131,16 @@ async def _llm_extract(llm: LlmClient, state: AgentState, current: dict, brands:
         f"<buyer_message trust=\"untrusted\">\n{state.get('message', '')}\n</buyer_message>"
     )
     try:
-        result = await llm.generate(prompt, "requirement_extraction", state.get("thread_id"))
+        profile = agent_profile or {}
+        result = await llm.generate(
+            prompt,
+            "requirement_extraction",
+            state.get("trace_id") or state.get("thread_id"),
+            prompt_version=prompt_version,
+            model=profile.get("model"),
+            reasoning_effort=profile.get("reasoning_effort"),
+            max_output_tokens=profile.get("max_output_tokens"),
+        )
         match = re.search(r"\{.*\}", result.text, re.DOTALL)
         extracted = ExtractedRequirements.model_validate_json(match.group(0) if match else result.text)
     except Exception as exc:
@@ -139,7 +158,13 @@ async def _llm_extract(llm: LlmClient, state: AgentState, current: dict, brands:
     return values
 
 
-async def gather_requirements_from_message(session: AsyncSession, state: AgentState) -> AgentState:
+async def gather_requirements_from_message(
+    session: AsyncSession,
+    state: AgentState,
+    prompt_overrides: dict[str, str] | None = None,
+    prompt_version: str = "v1",
+    agent_profile: dict | None = None,
+) -> AgentState:
     """Graph node: deterministic extraction first, then one LLM pass only for what is still missing."""
     step = log_agent_step("requirements", "gather", state)
     text = state.get("message", "")
@@ -154,7 +179,9 @@ async def gather_requirements_from_message(session: AsyncSession, state: AgentSt
     missing = [field for field in REQUIRED if not current.get(field)]
     if session is not None and missing:
         try:
-            enriched = await _llm_extract(LlmClient(session), state, current, brands, states, missing)
+            enriched = await _llm_extract(
+                LlmClient(session), state, current, brands, states, missing, prompt_overrides, prompt_version, agent_profile
+            )
             for key, value in enriched.items():
                 # Never clobber a value the deterministic pass already trusted.
                 if value and not current.get(key):
@@ -164,11 +191,18 @@ async def gather_requirements_from_message(session: AsyncSession, state: AgentSt
     return _finish(current, step)
 
 
-def build_requirement_graph(session: AsyncSession | None = None):
+def build_requirement_graph(
+    session: AsyncSession | None = None,
+    prompt_overrides: dict[str, str] | None = None,
+    prompt_version: str = "v1",
+    agent_profiles: dict[str, dict] | None = None,
+):
     graph = StateGraph(AgentState)
 
     async def gather(state: AgentState) -> AgentState:
-        return await gather_requirements_from_message(session, state)
+        return await gather_requirements_from_message(
+            session, state, prompt_overrides, prompt_version, (agent_profiles or {}).get("requirements")
+        )
 
     graph.add_node("gather", gather)
     graph.add_edge(START, "gather")

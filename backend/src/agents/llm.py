@@ -9,7 +9,7 @@ from openai import AsyncOpenAI, BadRequestError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.auth.codex_oauth import get_cached_access_token
-from src.repositories.schema import LlmAudit
+from src.repositories.schema import AiTrace, AiTraceSpan, LlmAudit
 from src.settings import get_settings
 from src.utils.logger import logger
 
@@ -29,11 +29,24 @@ def _safe_error_value(value: Any, *, limit: int = 320) -> str:
     return text[:limit]
 
 
+def _safe_trace_value(value: Any, *, limit: int = 20_000) -> str:
+    """Preserve prompt structure for administrators while removing credential-shaped values."""
+    text = str(value)
+    text = re.sub(r"(?i)(?:\bBearer\s+)+\S+", "Bearer [REDACTED]", text)
+    text = re.sub(
+        r"(?i)\b(access_token|refresh_token|api_key|authorization)\b\s*[:=]\s*[^\s,;}]+",
+        r"\1=[REDACTED]",
+        text,
+    )
+    return text[:limit]
+
+
 @dataclass
 class LlmResult:
     text: str
     input_tokens: int = 0
     output_tokens: int = 0
+    attempts: int = 1
 
 
 class LlmClient:
@@ -57,21 +70,31 @@ class LlmClient:
         return AsyncOpenAI(api_key=credential, timeout=self.settings.ai_request_timeout_seconds)
 
     async def generate(
-        self, prompt: str, task_type: str, thread_id: str | None = None, *, reasoning_effort: str | None = None
+        self,
+        prompt: str,
+        task_type: str,
+        thread_id: str | None = None,
+        *,
+        reasoning_effort: str | None = None,
+        prompt_version: str = "v1",
+        model: str | None = None,
+        max_output_tokens: int | None = None,
     ) -> LlmResult:
         started = perf_counter()
         client = await self._resolve_client()
         status = "fallback"
         provider = "deterministic"
         model_name = "drivedeal-dev-fallback"
+        error_message = None
         if client:
             provider = "openai" if self._credential_source == "api_key" else self._credential_source
-            model_name = self.settings.openai_model
+            model_name = model or self.settings.openai_model
             try:
-                result = await self._complete(client, prompt, reasoning_effort)
+                result = await self._complete(client, prompt, reasoning_effort, model_name, max_output_tokens)
                 status = "success"
             except Exception as exc:
-                logger.warning("llm_provider_fallback", task_type=task_type, provider=provider, error=_safe_error_value(str(exc)))
+                error_message = _safe_error_value(str(exc), limit=2000)
+                logger.warning("llm_provider_fallback", task_type=task_type, provider=provider, error=error_message)
                 result = LlmResult(self._fallback(prompt, task_type))
                 status = "provider_fallback"
         else:
@@ -81,17 +104,49 @@ class LlmClient:
             task_type=task_type, provider=provider, model_name=model_name, thread_id=thread_id,
             input_tokens=result.input_tokens, output_tokens=result.output_tokens,
             total_tokens=result.input_tokens + result.output_tokens, latency_ms=elapsed, status=status,
+            prompt_version=prompt_version,
         ))
+        if thread_id and await self.session.get(AiTrace, thread_id):
+            self.session.add(AiTraceSpan(
+                trace_id=thread_id,
+                sequence=0,
+                name=task_type,
+                kind="llm",
+                status=status,
+                duration_ms=elapsed,
+                input_tokens=result.input_tokens,
+                output_tokens=result.output_tokens,
+                model_name=model_name,
+                details={
+                    "provider": provider,
+                    "prompt_version": prompt_version,
+                    "input": _safe_trace_value(prompt),
+                    "output": _safe_trace_value(result.text),
+                    "llm_called": True,
+                    "reasoning_effort": reasoning_effort or self.settings.openai_reasoning_effort,
+                    "max_output_tokens": max_output_tokens or self.settings.ai_max_output_tokens,
+                    "attempt_count": result.attempts,
+                    "error": error_message,
+                },
+            ))
         await self.session.flush()
         logger.info(
             "agent_llm_call", thread_id=thread_id, task_type=task_type, provider=provider, model=model_name,
             status=status, input_tokens=result.input_tokens, output_tokens=result.output_tokens, latency_ms=elapsed,
             reasoning_effort=reasoning_effort or self.settings.openai_reasoning_effort,
+            prompt_version=prompt_version,
             prompt_excerpt=_safe_error_value(prompt, limit=200),
         )
         return result
 
-    async def _complete(self, client: AsyncOpenAI, prompt: str, reasoning_effort: str | None = None) -> LlmResult:
+    async def _complete(
+        self,
+        client: AsyncOpenAI,
+        prompt: str,
+        reasoning_effort: str | None = None,
+        model: str | None = None,
+        max_output_tokens: int | None = None,
+    ) -> LlmResult:
         """Calls the Responses API, auto-dropping a parameter a model rejects and remembering that
         for next time — the same capability-adaptation pattern used by the SIWC reference client.
 
@@ -100,7 +155,7 @@ class LlmClient:
 
         The Codex/ChatGPT OAuth backend behind `chatgpt_oauth_cache` requires `input` as a list of
         messages (not a bare string), `store=False`, and `stream=True` — a plain `create()` 400s."""
-        model = self.settings.openai_model
+        model = model or self.settings.openai_model
         kwargs: dict[str, Any] = {
             "model": model,
             "input": [{"role": "user", "content": prompt}],
@@ -109,11 +164,11 @@ class LlmClient:
         }
         with _capability_lock:
             if model not in _models_without_max_output_tokens:
-                kwargs["max_output_tokens"] = self.settings.ai_max_output_tokens
+                kwargs["max_output_tokens"] = max_output_tokens or self.settings.ai_max_output_tokens
             if model not in _models_without_reasoning_effort:
                 kwargs["reasoning"] = {"effort": reasoning_effort or self.settings.openai_reasoning_effort}
 
-        for _attempt in range(3):  # at most: drop max_output_tokens, then drop reasoning, then give up
+        for attempt in range(1, 4):  # at most: drop max_output_tokens, then drop reasoning, then give up
             try:
                 stream = await client.responses.create(**kwargs)
                 text = ""
@@ -127,7 +182,7 @@ class LlmClient:
                         usage = getattr(event.response, "usage", None)
                         input_tokens = getattr(usage, "input_tokens", 0) or 0
                         output_tokens = getattr(usage, "output_tokens", 0) or 0
-                return LlmResult(text, input_tokens, output_tokens)
+                return LlmResult(text, input_tokens, output_tokens, attempt)
             except BadRequestError as exc:
                 detail = _safe_error_value(str(exc)).lower()
                 if "max_output_tokens" in detail and "max_output_tokens" in kwargs:

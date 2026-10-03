@@ -1,5 +1,5 @@
 import { ArrowLeft, ArrowRight, CheckCircle2, MapPin, ShieldCheck, Sparkles } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { client } from '@/services/platform/client';
 import { PageLoading } from '@/ui/reusables/PageLoading/PageLoading';
@@ -21,14 +21,14 @@ export default function NewRequestScreen() {
   const [refLoaded, setRefLoaded] = useState(false);
   const [error, setError] = useState('');
   const [form, setForm] = useState({ brandId: '', model: '', bodyType: 'SUV', fuel: '', yearMin: '2024', yearMax: '2026', trim: '', drivetrain: '', transmission: '', color: '', area: 'Frisco', stateId: '', radius: '50', timeline: 'Within 2 weeks' as BuyerRequest['timeline'], details: '' });
-  const set = (key: keyof typeof form, value: string) => setForm((current) => ({ ...current, [key]: value }));
+  const set = useCallback((key: keyof typeof form, value: string) => setForm((current) => ({ ...current, [key]: value })), []);
 
   useEffect(() => {
     void Promise.all([
       client.reference.brands().then((rows) => { setBrands(rows); set('brandId', rows[0]?.id ?? ''); }).catch(() => setBrands([])),
       client.reference.states().then((rows) => { setStates(rows); set('stateId', rows[0]?.id ?? ''); }).catch(() => setStates([])),
     ]).then(() => setRefLoaded(true));
-  }, []);
+  }, [set]);
 
   async function publish() {
     if (submitting) return;

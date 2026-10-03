@@ -12,11 +12,13 @@ from sqlalchemy import (
     Computed,
     DateTime,
     ForeignKey,
+    Index,
     Integer,
     Numeric,
     String,
     Text,
     UniqueConstraint,
+    text,
 )
 from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -356,3 +358,99 @@ class ErrorLog(AuditMixin, Base):
     thread_id: Mapped[str | None] = mapped_column(String(80))
     user_id: Mapped[str | None] = mapped_column(ForeignKey("profiles.id"))
     error_context: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
+
+
+class ConfigurationRevision(AuditMixin, Base):
+    """Immutable, versioned administrator configuration.
+
+    Drafts and published revisions share one table so publication and rollback are atomic. Runtime
+    consumers only read rows whose status is ``published``; saving a draft therefore cannot change
+    production behaviour.
+    """
+
+    __tablename__ = "configuration_revisions"
+    __table_args__ = (
+        UniqueConstraint("config_type", "config_key", "version", name="uq_configuration_revision_version"),
+        CheckConstraint("status IN ('draft','published','archived')", name="ck_configuration_revision_status"),
+        Index("ix_configuration_revision_active", "config_type", "config_key", "status"),
+        Index(
+            "uq_configuration_revision_published",
+            "config_type",
+            "config_key",
+            unique=True,
+            postgresql_where=text("status = 'published'"),
+            sqlite_where=text("status = 'published'"),
+        ),
+    )
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
+    config_type: Mapped[str] = mapped_column(String(30), nullable=False)
+    config_key: Mapped[str] = mapped_column(String(80), nullable=False)
+    version: Mapped[int] = mapped_column(Integer, nullable=False)
+    status: Mapped[str] = mapped_column(String(20), default="draft", nullable=False)
+    payload: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
+    checksum: Mapped[str] = mapped_column(String(64), nullable=False)
+    published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    published_by: Mapped[str | None] = mapped_column(String(64))
+
+
+class AdministrationAuditEvent(Base):
+    """Append-only audit history for privileged configuration changes."""
+
+    __tablename__ = "administration_audit_events"
+    id: Mapped[int] = mapped_column(BigInteger().with_variant(Integer, "sqlite"), primary_key=True, autoincrement=True)
+    uuid: Mapped[str] = mapped_column(String(36), unique=True, default=new_uuid, nullable=False)
+    action: Mapped[str] = mapped_column(String(40), nullable=False, index=True)
+    resource_type: Mapped[str] = mapped_column(String(30), nullable=False, index=True)
+    resource_key: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
+    revision_id: Mapped[str | None] = mapped_column(String(36), index=True)
+    actor_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    details: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False, index=True)
+
+
+class ConfigurationDefault(AuditMixin, Base):
+    """Mutable pointer to the administrator-selected recovery version."""
+
+    __tablename__ = "configuration_defaults"
+    __table_args__ = (UniqueConstraint("config_type", "config_key", name="uq_configuration_default_key"),)
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
+    config_type: Mapped[str] = mapped_column(String(30), nullable=False)
+    config_key: Mapped[str] = mapped_column(String(80), nullable=False)
+    version: Mapped[int] = mapped_column(Integer, nullable=False)
+
+
+class AiTrace(AuditMixin, Base):
+    """One complete user or administrator test request through the agent system."""
+
+    __tablename__ = "ai_traces"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
+    thread_id: Mapped[str | None] = mapped_column(String(80), index=True)
+    user_id: Mapped[str | None] = mapped_column(String(36), index=True)
+    query: Mapped[str] = mapped_column(Text, nullable=False)
+    status: Mapped[str] = mapped_column(String(24), nullable=False, index=True)
+    is_test: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False, index=True)
+    route: Mapped[str | None] = mapped_column(String(40))
+    model_name: Mapped[str | None] = mapped_column(String(80))
+    input_tokens: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    output_tokens: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    duration_ms: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    error_message: Mapped[str | None] = mapped_column(Text)
+    configuration_version: Mapped[str] = mapped_column(String(80), default="default", nullable=False)
+
+
+class AiTraceSpan(Base):
+    """Ordered agent and tool activity within one trace."""
+
+    __tablename__ = "ai_trace_spans"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
+    trace_id: Mapped[str] = mapped_column(ForeignKey("ai_traces.id", ondelete="CASCADE"), nullable=False, index=True)
+    sequence: Mapped[int] = mapped_column(Integer, nullable=False)
+    name: Mapped[str] = mapped_column(String(80), nullable=False)
+    kind: Mapped[str] = mapped_column(String(30), nullable=False)
+    status: Mapped[str] = mapped_column(String(24), nullable=False)
+    duration_ms: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    input_tokens: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    output_tokens: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    model_name: Mapped[str | None] = mapped_column(String(80))
+    details: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)

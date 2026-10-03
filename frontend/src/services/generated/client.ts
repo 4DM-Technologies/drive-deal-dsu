@@ -1,4 +1,4 @@
-import type { AiThread, BrandRef, BuyerPreferences, BuyerRequest, CarCreateInput, ChatMessage, DealDocument, DealerSignupInput, InventoryCar, ProfileUpdateInput, Quote, QuoteCreateInput, RequestCreateInput, Session, StateRef, SignupInput, SupportMember, SupportSignupInput, SupportTicketCreate, Ticket, Verification } from '@/types/domain';
+import type { ActiveTheme, AdministrationAuditEvent, AdminCatalog, AdminConfigBundle, AdminConfigType, AdminPromptBundle, AdminRevision, AiThread, AiTrace, BrandRef, BuyerPreferences, BuyerRequest, CarCreateInput, ChatMessage, DealDocument, DealerSignupInput, InventoryCar, ProfileUpdateInput, PromptDefinition, Quote, QuoteCreateInput, RequestCreateInput, Session, StateRef, SignupInput, SupportMember, SupportSignupInput, SupportTicketCreate, Ticket, Verification, WorkflowDefinition, WorkflowPreview, WorkflowPreviewStreamEvent } from '@/types/domain';
 
 export type AiStreamEvent =
   | { type: 'status'; phase: 'classifying' | 'searching' | 'crawling' | 'composing'; label: string }
@@ -88,5 +88,23 @@ export interface DriveDealClient {
     threads(): Promise<AiThread[]>;
     thread(id: string): Promise<AiThread>;
     deleteThread(id: string): Promise<void>;
+  };
+  theme: { active(): Promise<ActiveTheme> };
+  administration: {
+    catalog(): Promise<AdminCatalog>;
+    getConfig<T = Record<string, unknown>>(type: AdminConfigType, key: string): Promise<AdminConfigBundle<T>>;
+    validate(type: AdminConfigType, key: string, payload: Record<string, unknown>): Promise<{ valid: boolean; errors: string[] }>;
+    saveDraft<T = Record<string, unknown>>(type: AdminConfigType, key: string, payload: T, baseVersion: number): Promise<AdminRevision<T>>;
+    publish<T = Record<string, unknown>>(type: AdminConfigType, key: string, revisionId: string): Promise<AdminRevision<T>>;
+    rollback<T = Record<string, unknown>>(type: AdminConfigType, key: string, version: number): Promise<AdminRevision<T>>;
+    setDefault(type: AdminConfigType, key: string, version: number): Promise<void>;
+    reset<T = Record<string, unknown>>(type: AdminConfigType, key: string): Promise<AdminRevision<T>>;
+    prompts(): Promise<AdminPromptBundle[]>;
+    audit(): Promise<AdministrationAuditEvent[]>;
+    traces(): Promise<AiTrace[]>;
+    trace(id: string): Promise<AiTrace>;
+    exportConfiguration(format: 'yaml' | 'json'): Promise<void>;
+    preview(message: string, options?: { threadId?: string; revisionId?: string; workflow?: WorkflowDefinition; promptKey?: string; prompt?: PromptDefinition }): Promise<WorkflowPreview>;
+    previewStream(message: string, options?: { threadId?: string; revisionId?: string; workflow?: WorkflowDefinition; promptKey?: string; prompt?: PromptDefinition }): AsyncIterable<WorkflowPreviewStreamEvent>;
   };
 }

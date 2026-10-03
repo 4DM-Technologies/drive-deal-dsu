@@ -330,7 +330,7 @@
   .dl-hero h1 { font-size: clamp(2.2rem, 10.4vw, 3.2rem); }
   .dl-hero-actions .button { flex: 1 1 100%; }
   .dl-hero-shade { background: linear-gradient(0deg, rgba(6, 17, 36, .96) 0%, rgba(8, 23, 47, .85) 55%, rgba(10, 28, 56, .6) 100%); }
-  .dl-hero-media img { object-position: 62% center; }
+  .dl-hero-media img { object-position: 78% center; }
   .dl-bento { grid-template-columns: minmax(0, 1fr); }
   .dl-b-wide, .dl-b-full, .dl-b-narrow, .dl-b-third { grid-column: span 1; }
   .dl-card { padding: 1.5rem; }

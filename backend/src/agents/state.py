@@ -4,7 +4,9 @@ from typing import Any, TypedDict
 class AgentState(TypedDict, total=False):
     user_id: str
     thread_id: str
+    trace_id: str
     message: str
+    conversation_context: list[dict[str, str]]
     route: str
     mode: str
     preferences: dict[str, Any]
@@ -19,4 +21,5 @@ class AgentState(TypedDict, total=False):
     comparison_rows: list[dict[str, Any]]
     answer: str
     sources: list[dict[str, str]]
+    preview: bool
     step: int

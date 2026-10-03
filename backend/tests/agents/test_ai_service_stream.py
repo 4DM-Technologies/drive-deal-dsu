@@ -4,6 +4,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from src.services.administration_service import AdministrationService
 from src.services.ai_service import AiService
 from src.utils.exceptions import AppError
 
@@ -28,13 +29,17 @@ async def _drain(message: str, main_result: dict, main_delay: float = 0.0):
     started: list[str] = []
     main = _graph(main_result, started, "main", main_delay)
     requirements = _graph({"requirements": {"budget": 40000}, "suggested_questions": ["q"]}, started, "requirements", 5.0)
+    session = AsyncMock()
+    session.add = MagicMock()
 
     with patch("src.services.ai_service.main_agent", return_value=main), \
          patch("src.services.ai_service.build_requirement_graph", return_value=requirements), \
          patch("src.services.ai_service.get_settings", return_value=SimpleNamespace(ai_disabled=False)), \
+         patch.object(AdministrationService, "runtime_bundle", new=AsyncMock(return_value={"version": "test", "workflow": {}, "prompts": {}, "agent_profiles": {}})), \
+         patch.object(AiService, "_finish_trace", new=AsyncMock()), \
          patch.object(AiService, "_latest_memory", new=AsyncMock(return_value={})), \
          patch.object(AiService, "_save_checkpoint", new=AsyncMock()):
-        service = AiService(session=AsyncMock())
+        service = AiService(session=session)
         started_at = time.perf_counter()
         events = [event async for event in service.stream_chat(_payload(message), SimpleNamespace(id="u1"))]
     return started, events, time.perf_counter() - started_at
@@ -112,14 +117,18 @@ async def test_compare_chat_passes_selected_offers_to_the_agent_and_card() -> No
         quote_ids=["q1", "q2"],
     )
     requirements_builder = MagicMock()
+    session = AsyncMock()
+    session.add = MagicMock()
 
     with patch("src.services.ai_service.main_agent", return_value=SimpleNamespace(ainvoke=invoke)), \
          patch("src.services.ai_service.build_requirement_graph", requirements_builder), \
          patch("src.services.ai_service.get_settings", return_value=SimpleNamespace(ai_disabled=False)), \
+         patch.object(AdministrationService, "runtime_bundle", new=AsyncMock(return_value={"version": "test", "workflow": {}, "prompts": {}, "agent_profiles": {}})), \
+         patch.object(AiService, "_finish_trace", new=AsyncMock()), \
          patch.object(AiService, "_latest_memory", new=AsyncMock(return_value={})), \
          patch.object(AiService, "_comparison_payload", new=AsyncMock(return_value=comparison)), \
          patch.object(AiService, "_save_checkpoint", new=AsyncMock()):
-        events = [event async for event in AiService(AsyncMock()).stream_chat(payload, SimpleNamespace(id="u1"))]
+        events = [event async for event in AiService(session).stream_chat(payload, SimpleNamespace(id="u1"))]
 
     assert captured_states[0]["comparison_rows"] == comparison["rows"]
     requirements_builder.assert_not_called()

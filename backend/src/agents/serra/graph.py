@@ -1,12 +1,16 @@
 import asyncio
 import json
 import re
-from pathlib import Path
+from collections.abc import Awaitable, Callable
+from datetime import UTC, datetime
+from time import perf_counter
+from uuid import uuid4
 
 from langgraph.graph import END, START, StateGraph
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.agents.configuration import default_workflow
 from src.agents.errors import OrchestratorPlanError
 from src.agents.llm import LlmClient
 from src.agents.observability import log_agent_step
@@ -16,11 +20,9 @@ from src.agents.state import AgentState
 from src.agents.tools.kb import kb_insert, kb_search
 from src.agents.tools.kb_db import update_preferences, write_car
 from src.agents.tools.web_search import get_urls, process_url
-from src.repositories.schema import Brand, BuyerPreference, State
+from src.repositories.schema import AiTraceSpan, Brand, BuyerPreference, State
 from src.utils.logger import logger
 from src.utils.serialization import model_dict
-
-PROMPT_ROOT = Path(__file__).resolve().parents[2] / "prompt"
 
 VALID_ROUTES = ("advice", "compare", "requirements", "off_topic")
 
@@ -145,12 +147,40 @@ def _extract_json_array(text: str) -> list:
     return json.loads(match.group(0) if match else text)
 
 
+def _trace_snapshot(value: dict | None, *, output: bool = False) -> dict:
+    """Keep administrator traces useful without persisting full ORM objects or unbounded payloads."""
+    if not value:
+        return {}
+    allowed = (
+        ("route", "mode", "answer", "sources", "preferences_pending", "kb_results", "web_results", "car_specs")
+        if output
+        else ("message", "route", "mode", "preferences", "preferences_pending", "requirements")
+    )
+    snapshot: dict = {}
+    for key in allowed:
+        if key not in value or value[key] is None:
+            continue
+        raw = json.dumps(value[key], default=str, ensure_ascii=False)
+        snapshot[key] = json.loads(raw[:12_000]) if len(raw) <= 12_000 else f"{raw[:12_000]}…"
+    return snapshot
+
+
 async def _fetch_preferences(session: AsyncSession, user_id: str) -> dict:
     row = await session.get(BuyerPreference, user_id)
     return model_dict(row) if row else {}
 
 
-def main_agent(session: AsyncSession, compare: bool = False):
+def main_agent(
+    session: AsyncSession,
+    compare: bool = False,
+    *,
+    workflow_definition: dict | None = None,
+    prompt_overrides: dict[str, str] | None = None,
+    agent_profiles: dict[str, dict] | None = None,
+    prompt_version: str = "v1",
+    preview: bool = False,
+    trace_event_sink: Callable[[dict], Awaitable[None]] | None = None,
+):
     """Builds Serra's agent graph:
 
     START -> triage -+-> small_talk -> END                (greeting/ack: one cheap direct reply)
@@ -160,9 +190,96 @@ def main_agent(session: AsyncSession, compare: bool = False):
                                                       (kb_agent) -> web_search_agent (web_per_car) -> persist_cars -> compose
     """
     llm = LlmClient(session)
-    compose_prompt = load_prompt("compose.md")
-    small_talk_prompt = load_fragment("small_talk.md")
-    compare_prompt = (PROMPT_ROOT / "compare.md").read_text(encoding="utf-8")
+    compose_prompt = load_prompt("compose.md", prompt_overrides)
+    small_talk_prompt = load_fragment("small_talk.md", prompt_overrides)
+    compare_prompt = load_fragment("compare.md", prompt_overrides)
+    workflow = workflow_definition or default_workflow()
+    configured_edges = workflow.get("edges", [])
+    profiles = agent_profiles or {}
+
+    def profile_kwargs(key: str, reasoning_effort: str | None = None) -> dict:
+        profile = profiles.get(key, {})
+        return {
+            "model": profile.get("model"),
+            "reasoning_effort": reasoning_effort or profile.get("reasoning_effort"),
+            "max_output_tokens": profile.get("max_output_tokens"),
+        }
+
+    def conversation_block(state: AgentState) -> str:
+        context = state.get("conversation_context") or []
+        if not context:
+            return ""
+        return (
+            "<conversation_context trust=\"internal\">\n"
+            f"{json.dumps(context[-6:], ensure_ascii=False)}\n"
+            "</conversation_context>\n\n"
+        )
+
+    def traced_node(name: str, kind: str, handler):
+        async def wrapped(state: AgentState) -> AgentState:
+            started = perf_counter()
+            span_id = str(uuid4())
+            trace_id = state.get("trace_id")
+            sequence = int(state.get("step", 0) + 1)
+            if trace_id and trace_event_sink:
+                try:
+                    await trace_event_sink({
+                        "id": span_id,
+                        "trace_id": trace_id,
+                        "sequence": sequence,
+                        "name": name,
+                        "kind": kind,
+                        "status": "running",
+                        "duration_ms": 0,
+                        "input_tokens": 0,
+                        "output_tokens": 0,
+                        "model_name": None,
+                        "details": {"input": _trace_snapshot(state), "llm_called": False},
+                        "created_at": datetime.now(UTC).isoformat(),
+                    })
+                except Exception as exc:
+                    logger.warning("agent_trace_event_sink_failed", trace_id=trace_id, error=str(exc)[:200])
+            result = None
+            status = "error"
+            try:
+                result = await handler(state)
+                status = "success"
+            except Exception:
+                raise
+            finally:
+                if trace_id:
+                    details = {
+                        "input": _trace_snapshot(state),
+                        "output": _trace_snapshot(result, output=True),
+                        "llm_called": name in {"classifier", "orchestrator", "kb_agent", "compose", "small_talk"},
+                    }
+                    span = AiTraceSpan(
+                        id=span_id,
+                        trace_id=trace_id,
+                        sequence=int((result or {}).get("step") or sequence),
+                        name=name,
+                        kind=kind,
+                        status=status,
+                        duration_ms=int((perf_counter() - started) * 1000),
+                        details=details,
+                    )
+                    session.add(span)
+                    await session.flush()
+                    if trace_event_sink:
+                        try:
+                            await trace_event_sink(model_dict(span))
+                        except Exception as exc:
+                            # Observability must never be allowed to change the workflow result.
+                            logger.warning("agent_trace_event_sink_failed", trace_id=trace_id, error=str(exc)[:200])
+            return result or {}
+        return wrapped
+
+    def configured_target(source: str, condition: str, fallback: str) -> str:
+        edge = next(
+            (item for item in configured_edges if item.get("source") == source and item.get("condition") == condition),
+            None,
+        )
+        return str(edge.get("target")) if edge else fallback
 
     async def triage(state: AgentState) -> AgentState:
         """Deterministic, zero-LLM gate. Runs before the classifier so greetings, acknowledgements and
@@ -185,8 +302,17 @@ def main_agent(session: AsyncSession, compare: bool = False):
 
     async def small_talk(state: AgentState) -> AgentState:
         step = log_agent_step("serra", "small_talk", state)
-        prompt = f"{small_talk_prompt}\n\n<buyer_message trust=\"untrusted\">\n{state['message']}\n</buyer_message>"
-        result = await llm.generate(prompt, "small_talk", state.get("thread_id"), reasoning_effort="minimal")
+        prompt = (
+            f"{small_talk_prompt}\n\n{conversation_block(state)}"
+            f"<buyer_message trust=\"untrusted\">\n{state['message']}\n</buyer_message>"
+        )
+        result = await llm.generate(
+            prompt,
+            "small_talk",
+            state.get("trace_id") or state.get("thread_id"),
+            prompt_version=prompt_version,
+            **profile_kwargs("small_talk", "minimal"),
+        )
         return {"answer": result.text, "step": step}
 
     async def classify(state: AgentState) -> AgentState:
@@ -204,9 +330,12 @@ def main_agent(session: AsyncSession, compare: bool = False):
             "Greetings, thanks and questions addressed to you by name are already handled before this step; "
             "if one reaches you anyway, answer advice rather than off_topic.\n"
             "Reply with that single lowercase word and nothing else.\n\n"
-            f"USER: {state['message']}"
+            f"{conversation_block(state)}USER: {state['message']}"
         )
-        result = await llm.generate(prompt, "classifier", state.get("thread_id"), reasoning_effort="low")
+        result = await llm.generate(
+            prompt, "classifier", state.get("trace_id") or state.get("thread_id"), prompt_version=prompt_version,
+            **profile_kwargs("main_agent", "low"),
+        )
         return {"route": _normalize_route(result.text), "step": step}
 
     async def orchestrate(state: AgentState) -> AgentState:
@@ -216,12 +345,16 @@ def main_agent(session: AsyncSession, compare: bool = False):
 
         preferences = state.get("preferences") or await _fetch_preferences(session, state["user_id"])
         prompt = (
-            f"{load_prompt('orchestrator.md')}\n\n"
+            f"{load_prompt('orchestrator.md', prompt_overrides)}\n\n"
+            f"{conversation_block(state)}"
             f"ROUTE: {state.get('route')}\n"
             f"<buyer_question trust=\"untrusted\">\n{state['message']}\n</buyer_question>\n"
             f"KNOWN PREFERENCES: {preferences or 'none'}\nPREFERENCES_PENDING: {state.get('preferences_pending', False)}"
         )
-        result = await llm.generate(prompt, "orchestrator", state.get("thread_id"), reasoning_effort="low")
+        result = await llm.generate(
+            prompt, "orchestrator", state.get("trace_id") or state.get("thread_id"), prompt_version=prompt_version,
+            **profile_kwargs("orchestrator", "low"),
+        )
         try:
             plan = OrchestratorPlan.model_validate(_extract_json(result.text))
         except Exception as exc:
@@ -232,12 +365,16 @@ def main_agent(session: AsyncSession, compare: bool = False):
     async def route_from_classifier(state: AgentState) -> str:
         # An out-of-scope message is answered by the main model directly, so the planner and every sub-agent
         # are skipped for it.
-        return "small_talk" if state.get("route") == "off_topic" else "orchestrator"
+        condition = "off_topic" if state.get("route") == "off_topic" else "default"
+        return configured_target("classifier", condition, "small_talk" if condition == "off_topic" else "orchestrator")
 
     async def route_from_orchestrator(state: AgentState) -> str:
         if state.get("route") == "compare" and compare:
-            return "compose"
-        return "web_search_agent" if state.get("mode") == "web_direct" else "kb_agent"
+            return configured_target("orchestrator", "compare", "compose")
+        condition = "web_direct" if state.get("mode") == "web_direct" else "default"
+        return configured_target(
+            "orchestrator", condition, "web_search_agent" if condition == "web_direct" else "kb_agent"
+        )
 
     async def knowledge(state: AgentState) -> AgentState:
         step = log_agent_step("serra", "kb_agent", state, mode=state.get("mode"))
@@ -245,8 +382,11 @@ def main_agent(session: AsyncSession, compare: bool = False):
         preferences_pending = state.get("preferences_pending", False)
 
         if preferences_pending:
-            extraction_prompt = f"{load_prompt('kb_agent.md')}\n\nExtract must-have car features as a JSON array of short strings from this buyer reply:\n{state['message']}"
-            result = await llm.generate(extraction_prompt, "preference_extraction", state.get("thread_id"))
+            extraction_prompt = f"{load_prompt('kb_agent.md', prompt_overrides)}\n\nExtract must-have car features as a JSON array of short strings from this buyer reply:\n{state['message']}"
+            result = await llm.generate(
+                extraction_prompt, "preference_extraction", state.get("trace_id") or state.get("thread_id"), prompt_version=prompt_version,
+                **profile_kwargs("kb_agent"),
+            )
             try:
                 features = [str(item) for item in _extract_json_array(result.text)]
             except Exception:
@@ -269,11 +409,14 @@ def main_agent(session: AsyncSession, compare: bool = False):
 
         if state.get("mode") == "web_per_car":
             shortlist_prompt = (
-                f"{load_prompt('kb_agent.md')}\n\nUSER QUESTION: {state['message']}\nKNOWN PREFERENCES: {preferences}\n"
+                f"{load_prompt('kb_agent.md', prompt_overrides)}\n\nUSER QUESTION: {state['message']}\nKNOWN PREFERENCES: {preferences}\n"
                 f"LOCAL INVENTORY MATCHES: {kb_results}\n\nReturn a JSON array of 3-6 specific car names (make + model, "
                 "optionally year range) that best fit this ask."
             )
-            shortlist_result = await llm.generate(shortlist_prompt, "car_shortlist", state.get("thread_id"))
+            shortlist_result = await llm.generate(
+                shortlist_prompt, "car_shortlist", state.get("trace_id") or state.get("thread_id"), prompt_version=prompt_version,
+                **profile_kwargs("kb_agent"),
+            )
             try:
                 update["car_names"] = [str(name) for name in _extract_json_array(shortlist_result.text)]
             except Exception:
@@ -281,16 +424,15 @@ def main_agent(session: AsyncSession, compare: bool = False):
         return update
 
     async def after_kb(state: AgentState) -> str:
-        if state.get("preferences_pending"):
-            return "compose"
-        return "web_search_agent" if state.get("mode") == "web_per_car" else "compose"
+        condition = "web_per_car" if not state.get("preferences_pending") and state.get("mode") == "web_per_car" else "default"
+        return configured_target("kb_agent", condition, "web_search_agent" if condition == "web_per_car" else "compose")
 
-    async def _resolve_one(name: str, preferences: dict, thread_id: str | None) -> CarSpecs | None:
+    async def _resolve_one(name: str, preferences: dict, thread_id: str | None, trace_id: str | None) -> CarSpecs | None:
         try:
             make = (name.split() or [""])[0]
             candidates = await get_urls(name, make=make)
             for candidate in candidates:
-                specs = await process_url(llm, candidate["url"], thread_id)
+                specs = await process_url(llm, candidate["url"], state_trace_id=trace_id or thread_id, profile=profiles.get("web_search_agent"))
                 if specs:
                     return specs
         except Exception as exc:
@@ -306,7 +448,7 @@ def main_agent(session: AsyncSession, compare: bool = False):
         candidate_evidence: list[dict[str, str]] = []
 
         if state.get("mode") == "web_per_car" and state.get("car_names"):
-            results = await asyncio.gather(*[_resolve_one(name, preferences, thread_id) for name in state["car_names"]])
+            results = await asyncio.gather(*[_resolve_one(name, preferences, thread_id, state.get("trace_id")) for name in state["car_names"]])
             specs = [spec for spec in results if spec]
         else:
             query_terms = [state["message"]] + [str(value) for value in preferences.values() if value]
@@ -318,7 +460,7 @@ def main_agent(session: AsyncSession, compare: bool = False):
                         "title": candidate.get("title") or candidate.get("source_domain") or "Trusted vehicle source",
                         "url": candidate["url"],
                     }
-                    spec = await process_url(llm, candidate["url"], thread_id)
+                    spec = await process_url(llm, candidate["url"], state_trace_id=state.get("trace_id") or thread_id, profile=profiles.get("web_search_agent"))
                     if spec:
                         specs.append(spec)
             except Exception as exc:
@@ -329,7 +471,7 @@ def main_agent(session: AsyncSession, compare: bool = False):
         for spec in specs:
             resolved_sources[spec.source_url] = {"title": spec.model or spec.source_url, "url": spec.source_url}
         sources = list(resolved_sources.values())
-        if specs:
+        if specs and not (preview or state.get("preview")):
             await kb_insert(session, state["message"], [{"title": s.model or s.source_url, "url": s.source_url, "content": s.model_dump()} for s in specs], state["user_id"])
         structured_specs = [spec.model_dump() for spec in specs]
         return {
@@ -341,6 +483,8 @@ def main_agent(session: AsyncSession, compare: bool = False):
 
     async def persist_cars(state: AgentState) -> AgentState:
         step = log_agent_step("serra", "persist_cars", state, count=len(state.get("car_specs") or []))
+        if preview or state.get("preview"):
+            return {"step": step}
         persisted = []
         for spec in state.get("car_specs") or []:
             if not spec.get("make") or not spec.get("model") or not spec.get("year") or not spec.get("price_usd"):
@@ -374,38 +518,52 @@ def main_agent(session: AsyncSession, compare: bool = False):
         source_block = f'<web_sources trust="untrusted">{json.dumps(state.get("sources") or [], default=str)}</web_sources>'
         comparison_block = f'<selected_offers trust="internal">{json.dumps(state.get("comparison_rows") or [], default=str)}</selected_offers>'
         question_block = f'<buyer_question trust="untrusted">{state["message"]}</buyer_question>'
-        prompt = f"{system_prompt}\n\n{question_block}\n\n{comparison_block}\n\n{kb_block}\n\n{web_block}\n\n{source_block}"
-        result = await llm.generate(prompt, "compare" if is_compare else "advisor", state.get("thread_id"))
+        prompt = (
+            f"{system_prompt}\n\n{conversation_block(state)}{question_block}\n\n"
+            f"{comparison_block}\n\n{kb_block}\n\n{web_block}\n\n{source_block}"
+        )
+        result = await llm.generate(
+            prompt,
+            "compare" if is_compare else "advisor",
+            state.get("trace_id") or state.get("thread_id"),
+            prompt_version=prompt_version,
+            **profile_kwargs("compare" if is_compare else "compose"),
+        )
         return {"answer": result.text, "step": step}
 
     async def route_from_triage(state: AgentState) -> str:
         if state.get("route") == "small_talk":
-            return "small_talk"
-        return "web_search_agent" if state.get("route") == "web_search" else "classifier"
+            return configured_target("triage", "small_talk", "small_talk")
+        condition = "web_search" if state.get("route") == "web_search" else "default"
+        return configured_target(
+            "triage", condition, "web_search_agent" if condition == "web_search" else "classifier"
+        )
 
     graph = StateGraph(AgentState)
-    graph.add_node("triage", triage)
-    graph.add_node("small_talk", small_talk)
-    graph.add_node("classifier", classify)
-    graph.add_node("orchestrator", orchestrate)
-    graph.add_node("kb_agent", knowledge)
-    graph.add_node("web_search_agent", search_web)
-    graph.add_node("persist_cars", persist_cars)
-    graph.add_node("compose", compose)
+    graph.add_node("triage", traced_node("triage", "router", triage))
+    graph.add_node("small_talk", traced_node("small_talk", "agent", small_talk))
+    graph.add_node("classifier", traced_node("classifier", "agent", classify))
+    graph.add_node("orchestrator", traced_node("orchestrator", "agent", orchestrate))
+    graph.add_node("kb_agent", traced_node("kb_agent", "tool", knowledge))
+    graph.add_node("web_search_agent", traced_node("web_search_agent", "tool", search_web))
+    graph.add_node("persist_cars", traced_node("persist_cars", "action", persist_cars))
+    graph.add_node("compose", traced_node("compose", "agent", compose))
 
-    graph.add_edge(START, "triage")
+    allowed_targets = {node["id"]: node["id"] for node in workflow.get("nodes", [])}
+    allowed_targets["end"] = END
+    graph.add_edge(START, configured_target("start", "always", "triage"))
     graph.add_conditional_edges(
         "triage",
         route_from_triage,
-        {"small_talk": "small_talk", "web_search_agent": "web_search_agent", "classifier": "classifier"},
+        allowed_targets,
     )
-    graph.add_edge("small_talk", END)
+    graph.add_edge("small_talk", allowed_targets[configured_target("small_talk", "always", "end")])
     graph.add_conditional_edges(
-        "classifier", route_from_classifier, {"small_talk": "small_talk", "orchestrator": "orchestrator"}
+        "classifier", route_from_classifier, allowed_targets
     )
-    graph.add_conditional_edges("orchestrator", route_from_orchestrator, {"kb_agent": "kb_agent", "web_search_agent": "web_search_agent", "compose": "compose"})
-    graph.add_conditional_edges("kb_agent", after_kb, {"web_search_agent": "web_search_agent", "compose": "compose"})
-    graph.add_edge("web_search_agent", "persist_cars")
-    graph.add_edge("persist_cars", "compose")
-    graph.add_edge("compose", END)
+    graph.add_conditional_edges("orchestrator", route_from_orchestrator, allowed_targets)
+    graph.add_conditional_edges("kb_agent", after_kb, allowed_targets)
+    graph.add_edge("web_search_agent", allowed_targets[configured_target("web_search_agent", "always", "persist_cars")])
+    graph.add_edge("persist_cars", allowed_targets[configured_target("persist_cars", "always", "compose")])
+    graph.add_edge("compose", allowed_targets[configured_target("compose", "always", "end")])
     return graph.compile()

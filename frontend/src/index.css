@@ -14,6 +14,7 @@
   --border: #e5e2db;
   --border-strong: #d3cfc6;
   --accent: #1456b8;
+  --accent-rgb: 20, 86, 184;
   --accent-deep: #0d438f;
   --accent-soft: #e8f0fc;
   --success: #267a4a;
@@ -23,6 +24,7 @@
   --danger: #b53a3a;
   --danger-soft: #fcedeb;
   --navy: #10233f;
+  --focus-ring: rgba(20, 86, 184, .28);
   --ease: cubic-bezier(.16, 1, .3, 1);
   --shadow-sm: 0 1px 2px rgba(31, 30, 27, .04), 0 8px 24px rgba(31, 30, 27, .04);
   --shadow-lg: 0 24px 80px rgba(25, 34, 49, .14);
@@ -30,7 +32,7 @@
 
 * { box-sizing: border-box; }
 html { background: var(--bg); scroll-behavior: smooth; }
-body { margin: 0; min-width: 320px; min-height: 100vh; background: radial-gradient(circle at 8% 2%, rgba(20,86,184,.055), transparent 23rem), var(--bg); color: var(--ink); cursor: default; -webkit-font-smoothing: antialiased; }
+body { margin: 0; min-width: 320px; min-height: 100vh; background: radial-gradient(circle at 8% 2%, rgba(var(--accent-rgb),.055), transparent 23rem), var(--bg); color: var(--ink); cursor: default; -webkit-font-smoothing: antialiased; }
 button, input, select, textarea { font: inherit; }
 input, select, textarea, [contenteditable="true"] { cursor: text; }
 button, a { -webkit-tap-highlight-color: transparent; }
@@ -38,7 +40,7 @@ button { cursor: pointer; }
 a { color: inherit; text-decoration: none; }
 img { max-width: 100%; display: block; }
 ::selection { background: #bfd5f5; color: #10233f; }
-:focus-visible { outline: 3px solid rgba(20, 86, 184, .34); outline-offset: 3px; }
+:focus-visible { outline: 3px solid var(--focus-ring); outline-offset: 3px; }
 
 h1, h2, h3, .display { font-family: 'Manrope', 'DM Sans', sans-serif; letter-spacing: -.035em; }
 .price, .tabular { font-variant-numeric: tabular-nums; }
@@ -78,8 +80,8 @@ h1, h2, h3, .display { font-family: 'Manrope', 'DM Sans', sans-serif; letter-spa
 .button { min-height: 46px; border: 1px solid transparent; border-radius: 13px; padding: .78rem 1.08rem; display: inline-flex; align-items: center; justify-content: center; gap: .55rem; font-weight: 700; font-size: .9rem; transition: transform 180ms var(--ease), box-shadow 180ms var(--ease), background 180ms ease, border-color 180ms ease; }
 .button:hover { transform: translateY(-2px); }
 .button:active { transform: translateY(0) scale(.98); }
-.button-primary { background: linear-gradient(135deg, #1765d5, #0d438f); color: white; box-shadow: 0 10px 25px rgba(20,86,184,.22), inset 0 1px rgba(255,255,255,.18); }
-.button-primary:hover { background: linear-gradient(135deg, #0f59c3, #0a397b); box-shadow: 0 14px 30px rgba(20,86,184,.28); }
+.button-primary { background: linear-gradient(135deg, var(--accent), var(--accent-deep)); color: white; box-shadow: 0 10px 25px rgba(var(--accent-rgb),.22), inset 0 1px rgba(255,255,255,.18); }
+.button-primary:hover { filter: saturate(1.08) brightness(.94); box-shadow: 0 14px 30px rgba(var(--accent-rgb),.28); }
 .button-secondary { background: var(--raised); color: var(--ink); border-color: var(--border); }
 .button-secondary:hover { border-color: var(--border-strong); background: white; }
 .button-ghost { background: transparent; color: var(--muted); }
@@ -277,9 +279,9 @@ h1, h2, h3, .display { font-family: 'Manrope', 'DM Sans', sans-serif; letter-spa
 .chat-composer { padding: 1rem; border-top: 1px solid var(--border); display: flex; gap: .6rem; }
 .chat-composer input { flex: 1; }
 
-.auth-page { min-height: 100vh; display: grid; grid-template-columns: minmax(0,1fr) minmax(440px,.78fr); }
+.auth-page { min-height: 100vh; display: grid; grid-template-columns: minmax(0,1.18fr) minmax(440px,.82fr); }
 .auth-art { position: relative; min-height: 100vh; overflow: hidden; background: var(--navy); }
-.auth-art img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.auth-art img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: 68% center; }
 .auth-art::after { content: ''; position: absolute; inset: 0; background: linear-gradient(0deg, rgba(16,35,63,.78), rgba(16,35,63,.05) 65%); }
 .auth-art-copy { position: absolute; z-index: 2; left: clamp(1.5rem,5vw,5rem); right: clamp(1.5rem,5vw,5rem); bottom: 4rem; color: white; }
 .auth-art-copy h2 { font-size: clamp(2rem,4vw,4.2rem); margin: .7rem 0; max-width: 650px; }
@@ -735,10 +737,20 @@ h1, h2, h3, .display { font-family: 'Manrope', 'DM Sans', sans-serif; letter-spa
 .administration-success .empty-icon { margin-inline: auto; }
 .ai-launcher-mark { position: relative; display: grid; place-items: center; }
 .ai-launcher-mark > svg:last-child { position: absolute; right: -8px; top: -7px; padding: 2px; border-radius: 50%; background: #70a8ff; color: white; }
-.support-overview-grid { margin-top: 1rem; align-items: start; }
+.support-overview-grid { grid-template-columns: minmax(0, 1.12fr) minmax(0, .88fr); margin-top: 1rem; align-items: start; }
 .queue-card .section-head { margin-bottom: .7rem; }
 .queue-card .section-head h2 { margin: .25rem 0; }
-.queue-card .section-head a { color: var(--accent); font-weight: 700; }
+.queue-card .section-head a { display: inline-flex; align-items: center; gap: .2rem; color: var(--accent); font-weight: 700; white-space: nowrap; }
+.support-compact-list { display: grid; }
+.support-compact-row { width: 100%; min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: .7rem; padding: .8rem 0; border: 0; border-top: 1px solid var(--border); background: transparent; color: var(--ink); text-align: left; }
+.support-compact-row:hover { color: var(--accent); }
+.support-compact-row > div { min-width: 0; }
+.support-row-top { min-width: 0; display: flex; align-items: center; gap: .55rem; }
+.support-row-top > strong { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: .82rem; }
+.support-row-top .status { flex: none; }
+.support-compact-row small { display: block; margin-top: .22rem; overflow: hidden; color: var(--muted); font-size: .7rem; text-overflow: ellipsis; white-space: nowrap; }
+.support-compact-row > svg { color: var(--muted); }
+.support-review-action { color: var(--accent); font-size: .72rem; font-weight: 750; }
 .operations-table td > small { display: block; }
 .issue-cell { display: block; min-width: 210px; max-width: 420px; }
 .priority { display: inline-flex; border-radius: 999px; padding: .3rem .55rem; font-size: .72rem; font-weight: 800; text-transform: capitalize; background: var(--surface); }
@@ -774,6 +786,8 @@ h1, h2, h3, .display { font-family: 'Manrope', 'DM Sans', sans-serif; letter-spa
 .members-summary strong, .members-summary span { display: block; }
 .members-summary strong { font: 700 1.45rem Manrope, sans-serif; }
 .members-summary span { color: var(--muted); font-size: .76rem; }
+.members-page .page-heading h1 { font-size: clamp(1.55rem, 2.5vw, 2.05rem); }
+.members-page .page-heading p { max-width: 68ch; font-size: .9rem; }
 .members-toolbar { margin-bottom: 1rem; }
 .members-toolbar .search-field { max-width: 760px; }
 .members-toolbar .search-field > span { flex: none; padding-left: .7rem; border-left: 1px solid var(--border); font-size: .74rem; font-weight: 700; }
@@ -784,6 +798,8 @@ h1, h2, h3, .display { font-family: 'Manrope', 'DM Sans', sans-serif; letter-spa
 .member-identity > span:last-child { min-width: 0; }
 .member-identity strong, .member-identity small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .member-identity small { color: var(--muted); margin-top: .15rem; }
+.member-identity strong { font-size: .9rem; }
+.member-identity small, .member-role-copy span, .member-role-copy small { font-size: .76rem; }
 .member-avatar { width: 44px; height: 44px; flex: none; display: grid; place-items: center; border-radius: 14px; color: var(--accent); background: var(--accent-soft); }
 .member-role-copy { min-width: 0; }
 .member-role-copy span, .member-role-copy small { display: block; }
@@ -842,6 +858,11 @@ h1, h2, h3, .display { font-family: 'Manrope', 'DM Sans', sans-serif; letter-spa
 .dashboard-request-row { display: grid; grid-template-columns: minmax(0,1fr) auto; align-items: center; gap: .8rem; padding: .85rem 0; border-top: 1px solid var(--border); }
 .dashboard-request-row span:first-child strong, .dashboard-request-row span:first-child small { display: block; }
 .dashboard-request-row small { color: var(--muted); margin-top: .18rem; }
+.dealer-overview-grid { grid-template-columns: minmax(0, 1.45fr) minmax(300px, .55fr); align-items: start; }
+.dealer-overview-grid > div { display: block; }
+.dealer-activity-card .dashboard-request-row { padding: .72rem 0; }
+.dealer-activity-card .dashboard-request-row .price { font-size: .9rem; }
+.compact-empty { margin: .8rem 0 0; color: var(--muted); font-size: .85rem; }
 .serra-spotlight { position: relative; overflow: hidden; padding: clamp(1.4rem,3vw,2.2rem); border: 0; background: radial-gradient(circle at 100% 0%,rgba(86,145,236,.4),transparent 42%),linear-gradient(145deg,#10233f,#17375f); color: white; }
 .serra-spotlight::after { content: ''; position: absolute; width: 170px; height: 170px; border: 1px solid rgba(255,255,255,.1); border-radius: 50%; right: -55px; top: -65px; }
 .serra-spotlight .eyebrow { color: #abcaff; }
@@ -852,8 +873,14 @@ h1, h2, h3, .display { font-family: 'Manrope', 'DM Sans', sans-serif; letter-spa
 .dashboard-next { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 1.25rem; }
 .dashboard-next h2 { margin: .3rem 0; }
 .dashboard-next p { margin: 0; color: var(--muted); }
-.revenue-card h2 { font-size: clamp(1.9rem,3vw,2.5rem); margin: .5rem 0; }
-.revenue-card > div { display: flex; align-items: center; gap: .6rem; margin: 1rem 0; padding: .85rem; border-radius: 12px; background: var(--success-soft); color: var(--success); }
+.revenue-card h2 { font-size: clamp(1.5rem,2.4vw,2rem); margin: 0; }
+.dealer-deal-summary { display: grid; gap: .8rem; }
+.dealer-deal-summary > p { margin: 0; color: var(--muted); line-height: 1.5; }
+.deal-summary-head { display: flex; align-items: end; justify-content: space-between; gap: 1rem; margin-top: .2rem; padding: .8rem; border-radius: 12px; background: var(--success-soft); color: var(--success); }
+.deal-summary-head span strong, .deal-summary-head span small { display: block; }
+.deal-summary-head span strong { font-size: 1.3rem; }
+.deal-summary-head span small { margin-top: .1rem; font-size: .7rem; }
+.dealer-deal-summary .button { width: fit-content; }
 .quote-detail-heading { margin-top: 1rem; }
 .quote-position { display: grid; grid-template-columns: auto minmax(0,1fr) auto; gap: 1rem; align-items: center; margin-bottom: 1rem; padding: 1rem 1.15rem; border: 1px solid var(--border); border-radius: 17px; }
 .quote-position > svg { width: 42px; height: 42px; padding: 10px; border-radius: 13px; }
@@ -934,6 +961,7 @@ h1, h2, h3, .display { font-family: 'Manrope', 'DM Sans', sans-serif; letter-spa
   .dashboard-welcome, .dashboard-next { align-items: stretch; flex-direction: column; }
   .dashboard-actions { display: grid; grid-template-columns: 1fr 1fr; }
   .dashboard-main-grid { grid-template-columns: 1fr; }
+  .dealer-overview-grid { grid-template-columns: 1fr; }
   .dashboard-request-row { grid-template-columns: minmax(0,1fr) auto; }
   .dashboard-request-row > :last-child { justify-self: start; }
   .dashboard-welcome { background: linear-gradient(rgba(250,249,246,.91),rgba(250,249,246,.97)),url('./assets/vehicles/drivedeal-hero.png') center/cover; }
@@ -1310,6 +1338,8 @@ h1, h2, h3, .display { font-family: 'Manrope', 'DM Sans', sans-serif; letter-spa
 .dashboard-main-grid { align-items: stretch; }
 .dashboard-main-grid > div { display: flex; min-width: 0; }
 .dashboard-main-grid > div > .card { flex: 1; min-width: 0; }
+.dashboard-main-grid.dealer-overview-grid > div { display: block; }
+.dashboard-main-grid.dealer-overview-grid > div > .card { width: 100%; }
 .serra-spotlight { display: flex; flex-direction: column; align-items: flex-start; }
 .serra-orbit { width: 56px; height: 56px; margin-bottom: 2rem; line-height: 0; }
 .serra-spotlight > .button { margin-top: auto; }
@@ -1324,6 +1354,7 @@ h1, h2, h3, .display { font-family: 'Manrope', 'DM Sans', sans-serif; letter-spa
 @media (max-width: 1024px) {
   .dashboard-main-grid > div:has(> .serra-spotlight) { min-height: 0; }
   .dashboard-main-grid > div > .serra-spotlight { position: relative; inset: auto; flex: 1; }
+  .support-overview-grid { grid-template-columns: 1fr; }
 }
 
 

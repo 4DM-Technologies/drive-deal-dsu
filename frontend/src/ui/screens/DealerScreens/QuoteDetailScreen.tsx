@@ -1,9 +1,9 @@
 import { ArrowLeft, CheckCircle2, FileCheck2, Image, MessageCircle, Pencil, ShieldCheck, TrendingDown, Trophy } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { computeOtd, formatMoney } from '@/helpers/currency';
-import sedanImage from '@/assets/vehicles/studio-sedan.png';
-import suvImage from '@/assets/vehicles/studio-suv.png';
+import sedanImage from '@/assets/vehicles/drivedeal-hero.png';
+import suvImage from '@/assets/vehicles/dealer-hero.png';
 import { client } from '@/services/platform/client';
 import { useDemoStore } from '@/services/platform/demoStore';
 import type { BuyerRequest, DealDocument, Quote } from '@/types/domain';
@@ -34,6 +34,7 @@ export default function QuoteDetailScreen({ deal = false }: { deal?: boolean }) 
     void client.documents.list(id).then(setAttachments).catch(() => setAttachments([]));
   };
   // Start from a clean loading state whenever the quote changes, so a stale or half-loaded page never flashes "not found".
+  // eslint-disable-next-line react-hooks/set-state-in-effect, react-hooks/exhaustive-deps
   useEffect(() => { setQuote(undefined); setRequest(undefined); setCompeting([]); refresh(); }, [id]);
 
   if (quote === undefined || (quote && request === undefined)) return <PageLoading label="Opening quote" />;

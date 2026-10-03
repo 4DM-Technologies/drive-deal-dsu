@@ -19,14 +19,14 @@ export default function DealerListScreen() {
   const [quotes, setQuotes] = useState<Quote[]>([]);
   const [search, setSearch] = useState('');
   const [distance, setDistance] = useState('50');
-  const [loaded, setLoaded] = useState(false);
+  const [loadedPath, setLoadedPath] = useState('');
   const dealsOnly = path === '/deals' || path === '/orders';
+  const loaded = loadedPath === path;
 
   useEffect(() => {
-    setLoaded(false);
-    if (path === '/feed') { void client.feed.list().then(setFeed).catch(() => setFeed([])).finally(() => setLoaded(true)); return; }
+    if (path === '/feed') { void client.feed.list().then(setFeed).catch(() => setFeed([])).finally(() => setLoadedPath(path)); return; }
     const loadQuotes = dealsOnly ? client.deals.list() : client.quotes.list();
-    void loadQuotes.then(setQuotes).catch(() => setQuotes([])).finally(() => setLoaded(true));
+    void loadQuotes.then(setQuotes).catch(() => setQuotes([])).finally(() => setLoadedPath(path));
   }, [path, dealsOnly]);
 
   if (!loaded) {

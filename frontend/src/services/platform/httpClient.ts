@@ -1,5 +1,7 @@
 import type { DriveDealClient, AiStreamEvent } from '@/services/generated/client';
-import type { AiThread, BrandRef, BuyerPreferences, BuyerRequest, CarCreateInput, ChatMessage, DealDocument, InventoryCar, Quote, QuoteCreateInput, Session, StateRef, SupportMember, Ticket, Verification } from '@/types/domain';
+import type { ActiveTheme, AdministrationAuditEvent, AdminCatalog, AdminConfigBundle, AdminConfigType, AdminPromptBundle, AdminRevision, AiThread, AiTrace, BrandRef, BuyerRequest, CarCreateInput, ChatMessage, DealDocument, InventoryCar, PromptDefinition, Quote, Session, StateRef, SupportMember, Ticket, Verification, WorkflowDefinition, WorkflowPreview, WorkflowPreviewStreamEvent } from '@/types/domain';
+import dealerHero from '@/assets/vehicles/dealer-hero.png';
+import driveDealHero from '@/assets/vehicles/drivedeal-hero.png';
 
 const baseUrl = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000/api/v1';
 
@@ -23,6 +25,26 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return response.status === 204 ? (undefined as T) : response.json();
 }
 
+async function download(path: string): Promise<void> {
+  const response = await fetch(`${baseUrl}${path}`, {
+    headers: token() ? { authorization: `Bearer ${token()}` } : {},
+  });
+  if (!response.ok) {
+    const body = await response.json().catch(() => null);
+    throw new Error(body?.error?.message ?? `Download failed (${response.status})`);
+  }
+  const disposition = response.headers.get('content-disposition') ?? '';
+  const filename = disposition.match(/filename="?([^";]+)"?/i)?.[1] ?? 'deal-drive-config.yaml';
+  const url = URL.createObjectURL(await response.blob());
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = filename;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 0);
+}
+
 const profileToSession = (row: Record<string, unknown>): Session => ({
   id: String(row.id),
   fullName: String(row.full_name),
@@ -38,7 +60,7 @@ const requestToDomain = (row: Record<string, unknown>): BuyerRequest => ({
   targetOtdPrice: row.target_otd_price == null ? null : String(row.target_otd_price), area: String(row.buyer_area),
   radiusMiles: Number(row.search_radius_miles), timeline: row.timeline as BuyerRequest['timeline'], status: row.status as BuyerRequest['status'],
   quoteCount: Number(row.quote_count ?? 0), createdAt: String(row.created_at), expiresAt: String(row.request_expire),
-  image: '/src/assets/vehicles/studio-suv.png', mustHaves: (row.must_haves as string[]) ?? [],
+  image: dealerHero, mustHaves: (row.must_haves as string[]) ?? [],
   alreadyQuoted: Boolean(row.already_quoted),
 });
 
@@ -91,10 +113,31 @@ const verificationToDomain = (row: Record<string, unknown>): Verification => ({
 const carToDomain = (row: Record<string, unknown>): InventoryCar => ({
   id: String(row.id), title: String(row.title), brand: String(row.brand_name ?? 'Vehicle'), model: String(row.model), year: Number(row.model_year),
   bodyType: String(row.body_type ?? ''), fuel: String(row.fuel ?? ''), transmission: String(row.transmission ?? ''), mileage: Number(row.mileage),
-  price: String(row.price), status: row.status as InventoryCar['status'], image: '/src/assets/vehicles/studio-sedan.png',
+  price: String(row.price), status: row.status as InventoryCar['status'], image: driveDealHero,
 });
 
 const carInputToBody = (input: CarCreateInput) => ({ brand_id: input.brandId, state_id: input.stateId, title: input.title, model: input.model, model_year: input.modelYear, body_type: input.bodyType ?? null, seating_capacity: input.seatingCapacity ?? null, condition: input.condition ?? 'new', mileage: input.mileage ?? 0, fuel: input.fuel ?? null, transmission: input.transmission ?? null, price: input.price, image_paths: input.imagePaths ?? [] });
+
+const revisionToDomain = <T>(row: Record<string, unknown>): AdminRevision<T> => ({
+  id: String(row.id),
+  configType: row.config_type as AdminConfigType,
+  configKey: String(row.config_key),
+  version: Number(row.version),
+  status: row.status as AdminRevision<T>['status'],
+  payload: row.payload as T,
+  checksum: String(row.checksum),
+  publishedAt: row.published_at == null ? null : String(row.published_at),
+  publishedBy: row.published_by == null ? null : String(row.published_by),
+  createdAt: row.created_at == null ? null : String(row.created_at),
+  createdBy: String(row.created_by),
+});
+
+const bundleToDomain = <T>(row: Record<string, unknown>): AdminConfigBundle<T> => ({
+  active: revisionToDomain<T>(row.active as Record<string, unknown>),
+  draft: row.draft ? revisionToDomain<T>(row.draft as Record<string, unknown>) : null,
+  history: ((row.history as Record<string, unknown>[]) ?? []).map(revisionToDomain<T>),
+  defaultVersion: Number(row.default_version ?? 0),
+});
 
 async function* streamAi(input: { message: string; threadId?: string; agent?: 'sera-agent' | 'compare-agent'; requestIds?: string[]; quoteIds?: string[]; signal?: AbortSignal }): AsyncIterable<AiStreamEvent> {
   const response = await fetch(`${baseUrl}/ai/chat`, {
@@ -115,6 +158,38 @@ async function* streamAi(input: { message: string; threadId?: string; agent?: 's
     for (const frame of frames) {
       const data = frame.split('\n').find((line) => line.startsWith('data: '));
       if (data) yield JSON.parse(data.slice(6)) as AiStreamEvent;
+    }
+  }
+}
+
+async function* streamWorkflowPreview(
+  message: string,
+  options?: { threadId?: string; revisionId?: string; workflow?: WorkflowDefinition; promptKey?: string; prompt?: PromptDefinition },
+): AsyncIterable<WorkflowPreviewStreamEvent> {
+  const response = await fetch(`${baseUrl}/administration/workflow/preview/stream`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', ...(token() ? { authorization: `Bearer ${token()}` } : {}) },
+    body: JSON.stringify({ message, thread_id: options?.threadId ?? null, revision_id: options?.revisionId ?? null, workflow_payload: options?.workflow ?? null, prompt_key: options?.promptKey ?? null, prompt_payload: options?.prompt ?? null }),
+  });
+  if (!response.ok || !response.body) {
+    const body = await response.json().catch(() => null);
+    throw new Error(body?.error?.message ?? `Preview failed (${response.status})`);
+  }
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const frames = buffer.split('\n\n');
+    buffer = frames.pop() ?? '';
+    for (const frame of frames) {
+      const data = frame.split('\n').find((line) => line.startsWith('data: '));
+      if (!data) continue;
+      const event = JSON.parse(data.slice(6)) as WorkflowPreviewStreamEvent;
+      if (event.type === 'error') throw new Error(event.message || 'The workflow test failed.');
+      yield event;
     }
   }
 }
@@ -258,5 +333,28 @@ export const httpClient: DriveDealClient = {
       return { id: row.id, type: 'sera', title: 'Conversation', updatedAt: new Date().toISOString(), messages: row.checkpoints.flatMap((checkpoint, index) => [{ id: `${id}-${index}-user`, role: 'user' as const, body: checkpoint.user ?? '' }, { id: `${id}-${index}-assistant`, role: 'assistant' as const, body: checkpoint.assistant ?? '' }]).filter((message) => message.body) };
     },
     deleteThread: async (id) => { await request(`/ai/threads/${encodeURIComponent(id)}`, { method: 'DELETE' }); },
+  },
+  theme: {
+    active: async () => request<ActiveTheme>('/theme/active'),
+  },
+  administration: {
+    catalog: async () => {
+      const row = await request<Record<string, unknown>>('/administration/catalog');
+      return { workflowKey: String(row.workflow_key), themeKey: String(row.theme_key), nodes: row.nodes as AdminCatalog['nodes'], prompts: row.prompts as AdminCatalog['prompts'], models: row.models as AdminCatalog['models'] };
+    },
+    getConfig: async <T,>(type: AdminConfigType, key: string) => bundleToDomain<T>(await request<Record<string, unknown>>(`/administration/config/${type}/${encodeURIComponent(key)}`)),
+    validate: async (type, key, payload) => request(`/administration/config/${type}/${encodeURIComponent(key)}/validate`, { method: 'POST', body: JSON.stringify({ payload }) }),
+    saveDraft: async <T,>(type: AdminConfigType, key: string, payload: T, baseVersion: number) => revisionToDomain<T>(await request<Record<string, unknown>>(`/administration/config/${type}/${encodeURIComponent(key)}/draft`, { method: 'POST', body: JSON.stringify({ payload, base_version: baseVersion }) })),
+    publish: async <T,>(type: AdminConfigType, key: string, revisionId: string) => revisionToDomain<T>(await request<Record<string, unknown>>(`/administration/config/${type}/${encodeURIComponent(key)}/publish`, { method: 'POST', body: JSON.stringify({ revision_id: revisionId }) })),
+    rollback: async <T,>(type: AdminConfigType, key: string, version: number) => revisionToDomain<T>(await request<Record<string, unknown>>(`/administration/config/${type}/${encodeURIComponent(key)}/rollback/${version}`, { method: 'POST' })),
+    setDefault: async (type, key, version) => { await request(`/administration/config/${type}/${encodeURIComponent(key)}/default`, { method: 'POST', body: JSON.stringify({ version }) }); },
+    reset: async <T,>(type: AdminConfigType, key: string) => revisionToDomain<T>(await request<Record<string, unknown>>(`/administration/config/${type}/${encodeURIComponent(key)}/reset`, { method: 'POST' })),
+    prompts: async () => (await request<Array<Record<string, unknown>>>('/administration/prompts')).map((row): AdminPromptBundle => ({ key: String(row.key), file: String(row.file), label: String(row.label), description: String(row.description), ...bundleToDomain(row) } as AdminPromptBundle)),
+    audit: async () => (await request<Array<Record<string, unknown>>>('/administration/audit')).map((row): AdministrationAuditEvent => ({ id: Number(row.id), uuid: String(row.uuid), action: String(row.action), resourceType: row.resource_type as AdminConfigType, resourceKey: String(row.resource_key), revisionId: row.revision_id == null ? null : String(row.revision_id), actorId: String(row.actor_id), details: (row.details as Record<string, unknown>) ?? {}, createdAt: String(row.created_at) })),
+    traces: async () => request<AiTrace[]>('/administration/traces'),
+    trace: async (id) => request<AiTrace>(`/administration/traces/${encodeURIComponent(id)}`),
+    exportConfiguration: async (format) => download(`/administration/export?format=${format}`),
+    preview: async (message, options) => request<WorkflowPreview>('/administration/workflow/preview', { method: 'POST', body: JSON.stringify({ message, thread_id: options?.threadId ?? null, revision_id: options?.revisionId ?? null, workflow_payload: options?.workflow ?? null, prompt_key: options?.promptKey ?? null, prompt_payload: options?.prompt ?? null }) }),
+    previewStream: streamWorkflowPreview,
   },
 };

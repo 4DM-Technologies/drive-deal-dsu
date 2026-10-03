@@ -7,10 +7,11 @@ from fastapi import FastAPI
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 
-from src.database import create_schema, dispose_engine
+from src.database import SessionFactory, create_schema, dispose_engine
 from src.middleware.request_context import RequestContextMiddleware
-from src.routes import ai, auth, cars, default, documents, marketplace, profiles, reference, support, websocket
+from src.routes import administration, ai, auth, cars, default, documents, marketplace, profiles, reference, support, websocket
 from src.settings import get_settings
+from src.services.administration_service import AdministrationService
 from src.utils.exceptions import AppError
 from src.utils.exceptions.handlers import app_error_handler, unexpected_error_handler, validation_error_handler
 from src.utils.log_flow import log_flow
@@ -22,7 +23,7 @@ settings = get_settings()
 # lifespan. configure_logging() is idempotent, so the call inside lifespan stays as a safety net.
 configure_logging()
 
-ROUTER_MODULES = (auth, profiles, reference, marketplace, documents, cars, support, ai, websocket)
+ROUTER_MODULES = (auth, profiles, reference, marketplace, documents, cars, support, administration, ai, websocket)
 
 
 def database_driver() -> str:
@@ -83,6 +84,9 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     try:
         await create_schema()
         logger.info("database_ready", driver=database_driver())
+        async with SessionFactory() as session:
+            synced = await AdministrationService(session).sync_code_baselines()
+            logger.info("developer_configuration_synced", revision_count=len(synced))
         logger.info("app_ready", startup_duration_ms=round((time.perf_counter() - started_at) * 1000, 3))
         yield
     except Exception as exc:

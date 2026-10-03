@@ -1,4 +1,5 @@
-import { ArrowUp, Check, CheckCircle2, FileCheck2, History, Menu, MoreHorizontal, Pencil, Plus, Sparkles, Square, Trash2, Trophy, X } from 'lucide-react';
+/* eslint-disable react-refresh/only-export-components -- response formatting helpers are exported for focused tests */
+import { ArrowUp, CheckCircle2, FileCheck2, History, Menu, MoreHorizontal, Pencil, Plus, Sparkles, Square, Trash2, Trophy, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Markdown from 'react-markdown';
 import { Link, useSearchParams } from 'react-router-dom';
@@ -153,13 +154,17 @@ export default function AdvisorScreen() {
     }
   }, [cancelActiveResponse, setParams, streamGreeting]);
 
+  // This is an intentional mount-only bootstrap; each function owns cancellation/error handling.
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void refreshThreads();
     void client.requests.list().then(setRequests).catch(() => setRequests([]));
     void client.quotes.list().then(setQuotes).catch(() => setQuotes([]));
     const initialThread = params.get('thread');
     if (initialThread) void openThread(initialThread);
     else streamGreeting();
+  // The bootstrap must not restart when callbacks receive new state closures.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   useEffect(() => () => { activeRunRef.current += 1; abortControllerRef.current?.abort(); }, []);
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }, [messages, status, draft, compare]);

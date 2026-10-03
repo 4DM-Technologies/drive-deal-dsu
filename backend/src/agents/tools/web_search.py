@@ -254,7 +254,14 @@ def _parse_json_object(text: str) -> dict:
 
 
 @log_flow(layer="agent")
-async def process_url(llm: LlmClient, url: str, thread_id: str | None = None) -> CarSpecs | None:
+async def process_url(
+    llm: LlmClient,
+    url: str,
+    thread_id: str | None = None,
+    *,
+    state_trace_id: str | None = None,
+    profile: dict | None = None,
+) -> CarSpecs | None:
     """Crawl one URL (clean markdown via crawl4ai) and extract structured CarSpecs from it in one unit, so
     Mode A can run this as a single awaitable per URL under asyncio.gather."""
     page_content = await _fetch_static_page(url)
@@ -274,7 +281,15 @@ async def process_url(llm: LlmClient, url: str, thread_id: str | None = None) ->
         f"<page_content trust=\"untrusted\">\n{page_content}\n</page_content>"
     )
     try:
-        completion = await llm.generate(prompt, "car_spec_extraction", thread_id)
+        profile = profile or {}
+        completion = await llm.generate(
+            prompt,
+            "car_spec_extraction",
+            state_trace_id or thread_id,
+            model=profile.get("model"),
+            reasoning_effort=profile.get("reasoning_effort"),
+            max_output_tokens=profile.get("max_output_tokens"),
+        )
         data = _parse_json_object(completion.text)
         data["source_url"] = url
         return CarSpecs.model_validate(data)

@@ -5,7 +5,7 @@
 openapi: 3.0.3
 info:
   title: Deal&Drive — Reverse Car Marketplace API
-  version: 1.0.0
+  version: 1.1.0
   description: |-
     Backend API for Deal&Drive: a reverse car marketplace where buyers post the
     car they want and dealers compete on price for it.
@@ -49,7 +49,7 @@ info:
   contact:
     name: Deal&Drive Dev Team
 servers:
-- url: http://localhost:8010/api/v1
+- url: http://localhost:8000/api/v1
   description: Local development
 - url: https://api.drivedeal.example/api/v1
   description: PLACEHOLDER — the production host is not decided yet.
@@ -75,26 +75,28 @@ tags:
     Confirm the shapes before the backend is built to them.
 - name: AI
   description: |-
-    **Serra AI — 3-agent architecture (buyer only).**
+    **Sera AI — buyer-only LangGraph orchestration.**
 
-    Serra has three coordinated agents in a LangGraph workflow:
-    - **Main agent** (`create_react_agent`): entry point, handles memory, tool
-      selection, and inline intent classification (no separate classifier call).
-    - **KB agent**: SQL retrieval over cars, quotes, preferences, states.
-    - **Web search agent**: Crawl4AI-powered live fetching with kb_insert write-back.
-    - **Requirement agent** (parallel): accumulates car-buying request fields
-      across turns; triggers the editable request preview when complete.
+    The product presents three understandable AI capabilities: the Sera advisor,
+    trusted web research, and offer comparison. Internally the safe `StateGraph`
+    uses deterministic triage plus classifier, orchestrator, marketplace knowledge,
+    trusted web search, verified-car persistence, response composition, and direct
+    reply nodes. Buyer-requirement extraction runs beside eligible chat turns and
+    only produces an editable draft; publishing always requires explicit approval.
 
-    **Compare agent**: separate LangGraph subgraph, same KB + web tools, builds
-    a structured `ComparisonResult` with null cells rendered as "not reported".
-
-    **Model**: `gpt-sol-medium` via **Codex OAuth** (client_credentials flow).
-    **Prompts**: tag-based XML structure (`<ROLE>`, `<TOOLS>`, `<GROUNDING>`,
-    `<OUTPUT_FORMAT>`) — each section is independently swappable.
-    **Orchestration**: LangChain `create_react_agent` per agent node,
-    LangGraph `StateGraph` for the workflow.
+    Runtime model, reasoning effort, output limits, prompts, and approved graph
+    connections are versioned administrator configuration. The environment model is
+    only the code baseline. Each LLM call and graph stage is recorded as a trace.
 
     All endpoints stream over SSE. First event is always `status`. Buyer only.
+- name: Administration
+  description: |-
+    Support-administrator and administrator control plane. Manages immutable
+    workflow, prompt, runtime-model, and theme revisions; validates drafts before
+    publication; runs isolated streaming previews; inspects AI traces; selects a
+    recovery default; and exports a secret-free YAML or JSON repository snapshot.
+    Code baselines discovered during startup are recorded as new Developer versions
+    without silently replacing an active administrator version.
 - name: Realtime
 - name: Docs
   description: |-
@@ -150,12 +152,12 @@ paths:
                   value:
                     status: ok
                     database: ok
-                    version: 1.0.0
+                    version: 1.1.0
                 degraded:
                   value:
                     status: degraded
                     database: ok
-                    version: 1.0.0
+                    version: 1.1.0
   /health/ready:
     get:
       summary: Readiness probe
@@ -185,7 +187,7 @@ paths:
                   value:
                     status: not_ready
                     database: ok
-                    version: 1.0.0
+                    version: 1.1.0
                     reason: alembic head not applied
   /auth/signup/buyer:
     post:
@@ -688,7 +690,7 @@ paths:
           $ref: '#/components/responses/forbidden'
         '422':
           $ref: '#/components/responses/validation_error'
-  /profiles/{id}:
+  /profiles/{profile_id}:
     get:
       summary: Get a public profile
       description: |-
@@ -920,7 +922,7 @@ paths:
                     next_cursor: null
         '401':
           $ref: '#/components/responses/unauthorized'
-  /requests/{id}:
+  /requests/{request_id}:
     get:
       summary: Get one of my requests
       description: |-
@@ -944,7 +946,7 @@ paths:
           $ref: '#/components/responses/forbidden'
         '404':
           $ref: '#/components/responses/not_found'
-  /requests/{id}/publish:
+  /requests/{request_id}/publish:
     post:
       summary: Publish an AI-drafted request
       description: |-
@@ -974,7 +976,7 @@ paths:
           $ref: '#/components/responses/not_found'
         '409':
           $ref: '#/components/responses/conflict'
-  /requests/{id}/close:
+  /requests/{request_id}/close:
     post:
       summary: Close one of my requests
       description: |-
@@ -1001,7 +1003,7 @@ paths:
           $ref: '#/components/responses/not_found'
         '409':
           $ref: '#/components/responses/conflict'
-  /requests/{id}/quotes:
+  /requests/{request_id}/quotes:
     get:
       summary: Live quote leaderboard for a request
       description: |-
@@ -1043,7 +1045,7 @@ paths:
           $ref: '#/components/responses/forbidden'
         '404':
           $ref: '#/components/responses/not_found'
-  /requests/{id}/compare-ids:
+  /requests/{request_id}/compare-ids:
     post:
       summary: List request ids eligible for compare
       description: |-
@@ -1136,7 +1138,7 @@ paths:
           $ref: '#/components/responses/unauthorized'
         '403':
           $ref: '#/components/responses/forbidden'
-  /feed/requests/{id}:
+  /feed/requests/{request_id}:
     get:
       summary: One request from the dealer feed
       description: |-
@@ -1243,7 +1245,7 @@ paths:
           $ref: '#/components/responses/unauthorized'
         '403':
           $ref: '#/components/responses/forbidden'
-  /quotes/{id}:
+  /quotes/{quote_id}:
     get:
       summary: Get one of my quotes
       description: |-
@@ -1267,7 +1269,7 @@ paths:
           $ref: '#/components/responses/forbidden'
         '404':
           $ref: '#/components/responses/not_found'
-  /quotes/{id}/revise:
+  /quotes/{quote_id}/revise:
     patch:
       summary: Revise my quote
       description: |-
@@ -1311,7 +1313,7 @@ paths:
           $ref: '#/components/responses/conflict'
         '422':
           $ref: '#/components/responses/validation_error'
-  /quotes/{id}/accept:
+  /quotes/{quote_id}/accept:
     post:
       summary: Accept my quote
       description: |-
@@ -1351,7 +1353,7 @@ paths:
           $ref: '#/components/responses/not_found'
         '409':
           $ref: '#/components/responses/conflict'
-  /quotes/{id}/dealer-contact:
+  /quotes/{quote_id}/dealer-contact:
     get:
       summary: Reveal the dealer contact for this quote
       description: |-
@@ -1416,7 +1418,7 @@ paths:
                         chat_request_status: null
         '404':
           $ref: '#/components/responses/not_found'
-  /quotes/{id}/decline:
+  /quotes/{quote_id}/decline:
     post:
       summary: Decline my quote
       description: Buyer-only. Moves the quote to `declined`; the request stays open.
@@ -1440,7 +1442,7 @@ paths:
           $ref: '#/components/responses/not_found'
         '409':
           $ref: '#/components/responses/conflict'
-  /quotes/{id}/withdraw:
+  /quotes/{quote_id}/withdraw:
     post:
       summary: Withdraw my quote
       description: |-
@@ -1488,7 +1490,7 @@ paths:
                 $ref: '#/components/schemas/DealList'
         '401':
           $ref: '#/components/responses/unauthorized'
-  /deals/{id}:
+  /deals/{quote_id}:
     get:
       summary: Get a deal
       description: |-
@@ -1513,7 +1515,7 @@ paths:
           $ref: '#/components/responses/forbidden'
         '404':
           $ref: '#/components/responses/not_found'
-  /deals/{id}/status:
+  /deals/{quote_id}/status:
     patch:
       summary: Advance the deal status
       description: |-
@@ -1655,7 +1657,7 @@ paths:
           $ref: '#/components/responses/unauthorized'
         '403':
           $ref: '#/components/responses/forbidden'
-  /chats/requests/{id}/accept:
+  /chats/requests/{quote_id}/accept:
     post:
       summary: Accept a chat access request
       description: |-
@@ -1704,7 +1706,7 @@ paths:
           $ref: '#/components/responses/not_found'
         '409':
           $ref: '#/components/responses/conflict'
-  /chats/requests/{id}/decline:
+  /chats/requests/{quote_id}/decline:
     post:
       summary: Decline a chat access request
       description: |-
@@ -2339,7 +2341,7 @@ paths:
                 $ref: '#/components/schemas/SupportTicketList'
         '401':
           $ref: '#/components/responses/unauthorized'
-  /support/tickets/{id}:
+  /support/tickets/{ticket_id}:
     get:
       summary: Get a ticket
       description: |-
@@ -2448,7 +2450,7 @@ paths:
           $ref: '#/components/responses/unauthorized'
         '403':
           $ref: '#/components/responses/forbidden'
-  /support/queue/tickets/{id}:
+  /support/queue/tickets/{ticket_id}:
     patch:
       summary: Update a ticket from the queue
       description: |-
@@ -2531,7 +2533,7 @@ paths:
           $ref: '#/components/responses/unauthorized'
         '403':
           $ref: '#/components/responses/forbidden'
-  /verifications/{id}/approve:
+  /verifications/{verification_id}/approve:
     post:
       summary: Approve a verification
       description: |-
@@ -2573,7 +2575,7 @@ paths:
           $ref: '#/components/responses/not_found'
         '409':
           $ref: '#/components/responses/conflict'
-  /verifications/{id}/deny:
+  /verifications/{verification_id}/deny:
     post:
       summary: Deny a verification
       description: |-
@@ -2609,7 +2611,7 @@ paths:
           $ref: '#/components/responses/not_found'
         '409':
           $ref: '#/components/responses/conflict'
-  /verifications/{id}/reject:
+  /verifications/{verification_id}/reject:
     post:
       summary: Reject a verification
       description: |-
@@ -2686,7 +2688,7 @@ paths:
           $ref: '#/components/responses/unauthorized'
         '403':
           $ref: '#/components/responses/forbidden'
-  /members/{id}:
+  /members/{profile_id}:
     get:
       summary: Get one support member
       description: |-
@@ -2712,7 +2714,7 @@ paths:
           $ref: '#/components/responses/forbidden'
         '404':
           $ref: '#/components/responses/not_found'
-  /members/{id}/suspend:
+  /members/{profile_id}/suspend:
     post:
       summary: Suspend a member
       description: |-
@@ -2750,7 +2752,7 @@ paths:
           $ref: '#/components/responses/forbidden'
         '404':
           $ref: '#/components/responses/not_found'
-  /members/{id}/support-role:
+  /members/{profile_id}/support-role:
     patch:
       summary: Provision or remove support administrator access
       description: |-
@@ -2880,7 +2882,7 @@ paths:
           $ref: '#/components/responses/unauthorized'
         '403':
           $ref: '#/components/responses/forbidden'
-  /cars/{id}:
+  /cars/{car_id}:
     get:
       summary: Get a car listing
       operationId: getCar
@@ -2927,7 +2929,7 @@ paths:
           $ref: '#/components/responses/not_found'
         '422':
           $ref: '#/components/responses/validation_error'
-  /cars/{id}/status:
+  /cars/{car_id}/status:
     patch:
       summary: Change a listing's status
       description: |-
@@ -2964,25 +2966,350 @@ paths:
           $ref: '#/components/responses/not_found'
         '409':
           $ref: '#/components/responses/conflict'
+  /theme/active:
+    get:
+      summary: Get the published application theme
+      description: Public semantic theme tokens used by landing and authentication screens before sign-in.
+      operationId: getActiveTheme
+      tags: [Administration]
+      security: []
+      responses:
+        '200':
+          description: Active theme and its published version
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ActiveTheme'
+  /administration/catalog:
+    get:
+      summary: Get the safe administrator catalog
+      operationId: getAdministrationCatalog
+      tags: [Administration]
+      responses:
+        '200':
+          description: Approved nodes, prompts, models, and configuration keys
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdministrationCatalog'
+        '401': { $ref: '#/components/responses/unauthorized' }
+        '403': { $ref: '#/components/responses/forbidden' }
+  /administration/config/{config_type}/{config_key}:
+    get:
+      summary: Read active, draft, default, and historical configuration
+      operationId: getAdministrationConfig
+      tags: [Administration]
+      parameters:
+      - $ref: '#/components/parameters/ConfigType'
+      - $ref: '#/components/parameters/ConfigKey'
+      responses:
+        '200':
+          description: Version bundle for the requested configuration surface
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConfigurationBundle'
+        '401': { $ref: '#/components/responses/unauthorized' }
+        '403': { $ref: '#/components/responses/forbidden' }
+        '404': { $ref: '#/components/responses/not_found' }
+        '422': { $ref: '#/components/responses/validation_error' }
+  /administration/config/{config_type}/{config_key}/validate:
+    post:
+      summary: Validate an unpublished configuration payload
+      operationId: validateAdministrationConfig
+      tags: [Administration]
+      parameters:
+      - $ref: '#/components/parameters/ConfigType'
+      - $ref: '#/components/parameters/ConfigKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ValidateConfigRequest'
+      responses:
+        '200':
+          description: Validation result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConfigValidationResult'
+        '401': { $ref: '#/components/responses/unauthorized' }
+        '403': { $ref: '#/components/responses/forbidden' }
+        '422': { $ref: '#/components/responses/validation_error' }
+  /administration/config/{config_type}/{config_key}/draft:
+    post:
+      summary: Save a new immutable draft revision
+      operationId: saveAdministrationDraft
+      tags: [Administration]
+      parameters:
+      - $ref: '#/components/parameters/ConfigType'
+      - $ref: '#/components/parameters/ConfigKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DraftSaveRequest'
+      responses:
+        '200':
+          description: Saved draft revision
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConfigurationRevision'
+        '401': { $ref: '#/components/responses/unauthorized' }
+        '403': { $ref: '#/components/responses/forbidden' }
+        '409': { $ref: '#/components/responses/conflict' }
+        '422': { $ref: '#/components/responses/validation_error' }
+  /administration/config/{config_type}/{config_key}/publish:
+    post:
+      summary: Publish a validated draft
+      operationId: publishAdministrationConfig
+      tags: [Administration]
+      parameters:
+      - $ref: '#/components/parameters/ConfigType'
+      - $ref: '#/components/parameters/ConfigKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PublishConfigRequest'
+      responses:
+        '200':
+          description: Newly active revision
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConfigurationRevision'
+        '401': { $ref: '#/components/responses/unauthorized' }
+        '403': { $ref: '#/components/responses/forbidden' }
+        '404': { $ref: '#/components/responses/not_found' }
+        '422': { $ref: '#/components/responses/validation_error' }
+  /administration/config/{config_type}/{config_key}/rollback/{version}:
+    post:
+      summary: Activate a historical revision as a new rollback revision
+      operationId: rollbackAdministrationConfig
+      tags: [Administration]
+      parameters:
+      - $ref: '#/components/parameters/ConfigType'
+      - $ref: '#/components/parameters/ConfigKey'
+      - name: version
+        in: path
+        required: true
+        schema: { type: integer, minimum: 0 }
+      responses:
+        '200':
+          description: Active rollback revision
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConfigurationRevision'
+        '401': { $ref: '#/components/responses/unauthorized' }
+        '403': { $ref: '#/components/responses/forbidden' }
+        '404': { $ref: '#/components/responses/not_found' }
+  /administration/config/{config_type}/{config_key}/default:
+    post:
+      summary: Select the recovery-default version
+      operationId: setAdministrationDefault
+      tags: [Administration]
+      parameters:
+      - $ref: '#/components/parameters/ConfigType'
+      - $ref: '#/components/parameters/ConfigKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SetDefaultRequest'
+      responses:
+        '200':
+          description: Updated default-version pointer
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConfigurationDefaultResult'
+        '401': { $ref: '#/components/responses/unauthorized' }
+        '403': { $ref: '#/components/responses/forbidden' }
+        '404': { $ref: '#/components/responses/not_found' }
+  /administration/config/{config_type}/{config_key}/reset:
+    post:
+      summary: Restore the selected recovery-default version
+      operationId: resetAdministrationConfig
+      tags: [Administration]
+      parameters:
+      - $ref: '#/components/parameters/ConfigType'
+      - $ref: '#/components/parameters/ConfigKey'
+      responses:
+        '200':
+          description: Newly active reset revision
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConfigurationRevision'
+        '401': { $ref: '#/components/responses/unauthorized' }
+        '403': { $ref: '#/components/responses/forbidden' }
+        '404': { $ref: '#/components/responses/not_found' }
+  /administration/prompts:
+    get:
+      summary: List every versioned prompt and runtime profile
+      operationId: listAdministrationPrompts
+      tags: [Administration]
+      responses:
+        '200':
+          description: Prompt configuration bundles
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PromptConfigurationBundle'
+        '401': { $ref: '#/components/responses/unauthorized' }
+        '403': { $ref: '#/components/responses/forbidden' }
+  /administration/audit:
+    get:
+      summary: List privileged configuration changes
+      operationId: listAdministrationAudit
+      tags: [Administration]
+      parameters:
+      - $ref: '#/components/parameters/AdminLimit'
+      responses:
+        '200':
+          description: Newest administration events first
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/AdministrationAuditEvent'
+        '401': { $ref: '#/components/responses/unauthorized' }
+        '403': { $ref: '#/components/responses/forbidden' }
+  /administration/traces:
+    get:
+      summary: List AI execution traces
+      operationId: listAdministrationTraces
+      tags: [Administration]
+      parameters:
+      - $ref: '#/components/parameters/AdminLimit'
+      responses:
+        '200':
+          description: Newest AI traces first
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/AiTrace'
+        '401': { $ref: '#/components/responses/unauthorized' }
+        '403': { $ref: '#/components/responses/forbidden' }
+  /administration/traces/{trace_id}:
+    get:
+      summary: Inspect one trace and every agent, tool, and LLM handoff
+      operationId: getAdministrationTrace
+      tags: [Administration]
+      parameters:
+      - name: trace_id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Trace with ordered spans and redacted diagnostic details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AiTraceDetail'
+        '401': { $ref: '#/components/responses/unauthorized' }
+        '403': { $ref: '#/components/responses/forbidden' }
+        '404': { $ref: '#/components/responses/not_found' }
+  /administration/export:
+    get:
+      summary: Download a repository-safe configuration snapshot
+      description: Includes workflow, complete prompts, runtime-model settings, theme tokens, and version metadata. Secrets are excluded.
+      operationId: exportAdministrationConfiguration
+      tags: [Administration]
+      parameters:
+      - name: format
+        in: query
+        required: false
+        schema:
+          type: string
+          enum: [yaml, json]
+          default: yaml
+      responses:
+        '200':
+          description: Attachment named deal-drive-config-TIMESTAMP.yaml or .json
+          headers:
+            Content-Disposition:
+              schema: { type: string }
+          content:
+            application/yaml:
+              schema: { type: string }
+            application/json:
+              schema: { type: object, additionalProperties: true }
+        '401': { $ref: '#/components/responses/unauthorized' }
+        '403': { $ref: '#/components/responses/forbidden' }
+  /administration/workflow/preview:
+    post:
+      summary: Test an unpublished workflow or prompt in isolation
+      operationId: previewAdministrationWorkflow
+      tags: [Administration]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WorkflowPreviewRequest'
+      responses:
+        '200':
+          description: Test answer, metrics, and ordered execution flow
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkflowPreviewResult'
+        '401': { $ref: '#/components/responses/unauthorized' }
+        '403': { $ref: '#/components/responses/forbidden' }
+        '422': { $ref: '#/components/responses/validation_error' }
+  /administration/workflow/preview/stream:
+    post:
+      summary: Stream a live unpublished workflow test
+      description: Emits `started`, live `step`, `token`, `complete`, and `error` SSE events. Preview marketplace writes are rolled back.
+      operationId: streamAdministrationWorkflowPreview
+      tags: [Administration]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WorkflowPreviewRequest'
+      responses:
+        '200':
+          description: Server-sent execution events
+          content:
+            text/event-stream:
+              schema: { type: string }
+        '401': { $ref: '#/components/responses/unauthorized' }
+        '403': { $ref: '#/components/responses/forbidden' }
+        '422': { $ref: '#/components/responses/validation_error' }
   /ai/chat:
     post:
       summary: Stream an AI answer (SSE)
       description: |-
-        Stream a message to the Serra AI advisor.
+        Stream a message to the Sera AI advisor.
 
-        **Agent routing**: `agent` field routes to `sera-agent` (full 3-agent
-        workflow) or `compare-agent`. Unknown value → 422.
+        **Agent routing**: `agent` routes to the configurable Sera workflow or
+        selected-offer comparison. Unknown values return 422.
 
-        **Serra workflow** per turn:
-        1. Main agent receives message + conversation history.
-        2. Main agent classifies intent inline (no separate LLM call).
-        3. Main agent calls KB agent (SQL) first.
-        4. On KB miss, main agent calls web search agent (Crawl4AI).
-        5. Web search agent writes findings back via kb_insert.
-        6. Requirement agent runs in parallel on every turn, accumulating
-           car-buying request fields.
-        7. When requirement agent has a complete form, emits a `card` event
-           of kind `requestPreview` for human confirmation.
+        **Sera workflow** per eligible turn:
+        1. Deterministic triage handles direct replies and explicit current research.
+        2. The classifier selects advice, compare, requirements, or off-topic.
+        3. The orchestrator selects `kb_only`, `web_direct`, or `web_per_car`.
+        4. Marketplace knowledge is queried before optional allow-listed web research.
+        5. Complete researched vehicles may be persisted for reuse.
+        6. The composer produces the final grounded Markdown response.
+        7. Requirement extraction runs in parallel when useful and can emit an
+           editable `requestPreview`; it never publishes the request.
 
         **Streaming events** (SSE, in order):
         - `status {phase, label}` — emitted immediately and before every tool call
@@ -2991,10 +3318,8 @@ paths:
         - `sources {items}` — provenance URLs
         - `done {thread_id, messages_used, expanded_ui}`
 
-        **Prompt structure**: tag-based XML (`<ROLE>`, `<MEMORY>`, `<TOOLS>`,
-        `<INTENT_CLASSIFICATION>`, `<GROUNDING>`, `<OUTPUT_FORMAT>`).
-
-        **Model**: `gpt-sol-medium` via Codex OAuth.
+        Prompt text, model, reasoning effort, token limit, and workflow connections
+        come from the active versioned administrator configuration.
       operationId: aiChat
       tags:
       - AI
@@ -3099,7 +3424,7 @@ paths:
           $ref: '#/components/responses/unauthorized'
         '403':
           $ref: '#/components/responses/forbidden'
-  /ai/threads/{id}:
+  /ai/threads/{thread_id}:
     get:
       summary: Get a thread with its full history
       description: |-
@@ -3403,7 +3728,7 @@ paths:
                     openapi: 3.0.3
                     info:
                       title: Deal&Drive API
-                      version: 1.0.0
+                      version: 1.1.0
         '304':
           description: Not modified — honour `ETag` / `If-None-Match`
   /docs:
@@ -3437,8 +3762,34 @@ paths:
                 type: string
 components:
   parameters:
+    ConfigType:
+      name: config_type
+      in: path
+      required: true
+      description: Versioned administrator configuration surface
+      schema:
+        type: string
+        enum: [workflow, prompt, theme]
+    ConfigKey:
+      name: config_key
+      in: path
+      required: true
+      description: Stable workflow, prompt, or theme key
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 80
+    AdminLimit:
+      name: limit
+      in: query
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 250
+        default: 100
     ProfileId:
-      name: id
+      name: profile_id
       in: path
       required: true
       description: Profile UUID
@@ -3446,7 +3797,7 @@ components:
         type: string
         format: uuid
     RequestId:
-      name: id
+      name: request_id
       in: path
       required: true
       description: Buyer request UUID
@@ -3454,7 +3805,7 @@ components:
         type: string
         format: uuid
     QuoteId:
-      name: id
+      name: quote_id
       in: path
       required: true
       description: Quote UUID
@@ -3462,7 +3813,7 @@ components:
         type: string
         format: uuid
     DealId:
-      name: id
+      name: quote_id
       in: path
       required: true
       description: Deal UUID
@@ -3480,7 +3831,7 @@ components:
         type: string
         format: uuid
     ChatRequestId:
-      name: id
+      name: quote_id
       in: path
       required: true
       description: Chat access request UUID
@@ -3504,7 +3855,7 @@ components:
         type: string
         format: uuid
     CarId:
-      name: id
+      name: car_id
       in: path
       required: true
       description: Car listing UUID
@@ -3520,7 +3871,7 @@ components:
         type: string
         format: uuid
     TicketId:
-      name: id
+      name: ticket_id
       in: path
       required: true
       description: Support ticket UUID
@@ -3528,7 +3879,7 @@ components:
         type: string
         format: uuid
     VerificationId:
-      name: id
+      name: verification_id
       in: path
       required: true
       description: Verification UUID
@@ -3536,7 +3887,7 @@ components:
         type: string
         format: uuid
     ThreadId:
-      name: id
+      name: thread_id
       in: path
       required: true
       description: AI thread UUID
@@ -3757,6 +4108,282 @@ components:
                     retry_after: 42
                   request_id: 293a4b5c-6d7e-4f80-8192-9a3b4c5d6e7f
   schemas:
+    RgbColor:
+      type: array
+      minItems: 3
+      maxItems: 3
+      items:
+        type: integer
+        minimum: 0
+        maximum: 255
+      example: [20, 86, 184]
+    ThemeDefinition:
+      type: object
+      required: [name, primary_rgb, background_rgb, surface_rgb, text_rgb, navigation_rgb]
+      properties:
+        name: { type: string, maxLength: 80 }
+        primary_rgb: { $ref: '#/components/schemas/RgbColor' }
+        background_rgb: { $ref: '#/components/schemas/RgbColor' }
+        surface_rgb: { $ref: '#/components/schemas/RgbColor' }
+        text_rgb: { $ref: '#/components/schemas/RgbColor' }
+        navigation_rgb: { $ref: '#/components/schemas/RgbColor' }
+    ActiveTheme:
+      allOf:
+      - $ref: '#/components/schemas/ThemeDefinition'
+      - type: object
+        required: [version]
+        properties:
+          version: { type: integer, minimum: 0 }
+    WorkflowPosition:
+      type: object
+      required: [x, y]
+      properties:
+        x: { type: number }
+        y: { type: number }
+    WorkflowNode:
+      type: object
+      required: [id, type, label, description, position]
+      properties:
+        id: { type: string, minLength: 1, maxLength: 80 }
+        type:
+          type: string
+          enum: [router, agent, tool, action]
+        label: { type: string, minLength: 1, maxLength: 100 }
+        description: { type: string, maxLength: 300 }
+        position: { $ref: '#/components/schemas/WorkflowPosition' }
+    WorkflowEdge:
+      type: object
+      required: [id, source, target, condition]
+      properties:
+        id: { type: string, minLength: 1, maxLength: 120 }
+        source: { type: string, minLength: 1, maxLength: 80 }
+        target: { type: string, minLength: 1, maxLength: 80 }
+        condition: { type: string, minLength: 1, maxLength: 80 }
+    WorkflowDefinition:
+      type: object
+      required: [name, description, nodes, edges]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 120 }
+        description: { type: string, maxLength: 500 }
+        nodes:
+          type: array
+          minItems: 1
+          maxItems: 30
+          items: { $ref: '#/components/schemas/WorkflowNode' }
+        edges:
+          type: array
+          minItems: 1
+          maxItems: 80
+          items: { $ref: '#/components/schemas/WorkflowEdge' }
+    PromptDefinition:
+      type: object
+      required: [content, model, reasoning_effort, max_output_tokens]
+      properties:
+        content:
+          type: string
+          minLength: 20
+          maxLength: 50000
+        model: { type: string, minLength: 2, maxLength: 80 }
+        reasoning_effort:
+          type: string
+          enum: [minimal, low, medium, high, xhigh]
+        max_output_tokens:
+          type: integer
+          minimum: 128
+          maximum: 32000
+    AdministrationCatalog:
+      type: object
+      required: [workflow_key, theme_key, nodes, prompts, models]
+      properties:
+        workflow_key: { type: string, example: sera-main }
+        theme_key: { type: string, example: global }
+        nodes:
+          type: array
+          items: { type: object, additionalProperties: true }
+        prompts:
+          type: array
+          items: { type: object, additionalProperties: true }
+        models:
+          type: array
+          items: { type: object, additionalProperties: true }
+    ConfigurationRevision:
+      type: object
+      required: [id, config_type, config_key, version, status, payload, checksum]
+      properties:
+        id: { type: string }
+        config_type:
+          type: string
+          enum: [workflow, prompt, theme]
+        config_key: { type: string }
+        version: { type: integer, minimum: 0 }
+        status:
+          type: string
+          enum: [draft, published, archived]
+        payload:
+          type: object
+          additionalProperties: true
+        checksum: { type: string, minLength: 64, maxLength: 64 }
+        published_at: { type: string, format: date-time, nullable: true }
+        published_by: { type: string, nullable: true }
+        created_at: { type: string, format: date-time, nullable: true }
+        updated_at: { type: string, format: date-time, nullable: true }
+        created_by: { type: string }
+        updated_by: { type: string }
+    ConfigurationBundle:
+      type: object
+      required: [active, draft, history, default_version]
+      properties:
+        active: { $ref: '#/components/schemas/ConfigurationRevision' }
+        draft:
+          allOf: [{ $ref: '#/components/schemas/ConfigurationRevision' }]
+          nullable: true
+        history:
+          type: array
+          items: { $ref: '#/components/schemas/ConfigurationRevision' }
+        default_version: { type: integer, minimum: 0 }
+    PromptConfigurationBundle:
+      allOf:
+      - $ref: '#/components/schemas/ConfigurationBundle'
+      - type: object
+        required: [key, file, label, description]
+        properties:
+          key: { type: string }
+          file: { type: string }
+          label: { type: string }
+          description: { type: string }
+    ValidateConfigRequest:
+      type: object
+      required: [payload]
+      properties:
+        payload: { type: object, additionalProperties: true }
+    ConfigValidationResult:
+      type: object
+      required: [valid, errors]
+      properties:
+        valid: { type: boolean }
+        errors:
+          type: array
+          items: { type: string }
+    DraftSaveRequest:
+      type: object
+      required: [payload]
+      properties:
+        payload: { type: object, additionalProperties: true }
+        base_version: { type: integer, minimum: 0, nullable: true }
+    PublishConfigRequest:
+      type: object
+      required: [revision_id]
+      properties:
+        revision_id: { type: string, format: uuid }
+    SetDefaultRequest:
+      type: object
+      required: [version]
+      properties:
+        version: { type: integer, minimum: 0 }
+    ConfigurationDefaultResult:
+      type: object
+      required: [config_type, config_key, default_version]
+      properties:
+        config_type:
+          type: string
+          enum: [workflow, prompt, theme]
+        config_key: { type: string }
+        default_version: { type: integer, minimum: 0 }
+    AdministrationAuditEvent:
+      type: object
+      required: [id, uuid, action, resource_type, resource_key, actor_id, details, created_at]
+      properties:
+        id: { type: integer }
+        uuid: { type: string, format: uuid }
+        action: { type: string }
+        resource_type: { type: string }
+        resource_key: { type: string }
+        revision_id: { type: string, nullable: true }
+        actor_id: { type: string }
+        details: { type: object, additionalProperties: true }
+        created_at: { type: string, format: date-time }
+    AiTraceSpan:
+      type: object
+      required: [id, trace_id, sequence, name, kind, status, duration_ms, input_tokens, output_tokens, details, created_at]
+      properties:
+        id: { type: string, format: uuid }
+        trace_id: { type: string, format: uuid }
+        sequence: { type: integer, minimum: 1 }
+        name: { type: string }
+        kind: { type: string, example: llm }
+        status: { type: string }
+        duration_ms: { type: integer, minimum: 0 }
+        input_tokens: { type: integer, minimum: 0 }
+        output_tokens: { type: integer, minimum: 0 }
+        model_name: { type: string, nullable: true }
+        details:
+          type: object
+          description: Redacted stage input/output, provider, prompt version, attempts, error, and next handoff when available.
+          additionalProperties: true
+        created_at: { type: string, format: date-time }
+    AiTrace:
+      type: object
+      required: [id, query, status, is_test, input_tokens, output_tokens, duration_ms, configuration_version]
+      properties:
+        id: { type: string, format: uuid }
+        thread_id: { type: string, nullable: true }
+        user_id: { type: string, nullable: true }
+        query: { type: string }
+        status: { type: string }
+        is_test: { type: boolean }
+        route: { type: string, nullable: true }
+        model_name: { type: string, nullable: true }
+        input_tokens: { type: integer, minimum: 0 }
+        output_tokens: { type: integer, minimum: 0 }
+        duration_ms: { type: integer, minimum: 0 }
+        error_message: { type: string, nullable: true }
+        configuration_version: { type: string }
+        created_at: { type: string, format: date-time }
+    AiTraceDetail:
+      allOf:
+      - $ref: '#/components/schemas/AiTrace'
+      - type: object
+        required: [spans]
+        properties:
+          spans:
+            type: array
+            items: { $ref: '#/components/schemas/AiTraceSpan' }
+    WorkflowPreviewRequest:
+      type: object
+      required: [message]
+      properties:
+        message: { type: string, minLength: 1, maxLength: 2000 }
+        thread_id:
+          type: string
+          minLength: 1
+          maxLength: 80
+          pattern: '^[A-Za-z0-9][A-Za-z0-9._:-]*$'
+          nullable: true
+          description: Omit to start a new isolated administrator test thread. Send a previous preview thread ID to continue with its saved test context.
+        revision_id: { type: string, format: uuid, nullable: true }
+        workflow_payload: { type: object, additionalProperties: true, nullable: true }
+        prompt_key: { type: string, nullable: true }
+        prompt_payload: { type: object, additionalProperties: true, nullable: true }
+    WorkflowPreviewResult:
+      type: object
+      required: [trace_id, thread_id, answer, duration_ms, input_tokens, output_tokens, execution_flow]
+      properties:
+        trace_id: { type: string, format: uuid }
+        thread_id: { type: string }
+        route: { type: string, nullable: true }
+        mode: { type: string, nullable: true }
+        answer: { type: string }
+        sources:
+          type: array
+          items: { type: object, additionalProperties: true }
+        steps: { type: integer, minimum: 0 }
+        duration_ms: { type: integer, minimum: 0 }
+        input_tokens: { type: integer, minimum: 0 }
+        output_tokens: { type: integer, minimum: 0 }
+        model_name: { type: string, nullable: true }
+        execution_flow:
+          type: array
+          items: { $ref: '#/components/schemas/AiTraceSpan' }
     DecimalString:
       type: string
       description: |-
@@ -3839,9 +4466,8 @@ components:
       - support-admin
       - admin
       description: |-
-        Read from the `profiles` row on every request. Note this is
-        `dealer`, **not** `seller` — the schema's `cars.seller_id` column
-        name is historical and does not change the role vocabulary.
+        Read from the `profiles` row on every request. Inventory ownership is
+        recorded in the standard audit actor (`cars.created_by`).
     BodyType:
       type: string
       description: |-
@@ -6028,6 +6654,7 @@ components:
       type: object
       required:
       - brand_id
+      - state_id
       - title
       - model
       - model_year
@@ -6039,8 +6666,7 @@ components:
         state_id:
           type: string
           format: uuid
-          description: Required before the listing can appear in a geo-filtered feed.
-          nullable: true
+          description: State in which the vehicle is listed.
         title:
           type: string
           minLength: 1
@@ -6050,10 +6676,6 @@ components:
           type: string
           minLength: 1
           maxLength: 120
-        trim:
-          type: string
-          maxLength: 120
-          nullable: true
         body_type:
           allOf:
           - $ref: '#/components/schemas/BodyType'
@@ -6089,39 +6711,13 @@ components:
           allOf:
           - $ref: '#/components/schemas/Transmission'
           nullable: true
-        drivetrain:
-          allOf:
-          - $ref: '#/components/schemas/Drivetrain'
-          nullable: true
         price:
           $ref: '#/components/schemas/DecimalString'
-        color:
-          type: string
-          description: Hex, e.g. "#2d6a4f"
-          pattern: ^#[0-9a-fA-F]{6}$
-          nullable: true
-        color_name:
-          type: string
-          description: What buyers actually filter on, via `buyer_preference.exterior_color`.
-          nullable: true
-        description:
-          type: string
-          maxLength: 5000
-          nullable: true
-        reviews:
+        image_paths:
           type: array
-          description: |-
-            Review objects, the shape below. Kept in a `jsonb` array on the
-            listing — there is deliberately **no separate `car_reviews`
-            table**, and the 15-table budget has no room for one.
-          items:
-            $ref: '#/components/schemas/CarReview'
-        images:
-          type: array
-          description: CDN or S3 URLs. Empty array, never null.
+          description: Stored object keys or public URLs. Empty array by default.
           items:
             type: string
-            format: uri
     CarReview:
       type: object
       required:
@@ -6163,8 +6759,8 @@ components:
       - type: object
         required:
         - id
-        - seller_id
         - brand_id
+        - state_id
         - title
         - model
         - model_year
@@ -6176,13 +6772,6 @@ components:
           id:
             type: string
             format: uuid
-          seller_id:
-            type: string
-            format: uuid
-            description: |-
-              The owning **dealer's** profile UUID. The column is still
-              named `seller_id` for historical reasons, but the role is
-              `dealer` everywhere in the API.
           brand_id:
             type: string
             format: uuid
@@ -6192,14 +6781,10 @@ components:
           state_id:
             type: string
             format: uuid
-            nullable: true
           title:
             type: string
           model:
             type: string
-          trim:
-            type: string
-            nullable: true
           body_type:
             allOf:
             - $ref: '#/components/schemas/BodyType'
@@ -6224,21 +6809,8 @@ components:
             allOf:
             - $ref: '#/components/schemas/Transmission'
             nullable: true
-          drivetrain:
-            allOf:
-            - $ref: '#/components/schemas/Drivetrain'
-            nullable: true
           price:
             $ref: '#/components/schemas/DecimalString'
-          color:
-            type: string
-            nullable: true
-          color_name:
-            type: string
-            nullable: true
-          description:
-            type: string
-            nullable: true
           rating:
             type: number
             minimum: 0
@@ -6249,24 +6821,15 @@ components:
             type: array
             items:
               $ref: '#/components/schemas/CarReview'
-          images:
+          image_paths:
             type: array
             items:
               type: string
-              format: uri
           status:
             $ref: '#/components/schemas/CarStatus'
-          views:
-            type: integer
-            minimum: 0
-          otd:
-            allOf:
-            - $ref: '#/components/schemas/DecimalString'
-            description: |-
-              `price * (1 + tax_rate)` for the listing's state, computed
-              server-side. Sent so the buyer never does money arithmetic
-              in the client, and the figure a dealer quotes is compared
-              against is the same one everywhere.
+          created_by:
+            type: string
+            description: Dealer profile ID that owns the listing.
           created_at:
             type: string
             format: date-time
@@ -6299,7 +6862,7 @@ components:
         message:
           type: string
           minLength: 1
-          maxLength: 4000
+          maxLength: 8000
         thread_id:
           type: string
           format: uuid
@@ -6311,16 +6874,18 @@ components:
           - compare-agent
           description: |-
             Which agent to route to.
-            - `sera-agent`: the full 3-agent Serra workflow (main + KB + web
-              search + requirement agent).
-            - `compare-agent`: structured comparison subgraph (KB + web
-              search + comparison builder).
+            - `sera-agent`: intent-driven advisor workflow plus eligible parallel
+              requirement extraction.
+            - `compare-agent`: compares only selected buyer-owned request/offer rows.
             Unknown value → 422 VALIDATION_ERROR. Never silently defaults.
-        context:
-          type: object
-          description: Optional screen context so the agent knows what the buyer is looking at.
-          additionalProperties: true
-          nullable: true
+        request_ids:
+          type: array
+          maxItems: 5
+          items: { type: string, format: uuid }
+        quote_ids:
+          type: array
+          maxItems: 5
+          items: { type: string, format: uuid }
     AiThread:
       type: object
       required:

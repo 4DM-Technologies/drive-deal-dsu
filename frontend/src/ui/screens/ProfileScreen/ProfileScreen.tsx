@@ -17,12 +17,12 @@ export default function ProfileScreen() {
   const [newPreference, setNewPreference] = useState('');
   const [prefsSaved, setPrefsSaved] = useState(false);
   const [prefsError, setPrefsError] = useState('');
-  const [prefsLoading, setPrefsLoading] = useState(true);
   const isBuyer = session?.role === 'buyer';
+  const [prefsLoading, setPrefsLoading] = useState(isBuyer);
   const dirty = JSON.stringify(draft) !== JSON.stringify(saved);
 
   useEffect(() => {
-    if (!isBuyer) { setPrefsLoading(false); return; }
+    if (!isBuyer) return;
     void client.profiles.getPreferences().then((prefs) => {
       const features = prefs.mustHaveFeatures ?? [];
       setDraft(features);

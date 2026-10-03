@@ -1,14 +1,16 @@
 import asyncio
 from datetime import UTC, datetime
+from time import perf_counter
 from uuid import uuid4
 
-from sqlalchemy import delete, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.agents.requirements import build_requirement_graph
 from src.agents.serra.graph import DIRECT_REPLY_ROUTES, is_direct_reply, is_explicit_web_search, main_agent
 from src.models.marketplace import AiChatRequest, CompareRequest
-from src.repositories.schema import Brand, BuyerRequest, ConversationHistory, DealQuote, Profile
+from src.repositories.schema import AiTrace, Brand, BuyerRequest, ConversationHistory, DealQuote, LlmAudit, Profile
+from src.services.administration_service import AdministrationService
 from src.settings import get_settings
 from src.utils.exceptions import AppError, error_codes
 from src.utils.log_flow import log_flow
@@ -27,9 +29,12 @@ class AiService:
                 yield event
             return
         memory = await self._latest_memory(thread_id, buyer.id)
+        trace_id = str(uuid4())
+        trace_started = perf_counter()
         state = {
             "user_id": buyer.id,
             "thread_id": thread_id,
+            "trace_id": trace_id,
             "message": payload.message,
             "requirements": memory.get("requirements", {}),
             "preferences": memory.get("preferences", {}),
@@ -45,7 +50,28 @@ class AiService:
         if payload.agent == "compare-agent" and (payload.request_ids or payload.quote_ids):
             comparison_payload = await self._comparison_payload(payload, buyer)
             state["comparison_rows"] = comparison_payload["rows"]
-        main_graph = main_agent(self.session, compare=payload.agent == "compare-agent")
+        runtime = await AdministrationService(self.session).runtime_bundle()
+        trace = AiTrace(
+            id=trace_id,
+            thread_id=thread_id,
+            user_id=buyer.id,
+            query=payload.message[:4000],
+            status="running",
+            is_test=False,
+            configuration_version=runtime["version"],
+            created_by=buyer.id,
+            updated_by=buyer.id,
+        )
+        self.session.add(trace)
+        await self.session.flush()
+        main_graph = main_agent(
+            self.session,
+            compare=payload.agent == "compare-agent",
+            workflow_definition=runtime["workflow"],
+            prompt_overrides=runtime["prompts"],
+            agent_profiles=runtime["agent_profiles"],
+            prompt_version=runtime["version"],
+        )
         main_task = asyncio.create_task(main_graph.ainvoke(state))
         if payload.agent == "compare-agent":
             main_result = await main_task
@@ -56,7 +82,14 @@ class AiService:
             main_result = await main_task
             requirement_result: dict = {}
         else:
-            requirement_task = asyncio.create_task(build_requirement_graph(self.session).ainvoke(state))
+            requirement_task = asyncio.create_task(
+                build_requirement_graph(
+                    self.session,
+                    prompt_overrides=runtime["prompts"],
+                    prompt_version=runtime["version"],
+                    agent_profiles=runtime["agent_profiles"],
+                ).ainvoke(state)
+            )
             try:
                 main_result = await main_task
             except BaseException:
@@ -85,6 +118,7 @@ class AiService:
             yield {"type": "card", "kind": "requestPreview", "payload": {"questions": requirement_result["suggested_questions"], "draft": requirement_result.get("requirements", {})}}
         if main_result.get("sources"):
             yield {"type": "sources", "items": main_result["sources"]}
+        await self._finish_trace(trace, main_result, trace_started)
         await self._save_checkpoint(thread_id, buyer.id, payload, main_result, requirement_result)
         await self.session.commit()
         yield {"type": "done", "threadId": thread_id, "messagesUsed": 1, "expandedUi": False}
@@ -128,10 +162,28 @@ class AiService:
         state = {
             "user_id": buyer.id,
             "thread_id": str(uuid4()),
+            "trace_id": str(uuid4()),
             "message": "Compare the selected dealer offers and recommend the strongest option.",
             "comparison_rows": rows,
         }
-        result = await main_agent(self.session, compare=True).ainvoke(state)
+        runtime = await AdministrationService(self.session).runtime_bundle()
+        trace_started = perf_counter()
+        trace = AiTrace(
+            id=state["trace_id"], thread_id=state["thread_id"], user_id=buyer.id,
+            query=state["message"], status="running", is_test=False,
+            configuration_version=runtime["version"], created_by=buyer.id, updated_by=buyer.id,
+        )
+        self.session.add(trace)
+        await self.session.flush()
+        result = await main_agent(
+            self.session,
+            compare=True,
+            workflow_definition=runtime["workflow"],
+            prompt_overrides=runtime["prompts"],
+            agent_profiles=runtime["agent_profiles"],
+            prompt_version=runtime["version"],
+        ).ainvoke(state)
+        await self._finish_trace(trace, result, trace_started)
         await self.session.commit()
         return {
             "request_ids": request_ids,
@@ -140,6 +192,22 @@ class AiService:
             "recommendation": result.get("answer"),
             "not_reported_policy": "Fields not supplied by a dealer are never inferred.",
         }
+
+    async def _finish_trace(self, trace: AiTrace, result: dict, started: float) -> None:
+        usage = (await self.session.execute(select(
+            func.coalesce(func.sum(LlmAudit.input_tokens), 0),
+            func.coalesce(func.sum(LlmAudit.output_tokens), 0),
+        ).where(LlmAudit.thread_id == trace.id))).one()
+        models = (await self.session.execute(select(LlmAudit.model_name).where(
+            LlmAudit.thread_id == trace.id
+        ).order_by(LlmAudit.id.desc()).limit(1))).scalar_one_or_none()
+        trace.status = "success"
+        trace.route = result.get("route")
+        trace.model_name = models
+        trace.input_tokens = int(usage[0] or 0)
+        trace.output_tokens = int(usage[1] or 0)
+        trace.duration_ms = int((perf_counter() - started) * 1000)
+        trace.updated_by = trace.user_id or "system"
 
     @log_flow(layer="service")
     async def list_threads(self, buyer: Profile) -> list[dict]:

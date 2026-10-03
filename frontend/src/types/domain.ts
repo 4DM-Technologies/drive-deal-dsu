@@ -277,3 +277,150 @@ export interface CarCreateInput {
   price: string;
   imagePaths?: string[];
 }
+
+export type AdminConfigType = 'workflow' | 'prompt' | 'theme';
+
+export interface WorkflowPosition { x: number; y: number }
+
+export interface WorkflowNodeDefinition {
+  id: string;
+  type: 'router' | 'agent' | 'tool' | 'action';
+  label: string;
+  description: string;
+  position: WorkflowPosition;
+}
+
+export interface WorkflowEdgeDefinition {
+  id: string;
+  source: string;
+  target: string;
+  condition: string;
+}
+
+export interface WorkflowDefinition {
+  name: string;
+  description: string;
+  nodes: WorkflowNodeDefinition[];
+  edges: WorkflowEdgeDefinition[];
+}
+
+export interface ThemeDefinition {
+  name: string;
+  primary_rgb: [number, number, number] | number[];
+  background_rgb: [number, number, number] | number[];
+  surface_rgb: [number, number, number] | number[];
+  text_rgb: [number, number, number] | number[];
+  navigation_rgb: [number, number, number] | number[];
+}
+
+export interface PromptDefinition {
+  content: string;
+  model: string;
+  reasoning_effort: 'minimal' | 'low' | 'medium' | 'high' | 'xhigh';
+  max_output_tokens: number;
+}
+
+export interface AdminRevision<T = Record<string, unknown>> {
+  id: string;
+  configType: AdminConfigType;
+  configKey: string;
+  version: number;
+  status: 'draft' | 'published' | 'archived';
+  payload: T;
+  checksum: string;
+  publishedAt: string | null;
+  publishedBy: string | null;
+  createdAt: string | null;
+  createdBy: string;
+}
+
+export interface AdminConfigBundle<T = Record<string, unknown>> {
+  active: AdminRevision<T>;
+  draft: AdminRevision<T> | null;
+  history: AdminRevision<T>[];
+  defaultVersion: number;
+}
+
+export interface AdminPromptBundle extends AdminConfigBundle<PromptDefinition> {
+  key: string;
+  file: string;
+  label: string;
+  description: string;
+}
+
+export interface AdminCatalog {
+  workflowKey: string;
+  themeKey: string;
+  nodes: Array<Omit<WorkflowNodeDefinition, 'position'>>;
+  prompts: Array<{ key: string; file: string; label: string; description: string }>;
+  models: Array<{ id: string; label: string; description: string }>;
+}
+
+export interface AdministrationAuditEvent {
+  id: number;
+  uuid: string;
+  action: string;
+  resourceType: AdminConfigType;
+  resourceKey: string;
+  revisionId: string | null;
+  actorId: string;
+  details: Record<string, unknown>;
+  createdAt: string;
+}
+
+export interface ActiveTheme extends ThemeDefinition { version: number }
+
+export interface WorkflowPreview {
+  trace_id: string;
+  thread_id: string;
+  route: string | null;
+  mode: string | null;
+  answer: string | null;
+  sources: Array<{ title: string; url: string }>;
+  steps: number;
+  duration_ms: number;
+  input_tokens: number;
+  output_tokens: number;
+  model_name: string | null;
+  execution_flow: AiTraceSpan[];
+}
+
+export type WorkflowPreviewStreamEvent =
+  | { type: 'started'; trace_id: string; thread_id: string }
+  | { type: 'step'; span: AiTraceSpan }
+  | { type: 'token'; text: string }
+  | { type: 'complete'; result: WorkflowPreview }
+  | { type: 'error'; message: string };
+
+export interface AiTraceSpan {
+  id: string;
+  trace_id: string;
+  sequence: number;
+  name: string;
+  kind: string;
+  status: string;
+  duration_ms: number;
+  input_tokens: number;
+  output_tokens: number;
+  model_name: string | null;
+  details: Record<string, unknown>;
+  created_at: string;
+}
+
+export interface AiTrace {
+  id: string;
+  thread_id: string | null;
+  user_id: string | null;
+  query: string;
+  status: string;
+  is_test: boolean;
+  route: string | null;
+  model_name: string | null;
+  input_tokens: number;
+  output_tokens: number;
+  duration_ms: number;
+  error_message: string | null;
+  configuration_version: string;
+  created_at: string;
+  spans?: AiTraceSpan[];
+}

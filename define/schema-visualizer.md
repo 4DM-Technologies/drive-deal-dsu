@@ -1,5 +1,9 @@
 # DriveDeal — Database Schema v2 (Normalised)
 
+> **Archived design document.** This file records the original 15-table normalization proposal and is not the
+> current runtime schema. Use [`schema-erd.mmd`](schema-erd.mmd) and
+> `backend/src/repositories/schema/tables.py` for the implemented 20-table model.
+
 > **Status:** Target design. Replaces the 40-table live schema.
 > **Source of truth for this doc:** live catalog dump + 12 sample CSVs from
 > `C:\Users\Syed Thameemuddin\Downloads\example tables data` (2,558 real rows).

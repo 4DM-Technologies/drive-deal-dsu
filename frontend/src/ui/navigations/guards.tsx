@@ -5,16 +5,17 @@ import { client } from '@/services/platform/client';
 import { useDemoStore } from '@/services/platform/demoStore';
 import { FullScreenLoader } from '@/ui/reusables/PageLoading/PageLoading';
 import type { Role } from '@/types/domain';
+import { useEffectiveSession } from '@/ui/navigations/previewSession';
 
 export function RequireSession({ children }: { children: ReactNode }) {
   const session = useDemoStore((state) => state.session);
   const setSession = useDemoStore((state) => state.setSession);
   const location = useLocation();
-  const [checked, setChecked] = useState(false);
+  const [checked, setChecked] = useState(() => !window.localStorage.getItem('drivedeal.accessToken'));
 
   useEffect(() => {
     const token = window.localStorage.getItem('drivedeal.accessToken');
-    if (!token) { setSession(null); setChecked(true); return; }
+    if (!token) return;
     let active = true;
     void client.auth.me().then((fresh) => { if (active) setSession(fresh); }).catch(() => {
       window.localStorage.removeItem('drivedeal.accessToken');
@@ -22,13 +23,13 @@ export function RequireSession({ children }: { children: ReactNode }) {
       if (active) setSession(null);
     }).finally(() => { if (active) setChecked(true); });
     return () => { active = false; };
-  }, []);
+  }, [setSession]);
 
   if (!checked) return <FullScreenLoader label="Securing your session" />;
   return session && window.localStorage.getItem('drivedeal.accessToken') ? children : <Navigate to="/login" state={{ next: location.pathname }} replace />;
 }
 
 export function RequireRole({ roles, children }: { roles: Role[]; children: ReactNode }) {
-  const role = useDemoStore((state) => state.session?.role);
+  const role = useEffectiveSession()?.role;
   return role && roles.includes(role) ? children : <Navigate to="/unauthorized" replace />;
 }

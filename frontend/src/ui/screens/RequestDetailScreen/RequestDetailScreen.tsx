@@ -1,5 +1,5 @@
 import { ArrowLeft, Check, ChevronRight, Clock3, MessageCircle, Scale, ShieldCheck, Star, Trophy, X } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { formatMoney } from '@/helpers/currency';
 import { client } from '@/services/platform/client';
@@ -22,11 +22,11 @@ export default function RequestDetailScreen() {
   const [negotiating, setNegotiating] = useState<string | null>(null);
   const [openingMessage, setOpeningMessage] = useState('I like this offer, but I would like to discuss the equipment and final price before deciding.');
 
-  const refresh = () => {
+  const refresh = useCallback(() => {
     void client.requests.get(id).then(setRequest).catch(() => setRequest(null));
     void client.quotes.list(id).then((rows) => setQuotes(rows.sort((a, b) => Number(a.finalPrice) - Number(b.finalPrice)))).catch(() => setQuotes([]));
-  };
-  useEffect(() => { refresh(); }, [id]);
+  }, [id]);
+  useEffect(() => { refresh(); }, [refresh]);
 
   if (request === undefined) return <PageLoading label="Opening your request" />;
   if (!request) return <div className="shell page-content"><div className="card"><EmptyState title="Request not found" description="This request may have been removed or belongs to another buyer." action={<Link className="button button-primary" to="/requests">Back to requests</Link>} /></div></div>;

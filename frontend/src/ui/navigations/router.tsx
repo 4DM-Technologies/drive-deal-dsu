@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components -- the data router exports route objects beside its boundary components */
 import { AlertTriangle, RefreshCw } from 'lucide-react';
 import { lazy, Suspense } from 'react';
 import { createBrowserRouter, Link, Outlet, useRouteError } from 'react-router-dom';
@@ -21,6 +22,7 @@ const ChatScreen = lazy(() => import('@/ui/screens/ChatScreen/ChatScreen'));
 const ChatRequestsScreen = lazy(() => import('@/ui/screens/ChatScreen/ChatScreen').then((module) => ({ default: module.ChatRequestsScreen })));
 const SupportScreens = lazy(() => import('@/ui/screens/SupportScreens/SupportScreens'));
 const AdvisorScreen = lazy(() => import('@/ui/screens/AdvisorScreen/AdvisorScreen'));
+const AdministrationScreen = lazy(() => import('@/ui/screens/AdministrationScreen/AdministrationScreen'));
 const ProfileScreen = lazy(() => import('@/ui/screens/ProfileScreen/ProfileScreen'));
 const ForgotPasswordScreen = lazy(() => import('@/ui/screens/UtilityScreens/UtilityScreens').then((module) => ({ default: module.ForgotPasswordScreen })));
 const LegalScreen = lazy(() => import('@/ui/screens/UtilityScreens/UtilityScreens').then((module) => ({ default: module.LegalScreen })));
@@ -60,7 +62,7 @@ export const router = createBrowserRouter([{ errorElement: <RouteErrorScreen />,
     { path: '/tickets/:ticketId', element: <RequireRole roles={['support','support-admin','admin']}><SupportScreens /></RequireRole> },
     { path: '/verifications', element: <RequireRole roles={['support','support-admin','admin']}><SupportScreens /></RequireRole> },
     { path: '/support-members', element: <RequireRole roles={['support','support-admin','admin']}><SupportScreens /></RequireRole> },
-    { path: '/support-administration', element: <RequireRole roles={['support-admin','admin']}><SupportScreens /></RequireRole> },
+    { path: '/support-administration', element: <RequireRole roles={['support-admin','admin']}><AdministrationScreen /></RequireRole> },
   ]},
   { path: '*', element: <NotFoundScreen /> },
 ] }]);

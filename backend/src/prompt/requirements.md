@@ -17,5 +17,5 @@ Useful fields: body_type, fuel_type, year_min, year_max, trim, drivetrain, trans
 - CRITICAL REQUIREMENTS-003: Never post the request. When complete, return an editable preview and ask for explicit confirmation.
 </critical_rules>
 
-<!-- src/agents/requirements.py's gather_requirements() is a pure regex/keyword matcher - it has never read this
-     file. Kept for reference as the spec that implementation approximates, not as a live prompt. -->
+<!-- The requirement graph performs deterministic extraction first, then appends reference data and the
+     untrusted buyer message to this prompt only when required fields remain missing. -->

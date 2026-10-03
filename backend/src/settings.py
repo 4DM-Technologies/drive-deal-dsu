@@ -8,7 +8,7 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DATA_DIRECTORY = PROJECT_ROOT / "data"
 UPLOAD_DIRECTORY = PROJECT_ROOT / "uploads"
 DEFAULT_TERMS_VERSION = "2026-09-30"
-SUPPORTED_ROLES = ("buyer", "dealer", "support", "admin")
+SUPPORTED_ROLES = ("buyer", "dealer", "support", "support-admin", "admin")
 
 # Structured logging and function-flow tracing
 LOG_LEVEL = "INFO"
