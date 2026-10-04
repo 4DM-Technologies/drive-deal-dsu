@@ -17,5 +17,9 @@ class S3Storage(Storage):
         return {"driver": "s3", "method": "PUT", "url": url, "key": key, "headers": {"content-type": content_type}}
 
     @log_flow(layer="service")
-    def create_download(self, key: str) -> str:
-        return self.client.generate_presigned_url("get_object", Params={"Bucket": self.bucket, "Key": key}, ExpiresIn=900)
+    def create_download(self, key: str, *, as_attachment: bool = False, filename: str | None = None) -> str:
+        params = {"Bucket": self.bucket, "Key": key}
+        if as_attachment:
+            safe_name = (filename or key.rsplit("/", 1)[-1]).replace('"', "")
+            params["ResponseContentDisposition"] = f'attachment; filename="{safe_name}"'
+        return self.client.generate_presigned_url("get_object", Params=params, ExpiresIn=900)

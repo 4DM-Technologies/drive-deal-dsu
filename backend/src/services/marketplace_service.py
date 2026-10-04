@@ -30,7 +30,8 @@ class MarketplaceService:
     async def request_dict(self, row: BuyerRequest, *, already_quoted: bool | None = None) -> dict:
         brand = await self.session.get(Brand, row.brand_id)
         extra = {} if already_quoted is None else {"already_quoted": already_quoted}
-        return {**model_dict(row), "brand_name": brand.name if brand else None, **extra}
+        counts = (await self.repository.request_activity_counts([row.id]))[row.id]
+        return {**model_dict(row), "brand_name": brand.name if brand else None, **counts, **extra}
 
     @log_flow(layer="service")
     async def quote_dict(self, row: DealQuote) -> dict:
@@ -79,10 +80,12 @@ class MarketplaceService:
             quoted_ids = {quote.buyer_request_id for quote in await self.repository.quotes_for_dealer(actor.id)}
             already_quoted = quoted_ids
         brands = await self._brand_map({row.brand_id for row in rows})
+        counts = await self.repository.request_activity_counts([row.id for row in rows])
         return [
             {
                 **model_dict(row),
                 "brand_name": brands[row.brand_id].name if row.brand_id in brands else None,
+                **counts[row.id],
                 **({} if already_quoted is None else {"already_quoted": row.id in already_quoted}),
             }
             for row in rows
@@ -95,6 +98,8 @@ class MarketplaceService:
             raise AppError(error_codes.RESOURCE_NOT_FOUND, "Request not found.", 404)
         if actor.role == "dealer" and row.status != "open":
             raise AppError(error_codes.RESOURCE_NOT_FOUND, "Request not found.", 404)
+        if actor.role == "dealer":
+            await self.repository.record_request_view(row.id, actor.id, datetime.now(UTC))
         return await self.request_dict(row)
 
     @log_flow(layer="service")

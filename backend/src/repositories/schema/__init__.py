@@ -5,6 +5,7 @@ from src.repositories.schema.tables import (
     Brand,
     BuyerPreference,
     BuyerRequest,
+    BuyerRequestView,
     Car,
     ConfigurationDefault,
     ConfigurationRevision,
@@ -22,7 +23,7 @@ from src.repositories.schema.tables import (
 )
 
 __all__ = [
-    "AdministrationAuditEvent", "AiTrace", "AiTraceSpan", "Brand", "BuyerPreference", "BuyerRequest", "Car", "ConversationHistory", "ConfigurationDefault", "ConfigurationRevision", "DealChat",
+    "AdministrationAuditEvent", "AiTrace", "AiTraceSpan", "Brand", "BuyerPreference", "BuyerRequest", "BuyerRequestView", "Car", "ConversationHistory", "ConfigurationDefault", "ConfigurationRevision", "DealChat",
     "DealDocument", "DealQuote", "ErrorLog", "LlmAudit", "Profile", "State", "SupportTicket",
     "SupportVerification", "User",
 ]

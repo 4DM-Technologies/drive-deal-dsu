@@ -248,6 +248,22 @@ class BuyerRequest(AuditMixin, Base):
     status: Mapped[str] = mapped_column(String(20), default="draft", nullable=False, index=True)
 
 
+class BuyerRequestView(Base):
+    """One row per dealer that has opened a buyer request.
+
+    Keeping this as a separate table makes the buyer-facing count accurate and
+    prevents refreshes by the same dealership from inflating marketplace interest.
+    """
+
+    __tablename__ = "buyer_request_views"
+    __table_args__ = (UniqueConstraint("buyer_request_id", "dealer_id", name="uq_request_view_dealer"),)
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
+    buyer_request_id: Mapped[str] = mapped_column(ForeignKey("buyer_requests.id", ondelete="CASCADE"), nullable=False, index=True)
+    dealer_id: Mapped[str] = mapped_column(ForeignKey("profiles.id", ondelete="CASCADE"), nullable=False, index=True)
+    first_viewed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
+    last_viewed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False)
+
+
 class DealQuote(AuditMixin, Base):
     __tablename__ = "deal_quotes"
     __table_args__ = (

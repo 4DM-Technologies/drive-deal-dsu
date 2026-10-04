@@ -1,6 +1,6 @@
 %% Deal&Drive current entity relationship diagram
 %% Source of truth: backend/src/repositories/schema/tables.py
-%% 20 tables. Render with Mermaid Live, VS Code Mermaid preview, or:
+%% 21 tables. Render with Mermaid Live, VS Code Mermaid preview, or:
 %% mmdc -i define/schema-erd.mmd -o define/schema-erd.svg
 %% Tables using AuditMixin also contain created_at, updated_at, created_by and updated_by.
 %% Support Administrator buyer/dealer workspace views are read-only API projections over buyer_requests
@@ -16,6 +16,7 @@ erDiagram
     profiles ||--o| buyer_preference : "owns"
     profiles ||--o{ conversation_history : "owns"
     profiles ||--o{ buyer_requests : "creates"
+    profiles ||--o{ buyer_request_views : "dealer opens"
     profiles ||--o{ deal_quotes : "buyer"
     profiles ||--o{ deal_quotes : "dealer"
     profiles ||--o{ deal_chats : "sends"
@@ -25,6 +26,7 @@ erDiagram
     profiles ||--o{ support_verifications : "decides"
     profiles ||--o{ error_logs : "associated user"
     buyer_requests ||--o{ deal_quotes : "receives"
+    buyer_requests ||--o{ buyer_request_views : "viewed by"
     deal_quotes ||--o{ deal_chats : "conversation"
     deal_quotes ||--o{ deal_documents : "attachments"
     ai_traces ||--o{ ai_trace_spans : "contains"
@@ -137,6 +139,14 @@ erDiagram
         timestamptz request_expire
         text market_brief
         text status
+    }
+
+    buyer_request_views {
+        uuid id PK
+        uuid buyer_request_id FK
+        uuid dealer_id FK
+        timestamptz first_viewed_at
+        timestamptz last_viewed_at
     }
 
     deal_quotes {

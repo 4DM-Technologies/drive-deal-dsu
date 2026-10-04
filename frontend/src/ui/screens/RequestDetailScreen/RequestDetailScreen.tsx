@@ -1,4 +1,4 @@
-import { ArrowLeft, Check, ChevronRight, Clock3, MessageCircle, Scale, ShieldCheck, Star, Trophy, X } from 'lucide-react';
+import { ArrowLeft, Check, ChevronRight, Clock3, Eye, MessageCircle, MessageSquareQuote, Scale, ShieldCheck, Star, Trophy, X } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { formatMoney } from '@/helpers/currency';
@@ -75,6 +75,7 @@ export default function RequestDetailScreen() {
     <Link className="button button-ghost" to="/requests"><ArrowLeft size={17} /> All requests</Link>
     <div className="page-heading request-detail-heading"><div><span className="eyebrow">Private buyer request</span><h1>{request.brand} {request.model}</h1><p>{request.yearMin}–{request.yearMax} · {request.bodyType} · {request.area} · within {request.radiusMiles} miles</p></div><div className="heading-actions"><Link className="button button-secondary" to={`/chatbot?compare=${request.id}`}><Scale size={17} /> Compare with Sera</Link><StatusBadge status={request.status === 'open' ? 'live' : request.status} /></div></div>
     {notice && <div className="inline-success" role="status"><Check size={18} />{notice}</div>}
+    <section className="request-activity-strip" aria-label="Request activity"><div><Eye /><span><strong>{request.viewCount}</strong><small>verified {request.viewCount === 1 ? 'dealer has' : 'dealers have'} viewed this request</small></span></div><div><MessageSquareQuote /><span><strong>{request.quoteCount || quotes.length}</strong><small>itemized {(request.quoteCount || quotes.length) === 1 ? 'quote' : 'quotes'} received</small></span></div><p>Counts include unique verified dealerships, so repeat visits do not inflate interest.</p></section>
     <div className="detail-grid">
       <main>
         <section className="card card-pad request-summary"><div className="request-summary-head"><div><span className="eyebrow">Your dealer brief</span><h2>{request.brand} {request.model}</h2><p>{friendlyTimeline[request.timeline]} · Expires {new Date(request.expiresAt).toLocaleDateString('en-US')}</p></div></div><div className="spec-list"><div className="spec"><span>Search area</span><strong>{request.area} · {request.radiusMiles} mi</strong></div><div className="spec"><span>Model years</span><strong>{request.yearMin}–{request.yearMax}</strong></div><div className="spec"><span>Body style</span><strong>{request.bodyType || 'No preference'}</strong></div><div className="spec"><span>Preferences</span><strong>{request.mustHaves.join(', ') || 'Open to options'}</strong></div></div></section>

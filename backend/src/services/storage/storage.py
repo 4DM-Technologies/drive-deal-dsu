@@ -7,5 +7,5 @@ class Storage(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def create_download(self, key: str) -> str:
+    def create_download(self, key: str, *, as_attachment: bool = False, filename: str | None = None) -> str:
         raise NotImplementedError

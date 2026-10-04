@@ -112,4 +112,6 @@ def get_settings() -> Settings:
     settings = Settings()
     if settings.is_production and len(settings.jwt_secret_key) < 32:
         raise ValueError("JWT_SECRET_KEY must contain at least 32 characters in production")
+    if settings.is_production and settings.storage_driver != "s3":
+        raise ValueError("STORAGE_DRIVER must be 's3' in production so quote media is never written to the application filesystem")
     return settings

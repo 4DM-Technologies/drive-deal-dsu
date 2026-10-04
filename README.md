@@ -17,8 +17,8 @@ Deal&Drive serves five application roles.
 
 | Role | What the user can do |
 |---|---|
-| Buyer | Create private vehicle requests, receive and compare quotes, accept or decline an offer, request a negotiation, chat after approval, track an order, and use Sera |
-| Dealer | Complete verification, browse matched buyer demand, submit/revise/withdraw itemized quotes, approve negotiation requests, chat, and update fulfillment |
+| Buyer | Create private vehicle requests, see unique dealer views and quote activity, compare quotes and real dealer-supplied media, accept or decline an offer, request a negotiation, chat after approval, track an order, and use Sera |
+| Dealer | Complete verification, browse matched buyer demand, submit/revise/withdraw itemized quotes with up to eight vehicle photos and one downloadable document, approve negotiation requests, chat, and update fulfillment |
 | Support | Manage tickets and dealer verification queues |
 | Support administrator | All support capabilities plus configuration, prompts, runtime models, themes, traces, versions, and team access |
 | Admin | Full support and administrator access |
@@ -62,7 +62,7 @@ flowchart TB
     ADMIN --> DB
     SERA --> LLM[OpenAI or Codex OAuth]
     SERA --> WEB[Allow-listed web research]
-    API --> STORAGE[Local files or S3 documents]
+    API --> STORAGE[S3 quote photos and documents]
     OAUTH[Codex OAuth state] --> S3[(Private encrypted S3 prefix)]
 ```
 
@@ -129,7 +129,7 @@ The current schema contains 20 tables grouped by responsibility.
 | Area | Tables |
 |---|---|
 | Identity/reference | `states`, `brands`, `profiles`, `users` |
-| Marketplace | `cars`, `buyer_preference`, `buyer_requests`, `deal_quotes`, `deal_chats`, `deal_documents` |
+| Marketplace | `cars`, `buyer_preference`, `buyer_requests`, `buyer_request_views`, `deal_quotes`, `deal_chats`, `deal_documents` |
 | AI memory/operations | `conversation_history`, `llm_audits`, `ai_traces`, `ai_trace_spans`, `error_logs` |
 | Support | `support_tickets`, `support_verifications` |
 | Administrator control plane | `configuration_revisions`, `configuration_defaults`, `administration_audit_events` |
@@ -139,6 +139,9 @@ The complete field-level diagram is [define/schema-erd.mmd](define/schema-erd.mm
 Notable data rules:
 
 - One dealer can submit only one quote for a buyer request; revisions update that quote.
+- Request interest counts unique verified dealers in `buyer_request_views`; refreshing the same brief does not inflate the buyer-facing number.
+- Quote media is never replaced with stock imagery: dealer photos and the optional single document are served from private S3 objects through short-lived URLs.
+- Production startup fails fast unless `STORAGE_DRIVER=s3`; local storage is intentionally limited to development and automated tests.
 - `deal_quotes.final_price` is computed by the database.
 - Preferences are stored as one evolvable JSON document per buyer.
 - AI conversation checkpoints are always scoped to the owning buyer.
@@ -402,7 +405,7 @@ All seeded accounts use `demo1234`.
 | `DATABASE_URL` | Async SQLite or PostgreSQL connection |
 | `JWT_SECRET_KEY` | Access/refresh-token signing secret |
 | `CORS_ORIGINS` | Allowed browser origins |
-| `STORAGE_DRIVER` | `local` or `s3` document storage |
+| `STORAGE_DRIVER` | Set to `s3` for quote photos/documents; `local` remains available only for isolated development and tests |
 | `AWS_REGION`, `S3_BUCKET` | S3 region and bucket |
 | `CODEX_OAUTH_S3_PREFIX` | Private OAuth object prefix; default `private/codex-oauth` |
 | `OPENAI_API_KEY` | Primary live model credential |
@@ -475,7 +478,7 @@ The frontend is served on port `5173`, the API on `8000`, and local database/upl
 2. Run `alembic upgrade head` before starting the new release.
 3. Store JWT, database, AWS, OpenAI/Codex, and LangSmith credentials in a secret manager.
 4. Prefer workload/IAM roles over long-lived AWS access keys.
-5. Use a private S3 bucket with versioning, encryption, and least-privilege policies.
+5. Use a private S3 bucket with versioning, encryption, least-privilege policies, and PUT/GET CORS rules limited to the deployed frontend origin.
 6. Configure exact CORS origins and HTTPS WebSocket/SSE proxy behavior.
 7. Keep `AI_DISABLED=false` only when an approved live credential and budgets are configured.
 8. Review and test a draft before publishing prompts, models, workflows, or themes.

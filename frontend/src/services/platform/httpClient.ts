@@ -1,6 +1,5 @@
 import type { DriveDealClient, AiStreamEvent } from '@/services/generated/client';
 import type { ActiveTheme, AdministrationAuditEvent, AdminCatalog, AdminConfigBundle, AdminConfigType, AdminPromptBundle, AdminRevision, AiThread, AiTrace, BrandRef, BuyerRequest, CarCreateInput, ChatMessage, DealDocument, InventoryCar, PromptDefinition, Quote, Session, StateRef, SupportMember, Ticket, Verification, WorkflowDefinition, WorkflowPreview, WorkflowPreviewStreamEvent } from '@/types/domain';
-import dealerHero from '@/assets/vehicles/dealer-hero.png';
 import driveDealHero from '@/assets/vehicles/drivedeal-hero.png';
 
 const baseUrl = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000/api/v1';
@@ -10,6 +9,13 @@ const clearTokens = () => { window.localStorage.removeItem('drivedeal.accessToke
 const workspaceView = () => {
   const value = new URLSearchParams(window.location.search).get('workspaceView');
   return value === 'buyer' || value === 'dealer' ? value : null;
+};
+const activeRole = (): Session['role'] | null => {
+  try {
+    return JSON.parse(window.localStorage.getItem('deal-and-drive-demo-v4') ?? '{}')?.state?.session?.role ?? null;
+  } catch {
+    return null;
+  }
 };
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
@@ -66,6 +72,14 @@ const profileToSession = (row: Record<string, unknown>): Session => ({
   email: String(row.email),
   role: row.role as Session['role'],
   avatarInitials: String(row.full_name).split(' ').map((part) => part[0]).join('').slice(0, 2).toUpperCase(),
+  phone: row.phone == null ? null : String(row.phone),
+  address: row.address == null ? null : String(row.address),
+  stateId: row.state_id == null ? null : String(row.state_id),
+  dealershipName: row.dealership_name == null ? null : String(row.dealership_name),
+  branchName: row.branch_name == null ? null : String(row.branch_name),
+  dealerLicense: row.dealer_license == null ? null : String(row.dealer_license),
+  website: row.website == null ? null : String(row.website),
+  supportedBrands: (row.supported_brands as string[]) ?? [],
 });
 
 const requestToDomain = (row: Record<string, unknown>): BuyerRequest => ({
@@ -74,8 +88,8 @@ const requestToDomain = (row: Record<string, unknown>): BuyerRequest => ({
   budgetMin: row.budget_min == null ? null : String(row.budget_min), budgetMax: row.budget_max == null ? null : String(row.budget_max),
   targetOtdPrice: row.target_otd_price == null ? null : String(row.target_otd_price), area: String(row.buyer_area),
   radiusMiles: Number(row.search_radius_miles), timeline: row.timeline as BuyerRequest['timeline'], status: row.status as BuyerRequest['status'],
-  quoteCount: Number(row.quote_count ?? 0), createdAt: String(row.created_at), expiresAt: String(row.request_expire),
-  image: dealerHero, mustHaves: (row.must_haves as string[]) ?? [],
+  quoteCount: Number(row.quote_count ?? 0), viewCount: Number(row.view_count ?? 0), createdAt: String(row.created_at), expiresAt: String(row.request_expire),
+  image: '', mustHaves: (row.must_haves as string[]) ?? [],
   alreadyQuoted: Boolean(row.already_quoted),
 });
 
@@ -300,7 +314,7 @@ export const httpClient: DriveDealClient = {
     get: async (id) => requestToDomain(await request(`/feed/requests/${id}`)),
   },
   quotes: {
-    list: async (requestId) => (await request<Record<string, unknown>[]>(workspaceView() ? `/support/workspaces/${workspaceView()}/quotes` : `/quotes${requestId ? `?request_id=${requestId}` : ''}`)).map(quoteToDomain),
+    list: async (requestId) => (await request<Record<string, unknown>[]>(workspaceView() ? `/support/workspaces/${workspaceView()}/quotes` : requestId && activeRole() === 'buyer' ? `/requests/${requestId}/quotes` : `/quotes${requestId ? `?request_id=${requestId}` : ''}`)).map(quoteToDomain),
     get: async (id) => quoteToDomain(await request(`/quotes/${id}`)),
     create: async (input) => quoteToDomain(await request('/quotes', { method: 'POST', body: JSON.stringify({ buyer_request_id: input.buyerRequestId, vehicle_price: input.vehiclePrice, doc_fee: input.docFee, sales_tax: input.salesTax, title_reg: input.titleReg, trade_in_credit: input.tradeInCredit, message: input.message, expires_at: input.expiresAt }) })),
     revise: async (id, input) => quoteToDomain(await request(`/quotes/${id}/revise`, { method: 'PATCH', body: JSON.stringify({ vehicle_price: input.vehiclePrice, doc_fee: input.docFee, sales_tax: input.salesTax, title_reg: input.titleReg, trade_in_credit: input.tradeInCredit, message: input.message }) })),
@@ -313,9 +327,9 @@ export const httpClient: DriveDealClient = {
     },
   },
   documents: {
-    list: async (quoteId) => (await request<Record<string, unknown>[]>(`/documents/${quoteId}`)).map((row): DealDocument => ({ id: String(row.id), quoteId: String(row.quote_id), type: String(row.document_type), name: String(row.document_path).split('/').at(-1) ?? 'Attachment', status: String(row.status), downloadUrl: String(row.download_url) })),
+    list: async (quoteId) => (await request<Record<string, unknown>[]>(`/documents/${quoteId}`)).map((row): DealDocument => ({ id: String(row.id), quoteId: String(row.quote_id), type: String(row.document_type), name: String(row.file_name ?? 'Attachment'), status: String(row.status), downloadUrl: String(row.download_url) })),
     upload: async (quoteId, file, type) => {
-      const presigned = await request<{ url: string; key: string; headers: Record<string, string> }>('/documents/presign', { method: 'POST', body: JSON.stringify({ filename: file.name, content_type: file.type || 'application/octet-stream', quote_id: quoteId }) });
+      const presigned = await request<{ url: string; key: string; headers: Record<string, string> }>('/documents/presign', { method: 'POST', body: JSON.stringify({ filename: file.name, content_type: file.type || 'application/octet-stream', quote_id: quoteId, document_type: type, size_bytes: file.size }) });
       const upload = await fetch(presigned.url, { method: 'PUT', headers: presigned.headers, body: file });
       if (!upload.ok) throw new Error(`Upload failed (${upload.status})`);
       const documentId = crypto.randomUUID();

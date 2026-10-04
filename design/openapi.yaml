@@ -2131,10 +2131,10 @@ paths:
         Returns a presigned PUT and the S3 key the client must upload to. The
         file is **not** stored by Deal&Drive — it never touches the API server.
 
-        Keys are deterministic: `{quote_id}/{epoch_ms}.{ext}`. Content type and
-        size are declared here and re-verified in /documents/{id}/confirm by
-        reading the S3 object's metadata, so a client cannot claim a 2 MB PDF
-        and upload a 60 MB video.
+        Keys are scoped to `{quote_id}/{dealer_id}` and retain a sanitized
+        original filename after a UUID prefix. The server verifies quote
+        ownership, media type, declared size, and per-quote limits before
+        issuing the short-lived URL.
       operationId: presignUpload
       tags:
       - Documents
@@ -2149,7 +2149,7 @@ paths:
               - filename
               - content_type
               - size_bytes
-              - kind
+              - document_type
               properties:
                 quote_id:
                   type: string
@@ -2168,16 +2168,15 @@ paths:
                 size_bytes:
                   type: integer
                   minimum: 1
-                  maximum: 10485760
-                kind:
+                  maximum: 20971520
+                document_type:
                   type: string
                   description: |-
-                    `image` for photos/screenshots, `document` for real files.
-                    Structural, not derived from the extension — the old
-                    extension sniff mis-filed .docx as an image.
+                    `vehicle_image` permits up to eight JPG, PNG, or WebP files.
+                    `quote_document` permits one PDF, DOC, or DOCX file.
                   enum:
-                  - image
-                  - document
+                  - vehicle_image
+                  - quote_document
             examples:
               pdf:
                 value:
@@ -2185,7 +2184,7 @@ paths:
                   filename: service-records.pdf
                   content_type: application/pdf
                   size_bytes: 2411004
-                  kind: document
+                  document_type: quote_document
       responses:
         '200':
           description: Presigned URL and key
@@ -2207,15 +2206,30 @@ paths:
     post:
       summary: Confirm an upload
       description: |-
-        Called after the client PUTs the bytes. HEADs the S3 object to verify
-        size and content type, then inserts the `deal_documents` row. If the
-        object is missing or mismatched, 422 — the client can safely retry the
-        upload without leaving a phantom row.
+        Called after the client PUTs the bytes. Verifies the object key belongs
+        to the quote and dealer, normalizes legacy attachment types, enforces
+        eight-photo/one-document limits, then confirms the `deal_documents` row.
       operationId: confirmUpload
       tags:
       - Documents
       parameters:
       - $ref: '#/components/parameters/DocumentConfirmId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [quote_id, document_type, object_key]
+              properties:
+                quote_id:
+                  type: string
+                  format: uuid
+                document_type:
+                  type: string
+                  enum: [vehicle_image, quote_document]
+                object_key:
+                  type: string
       responses:
         '201':
           description: Document record created
@@ -2245,14 +2259,9 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                required:
-                - items
-                properties:
-                  items:
-                    type: array
-                    items:
-                      $ref: '#/components/schemas/DealDocument'
+                type: array
+                items:
+                  $ref: '#/components/schemas/DealDocument'
         '401':
           $ref: '#/components/responses/unauthorized'
         '403':
@@ -5438,6 +5447,7 @@ components:
       - created_at
       - updated_at
       - quote_count
+      - view_count
       properties:
         id:
           type: string
@@ -5524,7 +5534,11 @@ components:
         quote_count:
           type: integer
           minimum: 0
-          description: Live pending quotes only, so a list row and a detail header never disagree.
+          description: Dealer quotes for this request, excluding withdrawn quotes.
+        view_count:
+          type: integer
+          minimum: 0
+          description: Unique verified dealers that opened the request. Repeat visits by one dealer count once.
         sales_tax_rate:
           type: string
           description: |-
@@ -6273,7 +6287,7 @@ components:
       - id
       - quote_id
       - dealer_id
-      - kind
+      - document_type
       - created_at
       properties:
         id:
@@ -6285,15 +6299,11 @@ components:
         dealer_id:
           type: string
           format: uuid
-        kind:
+        document_type:
           type: string
           enum:
-          - image
-          - document
-          description: |-
-            Structural, from what the client declared at presign — not
-            sniffed from the extension. The old extension check filed `.docx`
-            as an image.
+          - vehicle_image
+          - quote_document
         image_paths:
           type: array
           description: S3 keys for photos and screenshots. Empty array, never null.
@@ -6303,10 +6313,10 @@ components:
           type: string
           description: S3 key for a real file. One document per row.
           nullable: true
-        display_name:
+        file_name:
           type: string
-          description: Basename of the key, derived at read time — the original filename is not stored.
-          example: 1788875882219.pdf
+          description: Sanitized original filename derived from the private S3 key.
+          example: buyer-order.pdf
           nullable: true
         content_type:
           type: string

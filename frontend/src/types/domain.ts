@@ -10,6 +10,14 @@ export interface Session {
   email: string;
   role: Role;
   avatarInitials: string;
+  phone?: string | null;
+  address?: string | null;
+  stateId?: string | null;
+  dealershipName?: string | null;
+  branchName?: string | null;
+  dealerLicense?: string | null;
+  website?: string | null;
+  supportedBrands?: string[];
 }
 
 export interface SupportMember {
@@ -40,6 +48,7 @@ export interface BuyerRequest {
   timeline: 'ASAP' | 'Within 1 week' | 'Within 2 weeks' | 'Just exploring';
   status: RequestStatus;
   quoteCount: number;
+  viewCount: number;
   createdAt: string;
   expiresAt: string;
   image: string;

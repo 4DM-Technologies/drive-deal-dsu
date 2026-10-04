@@ -190,12 +190,20 @@ def test_complete_request_quote_chat_and_deal_flow() -> None:
         assert client.post(f"/api/v1/requests/{request_id}/publish", headers=buyer).json()["status"] == "open"
 
         dealer = login(client, "naveen@naveemotors.demo")
+        first_view = client.get(f"/api/v1/feed/requests/{request_id}", headers=dealer)
+        repeated_view = client.get(f"/api/v1/feed/requests/{request_id}", headers=dealer)
+        assert first_view.status_code == 200
+        assert repeated_view.json()["view_count"] == 1
+        second_dealer = login(client, "elena@lonestar.demo")
+        assert client.get(f"/api/v1/feed/requests/{request_id}", headers=second_dealer).json()["view_count"] == 2
+        assert client.get(f"/api/v1/requests/{request_id}", headers=buyer).json()["view_count"] == 2
         quote = client.post(
             "/api/v1/quotes", headers=dealer,
             json={"buyer_request_id": request_id, "vehicle_price": "56000", "doc_fee": "500", "sales_tax": "3500", "title_reg": "225", "trade_in_credit": "0", "message": "Available now", "expires_at": (datetime.now(UTC) + timedelta(days=3)).isoformat()},
         )
         assert quote.status_code == 201, quote.text
         quote_id = quote.json()["id"]
+        assert client.get(f"/api/v1/requests/{request_id}", headers=buyer).json()["quote_count"] == 1
         assert client.patch(f"/api/v1/quotes/{quote_id}/revise", headers=dealer, json={"vehicle_price": "55500"}).status_code == 200
 
         assert client.post(f"/api/v1/chats/{quote_id}/request-access", headers=buyer, json={"message": "Can we discuss pickup?"}).status_code == 200
@@ -208,12 +216,16 @@ def test_complete_request_quote_chat_and_deal_flow() -> None:
         accepted = client.post(f"/api/v1/quotes/{quote_id}/accept", headers=buyer)
         assert accepted.status_code == 200 and accepted.json()["deal_status"] == "paperwork_going_on"
         assert client.patch(f"/api/v1/deals/{quote_id}/status", headers=dealer, json={"status": "funds_arrived"}).status_code == 200
-        upload = client.post("/api/v1/documents/presign", headers=dealer, json={"filename": "buyer-order.pdf", "content_type": "application/pdf", "quote_id": quote_id})
+        upload = client.post("/api/v1/documents/presign", headers=dealer, json={"filename": "buyer-order.pdf", "content_type": "application/pdf", "quote_id": quote_id, "document_type": "quote_document", "size_bytes": 2048})
         assert upload.status_code == 200
         document_id = str(uuid4())
-        confirmed = client.post(f"/api/v1/documents/{document_id}/confirm", headers=dealer, json={"quote_id": quote_id, "document_type": "buyer_order", "object_key": upload.json()["key"]})
+        confirmed = client.post(f"/api/v1/documents/{document_id}/confirm", headers=dealer, json={"quote_id": quote_id, "document_type": "quote_document", "object_key": upload.json()["key"]})
         assert confirmed.status_code == 200
-        assert len(client.get(f"/api/v1/documents/{quote_id}", headers=buyer).json()) == 1
+        documents = client.get(f"/api/v1/documents/{quote_id}", headers=buyer).json()
+        assert len(documents) == 1
+        assert documents[0]["file_name"] == "buyer-order.pdf"
+        duplicate = client.post("/api/v1/documents/presign", headers=dealer, json={"filename": "duplicate.pdf", "content_type": "application/pdf", "quote_id": quote_id, "document_type": "quote_document", "size_bytes": 1024})
+        assert duplicate.status_code == 409
         assert client.delete(f"/api/v1/documents/{quote_id}/{document_id}", headers=dealer).status_code == 204
 
 
