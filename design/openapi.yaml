@@ -49,10 +49,8 @@ info:
   contact:
     name: Deal&Drive Dev Team
 servers:
-- url: http://localhost:8000/api/v1
-  description: Local development
-- url: https://api.drivedeal.example/api/v1
-  description: PLACEHOLDER — the production host is not decided yet.
+- url: /api/v1
+  description: Relative to the host serving this spec.
 tags:
 - name: Health
 - name: Auth
