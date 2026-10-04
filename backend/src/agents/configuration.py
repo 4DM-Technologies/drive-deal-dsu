@@ -3,8 +3,21 @@
 from copy import deepcopy
 from typing import Any
 
-WORKFLOW_KEY = "sera-main"
-THEME_KEY = "global"
+from src.settings import ADMIN_THEME_KEY as THEME_KEY
+from src.settings import ADMIN_WORKFLOW_KEY as WORKFLOW_KEY
+from src.settings import AI_REASONING_EFFORTS as REASONING_EFFORTS
+
+__all__ = [
+    "MODEL_CATALOG",
+    "NODE_CATALOG",
+    "PROMPT_CATALOG",
+    "REASONING_EFFORTS",
+    "THEME_KEY",
+    "WORKFLOW_KEY",
+    "default_theme",
+    "default_workflow",
+    "prompt_file_for",
+]
 
 MODEL_CATALOG: tuple[dict[str, str], ...] = (
     {"id": "gpt-6.1-sol", "label": "GPT-6.1 Sol", "description": "Latest workhorse model for production agent tasks."},
@@ -16,8 +29,6 @@ MODEL_CATALOG: tuple[dict[str, str], ...] = (
     {"id": "gpt-5.6-luna", "label": "GPT-5.6 Luna", "description": "Fast and efficient model."},
     {"id": "gpt-5.5", "label": "GPT-5.5", "description": "Legacy coding and reasoning model."},
 )
-
-REASONING_EFFORTS = ("minimal", "low", "medium", "high", "xhigh")
 
 NODE_CATALOG: tuple[dict[str, Any], ...] = (
     {"id": "triage", "type": "router", "label": "Triage", "description": "Fast deterministic safety and intent gate."},

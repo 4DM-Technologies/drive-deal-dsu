@@ -23,7 +23,15 @@ from src.routes import (
     websocket,
 )
 from src.services.administration_service import AdministrationService
-from src.settings import get_settings
+from src.settings import (
+    API_CORS_HEADERS,
+    API_CORS_METHODS,
+    API_DESCRIPTION,
+    API_EXPOSE_HEADERS,
+    API_TITLE,
+    API_VERSION,
+    get_settings,
+)
 from src.utils.exceptions import AppError
 from src.utils.exceptions.handlers import app_error_handler, unexpected_error_handler, validation_error_handler
 from src.utils.log_flow import log_flow
@@ -115,9 +123,9 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
 
 
 app = FastAPI(
-    title="DriveDeal API",
-    version="1.0.0",
-    description="Reverse vehicle marketplace and Serra buyer advisor API.",
+    title=API_TITLE,
+    version=API_VERSION,
+    description=API_DESCRIPTION,
     docs_url=f"{settings.api_prefix}/docs",
     openapi_url=f"{settings.api_prefix}/openapi.json",
     redoc_url=None,
@@ -129,9 +137,9 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-    expose_headers=["Content-Disposition"],
+    allow_methods=list(API_CORS_METHODS),
+    allow_headers=list(API_CORS_HEADERS),
+    expose_headers=list(API_EXPOSE_HEADERS),
 )
 app.add_exception_handler(AppError, app_error_handler)
 app.add_exception_handler(RequestValidationError, validation_error_handler)

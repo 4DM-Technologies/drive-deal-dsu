@@ -12,7 +12,7 @@ from dataclasses import dataclass
 import boto3
 from botocore.exceptions import ClientError
 
-from src.settings import get_settings
+from src.settings import S3_CACHE_CONTROL_NO_STORE, S3_SERVER_SIDE_ENCRYPTION, get_settings
 
 
 @dataclass(slots=True)
@@ -24,13 +24,14 @@ class CodexOAuthS3Store:
     @classmethod
     def from_settings(cls) -> CodexOAuthS3Store:
         settings = get_settings()
+        region, bucket = settings.require_s3_location()
         client = boto3.client(
             "s3",
-            region_name=settings.aws_region,
+            region_name=region,
             aws_access_key_id=settings.aws_access_key_id,
             aws_secret_access_key=settings.aws_secret_access_key,
         )
-        return cls(settings.s3_bucket, settings.codex_oauth_s3_prefix.strip("/"), client)
+        return cls(bucket, settings.codex_oauth_s3_prefix.strip("/"), client)
 
     def key(self, name: str) -> str:
         safe_name = name.removeprefix("/")
@@ -60,8 +61,8 @@ class CodexOAuthS3Store:
                 Key=self.key(name),
                 Body=value.encode("utf-8"),
                 ContentType=content_type,
-                CacheControl="no-store",
-                ServerSideEncryption="AES256",
+                CacheControl=S3_CACHE_CONTROL_NO_STORE,
+                ServerSideEncryption=S3_SERVER_SIDE_ENCRYPTION,
             )
         except ClientError as exc:
             raise RuntimeError("Could not persist Codex OAuth state to S3.") from exc

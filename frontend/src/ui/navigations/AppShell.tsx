@@ -8,6 +8,7 @@ import { useDemoStore } from '@/services/platform/demoStore';
 import { SupportReporter } from '@/ui/reusables/SupportReporter/SupportReporter';
 import type { Role } from '@/types/domain';
 import { previewQuery, useEffectiveSession } from '@/ui/navigations/previewSession';
+import { BROWSER_STORAGE_KEYS, WORKSPACE_VIEW_QUERY_PARAMETER } from '@/config/browser';
 
 const links: Record<Role, Array<{ to: string; label: string; icon: typeof Home }>> = {
   buyer: [
@@ -45,7 +46,7 @@ export function AppShell() {
   const navigate = useNavigate();
   const location = useLocation();
   const searchParams = new URLSearchParams(location.search);
-  const workspaceView = searchParams.get('workspaceView');
+  const workspaceView = searchParams.get(WORKSPACE_VIEW_QUERY_PARAMETER);
   const isThemePreview = searchParams.get('themePreview') === '1';
   const previewSearch = previewQuery(location.search);
   const previewPath = (path: string) => `${path}${previewSearch}`;
@@ -69,8 +70,8 @@ export function AppShell() {
   const roleHome = ['support', 'support-admin', 'admin'].includes(session.role) ? '/support' : '/home';
   const signOut = () => {
     if (isThemePreview) return;
-    window.localStorage.removeItem('drivedeal.accessToken');
-    window.localStorage.removeItem('drivedeal.refreshToken');
+    window.localStorage.removeItem(BROWSER_STORAGE_KEYS.accessToken);
+    window.localStorage.removeItem(BROWSER_STORAGE_KEYS.refreshToken);
     logout();
     navigate('/login', { replace: true, state: null });
   };
@@ -115,7 +116,7 @@ export function AppShell() {
           </motion.div>
         )}
       </AnimatePresence>
-      <motion.main key={pageKey} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: .18 }} onClickCapture={(event) => { if (!workspaceView) return; const anchor = (event.target as HTMLElement).closest('a'); if (!anchor || anchor.target || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return; const target = new URL(anchor.href, window.location.origin); if (target.origin !== window.location.origin || target.searchParams.has('workspaceView')) return; event.preventDefault(); target.searchParams.set('workspaceView', workspaceView); navigate(`${target.pathname}${target.search}${target.hash}`); }}>
+      <motion.main key={pageKey} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: .18 }} onClickCapture={(event) => { if (!workspaceView) return; const anchor = (event.target as HTMLElement).closest('a'); if (!anchor || anchor.target || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return; const target = new URL(anchor.href, window.location.origin); if (target.origin !== window.location.origin || target.searchParams.has(WORKSPACE_VIEW_QUERY_PARAMETER)) return; event.preventDefault(); target.searchParams.set(WORKSPACE_VIEW_QUERY_PARAMETER, workspaceView); navigate(`${target.pathname}${target.search}${target.hash}`); }}>
         <Outlet />
       </motion.main>
       {session.role === 'buyer' && location.pathname !== '/chatbot' && <SerraWidget />}

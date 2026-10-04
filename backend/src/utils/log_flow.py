@@ -31,26 +31,42 @@ from src.settings import (
     LOG_FLOW_SENSITIVE_PARAMS,
     get_settings,
 )
+from src.settings import (
+    LOG_FLOW_EVENT_ENTRY as EVENT_FUNCTION_ENTRY,
+)
+from src.settings import (
+    LOG_FLOW_EVENT_ERROR as EVENT_FUNCTION_ERROR,
+)
+from src.settings import (
+    LOG_FLOW_EVENT_EXIT as EVENT_FUNCTION_EXIT,
+)
+from src.settings import (
+    LOG_FLOW_LOGGED_ATTRIBUTE as FLOW_LOGGED_ATTR,
+)
+from src.settings import (
+    LOG_FLOW_OUTCOME_CANCELLED as OUTCOME_CANCELLED,
+)
+from src.settings import (
+    LOG_FLOW_OUTCOME_ERROR as OUTCOME_ERROR,
+)
+from src.settings import (
+    LOG_FLOW_OUTCOME_OK as OUTCOME_OK,
+)
+from src.settings import (
+    LOG_FLOW_REDACTED_VALUE as REDACTED,
+)
+from src.settings import (
+    LOG_FLOW_SKIPPED_ARG_NAMES as SKIPPED_ARG_NAMES,
+)
+from src.settings import (
+    LOG_FLOW_SKIPPED_FUNCTION_NAMES as SKIPPED_FUNCTION_NAMES,
+)
 from src.utils.logger import logger
 
 P = ParamSpec("P")
 R = TypeVar("R")
 
-SKIPPED_ARG_NAMES = frozenset({"self", "cls", "request", "response", "websocket", "background_tasks"})
-SKIPPED_FUNCTION_NAMES = frozenset({"__repr__", "__str__", "__eq__", "__hash__"})
-FLOW_LOGGED_ATTR = "__drivedeal_log_flow__"
-
 flow_depth: ContextVar[int] = ContextVar("drivedeal_flow_depth", default=0)
-
-EVENT_FUNCTION_ENTRY = "function_entry"
-EVENT_FUNCTION_EXIT = "function_exit"
-EVENT_FUNCTION_ERROR = "function_error"
-
-OUTCOME_OK = "ok"
-OUTCOME_ERROR = "error"
-OUTCOME_CANCELLED = "cancelled"
-
-REDACTED = "***"
 
 
 def _truncate(value: str, limit: int = LOG_FLOW_ARG_VALUE_LIMIT) -> str:

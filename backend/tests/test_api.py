@@ -209,7 +209,12 @@ def test_complete_request_quote_chat_and_deal_flow() -> None:
         assert client.post(f"/api/v1/chats/{quote_id}/request-access", headers=buyer, json={"message": "Can we discuss pickup?"}).status_code == 200
         assert client.post(f"/api/v1/chats/requests/{quote_id}/accept", headers=dealer).status_code == 200
         assert client.post(f"/api/v1/chats/{quote_id}", headers=buyer, json={"id": str(uuid4()), "message": "Thank you"}).status_code == 201
-        assert len(client.get(f"/api/v1/chats/{quote_id}", headers=dealer).json()) == 2
+        buyer_messages = client.get(f"/api/v1/chats/{quote_id}", headers=dealer).json()
+        assert len(buyer_messages) == 2
+        assert all(message["sender_name"] == "Rahul Sharma" for message in buyer_messages)
+        dealer_message = client.post(f"/api/v1/chats/{quote_id}", headers=dealer, json={"id": str(uuid4()), "message": "Pickup is available."})
+        assert dealer_message.status_code == 201
+        assert dealer_message.json()["sender_name"] == "Navee Motors"
         assert client.post(f"/api/v1/chats/{quote_id}/read", headers=dealer).status_code == 200
         assert client.get(f"/api/v1/quotes/{quote_id}/dealer-contact", headers=buyer).status_code == 200
 

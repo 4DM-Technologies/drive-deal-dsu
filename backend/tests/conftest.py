@@ -9,6 +9,8 @@ import pytest
 
 test_database = Path(tempfile.gettempdir()) / f"drivedeal-tests-{uuid4().hex}.db"
 os.environ["DATABASE_URL"] = f"sqlite+aiosqlite:///{test_database.as_posix()}"
+os.environ["JWT_SECRET_KEY"] = "test-only-secret-that-is-long-enough-for-validation"
+os.environ["CORS_ORIGINS"] = '["http://testserver"]'
 os.environ["STORAGE_DRIVER"] = "local"
 os.environ["AI_DISABLED"] = "true"
 # Function-flow logging is asserted by tests/utils, so silence it here to keep test output readable.

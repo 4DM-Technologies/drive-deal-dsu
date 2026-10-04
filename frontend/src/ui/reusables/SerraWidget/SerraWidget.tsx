@@ -3,12 +3,12 @@ import { ArrowUp, Check, Expand, MessageCircle, Sparkles, X } from 'lucide-react
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { client } from '@/services/platform/client';
+import { BROWSER_STORAGE_KEYS } from '@/config/browser';
 import { SerraLogo } from '@/ui/reusables/SerraLogo/SerraLogo';
 
 interface Message { id: string; role: 'user' | 'assistant'; body: string }
 
 const suggestions = ['Help me choose a car', 'Compare my Bronco quotes', 'Build a buyer request'];
-const SESSION_DISMISS_KEY = 'drivedeal.sera-widget-dismissed';
 
 function CompactAnswer({ body }: { body: string }) {
   const lines = body.split('\n').map((line) => line.trim()).filter(Boolean);
@@ -19,7 +19,9 @@ function CompactAnswer({ body }: { body: string }) {
 export function SerraWidget() {
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
-  const [visible, setVisible] = useState(() => window.sessionStorage.getItem(SESSION_DISMISS_KEY) !== 'true');
+  const [visible, setVisible] = useState(
+    () => window.sessionStorage.getItem(BROWSER_STORAGE_KEYS.seraWidgetDismissed) !== 'true',
+  );
   const [showNudge, setShowNudge] = useState(false);
   const [bump, setBump] = useState(false);
   const [input, setInput] = useState('');
@@ -47,7 +49,7 @@ export function SerraWidget() {
   if (!visible) return null;
 
   function dismiss() {
-    window.sessionStorage.setItem(SESSION_DISMISS_KEY, 'true');
+    window.sessionStorage.setItem(BROWSER_STORAGE_KEYS.seraWidgetDismissed, 'true');
     setShowNudge(false);
     setOpen(false);
     setVisible(false);

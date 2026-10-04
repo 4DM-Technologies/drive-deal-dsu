@@ -1,18 +1,23 @@
 import type { DriveDealClient, AiStreamEvent } from '@/services/generated/client';
 import type { ActiveTheme, AdministrationAuditEvent, AdminCatalog, AdminConfigBundle, AdminConfigType, AdminPromptBundle, AdminRevision, AiThread, AiTrace, BrandRef, BuyerRequest, CarCreateInput, ChatMessage, DealDocument, InventoryCar, PromptDefinition, Quote, Session, StateRef, SupportMember, Ticket, Verification, WorkflowDefinition, WorkflowPreview, WorkflowPreviewStreamEvent } from '@/types/domain';
 import driveDealHero from '@/assets/vehicles/drivedeal-hero.png';
+import { BROWSER_STORAGE_KEYS, WORKSPACE_VIEW_QUERY_PARAMETER } from '@/config/browser';
+import { environment } from '@/config/environment';
 
-const baseUrl = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000/api/v1';
+const baseUrl = environment.apiBaseUrl;
 
-const token = () => window.localStorage.getItem('drivedeal.accessToken');
-const clearTokens = () => { window.localStorage.removeItem('drivedeal.accessToken'); window.localStorage.removeItem('drivedeal.refreshToken'); };
+const token = () => window.localStorage.getItem(BROWSER_STORAGE_KEYS.accessToken);
+const clearTokens = () => {
+  window.localStorage.removeItem(BROWSER_STORAGE_KEYS.accessToken);
+  window.localStorage.removeItem(BROWSER_STORAGE_KEYS.refreshToken);
+};
 const workspaceView = () => {
-  const value = new URLSearchParams(window.location.search).get('workspaceView');
+  const value = new URLSearchParams(window.location.search).get(WORKSPACE_VIEW_QUERY_PARAMETER);
   return value === 'buyer' || value === 'dealer' ? value : null;
 };
 const activeRole = (): Session['role'] | null => {
   try {
-    return JSON.parse(window.localStorage.getItem('deal-and-drive-demo-v4') ?? '{}')?.state?.session?.role ?? null;
+    return JSON.parse(window.localStorage.getItem(BROWSER_STORAGE_KEYS.session) ?? '{}')?.state?.session?.role ?? null;
   } catch {
     return null;
   }
@@ -253,8 +258,8 @@ async function* streamWorkflowPreview(
 }
 
 function storeTokens(response: { access_token: string; refresh_token: string }) {
-  window.localStorage.setItem('drivedeal.accessToken', response.access_token);
-  window.localStorage.setItem('drivedeal.refreshToken', response.refresh_token);
+  window.localStorage.setItem(BROWSER_STORAGE_KEYS.accessToken, response.access_token);
+  window.localStorage.setItem(BROWSER_STORAGE_KEYS.refreshToken, response.refresh_token);
 }
 
 const signupBody = (input: Record<string, unknown>) => ({ full_name: input.fullName, email: input.email, phone: input.phone, password: input.password, state_id: input.stateId, address: input.address ?? null, terms_accepted: input.termsAccepted, terms_version: input.termsVersion });
@@ -281,7 +286,7 @@ export const httpClient: DriveDealClient = {
       return { pending: true as const };
     },
     refresh: async () => {
-      const refreshToken = window.localStorage.getItem('drivedeal.refreshToken');
+      const refreshToken = window.localStorage.getItem(BROWSER_STORAGE_KEYS.refreshToken);
       if (!refreshToken) throw new Error('No refresh token available.');
       const response = await request<{ access_token: string; refresh_token: string; profile: Record<string, unknown> }>('/auth/refresh', { method: 'POST', body: JSON.stringify({ refresh_token: refreshToken }) });
       storeTokens(response);
@@ -339,8 +344,8 @@ export const httpClient: DriveDealClient = {
     },
   },
   chats: {
-    list: async (quoteId) => (await request<Record<string, unknown>[]>(`/chats/${quoteId}`)).map((row): ChatMessage => ({ id: String(row.id), quoteId: String(row.quote_id), senderId: String(row.sender_id), senderName: String(row.sender_name ?? 'Member'), body: String(row.message), createdAt: String(row.created_at), read: Boolean(row.read_at) })),
-    send: async (quoteId, body) => { const row = await request<Record<string, unknown>>(`/chats/${quoteId}`, { method: 'POST', body: JSON.stringify({ id: crypto.randomUUID(), message: body }) }); return { id: String(row.id), quoteId: String(row.quote_id), senderId: String(row.sender_id), senderName: String(row.sender_name ?? 'Member'), body: String(row.message), createdAt: String(row.created_at), read: Boolean(row.read_at) }; },
+    list: async (quoteId) => (await request<Record<string, unknown>[]>(`/chats/${quoteId}`)).map((row): ChatMessage => ({ id: String(row.id), quoteId: String(row.quote_id), senderId: String(row.sender_id), senderName: String(row.sender_name ?? 'Account unavailable'), body: String(row.message), createdAt: String(row.created_at), read: Boolean(row.read_at) })),
+    send: async (quoteId, body) => { const row = await request<Record<string, unknown>>(`/chats/${quoteId}`, { method: 'POST', body: JSON.stringify({ id: crypto.randomUUID(), message: body }) }); return { id: String(row.id), quoteId: String(row.quote_id), senderId: String(row.sender_id), senderName: String(row.sender_name ?? 'Account unavailable'), body: String(row.message), createdAt: String(row.created_at), read: Boolean(row.read_at) }; },
     requestAccess: async (quoteId, message) => quoteToDomain(await request(`/chats/${quoteId}/request-access`, { method: 'POST', body: JSON.stringify({ message }) })),
     listRequests: async () => (await request<Record<string, unknown>[]>('/chats/requests')).map(quoteToDomain),
     acceptRequest: async (quoteId) => quoteToDomain(await request(`/chats/requests/${quoteId}/accept`, { method: 'POST' })),

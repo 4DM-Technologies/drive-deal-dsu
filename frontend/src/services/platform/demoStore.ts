@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { BROWSER_STORAGE_KEYS } from '@/config/browser';
 import type { Session } from '@/types/domain';
 
 interface DemoState {
@@ -19,6 +20,6 @@ export const useDemoStore = create<DemoState>()(
       setSession: (session) => set({ session }),
       logout: () => set({ session: null }),
     }),
-    { name: 'deal-and-drive-demo-v4', partialize: (state) => ({ session: state.session }) },
+    { name: BROWSER_STORAGE_KEYS.session, partialize: (state) => ({ session: state.session }) },
   ),
 );

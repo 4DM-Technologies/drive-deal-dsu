@@ -10,9 +10,7 @@ import sys
 
 import structlog
 
-from src.settings import get_settings
-
-LOGGER_NAME = "drivedeal"
+from src.settings import LOGGER_NAME, get_settings
 
 _configured = False
 

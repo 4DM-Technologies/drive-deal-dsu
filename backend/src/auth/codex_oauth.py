@@ -23,23 +23,46 @@ from typing import Any
 import httpx
 
 from src.auth.codex_oauth_store import CodexOAuthS3Store
-from src.settings import PROJECT_ROOT, get_settings
-
-AUTH_URL = "https://auth.openai.com/api/accounts/authorize"
-TOKEN_URL = "https://auth.openai.com/api/accounts/oauth/token"
-BOOTSTRAP_CLIENT_ID = "dynamic_agent_client"
-RESOURCE = "https://api.openai.com/v1"
-REDIRECT_PORT = 1455
-REDIRECT_URI = f"http://127.0.0.1:{REDIRECT_PORT}/auth/callback"
-SCOPES = "openid profile email offline_access resource.invoke chatgpt.tokens.use.direct"
-
-# How much lead time to refresh before the access token's JWT `exp` claim is actually reached.
-_REFRESH_SKEW_SECONDS = 120
-
-LEGACY_STATE_DIR = PROJECT_ROOT / ".codex_oauth_state"
-HOST_ID_NAME = "host_id.txt"
-CLIENT_ID_NAME = "client_id.txt"
-TOKENS_NAME = "tokens.json"
+from src.settings import (
+    CODEX_OAUTH_AUTHORIZE_URL as AUTH_URL,
+)
+from src.settings import (
+    CODEX_OAUTH_BOOTSTRAP_CLIENT_ID as BOOTSTRAP_CLIENT_ID,
+)
+from src.settings import (
+    CODEX_OAUTH_CALLBACK_PATH,
+    CODEX_OAUTH_HTTP_TIMEOUT_SECONDS,
+    CODEX_OAUTH_REDIRECT_HOST,
+    CODEX_OAUTH_REFRESH_SKEW_SECONDS,
+    get_settings,
+)
+from src.settings import (
+    CODEX_OAUTH_CLIENT_ID_FILE as CLIENT_ID_NAME,
+)
+from src.settings import (
+    CODEX_OAUTH_HOST_ID_FILE as HOST_ID_NAME,
+)
+from src.settings import (
+    CODEX_OAUTH_LEGACY_STATE_DIR as LEGACY_STATE_DIR,
+)
+from src.settings import (
+    CODEX_OAUTH_REDIRECT_PORT as REDIRECT_PORT,
+)
+from src.settings import (
+    CODEX_OAUTH_REDIRECT_URI as REDIRECT_URI,
+)
+from src.settings import (
+    CODEX_OAUTH_RESOURCE as RESOURCE,
+)
+from src.settings import (
+    CODEX_OAUTH_SCOPES as SCOPES,
+)
+from src.settings import (
+    CODEX_OAUTH_TOKEN_URL as TOKEN_URL,
+)
+from src.settings import (
+    CODEX_OAUTH_TOKENS_FILE as TOKENS_NAME,
+)
 
 
 def _state_store() -> CodexOAuthS3Store:
@@ -137,7 +160,7 @@ def _save_tokens(tokens: dict) -> None:
 
 def _token_near_expiry(tokens: dict) -> bool:
     exp = _jwt_claims(tokens.get("access_token", "")).get("exp")
-    return bool(exp) and float(exp) <= time.time() + _REFRESH_SKEW_SECONDS
+    return bool(exp) and float(exp) <= time.time() + CODEX_OAUTH_REFRESH_SKEW_SECONDS
 
 
 class _CallbackHandler(http.server.BaseHTTPRequestHandler):
@@ -145,7 +168,7 @@ class _CallbackHandler(http.server.BaseHTTPRequestHandler):
 
     def do_GET(self) -> None:  # noqa: N802 — required by BaseHTTPRequestHandler
         parsed = urllib.parse.urlparse(self.path)
-        if parsed.path != "/auth/callback":
+        if parsed.path != CODEX_OAUTH_CALLBACK_PATH:
             self.send_response(404)
             self.end_headers()
             return
@@ -189,7 +212,7 @@ def login() -> dict:
     print(f"If it doesn't open automatically, visit:\n{url}\n")  # noqa: T201
     webbrowser.open(url)
 
-    server = http.server.HTTPServer(("127.0.0.1", REDIRECT_PORT), _CallbackHandler)
+    server = http.server.HTTPServer((CODEX_OAUTH_REDIRECT_HOST, REDIRECT_PORT), _CallbackHandler)
     print("Waiting for the browser callback...")  # noqa: T201
     while _CallbackHandler.result is None:
         server.handle_request()
@@ -205,7 +228,7 @@ def login() -> dict:
     # commonly returned in the callback query string alongside `code`. Prefer it if present.
     token_client_id = result.get("client_id") or client_id
 
-    with httpx.Client(timeout=30) as http_client:
+    with httpx.Client(timeout=CODEX_OAUTH_HTTP_TIMEOUT_SECONDS) as http_client:
         resp = http_client.post(
             TOKEN_URL,
             data={
@@ -238,7 +261,7 @@ def login() -> dict:
 
 async def _refresh_async(tokens: dict, *, persist_refresh_token: bool = True) -> dict:
     client_id = await asyncio.to_thread(_saved_client_id)
-    async with httpx.AsyncClient(timeout=30) as http_client:
+    async with httpx.AsyncClient(timeout=CODEX_OAUTH_HTTP_TIMEOUT_SECONDS) as http_client:
         resp = await http_client.post(
             TOKEN_URL,
             data={
@@ -312,7 +335,7 @@ def load_or_login() -> dict:
         if not tokens.get("refresh_token"):
             return login()
         try:
-            with httpx.Client(timeout=30) as http_client:
+            with httpx.Client(timeout=CODEX_OAUTH_HTTP_TIMEOUT_SECONDS) as http_client:
                 resp = http_client.post(
                     TOKEN_URL,
                     data={

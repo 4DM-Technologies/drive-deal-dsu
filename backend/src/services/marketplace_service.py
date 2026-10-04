@@ -13,12 +13,11 @@ from src.models.marketplace import (
 )
 from src.repositories.marketplace_repository import MarketplaceRepository
 from src.repositories.schema import Brand, BuyerRequest, DealChat, DealQuote, Profile
+from src.settings import MARKETPLACE_DEAL_FLOW
 from src.utils.exceptions import AppError, error_codes
 from src.utils.log_flow import log_flow
 from src.utils.logger import logger
 from src.utils.serialization import model_dict
-
-DEAL_FLOW = ["paperwork_going_on", "funds_arrived", "dispatch", "delivery", "completed"]
 
 
 class MarketplaceService:
@@ -62,6 +61,14 @@ class MarketplaceService:
             return {}
         rows = (await self.session.execute(select(Profile).where(Profile.id.in_(profile_ids)))).scalars()
         return {row.id: row for row in rows}
+
+    @staticmethod
+    def _chat_sender_name(profile: Profile | None) -> str:
+        if profile is None:
+            return "Account unavailable"
+        if profile.role == "dealer":
+            return profile.dealership_name or profile.full_name
+        return profile.full_name
 
     @log_flow(layer="service")
     async def _request_map(self, request_ids: set[str]) -> dict[str, BuyerRequest]:
@@ -241,7 +248,12 @@ class MarketplaceService:
         self._require_party(quote, actor)
         if quote.status != "accepted" and quote.chat_request_status != "accepted":
             raise AppError(error_codes.CHAT_NOT_OPEN, "This conversation is not open.", 403)
-        return [model_dict(row) for row in await self.repository.chat_messages(quote_id) if actor.id not in row.hidden_for]
+        rows = [row for row in await self.repository.chat_messages(quote_id) if actor.id not in row.hidden_for]
+        profiles = await self._profile_map({row.sender_id for row in rows})
+        return [
+            {**model_dict(row), "sender_name": self._chat_sender_name(profiles.get(row.sender_id))}
+            for row in rows
+        ]
 
     @log_flow(layer="service")
     async def send_chat(self, quote_id: str, payload: ChatSend, actor: Profile) -> dict:
@@ -251,12 +263,13 @@ class MarketplaceService:
             raise AppError(error_codes.CHAT_NOT_OPEN, "This conversation is not open.", 403)
         existing = next((row for row in await self.repository.chat_messages(quote_id) if row.client_message_id == payload.id), None)
         if existing:
-            return model_dict(existing)
+            sender = await self.session.get(Profile, existing.sender_id)
+            return {**model_dict(existing), "sender_name": self._chat_sender_name(sender)}
         row = DealChat(quote_id=quote_id, sender_id=actor.id, message=payload.message, client_message_id=payload.id)
         self.repository.add(row)
         await self.repository.commit()
         await self.session.refresh(row)
-        return model_dict(row)
+        return {**model_dict(row), "sender_name": self._chat_sender_name(actor)}
 
     @log_flow(layer="service")
     async def update_deal_status(self, quote_id: str, payload: DealStatusUpdate, actor: Profile) -> dict:
@@ -265,7 +278,10 @@ class MarketplaceService:
         if quote.status != "accepted":
             raise AppError(error_codes.ILLEGAL_TRANSITION, "Only accepted quotes have a deal status.", 422)
         current = quote.deal_status
-        allowed = payload.status == "cancelled" or (current in DEAL_FLOW and DEAL_FLOW.index(payload.status) == DEAL_FLOW.index(current) + 1)
+        allowed = payload.status == "cancelled" or (
+            current in MARKETPLACE_DEAL_FLOW
+            and MARKETPLACE_DEAL_FLOW.index(payload.status) == MARKETPLACE_DEAL_FLOW.index(current) + 1
+        )
         if current is None:
             allowed = payload.status == "paperwork_going_on"
         if not allowed or current in {"completed", "cancelled"}:

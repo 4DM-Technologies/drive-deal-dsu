@@ -6,12 +6,9 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import Response
 
-from src.settings import LOG_QUERY_STRING
+from src.settings import LOG_QUERY_STRING, REQUEST_CONTEXT_LOGGED_METHODS, REQUEST_CONTEXT_SKIPPED_PATHS
 from src.utils.log_flow import log_flow
 from src.utils.logger import logger
-
-SKIPPED_PATHS = frozenset({"/health", "/metrics"})
-LOGGED_METHODS = frozenset({"GET", "POST", "PUT", "PATCH", "DELETE"})
 
 
 def resolve_request_id(request: Request) -> str:
@@ -40,7 +37,7 @@ def log_completion(request: Request, response: Response, request_id: str, starte
         "status_code": response.status_code,
         "duration_ms": round((time.perf_counter() - started_at) * 1000, 3),
     }
-    if request.method in LOGGED_METHODS:
+    if request.method in REQUEST_CONTEXT_LOGGED_METHODS:
         fields["operation"] = f"{request.method} {request.url.path}"
     if response.status_code >= 500:
         logger.error("api_request_completed", **fields)
@@ -66,7 +63,7 @@ class RequestContextMiddleware(BaseHTTPMiddleware):
         request.state.request_id = request_id
         structlog.contextvars.bind_contextvars(request_id=request_id, path=request.url.path, method=request.method)
         started_at = time.perf_counter()
-        should_log = request.url.path not in SKIPPED_PATHS
+        should_log = request.url.path not in REQUEST_CONTEXT_SKIPPED_PATHS
         if should_log:
             logger.info("api_request_started", request_id=request_id, **describe_request(request))
         try:

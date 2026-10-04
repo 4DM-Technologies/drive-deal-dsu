@@ -1,7 +1,6 @@
 import { client } from '@/services/platform/client';
+import { BROWSER_STORAGE_KEYS } from '@/config/browser';
 import type { ActiveTheme, ThemeDefinition } from '@/types/domain';
-
-const CACHE_KEY = 'drivedeal.activeTheme';
 
 const clamp = (value: number) => Math.max(0, Math.min(255, Math.round(value)));
 const rgb = (values: number[]) => `rgb(${values.map(clamp).join(' ')})`;
@@ -35,17 +34,17 @@ export function applyTheme(theme: ThemeDefinition): void {
 
 export function applyCachedTheme(): void {
   try {
-    const cached = window.localStorage.getItem(CACHE_KEY);
+    const cached = window.localStorage.getItem(BROWSER_STORAGE_KEYS.activeTheme);
     if (cached) applyTheme(JSON.parse(cached) as ActiveTheme);
   } catch {
-    window.localStorage.removeItem(CACHE_KEY);
+    window.localStorage.removeItem(BROWSER_STORAGE_KEYS.activeTheme);
   }
 }
 
 export async function refreshActiveTheme(): Promise<ActiveTheme | null> {
   try {
     const theme = await client.theme.active();
-    window.localStorage.setItem(CACHE_KEY, JSON.stringify(theme));
+    window.localStorage.setItem(BROWSER_STORAGE_KEYS.activeTheme, JSON.stringify(theme));
     applyTheme(theme);
     return theme;
   } catch {

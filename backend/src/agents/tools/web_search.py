@@ -13,19 +13,20 @@ import httpx
 
 from src.agents.llm import LlmClient
 from src.agents.schemas import CarSpecs
-from src.settings import ALLOWED_DOMAINS, MAKE_DOMAIN_MAP, get_settings
+from src.settings import (
+    ALLOWED_DOMAINS,
+    MAKE_DOMAIN_MAP,
+    WEB_SEARCH_MAX_MARKDOWN_CHARS,
+    WEB_SEARCH_USER_AGENT,
+    get_settings,
+)
 from src.utils.log_flow import log_flow
 from src.utils.logger import logger
-
-USER_AGENT = "drivedeal-serra/1.0 (+web_search_agent)"
 
 # US-only: manufacturer sites often serve other markets under locale path segments like /en_AU/ or /de_de/.
 _NON_US_LOCALE_PATH = re.compile(r"/(?!en[-_]us\b)[a-z]{2}[-_][a-z]{2}(?:/|$)", re.IGNORECASE)
 
 EXTRACTION_SCHEMA = CarSpecs.model_json_schema()
-MAX_MARKDOWN_CHARS = 45000
-
-
 class _ReadableHtmlParser(HTMLParser):
     """Small dependency-free fallback for pages that do not require JavaScript to expose their content."""
 
@@ -77,13 +78,13 @@ async def _robots_allows(client: httpx.AsyncClient, url: str) -> bool:
     robots_url = f"{parsed.scheme}://{parsed.netloc}/robots.txt"
     parser = RobotFileParser()
     try:
-        response = await client.get(robots_url, headers={"User-Agent": USER_AGENT})
+        response = await client.get(robots_url, headers={"User-Agent": WEB_SEARCH_USER_AGENT})
         if response.status_code >= 400:
             return True  # no robots.txt -> allowed by default
         parser.parse(response.text.splitlines())
     except httpx.HTTPError:
         return False  # can't verify -> conservative skip
-    return parser.can_fetch(USER_AGENT, url)
+    return parser.can_fetch(WEB_SEARCH_USER_AGENT, url)
 
 
 @log_flow(layer="agent")
@@ -206,7 +207,7 @@ async def _fetch_static_page(url: str) -> str | None:
         async with httpx.AsyncClient(
             timeout=settings.web_search_request_timeout_seconds,
             follow_redirects=True,
-            headers={"User-Agent": USER_AGENT},
+            headers={"User-Agent": WEB_SEARCH_USER_AGENT},
         ) as client:
             response = await client.get(url)
             response.raise_for_status()
@@ -219,7 +220,7 @@ async def _fetch_static_page(url: str) -> str | None:
         parser = _ReadableHtmlParser()
         parser.feed(response.text)
         content = parser.text()
-        return content[:MAX_MARKDOWN_CHARS] if content else None
+        return content[:WEB_SEARCH_MAX_MARKDOWN_CHARS] if content else None
     except Exception as exc:
         logger.info("web_search_static_fetch_failed", url=url, error=str(exc)[:200])
         return None
@@ -241,7 +242,7 @@ async def _crawl_browser_page(url: str) -> str | None:
             logger.info("web_search_crawl_failed", url=url, error=getattr(result, "error_message", ""))
             return None
         markdown = getattr(result, "markdown", "")
-        return str(markdown)[:MAX_MARKDOWN_CHARS] if markdown else None
+        return str(markdown)[:WEB_SEARCH_MAX_MARKDOWN_CHARS] if markdown else None
     except Exception as exc:
         logger.warning("web_search_crawl_exception", url=url, error=str(exc)[:200])
         return None

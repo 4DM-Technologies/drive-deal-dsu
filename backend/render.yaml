@@ -34,7 +34,7 @@ services:
       - key: AWS_SECRET_ACCESS_KEY
         sync: false
       - key: STORAGE_DRIVER
-        value: local
+        value: s3
       - key: OPENAI_API_KEY
         sync: false
       - key: CODEX_OAUTH_ACCESS_TOKEN
