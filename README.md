@@ -27,16 +27,31 @@ Deal&Drive serves five application roles.
 
 ```mermaid
 flowchart LR
-    B[Buyer defines vehicle and budget] --> R[Private buyer request]
-    R --> M[Matched verified dealers]
-    M --> Q[Itemized dealer quotes]
-    Q --> C[Buyer compares OTD totals]
-    C --> N{Buyer decision}
-    N -->|Discuss| A[Dealer approves chat request]
-    A --> H[Quote-linked conversation]
-    N -->|Accept| D[Deal and contact gate open]
+    B["Buyer defines vehicle and budget"] --> R["Private buyer request"]
+    R --> M["Matched verified dealers"]
+    M --> Q["Itemized dealer quotes"]
+    Q --> C["Buyer compares OTD totals"]
+    C --> N{"Buyer decision"}
+    N -- "Discuss" --> A["Dealer approves chat request"]
+    A --> H["Quote-linked conversation"]
+    N -- "Accept" --> D["Deal and contact gate open"]
     H --> D
-    D --> F[Paperwork, funding, dispatch, delivery]
+    D --> F["Paperwork, funding, dispatch, delivery"]
+
+    %% style adjustments for readability - larger text
+    style B fill:#eef2ff,stroke:#6366f1,color:#1e1b4b
+    style R fill:#f8fafc,stroke:#64748b,color:#0f172a
+    style M fill:#ecfdf5,stroke:#22c55e,color:#064e3b
+    style Q fill:#fff7ed,stroke:#fb923c,color:#7c2d12
+    style C fill:#fef2f2,stroke:#f87171,color:#7f1d1d
+    style N fill:#f1f5f9,stroke:#475569,color:#0f172a
+    style A fill:#ecfeff,stroke:#06b6d4,color:#164e63
+    style H fill:#f5f3ff,stroke:#a78bfa,color:#4c1d95
+    style D fill:#fdf2f8,stroke:#f472b6,color:#831843
+    style F fill:#f8fafc,stroke:#94a3b8,color:#1e293b
+
+    classDef textLg font-size:20px,font-weight:bold
+    class B,R,M,Q,C,N,A,H,D,F textLg
 ```
 
 1. A buyer creates a request manually or asks Sera to prepare an editable draft.
