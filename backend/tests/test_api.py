@@ -144,6 +144,36 @@ def test_support_workflows_and_error_envelope() -> None:
         assert denied.json()["error"]["code"] == "FORBIDDEN_ROLE"
 
 
+def test_support_admin_read_only_workspace_views_and_enriched_reviews() -> None:
+    with TestClient(app) as client:
+        support = login(client, "maya@drivedeal.demo")
+        administrator = login(client, "priya@drivedeal.demo")
+
+        assert client.get("/api/v1/support/workspaces/buyer/requests", headers=support).status_code == 403
+        assert client.get("/api/v1/support/workspaces/not-a-workspace/requests", headers=administrator).status_code == 404
+
+        requests = client.get("/api/v1/support/workspaces/buyer/requests", headers=administrator)
+        quotes = client.get("/api/v1/support/workspaces/dealer/quotes", headers=administrator)
+        assert requests.status_code == 200 and requests.json()
+        assert quotes.status_code == 200 and quotes.json()
+        quote_id = quotes.json()[0]["id"]
+        assert client.post(
+            f"/api/v1/chats/{quote_id}",
+            headers=administrator,
+            json={"id": str(uuid4()), "message": "This must remain read-only."},
+        ).status_code == 403
+        assert client.patch(
+            f"/api/v1/deals/{quote_id}/status",
+            headers=administrator,
+            json={"status": "dispatch"},
+        ).status_code == 403
+
+        reviews = client.get("/api/v1/verifications", headers=administrator)
+        assert reviews.status_code == 200 and reviews.json()
+        review = reviews.json()[0]
+        assert {"profile_name", "email", "phone", "role", "proof_docs", "notes"} <= review.keys()
+
+
 def test_complete_request_quote_chat_and_deal_flow() -> None:
     with TestClient(app) as client:
         buyer = login(client, "rahul@drivedeal.demo")

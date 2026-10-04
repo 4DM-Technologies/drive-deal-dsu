@@ -197,7 +197,7 @@ async def chat_messages(quote_id: str, profile: Profile = Depends(get_current_pr
 
 @router.post("/chats/{quote_id}", status_code=status.HTTP_201_CREATED)
 @log_flow(layer="route")
-async def send_chat(quote_id: str, payload: ChatSend, profile: Profile = Depends(get_current_profile), session: AsyncSession = Depends(get_session)):
+async def send_chat(quote_id: str, payload: ChatSend, profile: Profile = Depends(require_roles("buyer", "dealer")), session: AsyncSession = Depends(get_session)):
     return await MarketplaceService(session).send_chat(quote_id, payload, profile)
 
 
@@ -254,5 +254,5 @@ async def deal_detail(quote_id: str, profile: Profile = Depends(get_current_prof
 
 @router.patch("/deals/{quote_id}/status")
 @log_flow(layer="route")
-async def deal_status(quote_id: str, payload: DealStatusUpdate, profile: Profile = Depends(get_current_profile), session: AsyncSession = Depends(get_session)):
+async def deal_status(quote_id: str, payload: DealStatusUpdate, profile: Profile = Depends(require_roles("dealer")), session: AsyncSession = Depends(get_session)):
     return await MarketplaceService(session).update_deal_status(quote_id, payload, profile)

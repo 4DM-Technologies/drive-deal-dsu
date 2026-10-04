@@ -19,13 +19,46 @@ class SupportService:
     @log_flow(layer="service")
     async def _ticket_dict(self, row: SupportTicket) -> dict:
         caller = await self.session.get(Profile, row.caller_id)
-        return {**model_dict(row), "caller_name": caller.full_name if caller else None}
+        return {
+            **model_dict(row),
+            "caller_name": caller.full_name if caller else None,
+            "caller_email": caller.email if caller else None,
+            "caller_role": caller.role if caller else None,
+        }
 
     @log_flow(layer="service")
     async def _verification_dict(self, row: SupportVerification) -> dict:
         profile = await self.session.get(Profile, row.profile_id)
         state = await self.session.get(State, profile.state_id) if profile and profile.state_id else None
-        return {**model_dict(row), "profile_name": profile.full_name if profile else None, "business_name": profile.dealership_name if profile else None, "state": state.name if state else None}
+        decider = await self.session.get(Profile, row.decided_by) if row.decided_by else None
+        return self._verification_payload(row, profile, state, decider)
+
+    @staticmethod
+    def _verification_payload(
+        row: SupportVerification,
+        profile: Profile | None,
+        state: State | None,
+        decider: Profile | None,
+    ) -> dict:
+        return {
+            **model_dict(row),
+            "profile_name": profile.full_name if profile else None,
+            "business_name": profile.dealership_name if profile else None,
+            "state": state.name if state else None,
+            "state_code": state.code if state else None,
+            "email": profile.email if profile else None,
+            "phone": profile.phone if profile else None,
+            "address": profile.address if profile else None,
+            "role": profile.role if profile else None,
+            "branch_name": profile.branch_name if profile else None,
+            "dealer_license": profile.dealer_license if profile else None,
+            "website": profile.website if profile else None,
+            "supported_brands": profile.supported_brands if profile else [],
+            "terms_accepted": profile.terms_accepted if profile else False,
+            "terms_version": profile.terms_version if profile else None,
+            "terms_accepted_at": profile.terms_accepted_at.isoformat() if profile and profile.terms_accepted_at else None,
+            "decided_by_name": decider.full_name if decider else None,
+        }
 
     @log_flow(layer="service")
     async def _profile_map(self, profile_ids: set[str]) -> dict[str, Profile]:
@@ -41,7 +74,15 @@ class SupportService:
             statement = statement.where(SupportTicket.caller_id == actor.id)
         rows = list((await self.session.execute(statement)).scalars())
         callers = await self._profile_map({row.caller_id for row in rows})
-        return [{**model_dict(row), "caller_name": callers[row.caller_id].full_name if row.caller_id in callers else None} for row in rows]
+        return [
+            {
+                **model_dict(row),
+                "caller_name": callers[row.caller_id].full_name if row.caller_id in callers else None,
+                "caller_email": callers[row.caller_id].email if row.caller_id in callers else None,
+                "caller_role": callers[row.caller_id].role if row.caller_id in callers else None,
+            }
+            for row in rows
+        ]
 
     @log_flow(layer="service")
     async def create_ticket(self, payload: TicketCreate, actor: Profile) -> dict:
@@ -85,13 +126,14 @@ class SupportService:
         if state_ids:
             state_rows = (await self.session.execute(select(State).where(State.id.in_(state_ids)))).scalars()
             states = {row.id: row for row in state_rows}
+        deciders = await self._profile_map({row.decided_by for row in rows if row.decided_by})
         return [
-            {
-                **model_dict(row),
-                "profile_name": profiles[row.profile_id].full_name if row.profile_id in profiles else None,
-                "business_name": profiles[row.profile_id].dealership_name if row.profile_id in profiles else None,
-                "state": states[profiles[row.profile_id].state_id].name if row.profile_id in profiles and profiles[row.profile_id].state_id in states else None,
-            }
+            self._verification_payload(
+                row,
+                profiles.get(row.profile_id),
+                states.get(profiles[row.profile_id].state_id) if row.profile_id in profiles else None,
+                deciders.get(row.decided_by) if row.decided_by else None,
+            )
             for row in rows
         ]
 

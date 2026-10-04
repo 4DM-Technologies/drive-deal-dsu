@@ -103,7 +103,7 @@ export interface DriveDealClient {
     audit(): Promise<AdministrationAuditEvent[]>;
     traces(): Promise<AiTrace[]>;
     trace(id: string): Promise<AiTrace>;
-    exportConfiguration(format: 'yaml' | 'json'): Promise<void>;
+    exportConfiguration(format: 'yaml' | 'json'): Promise<{ filename: string; size: number }>;
     preview(message: string, options?: { threadId?: string; revisionId?: string; workflow?: WorkflowDefinition; promptKey?: string; prompt?: PromptDefinition }): Promise<WorkflowPreview>;
     previewStream(message: string, options?: { threadId?: string; revisionId?: string; workflow?: WorkflowDefinition; promptKey?: string; prompt?: PromptDefinition }): AsyncIterable<WorkflowPreviewStreamEvent>;
   };

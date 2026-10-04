@@ -9,8 +9,10 @@ export function useEffectiveSession(): Session | null {
   const location = useLocation();
   if (!session || !['support-admin', 'admin'].includes(session.role)) return session;
   const params = new URLSearchParams(location.search);
-  const previewRole = params.get('adminPreview') as Role | null;
-  if (params.get('themePreview') !== '1' || !previewRole || !previewRoles.has(previewRole)) return session;
+  const themePreviewRole = params.get('themePreview') === '1' ? params.get('adminPreview') as Role | null : null;
+  const workspaceRole = params.get('workspaceView') as Role | null;
+  const previewRole = themePreviewRole ?? workspaceRole;
+  if (!previewRole || !previewRoles.has(previewRole) || (workspaceRole && !['buyer', 'dealer'].includes(workspaceRole))) return session;
   return {
     ...session,
     role: previewRole,
@@ -21,5 +23,5 @@ export function useEffectiveSession(): Session | null {
 
 export function previewQuery(search: string): string {
   const params = new URLSearchParams(search);
-  return params.get('themePreview') === '1' ? search : '';
+  return params.get('themePreview') === '1' || params.has('workspaceView') ? search : '';
 }

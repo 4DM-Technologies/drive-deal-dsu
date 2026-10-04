@@ -95,7 +95,7 @@ export default function LoginScreen() {
           {teamMode && <div className="team-login-links"><p className="auth-alternate">Need an approved team account? <Link to="/signup/support">Request support access</Link></p><p className="auth-alternate"><Link to="/login?role=buyer" onClick={() => chooseRole('buyer')}><ArrowLeft size={14} /> Back to customer sign in</Link></p></div>}
           <details className="demo-access">
             <summary><span><LockKeyhole size={15} /> Developer demo access</span><ChevronDown size={16} /></summary>
-            <div className="demo-access-body"><p>Development only. Choose a ready-made workspace:</p><div className="demo-buttons"><button onClick={() => void signIn('buyer')}>Buyer</button><button onClick={() => void signIn('dealer')}>Dealer</button><button onClick={() => void signIn('support')}>Support</button><button onClick={() => void signIn('support-admin')}>Support admin</button></div></div>
+            <div className="demo-access-body"><p>Development only. Choose a ready-made workspace:</p><div className="demo-buttons"><button onClick={() => void signIn('buyer')}>Buyer</button><button onClick={() => void signIn('dealer')}>Dealer</button><button onClick={() => void signIn('support')}>Support</button><button className="demo-role-long" aria-label="Open Support Administrator demo workspace" onClick={() => void signIn('support-admin')}>Support Administrator</button></div></div>
           </details>
         </div>
       </section>

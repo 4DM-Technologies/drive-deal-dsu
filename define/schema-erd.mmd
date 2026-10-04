@@ -3,6 +3,8 @@
 %% 20 tables. Render with Mermaid Live, VS Code Mermaid preview, or:
 %% mmdc -i define/schema-erd.mmd -o define/schema-erd.svg
 %% Tables using AuditMixin also contain created_at, updated_at, created_by and updated_by.
+%% Support Administrator buyer/dealer workspace views are read-only API projections over buyer_requests
+%% and deal_quotes; they intentionally add no persistence table or impersonation session.
 
 erDiagram
     states ||--o{ profiles : "locates"

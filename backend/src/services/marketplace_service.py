@@ -140,6 +140,12 @@ class MarketplaceService:
         return [to_dict(row) for row in rows]
 
     @log_flow(layer="service")
+    async def list_workspace_quotes(self) -> list[dict]:
+        """Read-only cross-market quote view for support administrators."""
+        rows = list((await self.session.execute(select(DealQuote).order_by(DealQuote.created_at.desc()))).scalars())
+        return [await self.quote_dict(row) for row in rows]
+
+    @log_flow(layer="service")
     async def create_quote(self, payload: QuoteCreate, dealer: Profile) -> dict:
         request = await self._request(payload.buyer_request_id)
         if request.status != "open":
@@ -289,5 +295,5 @@ class MarketplaceService:
     @staticmethod
     @log_flow(layer="service")
     def _require_party(quote: DealQuote, actor: Profile) -> None:
-        if actor.role not in {"support", "admin"} and actor.id not in {quote.buyer_id, quote.dealer_id}:
+        if actor.role not in {"support", "support-admin", "admin"} and actor.id not in {quote.buyer_id, quote.dealer_id}:
             raise AppError(error_codes.RESOURCE_NOT_FOUND, "Resource not found.", 404)

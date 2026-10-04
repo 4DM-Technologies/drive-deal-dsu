@@ -283,6 +283,8 @@ The built-in dashboard reads `ai_traces`, `ai_trace_spans`, and legacy `llm_audi
 | AI logs & traces | Inspect queries, stage inputs/outputs, prompts, handoffs, models, tokens, and timings |
 | Versions & audit | Activate historical versions, select/reset defaults, inspect changes, and export configuration |
 
+Support Administrators also have a read-only workspace switcher for the real buyer and dealer interfaces. The API exposes operational request/quote projections, while every marketplace mutation keeps its original role guard; the preview therefore cannot create, revise, accept, or delete marketplace data.
+
 ### Version lifecycle
 
 1. Editing creates only local browser state.

@@ -9,9 +9,21 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from src.database import SessionFactory, create_schema, dispose_engine
 from src.middleware.request_context import RequestContextMiddleware
-from src.routes import administration, ai, auth, cars, default, documents, marketplace, profiles, reference, support, websocket
-from src.settings import get_settings
+from src.routes import (
+    administration,
+    ai,
+    auth,
+    cars,
+    default,
+    documents,
+    marketplace,
+    profiles,
+    reference,
+    support,
+    websocket,
+)
 from src.services.administration_service import AdministrationService
+from src.settings import get_settings
 from src.utils.exceptions import AppError
 from src.utils.exceptions.handlers import app_error_handler, unexpected_error_handler, validation_error_handler
 from src.utils.log_flow import log_flow
@@ -119,6 +131,7 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["Content-Disposition"],
 )
 app.add_exception_handler(AppError, app_error_handler)
 app.add_exception_handler(RequestValidationError, validation_error_handler)

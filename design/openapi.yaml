@@ -2399,6 +2399,74 @@ paths:
           $ref: '#/components/responses/forbidden'
         '404':
           $ref: '#/components/responses/not_found'
+  /support/workspaces/{workspace}/requests:
+    get:
+      summary: Preview marketplace requests as a buyer or dealer
+      description: |-
+        Read-only operational workspace for support administrators. It renders
+        the real buyer/dealer frontend without impersonating a member. Only
+        `support-admin` and `admin` roles may call it; marketplace mutations
+        remain protected by their original buyer/dealer role checks.
+      operationId: previewSupportWorkspaceRequests
+      tags:
+      - Support
+      parameters:
+      - name: workspace
+        in: path
+        required: true
+        schema:
+          type: string
+          enum:
+          - buyer
+          - dealer
+      responses:
+        '200':
+          description: Requests visible in the selected operational preview
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/BuyerRequest'
+        '401':
+          $ref: '#/components/responses/unauthorized'
+        '403':
+          $ref: '#/components/responses/forbidden'
+        '404':
+          $ref: '#/components/responses/not_found'
+  /support/workspaces/{workspace}/quotes:
+    get:
+      summary: Preview marketplace quotes as a buyer or dealer
+      description: |-
+        Read-only quote projection for the support-administrator workspace
+        switcher. Sensitive write actions remain unavailable.
+      operationId: previewSupportWorkspaceQuotes
+      tags:
+      - Support
+      parameters:
+      - name: workspace
+        in: path
+        required: true
+        schema:
+          type: string
+          enum:
+          - buyer
+          - dealer
+      responses:
+        '200':
+          description: Quotes visible in the selected operational preview
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/QuoteDetail'
+        '401':
+          $ref: '#/components/responses/unauthorized'
+        '403':
+          $ref: '#/components/responses/forbidden'
+        '404':
+          $ref: '#/components/responses/not_found'
   /support/queue/tickets:
     get:
       summary: Support agent work queue
@@ -6380,6 +6448,19 @@ components:
           format: email
           description: Denormalised so the ticket stays readable after account deletion.
           nullable: true
+        caller_name:
+          type: string
+          description: Display name resolved from the caller profile for support operations.
+          nullable: true
+        caller_role:
+          type: string
+          enum:
+          - buyer
+          - dealer
+          - support
+          - support-admin
+          - admin
+          nullable: true
         issue_summary:
           type: string
         issue_description:
@@ -6557,6 +6638,54 @@ components:
           allOf:
           - $ref: '#/components/schemas/PublicProfile'
           nullable: true
+        profile_name:
+          type: string
+          nullable: true
+        business_name:
+          type: string
+          nullable: true
+        email:
+          type: string
+          format: email
+          nullable: true
+        phone:
+          type: string
+          nullable: true
+        address:
+          type: string
+          nullable: true
+        state:
+          type: string
+          nullable: true
+        state_code:
+          type: string
+          nullable: true
+        role:
+          type: string
+          nullable: true
+        branch_name:
+          type: string
+          nullable: true
+        dealer_license:
+          type: string
+          nullable: true
+        website:
+          type: string
+          format: uri
+          nullable: true
+        supported_brands:
+          type: array
+          items:
+            type: string
+        terms_accepted:
+          type: boolean
+        terms_version:
+          type: string
+          nullable: true
+        terms_accepted_at:
+          type: string
+          format: date-time
+          nullable: true
         status:
           $ref: '#/components/schemas/VerificationStatus'
         proof_docs:
@@ -6585,6 +6714,19 @@ components:
                 - denied
                 - null
                 nullable: true
+              at:
+                type: string
+                format: date-time
+              actor_id:
+                type: string
+                format: uuid
+                nullable: true
+              reason:
+                type: string
+                nullable: true
+              note:
+                type: string
+                nullable: true
         decided_by:
           type: string
           format: uuid
@@ -6592,6 +6734,9 @@ components:
         decided_at:
           type: string
           format: date-time
+          nullable: true
+        decided_by_name:
+          type: string
           nullable: true
         email_sent:
           type: boolean

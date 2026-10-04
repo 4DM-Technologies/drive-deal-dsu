@@ -7,8 +7,16 @@ const baseUrl = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000/api/
 
 const token = () => window.localStorage.getItem('drivedeal.accessToken');
 const clearTokens = () => { window.localStorage.removeItem('drivedeal.accessToken'); window.localStorage.removeItem('drivedeal.refreshToken'); };
+const workspaceView = () => {
+  const value = new URLSearchParams(window.location.search).get('workspaceView');
+  return value === 'buyer' || value === 'dealer' ? value : null;
+};
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const method = (init?.method ?? 'GET').toUpperCase();
+  if (workspaceView() && !['GET', 'HEAD'].includes(method)) {
+    throw new Error('This support workspace view is read-only. Return to Support operations to make account or marketplace changes.');
+  }
   const response = await fetch(`${baseUrl}${path}`, {
     ...init,
     headers: {
@@ -25,7 +33,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return response.status === 204 ? (undefined as T) : response.json();
 }
 
-async function download(path: string): Promise<void> {
+async function download(path: string, fallbackFilename: string): Promise<{ filename: string; size: number }> {
   const response = await fetch(`${baseUrl}${path}`, {
     headers: token() ? { authorization: `Bearer ${token()}` } : {},
   });
@@ -34,15 +42,22 @@ async function download(path: string): Promise<void> {
     throw new Error(body?.error?.message ?? `Download failed (${response.status})`);
   }
   const disposition = response.headers.get('content-disposition') ?? '';
-  const filename = disposition.match(/filename="?([^";]+)"?/i)?.[1] ?? 'deal-drive-config.yaml';
-  const url = URL.createObjectURL(await response.blob());
+  const encodedFilename = disposition.match(/filename\*=UTF-8''([^;]+)/i)?.[1];
+  const filename = encodedFilename
+    ? decodeURIComponent(encodedFilename)
+    : disposition.match(/filename="?([^";]+)"?/i)?.[1] ?? fallbackFilename;
+  const blob = await response.blob();
+  if (!blob.size) throw new Error('The server returned an empty configuration file. Please try the export again.');
+  const url = URL.createObjectURL(blob);
   const anchor = document.createElement('a');
   anchor.href = url;
   anchor.download = filename;
+  anchor.style.display = 'none';
   document.body.appendChild(anchor);
   anchor.click();
   anchor.remove();
-  window.setTimeout(() => URL.revokeObjectURL(url), 0);
+  window.setTimeout(() => URL.revokeObjectURL(url), 30_000);
+  return { filename, size: blob.size };
 }
 
 const profileToSession = (row: Record<string, unknown>): Session => ({
@@ -93,13 +108,21 @@ const ticketToDomain = (row: Record<string, unknown>): Ticket => ({
   id: String(row.id),
   publicId: String(row.ticket_id),
   callerName: String(row.caller_name ?? 'Member'),
+  ...(row.caller_email == null ? {} : { callerEmail: String(row.caller_email) }),
+  ...(row.caller_role == null ? {} : { callerRole: row.caller_role as NonNullable<Ticket['callerRole']> }),
   category: row.category as Ticket['category'],
   summary: String(row.issue_summary),
+  ...(row.issue_type == null ? {} : { issueType: String(row.issue_type) }),
+  ...(row.page_context == null ? {} : { pageContext: String(row.page_context) }),
   ...(row.issue_description == null ? {} : { description: String(row.issue_description) }),
   status: row.status as Ticket['status'],
   priority: row.priority as Ticket['priority'],
   createdAt: String(row.created_at),
-  ...(row.notes ? { notes: (row.notes as Array<{ at: string; actor_id: string; note: string }>).map((entry) => ({ at: entry.at, author: entry.actor_id, body: entry.note })) } : {}),
+  ...(row.notes ? { notes: (row.notes as Array<{ at?: string; ts?: string; actor_id?: string; agent?: string; note?: string; text?: string }>).map((entry) => ({
+    at: entry.at ?? entry.ts ?? String(row.updated_at ?? row.created_at),
+    author: entry.actor_id ?? entry.agent ?? 'Support team',
+    body: entry.note ?? entry.text ?? 'Case updated.',
+  })) } : {}),
   ...(row.rca == null ? {} : { rca: String(row.rca) }),
 });
 
@@ -107,6 +130,27 @@ const verificationToDomain = (row: Record<string, unknown>): Verification => ({
   id: String(row.id), ticketId: String(row.ticket_id), category: row.category as Verification['category'],
   profileName: String(row.profile_name ?? 'Applicant'), businessName: row.business_name as string | null, state: String(row.state ?? ''),
   status: row.status as Verification['status'], submittedAt: String(row.created_at),
+  ...(row.email == null ? {} : { email: String(row.email) }),
+  ...(row.phone == null ? {} : { phone: String(row.phone) }),
+  ...(row.role == null ? {} : { role: row.role as NonNullable<Verification['role']> }),
+  ...(row.address == null ? {} : { address: String(row.address) }),
+  ...(row.branch_name == null ? {} : { branchName: String(row.branch_name) }),
+  ...(row.dealer_license == null ? {} : { dealerLicense: String(row.dealer_license) }),
+  ...(row.website == null ? {} : { website: String(row.website) }),
+  supportedBrands: (row.supported_brands as string[] | undefined) ?? [],
+  proofDocuments: (row.proof_docs as string[] | undefined) ?? [],
+  termsAccepted: Boolean(row.terms_accepted),
+  ...(row.terms_version == null ? {} : { termsVersion: String(row.terms_version) }),
+  ...(row.terms_accepted_at == null ? {} : { termsAcceptedAt: String(row.terms_accepted_at) }),
+  ...(row.decided_at == null ? {} : { decidedAt: String(row.decided_at) }),
+  ...(row.decided_by_name == null ? {} : { decidedByName: String(row.decided_by_name) }),
+  history: ((row.notes as Array<{ at?: string; ts?: string; actor_id?: string; agent?: string; decision?: string; reason?: string; note?: string; text?: string }> | undefined) ?? []).map((entry) => ({
+    at: entry.at ?? entry.ts ?? String(row.updated_at ?? row.created_at),
+    ...(entry.actor_id || entry.agent ? { actorId: entry.actor_id ?? entry.agent } : {}),
+    ...(entry.decision ? { decision: entry.decision } : {}),
+    ...(entry.reason ? { reason: entry.reason } : {}),
+    ...(entry.note || entry.text ? { note: entry.note ?? entry.text } : {}),
+  })),
   ...((row.notes as Array<{ reason?: string }> | undefined)?.at(-1)?.reason ? { decisionReason: (row.notes as Array<{ reason?: string }>).at(-1)!.reason } : {}),
 });
 
@@ -245,18 +289,18 @@ export const httpClient: DriveDealClient = {
     },
   },
   requests: {
-    list: async () => (await request<Record<string, unknown>[]>('/requests')).map(requestToDomain),
+    list: async () => (await request<Record<string, unknown>[]>(workspaceView() ? `/support/workspaces/${workspaceView()}/requests` : '/requests')).map(requestToDomain),
     get: async (id) => requestToDomain(await request(`/requests/${id}`)),
     create: async (input) => requestToDomain(await request('/requests', { method: 'POST', body: JSON.stringify({ brand_id: input.brandId, buyer_area_state_id: input.buyerAreaStateId, model: input.model, body_type: input.bodyType ?? null, fuel_type: input.fuelType ?? null, year_min: input.yearMin ?? null, year_max: input.yearMax ?? null, trim: input.trim ?? null, drivetrain: input.drivetrain ?? null, transmission: input.transmission ?? null, color: input.color ?? null, budget_min: input.budgetMin ?? null, budget_max: input.budgetMax ?? null, target_otd_price: input.targetOtdPrice ?? null, buyer_area: input.buyerArea, search_radius_miles: input.searchRadiusMiles, timeline: input.timeline, must_haves: input.mustHaves ?? [], request_expire: input.requestExpire, status: input.status ?? 'open' }) })),
     publish: async (id) => requestToDomain(await request(`/requests/${id}/publish`, { method: 'POST' })),
     close: async (id) => requestToDomain(await request(`/requests/${id}/close`, { method: 'POST' })),
   },
   feed: {
-    list: async () => (await request<Record<string, unknown>[]>('/feed/requests')).map(requestToDomain),
+    list: async () => (await request<Record<string, unknown>[]>(workspaceView() ? `/support/workspaces/${workspaceView()}/requests` : '/feed/requests')).map(requestToDomain),
     get: async (id) => requestToDomain(await request(`/feed/requests/${id}`)),
   },
   quotes: {
-    list: async (requestId) => (await request<Record<string, unknown>[]>(`/quotes${requestId ? `?request_id=${requestId}` : ''}`)).map(quoteToDomain),
+    list: async (requestId) => (await request<Record<string, unknown>[]>(workspaceView() ? `/support/workspaces/${workspaceView()}/quotes` : `/quotes${requestId ? `?request_id=${requestId}` : ''}`)).map(quoteToDomain),
     get: async (id) => quoteToDomain(await request(`/quotes/${id}`)),
     create: async (input) => quoteToDomain(await request('/quotes', { method: 'POST', body: JSON.stringify({ buyer_request_id: input.buyerRequestId, vehicle_price: input.vehiclePrice, doc_fee: input.docFee, sales_tax: input.salesTax, title_reg: input.titleReg, trade_in_credit: input.tradeInCredit, message: input.message, expires_at: input.expiresAt }) })),
     revise: async (id, input) => quoteToDomain(await request(`/quotes/${id}/revise`, { method: 'PATCH', body: JSON.stringify({ vehicle_price: input.vehiclePrice, doc_fee: input.docFee, sales_tax: input.salesTax, title_reg: input.titleReg, trade_in_credit: input.tradeInCredit, message: input.message }) })),
@@ -353,7 +397,7 @@ export const httpClient: DriveDealClient = {
     audit: async () => (await request<Array<Record<string, unknown>>>('/administration/audit')).map((row): AdministrationAuditEvent => ({ id: Number(row.id), uuid: String(row.uuid), action: String(row.action), resourceType: row.resource_type as AdminConfigType, resourceKey: String(row.resource_key), revisionId: row.revision_id == null ? null : String(row.revision_id), actorId: String(row.actor_id), details: (row.details as Record<string, unknown>) ?? {}, createdAt: String(row.created_at) })),
     traces: async () => request<AiTrace[]>('/administration/traces'),
     trace: async (id) => request<AiTrace>(`/administration/traces/${encodeURIComponent(id)}`),
-    exportConfiguration: async (format) => download(`/administration/export?format=${format}`),
+    exportConfiguration: async (format) => download(`/administration/export?format=${format}`, `deal-drive-config.${format === 'yaml' ? 'yaml' : 'json'}`),
     preview: async (message, options) => request<WorkflowPreview>('/administration/workflow/preview', { method: 'POST', body: JSON.stringify({ message, thread_id: options?.threadId ?? null, revision_id: options?.revisionId ?? null, workflow_payload: options?.workflow ?? null, prompt_key: options?.promptKey ?? null, prompt_payload: options?.prompt ?? null }) }),
     previewStream: streamWorkflowPreview,
   },

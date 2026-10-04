@@ -46,7 +46,7 @@ import {
   X,
   Zap,
 } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { client } from '@/services/platform/client';
@@ -129,6 +129,24 @@ function hexToRgb(hex: string): number[] | null {
   return match ? [Number.parseInt(match[1]!, 16), Number.parseInt(match[2]!, 16), Number.parseInt(match[3]!, 16)] : null;
 }
 
+function rgbToHsv(rgb: number[]): { h: number; s: number; v: number } {
+  const [r, g, b] = rgb.map((value) => value / 255) as [number, number, number];
+  const max = Math.max(r, g, b); const min = Math.min(r, g, b); const delta = max - min;
+  let h = 0;
+  if (delta) {
+    if (max === r) h = 60 * (((g - b) / delta) % 6);
+    else if (max === g) h = 60 * ((b - r) / delta + 2);
+    else h = 60 * ((r - g) / delta + 4);
+  }
+  return { h: h < 0 ? h + 360 : h, s: max ? delta / max : 0, v: max };
+}
+
+function hsvToRgb(h: number, s: number, v: number): number[] {
+  const c = v * s; const x = c * (1 - Math.abs(((h / 60) % 2) - 1)); const m = v - c;
+  const [r, g, b] = h < 60 ? [c, x, 0] : h < 120 ? [x, c, 0] : h < 180 ? [0, c, x] : h < 240 ? [0, x, c] : h < 300 ? [x, 0, c] : [c, 0, x];
+  return [r, g, b].map((value) => Math.round((value + m) * 255));
+}
+
 function useUndoable<T>(initial: T | null) {
   const [present, setPresent] = useState<T | null>(initial);
   const [past, setPast] = useState<T[]>([]);
@@ -140,6 +158,13 @@ function useUndoable<T>(initial: T | null) {
       const next = typeof updater === 'function' ? (updater as (current: T) => T)(clone(current)) : updater;
       setPast((items) => [...items.slice(-49), clone(current)]);
       setFuture([]);
+      return clone(next);
+    });
+  }, []);
+  const replace = useCallback((updater: T | ((current: T) => T)) => {
+    setPresent((current) => {
+      if (current === null) return current;
+      const next = typeof updater === 'function' ? (updater as (current: T) => T)(clone(current)) : updater;
       return clone(next);
     });
   }, []);
@@ -159,7 +184,7 @@ function useUndoable<T>(initial: T | null) {
       return items.slice(1);
     });
   }, []);
-  return { present, change, reset, undo, redo, canUndo: past.length > 0, canRedo: future.length > 0 };
+  return { present, change, replace, reset, undo, redo, canUndo: past.length > 0, canRedo: future.length > 0 };
 }
 
 function flowNodes(workflow: WorkflowDefinition, executed: string[] = [], active?: string): Node[] {
@@ -383,17 +408,48 @@ function TestConsole({ title = 'Run the workflow', description = 'Runs the curre
 }
 
 function ThemeStudio({ theme, bundle, catalog, busy, history, dirty, setDirty, save, publish, reload }: { theme: ThemeDefinition; bundle: AdminConfigBundle<ThemeDefinition>; catalog: AdminCatalog; busy: boolean; history: ReturnType<typeof useUndoable<ThemeDefinition>>; dirty: boolean; setDirty: (value: boolean) => void; save: () => void; publish: () => void; reload: (message: string) => Promise<void> }) {
-  const [colorKey, setColorKey] = useState<ThemeColorKey>('primary_rgb'); const [previewPage, setPreviewPage] = useState<PreviewPage>('landing');
+  const [colorKey, setColorKey] = useState<ThemeColorKey>('primary_rgb');
+  const [previewPage, setPreviewPage] = useState<PreviewPage>('landing');
   const previewRef = useRef<HTMLIFrameElement>(null);
+  const colorDragging = useRef(false);
+  const hueDragging = useRef(false);
   const activeTheme = useRef(bundle.active.payload);
   useEffect(() => { activeTheme.current = bundle.active.payload; }, [bundle.active.payload]);
   useEffect(() => { applyTheme(theme); }, [theme]);
   useEffect(() => () => applyTheme(activeTheme.current), []);
-  const setColor = (rgb: number[]) => { history.change({ ...theme, [colorKey]: rgb }); setDirty(true); };
+  const hsv = useMemo(() => rgbToHsv(theme[colorKey]), [colorKey, theme]);
+  const setColor = (rgb: number[], remember = true) => {
+    const next = { ...theme, [colorKey]: rgb };
+    if (remember) history.change(next); else history.replace(next);
+    setDirty(true);
+  };
+  const updateColorFromPointer = (event: ReactPointerEvent<HTMLDivElement>, remember: boolean) => {
+    const bounds = event.currentTarget.getBoundingClientRect();
+    const saturation = Math.max(0, Math.min(1, (event.clientX - bounds.left) / bounds.width));
+    const value = Math.max(0, Math.min(1, 1 - (event.clientY - bounds.top) / bounds.height));
+    setColor(hsvToRgb(hsv.h, saturation, value), remember);
+  };
   const routes: Record<PreviewPage, string> = { landing: '/?themePreview=1', login: '/login?themePreview=1', buyer: '/home?themePreview=1&adminPreview=buyer', dealer: '/home?themePreview=1&adminPreview=dealer', support: '/support?themePreview=1&adminPreview=support' };
   const sendTheme = useCallback(() => previewRef.current?.contentWindow?.postMessage({ type: 'drivedeal-theme-preview', theme }, window.location.origin), [theme]);
   useEffect(() => { sendTheme(); }, [previewPage, sendTheme]);
-  return <section className="admin-section"><div className="admin-section-head"><div><h2>Brand theme studio</h2><p>Control the semantic color system and inspect it inside the real Deal&amp;Drive interface.</p></div><div className="admin-actions"><HistoryButtons {...history} /><button className="button button-secondary button-sm" disabled={busy || !dirty} onClick={save}><Save size={15} /> Save draft</button><button className="button button-primary button-sm" disabled={busy || !bundle.draft || dirty} onClick={publish}><Send size={15} /> Publish globally</button></div></div><RevisionControls bundle={bundle} type="theme" configKey={catalog.themeKey} busy={busy} onLoad={(value) => { history.reset(value); setDirty(true); }} onChanged={reload} /><div className="theme-studio-layout"><div className="theme-token-list"><label><span>Theme name</span><input value={theme.name} onChange={(event) => { history.change({ ...theme, name: event.target.value }); setDirty(true); }} /></label>{themeColorLabels.map((item) => <button key={item.key} className={colorKey === item.key ? 'active' : ''} onClick={() => setColorKey(item.key)}><i style={{ background: themeHex(theme[item.key]) }} /><span><strong>{item.label}</strong><small>{item.description}</small></span><code>{themeHex(theme[item.key])}</code></button>)}</div><div className="color-studio"><div className="color-stage" style={{ backgroundColor: themeHex(theme[colorKey]) }}><input type="color" value={themeHex(theme[colorKey])} onChange={(event) => setColor(hexToRgb(event.target.value) ?? theme[colorKey])} aria-label={`Choose ${colorKey}`} /><span>Click to open the system color picker</span></div><div className="color-values"><label><span>HEX</span><input value={themeHex(theme[colorKey])} onChange={(event) => { const rgb = hexToRgb(event.target.value); if (rgb) setColor(rgb); }} /></label>{['R', 'G', 'B'].map((channel, index) => <label key={channel}><span>{channel}</span><input type="number" min="0" max="255" value={theme[colorKey][index]} onChange={(event) => { const values = [...theme[colorKey]]; values[index] = Math.max(0, Math.min(255, Number(event.target.value))); setColor(values); }} /></label>)}</div><div className="color-presets"><span>Presets</span>{presets.map((value) => <button key={value} style={{ background: value }} onClick={() => setColor(hexToRgb(value)!)} aria-label={`Use ${value}`} />)}</div><div className="theme-live-note"><Sparkles size={15} /><span>Changes are live in the preview. Undo restores every visible color.</span></div></div></div><div className="preview-workspace"><div className="preview-toolbar"><div><strong>Real application preview</strong><small>This is the actual frontend, isolated from production data while you edit.</small></div><label><span>Screen</span><select value={previewPage} onChange={(event) => setPreviewPage(event.target.value as PreviewPage)}>{(['landing', 'login', 'buyer', 'dealer', 'support'] as PreviewPage[]).map((page) => <option key={page} value={page}>{pretty(page)}</option>)}</select></label></div><div className="application-preview"><iframe key={previewPage} ref={previewRef} src={routes[previewPage]} title={`${pretty(previewPage)} theme preview`} onLoad={sendTheme} /></div></div></section>;
+  return <section className="admin-section theme-admin-section">
+    <div className="admin-section-head"><div><h2>Brand theme studio</h2><p>Edit every semantic color while inspecting the real Deal&amp;Drive application.</p></div><div className="admin-actions"><HistoryButtons {...history} /><button className="button button-secondary button-sm" disabled={busy || !dirty} onClick={save}><Save size={15} /> Save draft</button><button className="button button-primary button-sm" disabled={busy || !bundle.draft || dirty} onClick={publish}><Send size={15} /> Publish globally</button></div></div>
+    <RevisionControls bundle={bundle} type="theme" configKey={catalog.themeKey} busy={busy} onLoad={(value) => { history.reset(value); setDirty(true); }} onChanged={reload} />
+    <div className="theme-studio-shell">
+      <aside className="theme-control-rail">
+        <div className="theme-token-list"><label><span>Theme name</span><input value={theme.name} onChange={(event) => { history.change({ ...theme, name: event.target.value }); setDirty(true); }} /></label>{themeColorLabels.map((item) => <button type="button" key={item.key} className={colorKey === item.key ? 'active' : ''} onClick={() => setColorKey(item.key)}><i style={{ background: themeHex(theme[item.key]) }} /><span><strong>{item.label}</strong><small>{item.description}</small></span><code>{themeHex(theme[item.key])}</code></button>)}</div>
+        <div className="color-studio">
+          <div className="color-studio-heading"><div><strong>{themeColorLabels.find((item) => item.key === colorKey)?.label}</strong><small>Drag anywhere in the color field</small></div><code>{themeHex(theme[colorKey])}</code></div>
+          <div className="color-stage" style={{ '--picker-hue': `hsl(${hsv.h} 100% 50%)` } as CSSProperties} role="slider" tabIndex={0} aria-label={`Choose ${themeColorLabels.find((item) => item.key === colorKey)?.label} saturation and brightness`} aria-valuetext={`${Math.round(hsv.s * 100)}% saturation, ${Math.round(hsv.v * 100)}% brightness`} onPointerDown={(event) => { colorDragging.current = true; event.currentTarget.setPointerCapture(event.pointerId); updateColorFromPointer(event, true); }} onPointerMove={(event) => { if (colorDragging.current) updateColorFromPointer(event, false); }} onPointerUp={(event) => { colorDragging.current = false; event.currentTarget.releasePointerCapture(event.pointerId); }} onPointerCancel={() => { colorDragging.current = false; }} onKeyDown={(event) => { const delta = event.shiftKey ? .1 : .02; let { s, v } = hsv; if (event.key === 'ArrowLeft') s -= delta; else if (event.key === 'ArrowRight') s += delta; else if (event.key === 'ArrowDown') v -= delta; else if (event.key === 'ArrowUp') v += delta; else return; event.preventDefault(); setColor(hsvToRgb(hsv.h, Math.max(0, Math.min(1, s)), Math.max(0, Math.min(1, v)))); }}><span className="color-picker-marker" style={{ left: `${hsv.s * 100}%`, top: `${(1 - hsv.v) * 100}%` }} /></div>
+          <label className="hue-control"><span>Hue</span><input type="range" min="0" max="359" value={Math.round(hsv.h)} aria-label="Hue" onPointerDown={() => { hueDragging.current = false; }} onPointerUp={() => { hueDragging.current = false; }} onChange={(event) => { setColor(hsvToRgb(Number(event.target.value), hsv.s, hsv.v), !hueDragging.current); hueDragging.current = true; }} /></label>
+          <div className="color-values"><label><span>HEX</span><input value={themeHex(theme[colorKey])} onChange={(event) => { const rgb = hexToRgb(event.target.value); if (rgb) setColor(rgb); }} /></label>{['R', 'G', 'B'].map((channel, index) => <label key={channel}><span>{channel}</span><input type="number" min="0" max="255" value={theme[colorKey][index]} onChange={(event) => { const values = [...theme[colorKey]]; values[index] = Math.max(0, Math.min(255, Number(event.target.value))); setColor(values); }} /></label>)}</div>
+          <div className="color-presets"><span>Presets</span><div>{presets.map((value) => <button type="button" key={value} style={{ background: value }} onClick={() => setColor(hexToRgb(value)!)} aria-label={`Use ${value}`} />)}</div></div>
+          <div className="theme-live-note"><Sparkles size={15} /><span>Live preview is active. Undo and redo restore the entire visible theme.</span></div>
+        </div>
+      </aside>
+      <div className="preview-workspace"><div className="preview-toolbar"><div><strong>Actual application preview</strong><small>Navigate a real screen in an isolated, scrollable viewport.</small></div><label><span>Preview screen</span><select value={previewPage} onChange={(event) => setPreviewPage(event.target.value as PreviewPage)}>{(['landing', 'login', 'buyer', 'dealer', 'support'] as PreviewPage[]).map((page) => <option key={page} value={page}>{pretty(page)}</option>)}</select></label></div><div className="application-preview"><iframe key={previewPage} ref={previewRef} src={routes[previewPage]} title={`${pretty(previewPage)} theme preview`} onLoad={sendTheme} /></div></div>
+    </div>
+  </section>;
 }
 
 function TraceDashboard({ traces, refresh }: { traces: AiTrace[]; refresh: () => void }) {
@@ -413,7 +469,21 @@ function TraceSpanCard({ span, index }: { span: AiTraceSpan; index: number }) {
 
 function VersionsAudit({ workflow, theme, prompts, audit, busy, reload }: { workflow: AdminConfigBundle<WorkflowDefinition>; theme: AdminConfigBundle<ThemeDefinition>; prompts: AdminPromptBundle[]; audit: AdministrationAuditEvent[]; busy: boolean; reload: (message: string) => Promise<void> }) {
   const groups: Array<{ label: string; type: AdminConfigType; key: string; bundle: AdminConfigBundle<unknown> }> = [{ label: 'Workflow', type: 'workflow', key: 'sera-main', bundle: workflow }, { label: 'Brand theme', type: 'theme', key: 'global', bundle: theme }, ...prompts.map((item) => ({ label: item.label, type: 'prompt' as const, key: item.key, bundle: item as AdminConfigBundle<unknown> }))];
-  return <section className="admin-section"><div className="admin-section-head"><div><h2>Versions & audit</h2><p>Developer and administrator versions remain immutable, attributable and recoverable.</p></div><div className="admin-actions"><button className="button button-secondary button-sm" disabled={busy} onClick={() => void client.administration.exportConfiguration('yaml')}><Download size={15} /> Export YAML</button><button className="button button-secondary button-sm" disabled={busy} onClick={() => void client.administration.exportConfiguration('json')}><Download size={15} /> Export JSON</button></div></div><div className="export-note"><Code2 size={17} /><div><strong>Repository-safe configuration snapshot</strong><p>Downloads every active workflow, prompt, model setting and theme token. Credentials, access tokens and passwords are excluded.</p></div></div><div className="all-version-grid">{groups.map((group) => <article key={`${group.type}-${group.key}`}><header><strong>{group.label}</strong><span>Default v{group.bundle.defaultVersion}</span></header>{group.bundle.history.slice(0, 6).map((revision) => <div key={revision.id}><span className={`version-dot ${revision.status}`} /><div><strong>{revision.createdBy === 'developer:startup' ? 'Developer' : 'Administrator'} v{revision.version}</strong><small>{pretty(revision.status)} · {revision.createdAt ? new Date(revision.createdAt).toLocaleString() : 'Built in'}</small></div>{group.bundle.defaultVersion === revision.version && <Star size={14} />}<button disabled={busy} onClick={() => void client.administration.rollback(group.type, group.key, revision.version).then(() => reload(`${group.label} v${revision.version} was activated.`))}>Activate</button></div>)}</article>)}</div><div className="admin-panel"><div className="admin-subhead"><div><h3>Administration activity</h3><p>Append-only privileged changes from administrators and deployments.</p></div></div><div className="audit-list">{audit.map((event) => <div key={event.uuid}><span><Clock3 size={15} /></span><div><strong>{pretty(event.action)} · {pretty(event.resourceKey)}</strong><small>{new Date(event.createdAt).toLocaleString()} · {event.actorId === 'developer:startup' ? 'Developer startup' : `Actor ${event.actorId.slice(0, 8)}`}</small></div><code>v{String(event.details.version ?? '')}</code></div>)}</div></div></section>;
+  const [exporting, setExporting] = useState<'yaml' | 'json' | null>(null);
+  const [exportNotice, setExportNotice] = useState<Notice>(null);
+  const exportSnapshot = async (format: 'yaml' | 'json') => {
+    setExporting(format);
+    setExportNotice(null);
+    try {
+      const result = await client.administration.exportConfiguration(format);
+      setExportNotice({ kind: 'success', text: `${result.filename} was downloaded (${Math.max(1, Math.round(result.size / 1024))} KB).` });
+    } catch (cause) {
+      setExportNotice({ kind: 'error', text: cause instanceof Error ? cause.message : 'The configuration export could not be downloaded.' });
+    } finally {
+      setExporting(null);
+    }
+  };
+  return <section className="admin-section"><div className="admin-section-head"><div><h2>Versions & audit</h2><p>Developer and administrator versions remain immutable, attributable and recoverable.</p></div><div className="admin-actions"><button className="button button-secondary button-sm" disabled={busy || Boolean(exporting)} onClick={() => void exportSnapshot('yaml')}><Download size={15} /> {exporting === 'yaml' ? 'Preparing…' : 'Export YAML'}</button><button className="button button-secondary button-sm" disabled={busy || Boolean(exporting)} onClick={() => void exportSnapshot('json')}><Download size={15} /> {exporting === 'json' ? 'Preparing…' : 'Export JSON'}</button></div></div>{exportNotice && <div className={`admin-notice inline ${exportNotice.kind}`} role={exportNotice.kind === 'error' ? 'alert' : 'status'}>{exportNotice.kind === 'success' ? <Check size={17} /> : <AlertTriangle size={17} />}<span>{exportNotice.text}</span><button onClick={() => setExportNotice(null)} aria-label="Dismiss export message"><X size={15} /></button></div>}<div className="export-note"><Code2 size={17} /><div><strong>Repository-safe configuration snapshot</strong><p>Downloads every active workflow, prompt, model setting and theme token. Credentials, access tokens and passwords are excluded.</p></div></div><div className="all-version-grid">{groups.map((group) => <article key={`${group.type}-${group.key}`}><header><strong>{group.label}</strong><span>Default v{group.bundle.defaultVersion}</span></header>{group.bundle.history.slice(0, 6).map((revision) => <div key={revision.id}><span className={`version-dot ${revision.status}`} /><div><strong>{revision.createdBy === 'developer:startup' ? 'Developer' : 'Administrator'} v{revision.version}</strong><small>{pretty(revision.status)} · {revision.createdAt ? new Date(revision.createdAt).toLocaleString() : 'Built in'}</small></div>{group.bundle.defaultVersion === revision.version && <Star size={14} />}<button disabled={busy} onClick={() => void client.administration.rollback(group.type, group.key, revision.version).then(() => reload(`${group.label} v${revision.version} was activated.`))}>Activate</button></div>)}</article>)}</div><div className="admin-panel"><div className="admin-subhead"><div><h3>Administration activity</h3><p>Append-only privileged changes from administrators and deployments.</p></div></div><div className="audit-list">{audit.map((event) => <div key={event.uuid}><span><Clock3 size={15} /></span><div><strong>{pretty(event.action)} · {pretty(event.resourceKey)}</strong><small>{new Date(event.createdAt).toLocaleString()} · {event.actorId === 'developer:startup' ? 'Developer startup' : `Actor ${event.actorId.slice(0, 8)}`}</small></div><code>v{String(event.details.version ?? '')}</code></div>)}</div></div></section>;
 }
 
 function Overview({ workflowBundle, themeBundle, prompts, members, audit, traces, onOpen }: { workflowBundle: AdminConfigBundle<WorkflowDefinition>; themeBundle: AdminConfigBundle<ThemeDefinition>; prompts: AdminPromptBundle[]; members: SupportMember[]; audit: AdministrationAuditEvent[]; traces: AiTrace[]; onOpen: (tab: Tab) => void }) {

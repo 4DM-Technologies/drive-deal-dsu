@@ -128,8 +128,12 @@ export interface Ticket {
   id: string;
   publicId: string;
   callerName: string;
+  callerEmail?: string;
+  callerRole?: Role;
   category: 'customer' | 'dealer';
   summary: string;
+  issueType?: string;
+  pageContext?: string;
   status: 'open' | 'in_progress' | 'on_hold' | 'resolved' | 'closed';
   priority: 'low' | 'medium' | 'high' | 'urgent';
   createdAt: string;
@@ -156,9 +160,21 @@ export interface Verification {
   status: VerificationStatus;
   submittedAt: string;
   email?: string;
-  licenceNumber?: string;
+  phone?: string;
+  role?: Role;
+  branchName?: string;
+  dealerLicense?: string;
+  website?: string;
+  supportedBrands?: string[];
   address?: string;
+  proofDocuments?: string[];
+  termsAccepted?: boolean;
+  termsVersion?: string;
+  termsAcceptedAt?: string;
+  decidedAt?: string;
+  decidedByName?: string;
   decisionReason?: string;
+  history?: Array<{ at: string; decision?: string; reason?: string; note?: string; actorId?: string }>;
 }
 
 export interface StateRef {

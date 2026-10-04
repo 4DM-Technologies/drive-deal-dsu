@@ -12,12 +12,37 @@ from src.models.marketplace import (
     VerificationReasonRequest,
 )
 from src.repositories.schema import Profile, User
+from src.services.marketplace_service import MarketplaceService
 from src.services.support_service import SupportService
 from src.utils.exceptions import AppError, error_codes
 from src.utils.log_flow import log_flow
 from src.utils.logger import logger
 
 router = APIRouter(tags=["Support"])
+
+
+@router.get("/support/workspaces/{workspace}/requests")
+@log_flow(layer="route")
+async def workspace_requests(
+    workspace: str,
+    profile: Profile = Depends(require_roles("support-admin", "admin")),
+    session: AsyncSession = Depends(get_session),
+):
+    if workspace not in {"buyer", "dealer"}:
+        raise AppError(error_codes.RESOURCE_NOT_FOUND, "Workspace not found.", 404)
+    return await MarketplaceService(session).list_requests(profile)
+
+
+@router.get("/support/workspaces/{workspace}/quotes")
+@log_flow(layer="route")
+async def workspace_quotes(
+    workspace: str,
+    _: Profile = Depends(require_roles("support-admin", "admin")),
+    session: AsyncSession = Depends(get_session),
+):
+    if workspace not in {"buyer", "dealer"}:
+        raise AppError(error_codes.RESOURCE_NOT_FOUND, "Workspace not found.", 404)
+    return await MarketplaceService(session).list_workspace_quotes()
 
 
 @router.get("/support/tickets")
