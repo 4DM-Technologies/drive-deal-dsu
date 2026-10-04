@@ -230,8 +230,11 @@ h1, h2, h3, .display { font-family: 'Manrope', 'DM Sans', sans-serif; letter-spa
 .spec span { display: block; color: var(--muted); font-size: .75rem; margin-bottom: .18rem; }
 .spec strong { font-size: .92rem; }
 
-.ai-fab { position: fixed; z-index: 50; right: 1.25rem; bottom: 1.25rem; width: 58px; height: 58px; border: 0; border-radius: 18px; display: grid; place-items: center; background: var(--navy); color: white; box-shadow: var(--shadow-lg); transition: 200ms var(--ease); }
+.ai-launcher { position: fixed; z-index: 50; right: 1.25rem; bottom: 1.25rem; width: 66px; height: 66px; }
+.ai-fab { position: absolute; right: 0; bottom: 0; width: 58px; height: 58px; border: 0; border-radius: 18px; display: grid; place-items: center; background: var(--navy); color: white; box-shadow: var(--shadow-lg); transition: transform 200ms var(--ease), background-color 200ms var(--ease), box-shadow 200ms var(--ease); }
 .ai-fab:hover { transform: translateY(-3px) rotate(-2deg); background: var(--accent); }
+.ai-launcher-dismiss { position: absolute; top: -2px; right: -2px; width: 25px; height: 25px; display: grid; place-items: center; border: 2px solid var(--bg); border-radius: 999px; background: var(--raised); color: var(--muted); box-shadow: 0 6px 18px rgba(16,35,63,.18); transition: transform 160ms var(--ease), color 160ms var(--ease), background-color 160ms var(--ease); }
+.ai-launcher-dismiss:hover { transform: scale(1.08); background: var(--danger-soft); color: var(--danger); }
 .ai-panel { position: fixed; z-index: 55; right: 1.25rem; bottom: 5.7rem; width: min(420px, calc(100vw - 2rem)); height: min(650px, calc(100vh - 8rem)); background: var(--raised); border: 1px solid var(--border); border-radius: 22px; box-shadow: var(--shadow-lg); overflow: hidden; display: flex; flex-direction: column; }
 .ai-header { padding: 1rem; background: var(--navy); color: white; display: flex; align-items: center; gap: .75rem; }
 .ai-header-icon { flex: none; display: grid; place-items: center; line-height: 0; }
@@ -556,7 +559,8 @@ h1, h2, h3, .display { font-family: 'Manrope', 'DM Sans', sans-serif; letter-spa
   .advisor-composer { padding: .62rem .75rem .55rem; }
   .advisor-composer > small { display: none; }
   .ai-panel { right: .5rem; bottom: 4.8rem; width: calc(100vw - 1rem); height: min(680px, calc(100dvh - 6rem)); border-radius: 18px; }
-  .ai-fab { right: .8rem; bottom: .8rem; width: 54px; height: 54px; }
+  .ai-launcher { right: .8rem; bottom: .8rem; width: 62px; height: 62px; }
+  .ai-fab { width: 54px; height: 54px; }
   .ai-nudge { right: .7rem; bottom: 5rem; }
   .scroll-controls { bottom: .8rem; left: .7rem; }
   .public-footer .shell { flex-direction: column; }

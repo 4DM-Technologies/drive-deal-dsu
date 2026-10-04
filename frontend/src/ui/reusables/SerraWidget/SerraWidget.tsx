@@ -8,6 +8,7 @@ import { SerraLogo } from '@/ui/reusables/SerraLogo/SerraLogo';
 interface Message { id: string; role: 'user' | 'assistant'; body: string }
 
 const suggestions = ['Help me choose a car', 'Compare my Bronco quotes', 'Build a buyer request'];
+const SESSION_DISMISS_KEY = 'drivedeal.sera-widget-dismissed';
 
 function CompactAnswer({ body }: { body: string }) {
   const lines = body.split('\n').map((line) => line.trim()).filter(Boolean);
@@ -18,7 +19,7 @@ function CompactAnswer({ body }: { body: string }) {
 export function SerraWidget() {
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
-  const [visible, setVisible] = useState(true);
+  const [visible, setVisible] = useState(() => window.sessionStorage.getItem(SESSION_DISMISS_KEY) !== 'true');
   const [showNudge, setShowNudge] = useState(false);
   const [bump, setBump] = useState(false);
   const [input, setInput] = useState('');
@@ -44,6 +45,13 @@ export function SerraWidget() {
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }, [messages, status]);
 
   if (!visible) return null;
+
+  function dismiss() {
+    window.sessionStorage.setItem(SESSION_DISMISS_KEY, 'true');
+    setShowNudge(false);
+    setOpen(false);
+    setVisible(false);
+  }
 
   async function send(value = input) {
     const text = value.trim();
@@ -77,8 +85,8 @@ export function SerraWidget() {
 
   const fullChatUrl = threadId ? `/chatbot?thread=${threadId}` : '/chatbot';
   return <>
-    <AnimatePresence>{showNudge && !open && <motion.div className="ai-nudge" initial={{ opacity: 0, x: 16 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 8, y: 52, scale: .45 }} style={{ originX: 1, originY: 1 }} transition={{ duration: .55, ease: [.65, 0, .35, 1] }}><button className="ai-nudge-main" onClick={() => { setOpen(true); setShowNudge(false); }}><span className="ai-nudge-icon"><Sparkles size={17} /></span><span><strong>Buying a car?</strong><small>Ask Sera to find, compare, or draft.</small></span></button><button className="ai-nudge-close" aria-label="Dismiss Sera advisor for now" onClick={() => { setShowNudge(false); setVisible(false); }}><X size={15} /></button></motion.div>}</AnimatePresence>
-    <motion.button className="ai-fab" animate={bump ? { scale: [1, 1.16, 1] } : { scale: 1 }} transition={{ duration: .7, ease: [.34, 1.56, .64, 1] }} onClick={() => setOpen((value) => !value)} aria-label={open ? 'Close Sera advisor' : 'Open Sera advisor'}>{open ? <X /> : <span className="ai-launcher-mark"><MessageCircle /><Sparkles size={13} /></span>}</motion.button>
+    <AnimatePresence>{showNudge && !open && <motion.div className="ai-nudge" initial={{ opacity: 0, x: 16 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 8, y: 52, scale: .45 }} style={{ originX: 1, originY: 1 }} transition={{ duration: .55, ease: [.65, 0, .35, 1] }}><button className="ai-nudge-main" onClick={() => { setOpen(true); setShowNudge(false); }}><span className="ai-nudge-icon"><Sparkles size={17} /></span><span><strong>Buying a car?</strong><small>Ask Sera to find, compare, or draft.</small></span></button><button className="ai-nudge-close" aria-label="Dismiss Sera advisor" onClick={dismiss}><X size={15} /></button></motion.div>}</AnimatePresence>
+    <div className="ai-launcher"><motion.button className="ai-fab" animate={bump ? { scale: [1, 1.16, 1] } : { scale: 1 }} transition={{ duration: .7, ease: [.34, 1.56, .64, 1] }} onClick={() => setOpen((value) => !value)} aria-label={open ? 'Close Sera advisor' : 'Open Sera advisor'}>{open ? <X /> : <span className="ai-launcher-mark"><MessageCircle /><Sparkles size={13} /></span>}</motion.button>{!open && <button type="button" className="ai-launcher-dismiss" onClick={dismiss} aria-label="Hide Sera chat launcher"><X size={12} /></button>}</div>
     <AnimatePresence>{open && <motion.section className="ai-panel" initial={{ opacity: 0, y: 16, scale: .98 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 10, scale: .98 }} transition={{ duration: .22 }} aria-label="Sera AI advisor"><header className="ai-header"><div className="ai-header-icon"><SerraLogo size={40} title={null} /></div><div className="ai-header-copy"><strong>Sera advisor</strong><span>Buyer guidance · you approve every action</span></div><Link className="button button-ghost button-sm" to={fullChatUrl} aria-label="Open full advisor"><Expand size={17} /></Link></header><div className="ai-messages" aria-live="polite">{messages.map((message) => <div key={message.id} className={`bubble bubble-${message.role === 'assistant' ? 'assistant' : 'user'}`}>{message.body ? <CompactAnswer body={message.body} /> : status ? null : '…'}</div>)}{status && <div className="thinking"><span className="dots"><i /><i /><i /></span><span>{status}</span></div>}{preview && <div className="ai-mini-card"><span className="eyebrow">Request ready to review</span><strong>{preview.brand} {preview.model}</strong><small>{preview.years} · {preview.budget}</small><Link to={fullChatUrl} className="button button-secondary button-sm"><Check size={14} /> Review draft</Link></div>}<div ref={endRef} /></div><div className="quick-prompts">{suggestions.map((suggestion) => <button className="quick-prompt" key={suggestion} onClick={() => void send(suggestion)}>{suggestion}</button>)}</div><form className="ai-composer" onSubmit={(event) => { event.preventDefault(); void send(); }}><input value={input} onChange={(event) => setInput(event.target.value)} placeholder="Ask Sera about your next car" aria-label="Message Sera" /><button className="button button-primary" disabled={!input.trim() || streaming} aria-label="Send message"><ArrowUp size={18} /></button></form></motion.section>}</AnimatePresence>
   </>;
 }
