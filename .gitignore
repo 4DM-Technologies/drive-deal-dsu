@@ -4,6 +4,9 @@
 .env.*
 !.env.example
 
+# Local deployment runbook: contains a live Docker Hub token
+DEPLOY_LOCAL.md
+
 # Python / Backend
 __pycache__/
 *.py[cod]
