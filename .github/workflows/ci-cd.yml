@@ -545,27 +545,17 @@ jobs:
 
       # -----------------------------------------------------------------------
       # FRONTEND ENVIRONMENT
-      #
-      # generate_env.py resolves every key from secrets and vars, then fails the
-      # job if a required one is missing. On a pull request from a fork those
-      # values are deliberately withheld by GitHub, so fall back to the checked-in
-      # example file. The frontend Dockerfile only requires the two VITE_* keys to
-      # be non-empty for the bundle to build.
       # -----------------------------------------------------------------------
       - name: Generate Frontend .env.production from Task Definition
         env:
           SECRETS_JSON: ${{ toJSON(secrets) }}
           VARS_JSON: ${{ toJSON(vars) }}
         run: |
-          set -euo pipefail
-
           python -m pip install --quiet pyyaml
 
-          if ! python scripts/generate_env.py frontend --out frontend/.env.production; then
-            echo "Task-definition env unavailable on this event; using placeholder VITE values for the build check."
-            printf 'VITE_API_BASE_URL=http://localhost:8000/api/v1\nVITE_WS_BASE_URL=ws://localhost:8000/api/v1/ws\n' \
-              > frontend/.env.production
-          fi
+          python scripts/generate_env.py \
+            frontend \
+            --out frontend/.env.production
 
       # -----------------------------------------------------------------------
       # FRONTEND IMAGE
@@ -624,14 +614,11 @@ jobs:
           SECRETS_JSON: ${{ toJSON(secrets) }}
           VARS_JSON: ${{ toJSON(vars) }}
         run: |
-          set -euo pipefail
-
           python -m pip install --quiet pyyaml
 
-          if ! python scripts/generate_env.py backend --out backend.env; then
-            echo "Task-definition env unavailable on this event; Stage 9 will report a dry-run failure instead of deploying."
-            : > backend.env
-          fi
+          python scripts/generate_env.py \
+            backend \
+            --out backend.env
 
       - name: Normalize Generated Env Files for Their Consumers
         run: |
@@ -682,40 +669,6 @@ jobs:
               )
               print("normalized frontend/.env.production for source")
           PY
-
-      # -----------------------------------------------------------------------
-      # PULL REQUEST DRY RUN
-      #
-      # Everything up to this point already ran: backend.env and
-      # frontend/.env.production were generated and normalised. Verify the values
-      # EC2 depends on actually resolved, then stop. Nothing was uploaded and no
-      # container was touched.
-      # -----------------------------------------------------------------------
-      - name: Verify Deployment Inputs (Pull Request Dry Run)
-        if: github.event_name != 'push'
-        env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
-          STORAGE_DRIVER: ${{ secrets.STORAGE_DRIVER }}
-          APP_ENV: ${{ vars.APP_ENV }}
-          DEV_EC2_HOST: ${{ secrets.DEV_EC2_HOST }}
-        run: |
-          set -euo pipefail
-
-          missing=0
-
-          for key in DATABASE_URL STORAGE_DRIVER APP_ENV DEV_EC2_HOST; do
-            if [ -z "${!key:-}" ]; then
-              echo "::error::required deployment input ${key} is not set"
-              missing=1
-            fi
-          done
-
-          if [ "$missing" -ne 0 ]; then
-            echo "Dry run failed: the deployment could not run with these inputs."
-            exit 1
-          fi
-
-          echo "Dry run only: no files uploaded, no containers replaced."
 
       # -----------------------------------------------------------------------
       # UPLOAD BACKEND ENVIRONMENT TO EC2
