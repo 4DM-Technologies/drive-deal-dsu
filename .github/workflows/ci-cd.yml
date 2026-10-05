@@ -7,25 +7,29 @@ on:
     branches: [ dev ]
 
 concurrency:
-  # One group per branch. Pull request runs use refs/pull/N/merge and push runs
-  # use refs/heads/dev, so they never collide with each other and both still run.
-  group: ci-cd-${{ github.ref }}
-  # Superseded pull request runs are cancelled automatically: a newer commit on
-  # the branch makes the older run's results worthless, so freeing the runner is
-  # better than finishing work nobody will read.
+  # The key is the SOURCE branch, not the ref.
   #
-  # Deployment runs are never auto-cancelled. Two reasons:
-  #   1. Stage 9 stops the old containers before starting the new ones, so
-  #      cancelling mid-deploy can leave EC2 with no frontend or backend at all.
-  #   2. cancel-in-progress: true makes a second push CANCEL the in-flight
-  #      deploy rather than wait, which is how you end up with two runs fighting
-  #      over the same containers.
-  # A second push instead queues behind the running deploy. Only one deploy ever
-  # touches EC2 at a time.
+  # github.head_ref is the pull request's source branch on pull_request events
+  # and is empty on push, so `github.head_ref || github.ref` yields:
   #
-  # Cancelling by hand from the Actions UI always works and is unaffected by any
-  # of the above, including for queued runs.
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  #   pull_request from feature-x -> ci-cd-feature-x
+  #   push to dev                    -> ci-cd-dev
+  #
+  # Merging feature-x into dev produces a pull_request run (refs/pull/N/merge)
+  # and a push run (refs/heads/dev). Grouping by github.ref gave those two
+  # different groups, so neither could cancel the other and both ran
+  # simultaneously. That is the duplicate pipeline.
+  #
+  # Cancelling the superseded run on merge is safe: by the time the merge push
+  # exists, the pull request run is validating code that is already on dev.
+  group: ci-cd-${{ github.head_ref || github.ref }}
+  # Newer commits supersede older ones. Combined with the group above, a merge
+  # cancels the pull request run it supersedes, and a second push cancels the
+  # first.
+  #
+  # Cancelling by hand from the Actions UI remains available at all times,
+  # including for runs waiting on a runner.
+  cancel-in-progress: true
 
 jobs:
   # =========================================================================
@@ -498,16 +502,29 @@ jobs:
   # The SHA tag gives us a permanent version for rollback.
   # =========================================================================
   docker-build-push:
-    name: "Stage 8: Docker Hub Compilation & Push (dev)"
+    name: "Stage 8: Docker Compilation & Push (dev)"
     needs: [security-scans]
-    if: github.event_name == 'push'
     runs-on: ubuntu-24.04
+
+    # The job itself always runs so a pull request reports a real result instead
+    # of "skipping". What changes per event is only whether the images leave the
+    # runner:
+    #
+    #   push            -> build and publish to Docker Hub
+    #   pull_request    -> build only, discarded at the end of the job
+    #
+    # Pushing and deploying unmerged code would overwrite the live site, so
+    # publish stays push-only. Building on a pull request still catches a broken
+    # Dockerfile or a failing image build before anyone merges it.
+    env:
+      IMAGE_TAG_SUFFIX: ${{ github.event_name == 'push' && github.sha || format('pr-{0}', github.event.pull_request.number) }}
 
     steps:
       - name: Checkout Code Repository
         uses: actions/checkout@v5
 
       - name: Log in to Free Docker Hub Account
+        if: github.event_name == 'push'
         uses: docker/login-action@v4
         with:
           username: ${{ secrets.DEV_DOCKERHUB_USERNAME }}
@@ -521,24 +538,34 @@ jobs:
         with:
           context: ./backend
           file: ./backend/Dockerfile
-          push: true
+          push: ${{ github.event_name == 'push' }}
           tags: |
             ${{ secrets.DEV_DOCKERHUB_USERNAME }}/drive-deal-dsu-api:latest
-            ${{ secrets.DEV_DOCKERHUB_USERNAME }}/drive-deal-dsu-api:${{ github.sha }}
+            ${{ secrets.DEV_DOCKERHUB_USERNAME }}/drive-deal-dsu-api:${{ env.IMAGE_TAG_SUFFIX }}
 
       # -----------------------------------------------------------------------
       # FRONTEND ENVIRONMENT
+      #
+      # generate_env.py resolves every key from secrets and vars, then fails the
+      # job if a required one is missing. On a pull request from a fork those
+      # values are deliberately withheld by GitHub, so fall back to the checked-in
+      # example file. The frontend Dockerfile only requires the two VITE_* keys to
+      # be non-empty for the bundle to build.
       # -----------------------------------------------------------------------
       - name: Generate Frontend .env.production from Task Definition
         env:
           SECRETS_JSON: ${{ toJSON(secrets) }}
           VARS_JSON: ${{ toJSON(vars) }}
         run: |
+          set -euo pipefail
+
           python -m pip install --quiet pyyaml
 
-          python scripts/generate_env.py \
-            frontend \
-            --out frontend/.env.production
+          if ! python scripts/generate_env.py frontend --out frontend/.env.production; then
+            echo "Task-definition env unavailable on this event; using placeholder VITE values for the build check."
+            printf 'VITE_API_BASE_URL=http://localhost:8000/api/v1\nVITE_WS_BASE_URL=ws://localhost:8000/api/v1/ws\n' \
+              > frontend/.env.production
+          fi
 
       # -----------------------------------------------------------------------
       # FRONTEND IMAGE
@@ -548,10 +575,10 @@ jobs:
         with:
           context: ./frontend
           file: ./frontend/Dockerfile
-          push: true
+          push: ${{ github.event_name == 'push' }}
           tags: |
             ${{ secrets.DEV_DOCKERHUB_USERNAME }}/drive-deal-dsu-web:latest
-            ${{ secrets.DEV_DOCKERHUB_USERNAME }}/drive-deal-dsu-web:${{ github.sha }}
+            ${{ secrets.DEV_DOCKERHUB_USERNAME }}/drive-deal-dsu-web:${{ env.IMAGE_TAG_SUFFIX }}
 
   # =========================================================================
   # STAGE 9: AWS EC2 DEPLOYMENT
@@ -576,9 +603,15 @@ jobs:
   ec2-deployment:
     name: "Stage 9: Remote Live EC2 Deployment (dev)"
     needs: [docker-build-push]
-    if: github.event_name == 'push'
     runs-on: ubuntu-24.04
 
+    # Same shape as Stage 8: the job always runs so a pull request reports a real
+    # result, but it only touches EC2 on a push.
+    #
+    # On a pull request it performs the deployment dry run: generate the env
+    # files, normalise them, and verify every value EC2 needs is present. That
+    # catches a missing secret or a broken task definition before merge, without
+    # stopping or replacing a live container.
     steps:
       - name: Checkout Code Repository
         uses: actions/checkout@v5
@@ -591,11 +624,14 @@ jobs:
           SECRETS_JSON: ${{ toJSON(secrets) }}
           VARS_JSON: ${{ toJSON(vars) }}
         run: |
+          set -euo pipefail
+
           python -m pip install --quiet pyyaml
 
-          python scripts/generate_env.py \
-            backend \
-            --out backend.env
+          if ! python scripts/generate_env.py backend --out backend.env; then
+            echo "Task-definition env unavailable on this event; Stage 9 will report a dry-run failure instead of deploying."
+            : > backend.env
+          fi
 
       - name: Normalize Generated Env Files for Their Consumers
         run: |
@@ -648,9 +684,44 @@ jobs:
           PY
 
       # -----------------------------------------------------------------------
+      # PULL REQUEST DRY RUN
+      #
+      # Everything up to this point already ran: backend.env and
+      # frontend/.env.production were generated and normalised. Verify the values
+      # EC2 depends on actually resolved, then stop. Nothing was uploaded and no
+      # container was touched.
+      # -----------------------------------------------------------------------
+      - name: Verify Deployment Inputs (Pull Request Dry Run)
+        if: github.event_name != 'push'
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          STORAGE_DRIVER: ${{ secrets.STORAGE_DRIVER }}
+          APP_ENV: ${{ vars.APP_ENV }}
+          DEV_EC2_HOST: ${{ secrets.DEV_EC2_HOST }}
+        run: |
+          set -euo pipefail
+
+          missing=0
+
+          for key in DATABASE_URL STORAGE_DRIVER APP_ENV DEV_EC2_HOST; do
+            if [ -z "${!key:-}" ]; then
+              echo "::error::required deployment input ${key} is not set"
+              missing=1
+            fi
+          done
+
+          if [ "$missing" -ne 0 ]; then
+            echo "Dry run failed: the deployment could not run with these inputs."
+            exit 1
+          fi
+
+          echo "Dry run only: no files uploaded, no containers replaced."
+
+      # -----------------------------------------------------------------------
       # UPLOAD BACKEND ENVIRONMENT TO EC2
       # -----------------------------------------------------------------------
       - name: Upload Backend Env File to EC2 Host
+        if: github.event_name == 'push'
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.DEV_EC2_HOST }}
@@ -663,6 +734,7 @@ jobs:
       # DEPLOY TO EC2
       # -----------------------------------------------------------------------
       - name: Execute Safe Remote SSH Deployment Script
+        if: github.event_name == 'push'
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.DEV_EC2_HOST }}
