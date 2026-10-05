@@ -6,6 +6,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import remarkGfm from 'remark-gfm';
 import { formatMoney } from '@/helpers/currency';
 import { relativeTime } from '@/helpers/dateTime';
+import { createId } from '@/helpers/ids';
 import { client } from '@/services/platform/client';
 import { CompareIcon } from '@/ui/reusables/Icons/CompareIcon';
 import { SerraLoader } from '@/ui/reusables/PageLoading/PageLoading';
@@ -123,7 +124,7 @@ export default function AdvisorScreen() {
 
   const streamGreeting = useCallback(() => {
     const run = ++greetingRunRef.current;
-    const id = crypto.randomUUID();
+    const id = createId();
     setMessages([{ id, role: 'assistant', body: '' }]);
     void (async () => {
       for (const piece of greeting.split(/(\s+)/)) {
@@ -235,10 +236,10 @@ export default function AdvisorScreen() {
     const controller = new AbortController();
     abortControllerRef.current = controller;
     setInput(''); setStopped(false); setCompare(null); setStreaming(true); setStatus(activity.classifying);
-    const assistantId = crypto.randomUUID();
+    const assistantId = createId();
     activeAssistantIdRef.current = assistantId;
     setActiveAssistantId(assistantId);
-    setMessages((items) => [...items, { id: crypto.randomUUID(), role: 'user', body: text }, { id: assistantId, role: 'assistant', body: '' }]);
+    setMessages((items) => [...items, { id: createId(), role: 'user', body: text }, { id: assistantId, role: 'assistant', body: '' }]);
     // Only a confirmed picker selection invokes the saved-offer comparison agent. Natural questions such as
     // "compare BMW and Audi" stay in Sera's normal knowledge-backed conversation, even if old selections exist.
     const isCompare = Boolean(comparison) || (compareOpen && canCompare);

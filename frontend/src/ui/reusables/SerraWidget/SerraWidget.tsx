@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { client } from '@/services/platform/client';
 import { BROWSER_STORAGE_KEYS } from '@/config/browser';
+import { createId } from '@/helpers/ids';
 import { SerraLogo } from '@/ui/reusables/SerraLogo/SerraLogo';
 
 interface Message { id: string; role: 'user' | 'assistant'; body: string }
@@ -61,9 +62,9 @@ export function SerraWidget() {
     setInput('');
     const nextTurn = userTurns + 1;
     setUserTurns(nextTurn);
-    const assistantId = crypto.randomUUID();
+    const assistantId = createId();
     let completedThread = threadId;
-    setMessages((items) => [...items, { id: crypto.randomUUID(), role: 'user', body: text }, { id: assistantId, role: 'assistant', body: '' }]);
+    setMessages((items) => [...items, { id: createId(), role: 'user', body: text }, { id: assistantId, role: 'assistant', body: '' }]);
     try {
       for await (const event of client.ai.chat({ message: text, ...(threadId ? { threadId } : {}) })) {
         if (event.type === 'status') setStatus(event.label);
