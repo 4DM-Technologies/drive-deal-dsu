@@ -310,7 +310,9 @@ async def _request_device_code(http_client: httpx.AsyncClient, client_id: str) -
     return {"device_auth_id": data["device_auth_id"], "user_code": user_code, "interval": interval}
 
 
-async def _poll_for_device_code(http_client: httpx.AsyncClient, device_auth_id: str, user_code: str, interval: int) -> dict:
+async def _poll_for_device_code(
+    http_client: httpx.AsyncClient, device_auth_id: str, user_code: str, interval: int
+) -> dict:
     """Polls until the human approves the code shown at DEVICE_VERIFICATION_URL, or 15 minutes pass -
     matching the Codex CLI's own device_code_auth.rs timeout. 403/404 both mean "still pending"."""
     deadline = time.time() + CODEX_OAUTH_DEVICE_POLL_TIMEOUT_SECONDS
@@ -349,7 +351,9 @@ async def _device_login_async() -> dict:
         timeout=CODEX_OAUTH_HTTP_TIMEOUT_SECONDS, headers={"User-Agent": CODEX_OAUTH_DEVICE_USER_AGENT}
     ) as http_client:
         device_code = await _request_device_code(http_client, client_id)
-        print("Continue only if you started this sign-in yourself. If a website or another person gave you this code, cancel.")  # noqa: T201
+        print(
+            "Continue only if you started this sign-in yourself. If a website or another person gave you this code, cancel."
+        )  # noqa: T201
         print(f"\nVisit: {DEVICE_VERIFICATION_URL}")  # noqa: T201
         print(f"Enter code: {device_code['user_code']}\n")  # noqa: T201
         print("Waiting for approval (up to 15 minutes)...")  # noqa: T201

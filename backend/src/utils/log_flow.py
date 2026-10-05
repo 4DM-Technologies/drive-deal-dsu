@@ -81,9 +81,7 @@ def is_sensitive(name: str) -> bool:
 
 
 _BEARER_RE = re.compile(r"(?i)(?:\bBearer\s+)+\S+")
-_CREDENTIAL_KV_RE = re.compile(
-    r"(?i)\b(access_token|refresh_token|api_key|authorization)\b\s*[:=]\s*[^\s,;}]+"
-)
+_CREDENTIAL_KV_RE = re.compile(r"(?i)\b(access_token|refresh_token|api_key|authorization)\b\s*[:=]\s*[^\s,;}]+")
 _EMAIL_RE = re.compile(r"\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b", re.IGNORECASE)
 
 
