@@ -1,4 +1,6 @@
+import asyncio
 import os
+import sys
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
@@ -6,6 +8,7 @@ from fastapi import FastAPI
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 
+from src.agents.checkpointer import close_checkpointer, init_checkpointer
 from src.database import create_schema, dispose_engine
 from src.middleware.request_context import RequestContextMiddleware
 from src.routes import ai, auth, cars, default, documents, marketplace, profiles, reference, support, websocket
@@ -16,6 +19,11 @@ from src.utils.exceptions.handlers import app_error_handler, unexpected_error_ha
 from src.utils.logger import configure_logging, logger
 
 settings = get_settings()
+
+# psycopg's async mode (used by LangGraph's AsyncPostgresSaver) can't run on Windows' default
+# ProactorEventLoop - must be set before uvicorn's own asyncio.run() creates the loop.
+if sys.platform == "win32":
+    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
 
 def _configure_langsmith() -> None:
@@ -36,9 +44,11 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     configure_logging()
     _configure_langsmith()
     await create_schema()
+    await init_checkpointer()
     if settings.auto_seed_demo:
         await seed_database()
     yield
+    await close_checkpointer()
     await dispose_engine()
 
 

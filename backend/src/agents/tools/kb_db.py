@@ -1,7 +1,7 @@
 """kb_agent's four tools. Each is scoped to exactly one job (least privilege, by design):
 
 - describe_schema / query_data: read-only, derived from Base.metadata, never issue a write.
-- update_preferences: write access, but only ever to buyer_preference.must_have_features for one profile_id.
+- update_preferences: write access, but only ever to buyer_preference.preferences for one profile_id.
 - write_car: write access, but only ever to the cars table.
 """
 
@@ -39,23 +39,21 @@ async def query_data(session: AsyncSession, table: str, filters: dict[str, Any] 
 
 async def update_preferences(session: AsyncSession, profile_id: str, features: list[str]) -> dict[str, Any]:
     """Write access, but intentionally narrower than PUT /profiles/me/preferences: this tool can only ever set
-    must_have_features for the given profile_id. It never reads or writes budget_min, brand_id, or any other
-    column on that row, and never touches any other table."""
+    preferences for the given profile_id. It never touches any other table."""
     row = await session.get(BuyerPreference, profile_id)
     if row is None:
-        row = BuyerPreference(profile_id=profile_id, must_have_features=list(features), source="advisor", created_by=profile_id, updated_by=profile_id)
+        row = BuyerPreference(profile_id=profile_id, preferences=list(features), created_by=profile_id, updated_by=profile_id)
         session.add(row)
     else:
-        row.must_have_features = list(features)
+        row.preferences = list(features)
         row.updated_by = profile_id
     await session.flush()
-    return {"profile_id": profile_id, "must_have_features": list(row.must_have_features)}
+    return {"profile_id": profile_id, "preferences": list(row.preferences)}
 
 
 async def write_car(
     session: AsyncSession,
     *,
-    seller_id: str,
     brand_id: str,
     state_id: str,
     model: str,
@@ -81,13 +79,12 @@ async def write_car(
         existing.fuel = fuel or existing.fuel
         existing.transmission = transmission or existing.transmission
         existing.status = status
-        existing.updated_by = seller_id
         await session.flush()
         return {"id": existing.id, "model": existing.model, "model_year": existing.model_year, "upserted": "updated"}
     car = Car(
-        seller_id=seller_id, brand_id=brand_id, state_id=state_id, title=title or f"{model_year} {model}",
+        brand_id=brand_id, state_id=state_id, title=title or f"{model_year} {model}",
         model=model, model_year=model_year, body_type=body_type, condition=condition, mileage=mileage,
-        fuel=fuel, transmission=transmission, price=price, status=status, created_by=seller_id, updated_by=seller_id,
+        fuel=fuel, transmission=transmission, price=price, status=status,
     )
     session.add(car)
     await session.flush()

@@ -59,6 +59,7 @@ class Settings(BaseSettings):
     codex_oauth_access_token: str | None = None
     codex_oauth_client_id: str | None = None
     codex_oauth_refresh_token: str | None = None
+    codex_oauth_s3_key: str = "codex-oauth/tokens.json"
     openai_model: str = "gpt-6-luna"
     openai_reasoning_effort: str = "medium"
     ai_provider: str = "openai"

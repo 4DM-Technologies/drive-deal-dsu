@@ -20,7 +20,7 @@ async def test_describe_schema_lists_tables_without_hardcoding(seeded_app: TestC
     assert "cars" in schema
     assert "buyer_preference" in schema
     assert "price" in schema["cars"]
-    assert "must_have_features" in schema["buyer_preference"]
+    assert "preferences" in schema["buyer_preference"]
 
 
 async def test_query_data_is_read_only_and_returns_rows(seeded_app: TestClient) -> None:
@@ -45,32 +45,28 @@ async def test_query_data_rejects_unknown_column() -> None:
             await query_data(session, "cars", {"price = 0 OR 1=1": "x"}, limit=5)
 
 
-async def test_update_preferences_only_touches_must_have_features(seeded_app: TestClient) -> None:
+async def test_update_preferences_only_touches_preferences(seeded_app: TestClient) -> None:
     async with SessionFactory() as session:
-        before = await session.get(BuyerPreference, IDS["buyer"])
-        budget_before, brand_before = before.budget_max, before.brand_id
-
         await update_preferences(session, IDS["buyer"], ["Sunroof", "Heated seats"])
         await session.commit()
 
     async with SessionFactory() as session:
         after = await session.get(BuyerPreference, IDS["buyer"])
-        assert after.must_have_features == ["Sunroof", "Heated seats"]
-        assert after.budget_max == budget_before
-        assert after.brand_id == brand_before
+        assert after.preferences == ["Sunroof", "Heated seats"]
 
 
 async def test_update_preferences_does_not_affect_other_profiles(seeded_app: TestClient) -> None:
     async with SessionFactory() as session:
         other_before = await session.get(BuyerPreference, IDS["adithyaa"])
-        other_features_before = list(other_before.must_have_features)
+        other_features_before = list(other_before.preferences) if other_before else []
 
         await update_preferences(session, IDS["buyer"], ["4WD"])
         await session.commit()
 
     async with SessionFactory() as session:
         other_after = await session.get(BuyerPreference, IDS["adithyaa"])
-        assert other_after.must_have_features == other_features_before  # untouched by the other profile's write
+        other_features_after = list(other_after.preferences) if other_after else []
+        assert other_features_after == other_features_before  # untouched by the other profile's write
 
 
 async def test_write_car_only_touches_cars_table(seeded_app: TestClient) -> None:
@@ -79,7 +75,7 @@ async def test_write_car_only_touches_cars_table(seeded_app: TestClient) -> None
         car_count_before = len((await session.execute(select(Car))).scalars().all())
 
         result = await write_car(
-            session, seller_id=IDS["buyer"], brand_id=IDS["ford"], state_id=IDS["tx"],
+            session, brand_id=IDS["ford"], state_id=IDS["tx"],
             model="F-150 Lightning", model_year=2026, price=54999.0,
         )
         await session.commit()
@@ -94,10 +90,10 @@ async def test_write_car_only_touches_cars_table(seeded_app: TestClient) -> None
 
 async def test_write_car_upserts_same_vehicle_instead_of_duplicating(seeded_app: TestClient) -> None:
     async with SessionFactory() as session:
-        first = await write_car(session, seller_id=IDS["buyer"], brand_id=IDS["ford"], state_id=IDS["tx"], model="Mach-E", model_year=2026, price=45000.0)
+        first = await write_car(session, brand_id=IDS["ford"], state_id=IDS["tx"], model="Mach-E", model_year=2026, price=45000.0)
         await session.commit()
     async with SessionFactory() as session:
-        second = await write_car(session, seller_id=IDS["buyer"], brand_id=IDS["ford"], state_id=IDS["tx"], model="Mach-E", model_year=2026, price=43000.0)
+        second = await write_car(session, brand_id=IDS["ford"], state_id=IDS["tx"], model="Mach-E", model_year=2026, price=43000.0)
         await session.commit()
         car = await session.get(Car, first["id"])
         assert float(car.price) == 43000.0

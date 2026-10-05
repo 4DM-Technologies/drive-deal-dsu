@@ -36,10 +36,10 @@ def test_auth_profile_and_preferences() -> None:
         preferences = client.put(
             "/api/v1/profiles/me/preferences",
             headers=headers,
-            json={"brand_id": IDS["ford"], "body_type": "SUV", "budget_max": 72000, "must_have_features": ["4WD"]},
+            json={"preferences": ["4WD"]},
         )
         assert preferences.status_code == 200
-        assert client.get("/api/v1/profiles/me/preferences", headers=headers).json()["body_type"] == "SUV"
+        assert client.get("/api/v1/profiles/me/preferences", headers=headers).json()["preferences"] == ["4WD"]
         assert client.post("/api/v1/auth/logout", headers=headers).status_code == 204
 
 

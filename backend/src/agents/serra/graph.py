@@ -7,6 +7,7 @@ from langgraph.graph import END, START, StateGraph
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.agents.checkpointer import get_checkpointer
 from src.agents.errors import OrchestratorPlanError
 from src.agents.llm import LlmClient
 from src.agents.observability import log_agent_step
@@ -33,8 +34,12 @@ def _extract_json_array(text: str) -> list:
 
 
 async def _fetch_preferences(session: AsyncSession, user_id: str) -> dict:
+    """Returns only the JSON-serializable fields the agent needs - the raw row also carries
+    created_at/updated_at datetimes, which would break the conversation-checkpoint JSON save."""
     rows = await query_data(session, "buyer_preference", {"profile_id": user_id}, limit=1)
-    return rows[0] if rows else {}
+    if not rows:
+        return {}
+    return {"profile_id": rows[0]["profile_id"], "preferences": rows[0].get("preferences") or []}
 
 
 def main_agent(session: AsyncSession, compare: bool = False):
@@ -98,7 +103,7 @@ def main_agent(session: AsyncSession, compare: bool = False):
             question = "Do you have any preferences I should know about — brand, budget, body type, or must-have features?"
             return {"answer": question, "preferences": {}, "preferences_pending": True, "kb_results": [], "step": step}
 
-        query = f"{state['message']} {' '.join(str(value) for value in preferences.values() if value)}".strip()
+        query = f"{state['message']} {' '.join(preferences.get('preferences') or [])}".strip()
         kb_results = await kb_search(session, query)
         update: AgentState = {"kb_results": kb_results, "preferences": preferences, "preferences_pending": preferences_pending, "step": step}
 
@@ -162,7 +167,7 @@ def main_agent(session: AsyncSession, compare: bool = False):
             if not brand or not state_row:
                 continue
             result = await write_car(
-                session, seller_id=state["user_id"], brand_id=brand.id, state_id=state_row.id,
+                session, brand_id=brand.id, state_id=state_row.id,
                 model=spec["model"], model_year=int(spec["year"]), price=float(spec["price_usd"]),
                 body_type=spec.get("trim"), mileage=spec.get("mileage") or 0, fuel=spec.get("fuel_type"),
                 transmission=spec.get("transmission"),
@@ -199,4 +204,4 @@ def main_agent(session: AsyncSession, compare: bool = False):
     graph.add_edge("web_search_agent", "persist_cars")
     graph.add_edge("persist_cars", "compose")
     graph.add_edge("compose", END)
-    return graph.compile()
+    return graph.compile(checkpointer=get_checkpointer())

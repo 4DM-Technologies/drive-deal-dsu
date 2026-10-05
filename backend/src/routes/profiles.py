@@ -24,22 +24,7 @@ class ProfileUpdate(BaseModel):
 
 class PreferenceUpdate(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    brand_id: str | None = None
-    other_brand_ids: list[str] = Field(default_factory=list)
-    model_preference: str | None = None
-    body_type: str | None = None
-    seater_count: int | None = None
-    transmission: str | None = None
-    drivetrain: str | None = None
-    fuel_type: str | None = None
-    condition: str | None = None
-    exterior_color: str | None = None
-    min_year: int | None = None
-    max_mileage: int | None = None
-    budget_min: int | None = None
-    budget_max: int | None = None
-    must_have_features: list[str] = Field(default_factory=list)
-    never_want_features: list[str] = Field(default_factory=list)
+    preferences: list[str] = Field(default_factory=list)
 
 
 @router.get("/me")
@@ -68,7 +53,7 @@ async def save_preferences(payload: PreferenceUpdate, profile: Profile = Depends
     row = await session.get(BuyerPreference, profile.id)
     values = payload.model_dump()
     if row is None:
-        row = BuyerPreference(profile_id=profile.id, source="profile", created_by=profile.id, updated_by=profile.id, **values)
+        row = BuyerPreference(profile_id=profile.id, created_by=profile.id, updated_by=profile.id, **values)
         session.add(row)
     else:
         for field, value in values.items():

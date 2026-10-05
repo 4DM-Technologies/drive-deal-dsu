@@ -17,9 +17,12 @@ import time
 import urllib.parse
 import uuid
 import webbrowser
+from functools import lru_cache
 from typing import Any
 
+import boto3
 import httpx
+from botocore.exceptions import ClientError
 
 from src.settings import PROJECT_ROOT, get_settings
 
@@ -80,7 +83,28 @@ def _saved_client_id() -> str:
     return BOOTSTRAP_CLIENT_ID
 
 
+def _s3_configured() -> bool:
+    settings = get_settings()
+    return bool(settings.aws_access_key_id and settings.aws_secret_access_key and settings.s3_bucket)
+
+
+@lru_cache
+def _s3_client():
+    settings = get_settings()
+    return boto3.client("s3", region_name=settings.aws_region, aws_access_key_id=settings.aws_access_key_id, aws_secret_access_key=settings.aws_secret_access_key)
+
+
 def _read_cache() -> dict:
+    """Prefers S3 (shared, survives redeploys/multiple instances) when configured; falls back to
+    the local file cache otherwise - same precedence the module's docstring already describes for
+    credentials in general."""
+    if _s3_configured():
+        settings = get_settings()
+        try:
+            body = _s3_client().get_object(Bucket=settings.s3_bucket, Key=settings.codex_oauth_s3_key)["Body"].read()
+            return json.loads(body)
+        except ClientError:
+            return {}
     if not TOKENS_FILE.exists():
         return {}
     return json.loads(TOKENS_FILE.read_text())
@@ -93,6 +117,10 @@ def _remember_client_id(client_id: str) -> None:
 
 
 def _save_tokens(tokens: dict) -> None:
+    if _s3_configured():
+        settings = get_settings()
+        _s3_client().put_object(Bucket=settings.s3_bucket, Key=settings.codex_oauth_s3_key, Body=json.dumps(tokens, indent=2).encode(), ContentType="application/json")
+        return
     STATE_DIR.mkdir(exist_ok=True)
     TOKENS_FILE.write_text(json.dumps(tokens, indent=2))
 

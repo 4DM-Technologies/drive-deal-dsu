@@ -138,8 +138,11 @@ class LlmClient:
 
     @staticmethod
     def _fallback(prompt: str, task_type: str) -> str:
-        lower = prompt.lower()
         if task_type == "classifier":
+            # The classifier's own prompt template always contains "compare" ("Classify as advice,
+            # compare, or requirements") - heuristically matching against the full prompt instead of
+            # just the user's message would make every fallback misclassify as "compare".
+            lower = prompt.rsplit("USER:", 1)[-1].lower()
             if "compare" in lower or "versus" in lower or " vs " in lower:
                 return "compare"
             if "request" in lower or "looking for" in lower or "want a" in lower:

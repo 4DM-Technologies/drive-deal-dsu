@@ -151,7 +151,7 @@ async def expand_demo_data(session, now: datetime) -> dict[str, int]:
     preference_ids = set((await session.scalars(select(BuyerPreference.profile_id))).all())
     for index, buyer in enumerate(buyers):
         if buyer.id not in preference_ids:
-            session.add(BuyerPreference(profile_id=buyer.id, brand_id=brand_rows[index % len(brand_rows)].id, other_brand_ids=[brand_rows[(index + 1) % len(brand_rows)].id], body_type=["SUV", "Sedan", "Hatchback"][index % 3], transmission="Automatic", budget_min=None, budget_max=None, must_have_features=[["Adaptive cruise"], ["Third-row seating"], ["Low mileage"]][index % 3], source="advisor", confidence=Decimal("0.780")))
+            session.add(BuyerPreference(profile_id=buyer.id, preferences=[["Adaptive cruise"], ["Third-row seating"], ["Low mileage"]][index % 3]))
 
     history_count = await session.scalar(select(func.count()).select_from(ConversationHistory)) or 0
     for index in range(history_count, 28):
@@ -196,7 +196,7 @@ async def seed_database(force: bool = False) -> None:
                     models = ["Bronco", "Civic", "5 Series", "Q5", "Tahoe", "Tucson", "Telluride", "XUV700", "E-Class", "Rogue", "Model Y", "RAV4"]
                     for index in range(car_count, 120):
                         brand = brand_rows[index % len(brand_rows)]
-                        session.add(Car(seller_id=dealer.id, brand_id=brand.id, state_id=texas.id, title=f"{2022 + index % 5} {brand.name} {models[index % len(models)]}", model=models[index % len(models)], model_year=2022 + index % 5, body_type=["SUV", "Hatchback", "Sedan", "Pickup"][index % 4], seating_capacity=5 + (2 if index % 7 == 0 else 0), condition="new" if index % 4 else "used", mileage=24 if index % 4 else 4500 + index * 137, fuel=["Gasoline", "Hybrid", "Electric"][index % 3], transmission="Automatic", price=Decimal(str(24500 + (index % 24) * 2750)), rating=Decimal(str(4.2 + (index % 8) / 10)), reviews=[{"rating": 5, "summary": "Transparent Deal&Drive inventory"}], image_paths=[f"cars/demo-{index % 12 + 1}.webp"], status="reserved" if index % 17 == 0 else "available"))
+                        session.add(Car(brand_id=brand.id, state_id=texas.id, title=f"{2022 + index % 5} {brand.name} {models[index % len(models)]}", model=models[index % len(models)], model_year=2022 + index % 5, body_type=["SUV", "Hatchback", "Sedan", "Pickup"][index % 4], seating_capacity=5 + (2 if index % 7 == 0 else 0), condition="new" if index % 4 else "used", mileage=24 if index % 4 else 4500 + index * 137, fuel=["Gasoline", "Hybrid", "Electric"][index % 3], transmission="Automatic", price=Decimal(str(24500 + (index % 24) * 2750)), rating=Decimal(str(4.2 + (index % 8) / 10)), reviews=[{"rating": 5, "summary": "Transparent Deal&Drive inventory"}], image_paths=[f"cars/demo-{index % 12 + 1}.webp"], status="reserved" if index % 17 == 0 else "available"))
                     await session.commit()
                     print(f"Deal&Drive inventory expanded from {car_count} to 120 vehicles.")
             counts = await expand_demo_data(session, now)
@@ -238,7 +238,7 @@ async def seed_database(force: bool = False) -> None:
         session.add_all([User(profile_id=profile.id, password_hash=password, is_active=profile.id != IDS["dealer3"]) for profile in profiles])
         await session.flush()
         session.add_all([
-            Car(seller_id=IDS["dealer"], brand_id=brands[index % len(brands)].id, state_id=IDS["tx"], title=f"{2022 + index % 5} {brands[index % len(brands)].name} Demo Vehicle", model=["Bronco","Jazz","5 Series","Q5","Tahoe","Tucson","Telluride","XUV700","E-Class","Rogue","Model Y","RAV4"][index % 12], model_year=2022+index%5, body_type=["SUV","Hatchback","Sedan","Pickup"][index%4], seating_capacity=5 + (2 if index % 7 == 0 else 0), condition="new" if index%4 else "used", mileage=24 if index%4 else 4500+index*137, fuel=["Gasoline","Hybrid","Electric"][index%3], transmission="Automatic", price=Decimal(str(24500+(index%24)*2750)), rating=Decimal(str(4.2+(index%8)/10)), reviews=[{"rating":5,"summary":"Clear buying experience"}], image_paths=[f"cars/demo-{index%12+1}.webp"], status="reserved" if index%17==0 else "available") for index in range(120)
+            Car(brand_id=brands[index % len(brands)].id, state_id=IDS["tx"], title=f"{2022 + index % 5} {brands[index % len(brands)].name} Demo Vehicle", model=["Bronco","Jazz","5 Series","Q5","Tahoe","Tucson","Telluride","XUV700","E-Class","Rogue","Model Y","RAV4"][index % 12], model_year=2022+index%5, body_type=["SUV","Hatchback","Sedan","Pickup"][index%4], seating_capacity=5 + (2 if index % 7 == 0 else 0), condition="new" if index%4 else "used", mileage=24 if index%4 else 4500+index*137, fuel=["Gasoline","Hybrid","Electric"][index%3], transmission="Automatic", price=Decimal(str(24500+(index%24)*2750)), rating=Decimal(str(4.2+(index%8)/10)), reviews=[{"rating":5,"summary":"Clear buying experience"}], image_paths=[f"cars/demo-{index%12+1}.webp"], status="reserved" if index%17==0 else "available") for index in range(120)
         ])
         requests = [
             BuyerRequest(id=IDS["bronco"], buyer_id=IDS["buyer"], brand_id=IDS["ford"], buyer_area_state_id=IDS["tx"], model="Bronco", body_type="SUV", year_min=2024, year_max=2026, budget_min=Decimal("38000"), budget_max=Decimal("75000"), target_otd_price=Decimal("68000"), buyer_area="Frisco, TX", search_radius_miles=50, timeline="Within 2 weeks", must_haves=["4WD","Adaptive cruise","Hard top"], request_expire=now+timedelta(days=12), status="open"),
@@ -270,7 +270,7 @@ async def seed_database(force: bool = False) -> None:
             DealDocument(quote_id=IDS["q2"], dealer_id=IDS["dealer"], document_type="window_sticker", document_path="deals/jazz/window-sticker.pdf", status="confirmed"),
             DealDocument(quote_id=IDS["q2"], dealer_id=IDS["dealer"], document_type="buyer_order", document_path="deals/jazz/buyer-order.pdf", status="confirmed"),
         ])
-        session.add(BuyerPreference(profile_id=IDS["buyer"], brand_id=IDS["ford"], other_brand_ids=[IDS["honda"],IDS["bmw"]], body_type="SUV", transmission="Automatic", budget_min=35000, budget_max=75000, must_have_features=["Adaptive cruise","Rear camera"], source="advisor", confidence=Decimal("0.860")))
+        session.add(BuyerPreference(profile_id=IDS["buyer"], preferences=["Adaptive cruise", "Rear camera"]))
         session.add_all([ConversationHistory(thread_id=f"thread-{i}", checkpoint_id="seed", user_id=IDS["buyer"], thread_type="sera" if i<4 else "compare", checkpoint={"user":"Demo question","assistant":"Seeded advisor answer","requirements":{}}, metadata_json={"title":title}) for i,title in enumerate(["Bronco quote comparison","Family SUV shortlist","BMW ownership costs","New request draft"],start=1)])
         session.add_all([
             SupportTicket(ticket_id="TIC-316519", category="customer", caller_id=IDS["buyer"], issue_summary="Requests page is slow when many quotes arrive", status="in_progress", priority="high", notes=[]),

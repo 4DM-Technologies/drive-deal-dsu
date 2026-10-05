@@ -220,22 +220,7 @@ export interface RequestCreateInput {
 }
 
 export interface BuyerPreferences {
-  brandId?: string | null;
-  otherBrandIds?: string[];
-  modelPreference?: string | null;
-  bodyType?: string | null;
-  seaterCount?: number | null;
-  transmission?: string | null;
-  drivetrain?: string | null;
-  fuelType?: string | null;
-  condition?: string | null;
-  exteriorColor?: string | null;
-  minYear?: number | null;
-  maxMileage?: number | null;
-  budgetMin?: number | null;
-  budgetMax?: number | null;
-  mustHaveFeatures?: string[];
-  neverWantFeatures?: string[];
+  preferences?: string[];
 }
 
 export interface ProfileUpdateInput {

@@ -43,10 +43,6 @@ class MarketplaceRepository:
     async def document_by_id(self, document_id: str) -> DealDocument | None:
         return await self.session.get(DealDocument, document_id)
 
-    async def cars_for_dealer(self, dealer_id: str) -> list[Car]:
-        result = await self.session.execute(select(Car).where(Car.seller_id == dealer_id).order_by(Car.created_at.desc()))
-        return list(result.scalars())
-
     async def all_cars(self) -> list[Car]:
         result = await self.session.execute(select(Car).where(Car.status == "available").order_by(Car.created_at.desc()))
         return list(result.scalars())

@@ -98,6 +98,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--url", default=None, help="Skip search and crawl/extract this URL directly")
     parser.add_argument("--query", default=DEFAULT_QUERY, help="User query to feed into stage 1 (query_parser)")
     parser.add_argument("--out", default="trace.json", help="Where to write the JSON trace")
+    parser.add_argument("--upload-s3", action="store_true", help="Also upload the trace JSON to the backend's S3 bucket")
     return parser.parse_args()
 
 
@@ -110,3 +111,9 @@ if __name__ == "__main__":
         json.dump(result, f, indent=2)
 
     print(json.dumps(result, indent=2))
+
+    if args.upload_s3:
+        from s3_uploader import upload_json_file
+
+        key = upload_json_file(args.out)
+        print(f"\n[trace_run] uploaded to S3: {key}")

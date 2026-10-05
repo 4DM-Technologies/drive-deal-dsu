@@ -2,6 +2,7 @@ import re
 
 from langgraph.graph import END, START, StateGraph
 
+from src.agents.checkpointer import get_checkpointer
 from src.agents.observability import log_agent_step
 from src.agents.state import AgentState
 
@@ -40,4 +41,4 @@ def build_requirement_graph():
     graph.add_node("gather", gather_requirements)
     graph.add_edge(START, "gather")
     graph.add_edge("gather", END)
-    return graph.compile()
+    return graph.compile(checkpointer=get_checkpointer())

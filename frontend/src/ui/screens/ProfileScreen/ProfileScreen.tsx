@@ -24,7 +24,7 @@ export default function ProfileScreen() {
   useEffect(() => {
     if (!isBuyer) { setPrefsLoading(false); return; }
     void client.profiles.getPreferences().then((prefs) => {
-      const features = prefs.mustHaveFeatures ?? [];
+      const features = prefs.preferences ?? [];
       setDraft(features);
       setSavedPreferences(features);
     }).catch(() => {}).finally(() => setPrefsLoading(false));
@@ -55,8 +55,8 @@ export default function ProfileScreen() {
   async function savePreferences() {
     setPrefsError('');
     try {
-      const result = await client.profiles.savePreferences({ mustHaveFeatures: draft });
-      const features = result.mustHaveFeatures ?? draft;
+      const result = await client.profiles.savePreferences({ preferences: draft });
+      const features = result.preferences ?? draft;
       setSavedPreferences(features);
       setPrefsSaved(true);
       window.setTimeout(() => setPrefsSaved(false), 1800);

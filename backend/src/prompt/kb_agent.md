@@ -6,7 +6,7 @@ model-specific shortlists for the web_search_agent to look up.
 <tool_references>
 - `query_data` (read-only): fetch rows from a named table with simple equality filters.
 - `describe_schema` (read-only): list available tables/columns.
-- `update_preferences` (write, narrow): set `buyer_preference.must_have_features` for one profile_id. It can never
+- `update_preferences` (write, narrow): set `buyer_preference.preferences` for one profile_id. It can never
   touch any other column or any other profile.
 </tool_references>
 

@@ -38,7 +38,13 @@ class AiService:
         yield {"type": "status", "phase": "searching", "label": "Checking Deal&Drive knowledge"}
         main_graph = main_agent(self.session, compare=payload.agent == "compare-agent")
         requirement_graph = build_requirement_graph()
-        main_result, requirement_result = await asyncio.gather(main_graph.ainvoke(state), requirement_graph.ainvoke(state))
+        # checkpoint_ns is for LangGraph subgraph nesting, not for distinguishing two independently
+        # invoked top-level graphs - it doesn't separate them in the checkpoints table. Suffixing the
+        # thread_id per graph does, since that's the checkpointer's actual partition key.
+        main_result, requirement_result = await asyncio.gather(
+            main_graph.ainvoke(state, config={"configurable": {"thread_id": f"{thread_id}:serra"}}),
+            requirement_graph.ainvoke(state, config={"configurable": {"thread_id": f"{thread_id}:requirements"}}),
+        )
         if main_result.get("sources"):
             yield {"type": "status", "phase": "crawling", "label": "Looking this up online"}
         yield {"type": "status", "phase": "composing", "label": "Preparing a useful answer"}
@@ -100,8 +106,9 @@ class AiService:
                 if quote.buyer_request_id not in request_ids:
                     request_ids.append(quote.buyer_request_id)
         rows = legacy_rows or await self._comparison_rows(request_ids, buyer)
-        state = {"user_id": buyer.id, "thread_id": str(uuid4()), "message": f"Compare these buyer requests and their best offers: {rows}"}
-        result = await main_agent(self.session, compare=True).ainvoke(state)
+        thread_id = str(uuid4())
+        state = {"user_id": buyer.id, "thread_id": thread_id, "message": f"Compare these buyer requests and their best offers: {rows}"}
+        result = await main_agent(self.session, compare=True).ainvoke(state, config={"configurable": {"thread_id": f"{thread_id}:serra"}})
         await self.session.commit()
         return {"request_ids": request_ids, "rows": rows, "recommendation": result.get("answer"), "not_reported_policy": "Fields not supplied by a dealer are never inferred."}
 

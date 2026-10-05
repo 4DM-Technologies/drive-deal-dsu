@@ -94,7 +94,6 @@ class Car(AuditMixin, Base):
     __tablename__ = "cars"
     __table_args__ = (CheckConstraint("status IN ('available','reserved','sold','inactive')", name="ck_cars_status"),)
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
-    seller_id: Mapped[str] = mapped_column(ForeignKey("profiles.id"), nullable=False, index=True)
     brand_id: Mapped[str] = mapped_column(ForeignKey("brands.id"), nullable=False, index=True)
     state_id: Mapped[str] = mapped_column(ForeignKey("states.id"), nullable=False, index=True)
     title: Mapped[str] = mapped_column(String(180), nullable=False)
@@ -127,24 +126,7 @@ class ConversationHistory(AuditMixin, Base):
 class BuyerPreference(AuditMixin, Base):
     __tablename__ = "buyer_preference"
     profile_id: Mapped[str] = mapped_column(ForeignKey("profiles.id", ondelete="CASCADE"), primary_key=True)
-    brand_id: Mapped[str | None] = mapped_column(ForeignKey("brands.id"))
-    other_brand_ids: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
-    model_preference: Mapped[str | None] = mapped_column(String(160))
-    body_type: Mapped[str | None] = mapped_column(String(60))
-    seater_count: Mapped[int | None] = mapped_column(Integer)
-    transmission: Mapped[str | None] = mapped_column(String(40))
-    drivetrain: Mapped[str | None] = mapped_column(String(30))
-    fuel_type: Mapped[str | None] = mapped_column(String(30))
-    condition: Mapped[str | None] = mapped_column(String(30))
-    exterior_color: Mapped[str | None] = mapped_column(String(50))
-    min_year: Mapped[int | None] = mapped_column(Integer)
-    max_mileage: Mapped[int | None] = mapped_column(Integer)
-    budget_min: Mapped[int | None] = mapped_column(Integer)
-    budget_max: Mapped[int | None] = mapped_column(Integer)
-    must_have_features: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
-    never_want_features: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
-    source: Mapped[str] = mapped_column(String(40), default="advisor", nullable=False)
-    confidence: Mapped[Decimal] = mapped_column(Numeric(4, 3), default=Decimal("0"), nullable=False)
+    preferences: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
 
 
 class BuyerRequest(AuditMixin, Base):

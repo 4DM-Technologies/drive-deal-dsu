@@ -128,7 +128,10 @@ export default function AdvisorScreen() {
         if (abortRef.current) { setStopped(true); setStatus(''); break; }
         if (event.type === 'status') { setStatus(event.label); setPhase(event.phase); }
         if (event.type === 'token') { setStatus(''); setMessages((items) => items.map((item) => item.id === assistantId ? { ...item, body: item.body + event.text } : item)); }
-        if (event.type === 'card' && event.kind === 'requestPreview') setDraft(event.payload as RequestDraft);
+        if (event.type === 'card' && event.kind === 'requestPreview') {
+          const payload = event.payload as Record<string, unknown>;
+          if (!('questions' in payload)) setDraft(payload as unknown as RequestDraft);
+        }
         if (event.type === 'card' && event.kind === 'compare') setCompare(event.payload as CompareDraft);
         if (event.type === 'done') {
           setStatus('');

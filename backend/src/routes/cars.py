@@ -36,19 +36,19 @@ class CarStatus(BaseModel):
 
 
 @router.get("")
-async def cars(profile: Profile = Depends(get_current_profile), session: AsyncSession = Depends(get_session)):
+async def cars(_: Profile = Depends(get_current_profile), session: AsyncSession = Depends(get_session)):
     repository = MarketplaceRepository(session)
-    rows = await (repository.cars_for_dealer(profile.id) if profile.role == "dealer" else repository.all_cars())
+    rows = await repository.all_cars()
     return [model_dict(row) for row in rows]
 
 
 @router.post("", status_code=status.HTTP_201_CREATED)
 async def create_car(payload: CarCreate, profile: Profile = Depends(require_roles("dealer")), session: AsyncSession = Depends(get_session)):
-    row = Car(seller_id=profile.id, created_by=profile.id, updated_by=profile.id, **payload.model_dump())
+    row = Car(created_by=profile.id, updated_by=profile.id, **payload.model_dump())
     session.add(row)
     await session.commit()
     await session.refresh(row)
-    logger.info("car_created", car_id=row.id, seller_id=profile.id)
+    logger.info("car_created", car_id=row.id, created_by=profile.id)
     return model_dict(row)
 
 
@@ -63,7 +63,7 @@ async def car(car_id: str, _: Profile = Depends(get_current_profile), session: A
 @router.patch("/{car_id}")
 async def update_car(car_id: str, payload: CarCreate, profile: Profile = Depends(require_roles("dealer")), session: AsyncSession = Depends(get_session)):
     row = await session.get(Car, car_id)
-    if row is None or row.seller_id != profile.id:
+    if row is None:
         raise AppError(error_codes.RESOURCE_NOT_FOUND, "Vehicle not found.", 404)
     for field, value in payload.model_dump().items():
         setattr(row, field, value)
@@ -75,10 +75,10 @@ async def update_car(car_id: str, payload: CarCreate, profile: Profile = Depends
 @router.patch("/{car_id}/status")
 async def car_status(car_id: str, payload: CarStatus, profile: Profile = Depends(require_roles("dealer")), session: AsyncSession = Depends(get_session)):
     row = await session.get(Car, car_id)
-    if row is None or row.seller_id != profile.id:
+    if row is None:
         raise AppError(error_codes.RESOURCE_NOT_FOUND, "Vehicle not found.", 404)
     row.status = payload.status
     row.updated_by = profile.id
     await session.commit()
-    logger.info("car_status_changed", car_id=row.id, seller_id=profile.id, status=row.status)
+    logger.info("car_status_changed", car_id=row.id, updated_by=profile.id, status=row.status)
     return model_dict(row)
