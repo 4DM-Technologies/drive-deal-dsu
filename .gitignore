@@ -82,3 +82,5 @@ uploads/*
 
 # Sign in with ChatGPT (SIWC) cached OAuth tokens — never commit
 .codex_oauth_state/
+
+DEPLOY_LOCAL.md
