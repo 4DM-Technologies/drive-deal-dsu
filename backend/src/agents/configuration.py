@@ -8,6 +8,7 @@ from src.settings import ADMIN_WORKFLOW_KEY as WORKFLOW_KEY
 from src.settings import AI_REASONING_EFFORTS as REASONING_EFFORTS
 
 __all__ = [
+    "AGENT_MAX_OUTPUT_TOKENS",
     "MODEL_CATALOG",
     "NODE_CATALOG",
     "PROMPT_CATALOG",
@@ -18,6 +19,22 @@ __all__ = [
     "default_workflow",
     "prompt_file_for",
 ]
+
+# Per-agent default max_output_tokens, keyed by PROMPT_CATALOG key. Each agent's job has a very different
+# natural output size - a classifier reply is one word, a composed answer is a full multi-section response -
+# so one global default (the old behavior) either truncates the long ones or overpays for the short ones.
+# An administrator can still override any of these per prompt revision; this is only the fallback when no
+# override is set (see AdministrationService.runtime_bundle).
+AGENT_MAX_OUTPUT_TOKENS: dict[str, int] = {
+    "main_agent": 60,  # classifier: a single lowercase route word
+    "orchestrator": 300,  # short JSON plan (mode + brief reasoning)
+    "kb_agent": 500,  # preference extraction / car-name shortlist JSON array
+    "web_search_agent": 1200,  # structured CarSpecs JSON extracted from a full crawled page
+    "compose": 2000,  # the final, longest buyer-facing answer
+    "compare": 1800,  # itemized offer comparison
+    "small_talk": 200,  # a short greeting/direct reply
+    "requirements": 400,  # small structured buyer-requirement JSON
+}
 
 MODEL_CATALOG: tuple[dict[str, str], ...] = (
     {"id": "gpt-6.1-sol", "label": "GPT-6.1 Sol", "description": "Latest workhorse model for production agent tasks."},

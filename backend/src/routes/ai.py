@@ -10,6 +10,7 @@ from src.models.marketplace import AiChatRequest, CompareRequest
 from src.repositories.schema import Profile
 from src.services.ai_service import AiService
 from src.utils.log_flow import log_flow
+from src.utils.logger import logger
 
 router = APIRouter(prefix="/ai", tags=["AI"])
 
@@ -25,8 +26,19 @@ async def chat(
 
     @log_flow(layer="route")
     async def event_stream():
-        async for event in service.stream_chat(payload, profile):
-            yield f"event: {event['type']}\ndata: {json.dumps(event)}\n\n"
+        try:
+            async for event in service.stream_chat(payload, profile):
+                yield f"event: {event['type']}\ndata: {json.dumps(event)}\n\n"
+        except Exception as exc:
+            # A node can deliberately fail loudly (e.g. OrchestratorPlanError) rather than silently falling
+            # back to guessed behavior. That must still reach the buyer as a clean stream event instead of
+            # killing the SSE connection mid-response and leaving the frontend stuck on a "thinking" state.
+            logger.exception("ai_chat_stream_failed", thread_id=payload.thread_id, error=str(exc)[:300])
+            error_event = {
+                "type": "error",
+                "message": "Something went wrong while preparing a response. Please try again.",
+            }
+            yield f"event: {error_event['type']}\ndata: {json.dumps(error_event)}\n\n"
 
     return StreamingResponse(
         event_stream(), media_type="text/event-stream", headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"}

@@ -6,7 +6,6 @@ import { Link, useSearchParams } from 'react-router-dom';
 import remarkGfm from 'remark-gfm';
 import { formatMoney } from '@/helpers/currency';
 import { relativeTime } from '@/helpers/dateTime';
-import { createId } from '@/helpers/ids';
 import { client } from '@/services/platform/client';
 import { CompareIcon } from '@/ui/reusables/Icons/CompareIcon';
 import { SerraLoader } from '@/ui/reusables/PageLoading/PageLoading';
@@ -124,7 +123,7 @@ export default function AdvisorScreen() {
 
   const streamGreeting = useCallback(() => {
     const run = ++greetingRunRef.current;
-    const id = createId();
+    const id = crypto.randomUUID();
     setMessages([{ id, role: 'assistant', body: '' }]);
     void (async () => {
       for (const piece of greeting.split(/(\s+)/)) {
@@ -236,10 +235,10 @@ export default function AdvisorScreen() {
     const controller = new AbortController();
     abortControllerRef.current = controller;
     setInput(''); setStopped(false); setCompare(null); setStreaming(true); setStatus(activity.classifying);
-    const assistantId = createId();
+    const assistantId = crypto.randomUUID();
     activeAssistantIdRef.current = assistantId;
     setActiveAssistantId(assistantId);
-    setMessages((items) => [...items, { id: createId(), role: 'user', body: text }, { id: assistantId, role: 'assistant', body: '' }]);
+    setMessages((items) => [...items, { id: crypto.randomUUID(), role: 'user', body: text }, { id: assistantId, role: 'assistant', body: '' }]);
     // Only a confirmed picker selection invokes the saved-offer comparison agent. Natural questions such as
     // "compare BMW and Audi" stay in Sera's normal knowledge-backed conversation, even if old selections exist.
     const isCompare = Boolean(comparison) || (compareOpen && canCompare);
@@ -252,6 +251,10 @@ export default function AdvisorScreen() {
         if (event.type === 'token') { setStatus(''); setMessages((items) => items.map((item) => item.id === assistantId ? { ...item, body: item.body + event.text } : item)); }
         if (event.type === 'card' && event.kind === 'requestPreview') setDraft(normalizeRequestDraft(event.payload));
         if (event.type === 'card' && event.kind === 'compare') setCompare(event.payload as CompareDraft);
+        if (event.type === 'error') {
+          setStatus('');
+          setMessages((items) => items.map((item) => item.id === assistantId ? { ...item, body: item.body || `## I hit a problem\n${event.message || 'Please try sending that message again.'}` } : item));
+        }
         if (event.type === 'done') {
           setStatus('');
           setThreadId(event.threadId);

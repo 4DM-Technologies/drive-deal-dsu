@@ -20,6 +20,7 @@ the unwind of every parent - that is where you read the traceback and correct th
 import asyncio
 import functools
 import inspect
+import re
 import time
 from collections.abc import AsyncGenerator, Callable
 from contextvars import ContextVar, Token
@@ -77,6 +78,25 @@ def is_sensitive(name: str) -> bool:
     """True when a parameter name looks like a credential and its value must never be logged."""
     lowered = name.lower()
     return any(marker in lowered for marker in LOG_FLOW_SENSITIVE_PARAMS)
+
+
+_BEARER_RE = re.compile(r"(?i)(?:\bBearer\s+)+\S+")
+_CREDENTIAL_KV_RE = re.compile(r"(?i)\b(access_token|refresh_token|api_key|authorization)\b\s*[:=]\s*[^\s,;}]+")
+_EMAIL_RE = re.compile(r"\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b", re.IGNORECASE)
+
+
+def scrub_secrets(text: str, *, redact_email: bool = False) -> str:
+    """Redacts credential-shaped substrings (Bearer tokens, access_token=/api_key= pairs, optionally emails)
+    out of free text that must otherwise stay readable - error messages, prompts, provider responses.
+
+    This is the one place that defines what a secret "looks like" inside arbitrary text, so every caller
+    that needs to log such text (agent LLM calls, provider errors, future call sites) shares the same rules
+    instead of each maintaining its own regex set that can silently drift out of sync."""
+    text = _BEARER_RE.sub("Bearer [REDACTED]", text)
+    text = _CREDENTIAL_KV_RE.sub(r"\1=[REDACTED]", text)
+    if redact_email:
+        text = _EMAIL_RE.sub("[email]", text)
+    return text
 
 
 def safe_value(value: Any) -> str:

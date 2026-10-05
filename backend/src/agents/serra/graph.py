@@ -21,6 +21,7 @@ from src.agents.tools.kb import kb_insert, kb_search
 from src.agents.tools.kb_db import update_preferences, write_car
 from src.agents.tools.web_search import get_urls, process_url
 from src.repositories.schema import AiTraceSpan, Brand, BuyerPreference, State
+from src.settings import get_settings
 from src.utils.logger import logger
 from src.utils.serialization import model_dict
 
@@ -48,7 +49,8 @@ SMALL_TALK_PATTERNS = (
     r"^\s*(thanks|thank\s+you|thx|ty|cheers|appreciate\s+it|nice|cool|great|awesome|perfect|ok|okay|"
     r"got\s+it|sounds\s+good|np|no\s+problem|you'?re\s+welcome)[\s!.?]*$",
     r"^\s*(bye|goodbye|see\s+ya|see\s+you|later|cya)[\s!.?]*$",
-    r"^\s*(who\s+are\s+you|what\s+are\s+you|what\s+can\s+you\s+do|how\s+can\s+you\s+help|help)[\s!.?]*$",
+    r"^\s*(who\s+are\s+you|what\s+are\s+you|what(?:'s|s|\s+is)\s+your\s+name|"
+    r"do\s+you\s+have\s+a\s+name|what\s+can\s+you\s+do|how\s+can\s+you\s+help|help)[\s!.?]*$",
     r"^\s*(yes|yeah|yep|yup|no|nope|nah|sure|maybe|perhaps)[\s!.?]*$",
     # Courtesy/praise replies. The sentiment word is allowlisted so statements like "that is my final
     # offer" are not mistaken for chit-chat.
@@ -637,21 +639,27 @@ def main_agent(
         else:
             query_terms = [state["message"]] + [str(value) for value in preferences.values() if value]
             try:
-                candidates = await get_urls(" ".join(query_terms))
-                for candidate in candidates[:3]:
+                settings = get_settings()
+                candidates = await get_urls(" ".join(query_terms), limit=settings.web_search_max_crawl_sites)
+                crawl_candidates = candidates[: settings.web_search_max_crawl_sites]
+                for candidate in crawl_candidates:
                     candidate_evidence.append(candidate)
                     resolved_sources[candidate["url"]] = {
                         "title": candidate.get("title") or candidate.get("source_domain") or "Trusted vehicle source",
                         "url": candidate["url"],
                     }
-                    spec = await process_url(
-                        llm,
-                        candidate["url"],
-                        state_trace_id=state.get("trace_id") or thread_id,
-                        profile=profiles.get("web_search_agent"),
-                    )
-                    if spec:
-                        specs.append(spec)
+                results = await asyncio.gather(
+                    *[
+                        process_url(
+                            llm,
+                            candidate["url"],
+                            state_trace_id=state.get("trace_id") or thread_id,
+                            profile=profiles.get("web_search_agent"),
+                        )
+                        for candidate in crawl_candidates
+                    ]
+                )
+                specs = [spec for spec in results if spec]
             except Exception as exc:
                 # Compose can still give a transparent, useful fallback. A search-provider failure must not tear
                 # down the SSE stream and surface a framework traceback to the buyer.
@@ -680,12 +688,19 @@ def main_agent(
         if preview or state.get("preview"):
             return {"step": step}
         persisted = []
+        buyer_state_name = (state.get("requirements") or {}).get("state")
+        state_row = None
+        if buyer_state_name:
+            state_row = (
+                (await session.execute(select(State).where(State.name.ilike(buyer_state_name)))).scalars().first()
+            )
         for spec in state.get("car_specs") or []:
             if not spec.get("make") or not spec.get("model") or not spec.get("year") or not spec.get("price_usd"):
                 continue
             brand = (await session.execute(select(Brand).where(Brand.name.ilike(spec["make"])))).scalars().first()
-            state_row = (await session.execute(select(State).limit(1))).scalars().first()
             if not brand or not state_row:
+                # Without a buyer-stated state, there is no reliable location for this listing - persisting it
+                # under an arbitrary State row would silently corrupt location data, so skip it instead.
                 continue
             result = await write_car(
                 session,

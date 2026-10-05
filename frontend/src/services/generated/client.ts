@@ -5,7 +5,8 @@ export type AiStreamEvent =
   | { type: 'token'; text: string }
   | { type: 'card'; kind: 'car' | 'compare' | 'requestPreview'; payload: unknown }
   | { type: 'sources'; items: Array<{ url: string; title: string }> }
-  | { type: 'done'; threadId: string; messagesUsed: number; expandedUi: boolean };
+  | { type: 'done'; threadId: string; messagesUsed: number; expandedUi: boolean }
+  | { type: 'error'; message: string };
 
 export interface DriveDealClient {
   auth: {

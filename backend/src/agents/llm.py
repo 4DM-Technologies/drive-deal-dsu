@@ -10,7 +10,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.auth.codex_oauth import get_cached_access_token
 from src.repositories.schema import AiTrace, AiTraceSpan, LlmAudit
-from src.settings import get_settings
+from src.settings import CODEX_DIRECT_BASE_URL, CODEX_DIRECT_USER_AGENT, get_settings
+from src.utils.log_flow import scrub_secrets
 from src.utils.logger import logger
 
 _capability_lock = threading.Lock()
@@ -20,25 +21,13 @@ _models_without_reasoning_effort: set[str] = set()
 
 def _safe_error_value(value: Any, *, limit: int = 320) -> str:
     """Redact tokens/keys/emails from provider error text before it goes anywhere (logs, audit rows)."""
-    text = " ".join(str(value).split())
-    text = re.sub(r"(?i)(?:\bBearer\s+)+\S+", "Bearer [REDACTED]", text)
-    text = re.sub(
-        r"(?i)\b(access_token|refresh_token|api_key|authorization)\b\s*[:=]\s*[^\s,;}]+", r"\1=[REDACTED]", text
-    )
-    text = re.sub(r"\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b", "[email]", text, flags=re.IGNORECASE)
+    text = scrub_secrets(" ".join(str(value).split()), redact_email=True)
     return text[:limit]
 
 
 def _safe_trace_value(value: Any, *, limit: int = 20_000) -> str:
     """Preserve prompt structure for administrators while removing credential-shaped values."""
-    text = str(value)
-    text = re.sub(r"(?i)(?:\bBearer\s+)+\S+", "Bearer [REDACTED]", text)
-    text = re.sub(
-        r"(?i)\b(access_token|refresh_token|api_key|authorization)\b\s*[:=]\s*[^\s,;}]+",
-        r"\1=[REDACTED]",
-        text,
-    )
-    return text[:limit]
+    return scrub_secrets(str(value))[:limit]
 
 
 @dataclass
@@ -67,7 +56,16 @@ class LlmClient:
             self._credential_source = "chatgpt_oauth_cache" if credential else "deterministic"
         if not credential:
             return None
-        return AsyncOpenAI(api_key=credential, timeout=self.settings.ai_request_timeout_seconds)
+        if self._credential_source == "api_key":
+            return AsyncOpenAI(api_key=credential, timeout=self.settings.ai_request_timeout_seconds)
+        # A ChatGPT-OAuth-sourced credential is only valid against ChatGPT's own backend, not the
+        # public OpenAI API - different base URL, and Cloudflare blocks the SDK's default User-Agent.
+        return AsyncOpenAI(
+            api_key=credential,
+            base_url=CODEX_DIRECT_BASE_URL,
+            default_headers={"User-Agent": CODEX_DIRECT_USER_AGENT},
+            timeout=self.settings.ai_request_timeout_seconds,
+        )
 
     async def generate(
         self,

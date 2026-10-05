@@ -8,6 +8,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.agents.configuration import (
+    AGENT_MAX_OUTPUT_TOKENS,
     CONDITIONS_BY_SOURCE,
     MODEL_CATALOG,
     NODE_CATALOG,
@@ -573,7 +574,10 @@ class AdministrationService:
                 agent_profiles[item["key"]] = {
                     "model": row.payload.get("model", get_settings().openai_model),
                     "reasoning_effort": row.payload.get("reasoning_effort", get_settings().openai_reasoning_effort),
-                    "max_output_tokens": row.payload.get("max_output_tokens", get_settings().ai_max_output_tokens),
+                    "max_output_tokens": row.payload.get(
+                        "max_output_tokens",
+                        AGENT_MAX_OUTPUT_TOKENS.get(item["key"], get_settings().ai_max_output_tokens),
+                    ),
                 }
                 versions.append(f"{item['key']}:{row.version}")
         version_manifest = ",".join(versions)

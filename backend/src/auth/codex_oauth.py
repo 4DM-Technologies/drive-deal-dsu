@@ -31,6 +31,9 @@ from src.settings import (
 )
 from src.settings import (
     CODEX_OAUTH_CALLBACK_PATH,
+    CODEX_OAUTH_DEVICE_DEFAULT_POLL_INTERVAL_SECONDS,
+    CODEX_OAUTH_DEVICE_POLL_TIMEOUT_SECONDS,
+    CODEX_OAUTH_DEVICE_USER_AGENT,
     CODEX_OAUTH_HTTP_TIMEOUT_SECONDS,
     CODEX_OAUTH_REDIRECT_HOST,
     CODEX_OAUTH_REFRESH_SKEW_SECONDS,
@@ -38,6 +41,21 @@ from src.settings import (
 )
 from src.settings import (
     CODEX_OAUTH_CLIENT_ID_FILE as CLIENT_ID_NAME,
+)
+from src.settings import (
+    CODEX_OAUTH_DEVICE_EXCHANGE_URL as DEVICE_EXCHANGE_URL,
+)
+from src.settings import (
+    CODEX_OAUTH_DEVICE_REDIRECT_URI as DEVICE_REDIRECT_URI,
+)
+from src.settings import (
+    CODEX_OAUTH_DEVICE_TOKEN_POLL_URL as DEVICE_TOKEN_POLL_URL,
+)
+from src.settings import (
+    CODEX_OAUTH_DEVICE_USERCODE_URL as DEVICE_USERCODE_URL,
+)
+from src.settings import (
+    CODEX_OAUTH_DEVICE_VERIFICATION_URL as DEVICE_VERIFICATION_URL,
 )
 from src.settings import (
     CODEX_OAUTH_HOST_ID_FILE as HOST_ID_NAME,
@@ -270,6 +288,105 @@ def login() -> dict:
         _remember_client_id(issued_client_id)
     _save_tokens(tokens)
     return tokens
+
+
+async def _request_device_code(http_client: httpx.AsyncClient, client_id: str) -> dict:
+    resp = await http_client.post(DEVICE_USERCODE_URL, json={"client_id": client_id})
+    if resp.status_code == 404:
+        raise RuntimeError(
+            "Device code login is not enabled for this ChatGPT account/workspace "
+            "(Settings -> Security -> Device code sign-in). Use `src.codex_login` (browser flow) instead."
+        )
+    if resp.status_code >= 400:
+        raise RuntimeError(f"Device code request failed ({resp.status_code}): {resp.text}")
+    data = resp.json()
+    user_code = data.get("user_code") or data.get("usercode")
+    if not data.get("device_auth_id") or not user_code:
+        raise RuntimeError(f"Device code response missing device_auth_id/user_code: {data}")
+    try:
+        interval = int(str(data.get("interval", CODEX_OAUTH_DEVICE_DEFAULT_POLL_INTERVAL_SECONDS)).strip())
+    except ValueError:
+        interval = CODEX_OAUTH_DEVICE_DEFAULT_POLL_INTERVAL_SECONDS
+    return {"device_auth_id": data["device_auth_id"], "user_code": user_code, "interval": interval}
+
+
+async def _poll_for_device_code(
+    http_client: httpx.AsyncClient, device_auth_id: str, user_code: str, interval: int
+) -> dict:
+    """Polls until the human approves the code shown at DEVICE_VERIFICATION_URL, or 15 minutes pass -
+    matching the Codex CLI's own device_code_auth.rs timeout. 403/404 both mean "still pending"."""
+    deadline = time.time() + CODEX_OAUTH_DEVICE_POLL_TIMEOUT_SECONDS
+    while True:
+        resp = await http_client.post(
+            DEVICE_TOKEN_POLL_URL, json={"device_auth_id": device_auth_id, "user_code": user_code}
+        )
+        if resp.status_code == 200:
+            data = resp.json()
+            for field in ("authorization_code", "code_challenge", "code_verifier"):
+                if field not in data:
+                    raise RuntimeError(f"Device token-poll response missing '{field}': {data}")
+            return data
+        if resp.status_code in (403, 404):
+            if time.time() >= deadline:
+                raise RuntimeError("Device sign-in timed out after 15 minutes — no approval was received.")
+            await asyncio.sleep(min(interval, deadline - time.time()))
+            continue
+        raise RuntimeError(f"Device sign-in failed ({resp.status_code}): {resp.text}")
+
+
+async def _device_login_async() -> dict:
+    """OAuth 2.0 Device Authorization Grant (RFC 8628) — lets someone else, on their own already
+    signed-in browser, approve this machine's sign-in. Verified live end-to-end (see
+    testing/codex-device-auth). Reverse-engineered from the open-source Codex CLI since OpenAI has
+    not published a device-flow API reference. Caches tokens the same way `login()` does, so
+    `get_cached_access_token()` picks them up with no other change needed.
+
+    For local/manual use only (via `python -m src.codex_device_login`) — never called from the
+    running API server, same as `login()`.
+    """
+    host_id = _host_id()
+    client_id = _saved_client_id()
+
+    async with httpx.AsyncClient(
+        timeout=CODEX_OAUTH_HTTP_TIMEOUT_SECONDS, headers={"User-Agent": CODEX_OAUTH_DEVICE_USER_AGENT}
+    ) as http_client:
+        device_code = await _request_device_code(http_client, client_id)
+        print(
+            "Continue only if you started this sign-in yourself. If a website or another person gave you this code, cancel."
+        )  # noqa: T201
+        print(f"\nVisit: {DEVICE_VERIFICATION_URL}")  # noqa: T201
+        print(f"Enter code: {device_code['user_code']}\n")  # noqa: T201
+        print("Waiting for approval (up to 15 minutes)...")  # noqa: T201
+
+        code_result = await _poll_for_device_code(
+            http_client, device_code["device_auth_id"], device_code["user_code"], device_code["interval"]
+        )
+
+        resp = await http_client.post(
+            DEVICE_EXCHANGE_URL,
+            data={
+                "grant_type": "authorization_code",
+                "client_id": client_id,
+                "code": code_result["authorization_code"],
+                "redirect_uri": DEVICE_REDIRECT_URI,
+                "code_verifier": code_result["code_verifier"],
+            },
+        )
+    if resp.status_code >= 400:
+        raise RuntimeError(f"Device token exchange failed ({resp.status_code}): {resp.text}")
+    tokens = resp.json()
+    issued_client_id = tokens.get("client_id") or resp.headers.get("X-Client-Id")
+    if issued_client_id:
+        _remember_client_id(issued_client_id)
+    _save_tokens(tokens)
+    logger.info("codex_oauth_device_login_succeeded", host_id=host_id)
+    return tokens
+
+
+def device_login() -> dict:
+    """Synchronous entry point — see `_device_login_async` for the actual flow. For local/manual use
+    only (via `python -m src.codex_device_login`)."""
+    return asyncio.run(_device_login_async())
 
 
 async def _refresh_async(tokens: dict, *, persist_refresh_token: bool = True) -> dict:

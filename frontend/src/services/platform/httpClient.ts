@@ -3,7 +3,6 @@ import type { ActiveTheme, AdministrationAuditEvent, AdminCatalog, AdminConfigBu
 import driveDealHero from '@/assets/vehicles/drivedeal-hero.png';
 import { BROWSER_STORAGE_KEYS, WORKSPACE_VIEW_QUERY_PARAMETER } from '@/config/browser';
 import { environment } from '@/config/environment';
-import { createId } from '@/helpers/ids';
 
 const baseUrl = environment.apiBaseUrl;
 
@@ -338,7 +337,7 @@ export const httpClient: DriveDealClient = {
       const presigned = await request<{ url: string; key: string; headers: Record<string, string> }>('/documents/presign', { method: 'POST', body: JSON.stringify({ filename: file.name, content_type: file.type || 'application/octet-stream', quote_id: quoteId, document_type: type, size_bytes: file.size }) });
       const upload = await fetch(presigned.url, { method: 'PUT', headers: presigned.headers, body: file });
       if (!upload.ok) throw new Error(`Upload failed (${upload.status})`);
-      const documentId = createId();
+      const documentId = crypto.randomUUID();
       const row = await request<Record<string, unknown>>(`/documents/${documentId}/confirm`, { method: 'POST', body: JSON.stringify({ quote_id: quoteId, document_type: type, object_key: presigned.key }) });
       const confirmed = (await request<Record<string, unknown>[]>(`/documents/${quoteId}`)).find((item) => String(item.id) === String(row.id));
       return { id: String(row.id), quoteId: String(row.quote_id), type: String(row.document_type), name: file.name, status: String(row.status), downloadUrl: String(confirmed?.download_url ?? '') };
@@ -346,7 +345,7 @@ export const httpClient: DriveDealClient = {
   },
   chats: {
     list: async (quoteId) => (await request<Record<string, unknown>[]>(`/chats/${quoteId}`)).map((row): ChatMessage => ({ id: String(row.id), quoteId: String(row.quote_id), senderId: String(row.sender_id), senderName: String(row.sender_name ?? 'Account unavailable'), body: String(row.message), createdAt: String(row.created_at), read: Boolean(row.read_at) })),
-    send: async (quoteId, body) => { const row = await request<Record<string, unknown>>(`/chats/${quoteId}`, { method: 'POST', body: JSON.stringify({ id: createId(), message: body }) }); return { id: String(row.id), quoteId: String(row.quote_id), senderId: String(row.sender_id), senderName: String(row.sender_name ?? 'Account unavailable'), body: String(row.message), createdAt: String(row.created_at), read: Boolean(row.read_at) }; },
+    send: async (quoteId, body) => { const row = await request<Record<string, unknown>>(`/chats/${quoteId}`, { method: 'POST', body: JSON.stringify({ id: crypto.randomUUID(), message: body }) }); return { id: String(row.id), quoteId: String(row.quote_id), senderId: String(row.sender_id), senderName: String(row.sender_name ?? 'Account unavailable'), body: String(row.message), createdAt: String(row.created_at), read: Boolean(row.read_at) }; },
     requestAccess: async (quoteId, message) => quoteToDomain(await request(`/chats/${quoteId}/request-access`, { method: 'POST', body: JSON.stringify({ message }) })),
     listRequests: async () => (await request<Record<string, unknown>[]>('/chats/requests')).map(quoteToDomain),
     acceptRequest: async (quoteId) => quoteToDomain(await request(`/chats/requests/${quoteId}/accept`, { method: 'POST' })),
