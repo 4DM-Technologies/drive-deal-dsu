@@ -33,7 +33,8 @@ FALLBACK_BRANDS = [
 
 TIMELINES = ["ASAP", "Within 1 week", "Within 2 weeks", "Just exploring"]
 BUDGET_RE = re.compile(
-    r"(?:under|budget|max|around|about|approximately|up\s+to|~)\s*\$?\s*([0-9][0-9,]*(?:\s*[kKmM])?)", re.IGNORECASE
+    r"(?:under|budget|max|around|about|approximately|up\s+to|~)\s*\$?\s*([0-9][0-9,]*(?:\.[0-9]+)?(?:\s*[kKmM])?)",
+    re.IGNORECASE,
 )
 
 

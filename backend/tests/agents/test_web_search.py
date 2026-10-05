@@ -7,6 +7,7 @@ from src.agents.tools.web_search import _ReadableHtmlParser, get_urls, process_u
 async def test_brand_search_uses_official_site_when_search_providers_fail() -> None:
     settings = SimpleNamespace(
         web_search_max_results=5,
+        web_search_max_crawl_sites=5,
         web_search_request_timeout_seconds=2,
     )
     duckduckgo = MagicMock(side_effect=RuntimeError('Invalid impersonate: "edge_131"'))
@@ -31,6 +32,7 @@ async def test_brand_search_uses_official_site_when_search_providers_fail() -> N
 async def test_unknown_brand_returns_no_candidates_instead_of_raising() -> None:
     settings = SimpleNamespace(
         web_search_max_results=5,
+        web_search_max_crawl_sites=5,
         web_search_request_timeout_seconds=2,
     )
 
@@ -47,6 +49,7 @@ async def test_unknown_brand_returns_no_candidates_instead_of_raising() -> None:
 async def test_search_snippet_is_preserved_as_compose_evidence() -> None:
     settings = SimpleNamespace(
         web_search_max_results=5,
+        web_search_max_crawl_sites=5,
         web_search_request_timeout_seconds=2,
     )
     raw = [

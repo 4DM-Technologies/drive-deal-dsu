@@ -1,4 +1,5 @@
 import asyncio
+from contextlib import suppress
 from datetime import UTC, datetime
 from time import perf_counter
 from uuid import uuid4
@@ -8,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.agents.requirements import build_requirement_graph
 from src.agents.serra.graph import DIRECT_REPLY_ROUTES, is_direct_reply, is_explicit_web_search, main_agent
+from src.database import SessionFactory
 from src.models.marketplace import AiChatRequest, CompareRequest
 from src.repositories.schema import AiTrace, Brand, BuyerRequest, ConversationHistory, DealQuote, LlmAudit, Profile
 from src.services.administration_service import AdministrationService
@@ -82,27 +84,45 @@ class AiService:
             main_result = await main_task
             requirement_result: dict = {}
         else:
+            # The requirements graph runs concurrently with the main graph, so it needs its own AsyncSession:
+            # AsyncSession.flush() isn't safe to call from two tasks at once, and both graphs' traced nodes
+            # flush on every step, which raised "Session is already flushing" when they shared self.session.
+            requirement_session = SessionFactory()
             requirement_task = asyncio.create_task(
                 build_requirement_graph(
-                    self.session,
+                    requirement_session,
                     prompt_overrides=runtime["prompts"],
                     prompt_version=runtime["version"],
                     agent_profiles=runtime["agent_profiles"],
                 ).ainvoke(state)
             )
             try:
-                main_result = await main_task
-            except BaseException:
+                try:
+                    main_result = await main_task
+                except BaseException:
+                    requirement_task.cancel()
+                    raise
+                if main_result.get("route") in DIRECT_REPLY_ROUTES:
+                    # The classifier ruled the message out of scope, so stop waiting on requirements entirely
+                    # rather than letting gather delay the reply until that call finishes.
+                    requirement_task.cancel()
+                    requirement_result = {}
+                else:
+                    yield {"type": "status", "phase": "searching", "label": "Searching Deal&Drive knowledge"}
+                    requirement_result = await requirement_task
+            finally:
+                # cancel() only schedules CancelledError at the task's next await point - it does not stop it
+                # synchronously. Awaiting it here (whether it finished, was cancelled, or raised) guarantees the
+                # task is no longer touching requirement_session before the commit/close below run, which is
+                # exactly the race this dedicated session was introduced to avoid.
                 requirement_task.cancel()
-                raise
-            if main_result.get("route") in DIRECT_REPLY_ROUTES:
-                # The classifier ruled the message out of scope, so stop waiting on requirements entirely
-                # rather than letting gather delay the reply until that call finishes.
-                requirement_task.cancel()
-                requirement_result = {}
-            else:
-                yield {"type": "status", "phase": "searching", "label": "Searching Deal&Drive knowledge"}
-                requirement_result = await requirement_task
+                with suppress(BaseException):
+                    await requirement_task
+                if requirement_task.cancelled() or requirement_task.exception():
+                    await requirement_session.rollback()
+                else:
+                    await requirement_session.commit()
+                await requirement_session.close()
         if main_result.get("sources") and not explicit_web_search:
             yield {"type": "status", "phase": "crawling", "label": "Searching trusted sources"}
         yield {"type": "status", "phase": "composing", "label": "Preparing response"}

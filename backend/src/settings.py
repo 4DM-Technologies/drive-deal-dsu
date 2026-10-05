@@ -66,6 +66,34 @@ CODEX_OAUTH_HOST_ID_FILE = "host_id.txt"
 CODEX_OAUTH_CLIENT_ID_FILE = "client_id.txt"
 CODEX_OAUTH_TOKENS_FILE = "tokens.json"
 
+# A ChatGPT-OAuth-sourced credential (chatgpt_oauth_env/chatgpt_oauth_cache) talks to ChatGPT's own
+# backend, not the public OpenAI API - different base URL, requires stream=true on every request,
+# and Cloudflare 530s requests with no real User-Agent (verified via testing/codex-llm-test).
+CODEX_DIRECT_BASE_URL = "https://chatgpt.com/backend-api/codex"
+CODEX_DIRECT_USER_AGENT = "codex_cli_rs"
+
+# OAuth 2.0 Device Authorization Grant (RFC 8628) - for signing in from a machine with no browser,
+# or where the account approving sign-in is on someone else's already-logged-in browser. Verified
+# live end-to-end via testing/codex-device-auth (request -> poll -> exchange all confirmed working).
+# Reverse-engineered from the open-source Codex CLI (openai/codex, codex-rs/login/src/
+# device_code_auth.rs + codex-rs/login/src/oauth/client.rs) since OpenAI has not published a
+# device-flow API reference. Requires "Device code" sign-in enabled for the ChatGPT account/workspace.
+CODEX_OAUTH_DEVICE_USERCODE_URL = "https://auth.openai.com/api/accounts/deviceauth/usercode"
+CODEX_OAUTH_DEVICE_TOKEN_POLL_URL = "https://auth.openai.com/api/accounts/deviceauth/token"
+# Verified live: the final code->token exchange goes to "{issuer}/oauth/token", not the
+# "/api/accounts/oauth/token" path CODEX_OAUTH_TOKEN_URL above uses for the browser flow.
+CODEX_OAUTH_DEVICE_EXCHANGE_URL = "https://auth.openai.com/oauth/token"
+# Where a human enters the user_code shown to them.
+CODEX_OAUTH_DEVICE_VERIFICATION_URL = "https://auth.openai.com/codex/device"
+# The device flow has no browser callback, so it uses this fixed redirect_uri instead of the
+# localhost one above (confirmed in device_code_auth.rs: `format!("{base_url}/deviceauth/callback")`).
+CODEX_OAUTH_DEVICE_REDIRECT_URI = "https://auth.openai.com/deviceauth/callback"
+CODEX_OAUTH_DEVICE_POLL_TIMEOUT_SECONDS = 15 * 60
+CODEX_OAUTH_DEVICE_DEFAULT_POLL_INTERVAL_SECONDS = 5
+# Verified live: Cloudflare returns 530 cf_route_error for a default/bot-looking User-Agent on the
+# deviceauth endpoints - any real-looking value works.
+CODEX_OAUTH_DEVICE_USER_AGENT = "codex_cli_rs"
+
 WEB_SEARCH_USER_AGENT = "drivedeal-serra/1.0 (+web_search_agent)"
 WEB_SEARCH_MAX_MARKDOWN_CHARS = 45_000
 
@@ -73,22 +101,8 @@ S3_PRESIGNED_URL_TTL_SECONDS = 900
 S3_CACHE_CONTROL_NO_STORE = "no-store"
 S3_SERVER_SIDE_ENCRYPTION = "AES256"
 
-# Domains the web_search_agent is willing to crawl. Keep explicit rather than crawling
-# anything a search engine returns (ported from testing/car-scraper-poc/config.py).
-ALLOWED_DOMAINS = [
-    "tesla.com",
-    "ford.com",
-    "chevrolet.com",
-    "toyota.com",
-    "honda.com",
-    "cars.com",
-    "cargurus.com",
-    "bmwusa.com",
-]
-
-# Maps a manufacturer name to its domain in ALLOWED_DOMAINS so a brand-specific query
-# searches the relevant brand's site first instead of looping through every allowed
-# domain in list order.
+# Maps a manufacturer name to its official domain. web_search_agent has no site allow-list - it can crawl
+# any public site - this is only used as a last-resort fallback URL when search providers return nothing.
 MAKE_DOMAIN_MAP = {
     "tesla": "tesla.com",
     "ford": "ford.com",
@@ -134,6 +148,8 @@ class Settings(BaseSettings):
     google_cse_id: str | None = None
     web_search_max_results: int = 5
     web_search_request_timeout_seconds: int = 20
+    web_search_max_crawl_sites: int = 2
+    web_search_max_retries: int = 3
     langsmith_tracing: bool = False
     langsmith_api_key: str | None = None
     langsmith_project: str = "drivedeal-serra"

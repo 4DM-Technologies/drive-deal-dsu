@@ -251,6 +251,10 @@ export default function AdvisorScreen() {
         if (event.type === 'token') { setStatus(''); setMessages((items) => items.map((item) => item.id === assistantId ? { ...item, body: item.body + event.text } : item)); }
         if (event.type === 'card' && event.kind === 'requestPreview') setDraft(normalizeRequestDraft(event.payload));
         if (event.type === 'card' && event.kind === 'compare') setCompare(event.payload as CompareDraft);
+        if (event.type === 'error') {
+          setStatus('');
+          setMessages((items) => items.map((item) => item.id === assistantId ? { ...item, body: item.body || `## I hit a problem\n${event.message || 'Please try sending that message again.'}` } : item));
+        }
         if (event.type === 'done') {
           setStatus('');
           setThreadId(event.threadId);
