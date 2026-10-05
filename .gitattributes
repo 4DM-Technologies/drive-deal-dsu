@@ -20,8 +20,11 @@ Dockerfile     text eol=lf
 *.ini          text eol=lf
 *.toml         text eol=lf
 *.json         text eol=lf
-*.mako        text eol=lf
+*.mako          text eol=lf
 serve.json     text eol=lf
+# Lockfiles have no extension, so they would otherwise fall through to
+# `* text=auto` and pick up CRLF from core.autocrlf=true on Windows.
+uv.lock        text eol=lf
 
 # ---------------------------------------------------------------------------
 # Windows-native formats: keep CRLF, these are only ever run on Windows.
