@@ -1,0 +1,375 @@
+{
+  "trace": [
+    {
+      "stage": "1_query_parser",
+      "input": {
+        "user_query": "I want a Honda Civic under 30000"
+      },
+      "output": {
+        "make": "Honda",
+        "model": "Civic",
+        "max_price": 30000.0,
+        "min_price": null,
+        "body_type": null,
+        "top_n": 5,
+        "country_market": "US"
+      }
+    },
+    {
+      "stage": "2_search_resolver",
+      "input": {
+        "intent": {
+          "make": "Honda",
+          "model": "Civic",
+          "max_price": 30000.0,
+          "min_price": null,
+          "body_type": null,
+          "top_n": 5,
+          "country_market": "US"
+        }
+      },
+      "output": {
+        "candidates": [
+          {
+            "url": "https://automobiles.honda.com/civic",
+            "source_domain": "honda.com",
+            "title": "Honda Civic Family: Models & Price | Honda"
+          },
+          {
+            "url": "https://automobiles.honda.com/tools/inventory-",
+            "source_domain": "honda.com",
+            "title": "Locate Honda Vehicle Search Inventory | Honda"
+          },
+          {
+            "url": "https://www.honda.com/",
+            "source_domain": "honda.com",
+            "title": "American Honda Motor Co., Inc. - Official Site"
+          },
+          {
+            "url": "https://powerequipment.honda.com/pumps/models/wt30",
+            "source_domain": "honda.com",
+            "title": "Honda WT30 | 3\" Trash Pump | Honda Pumps"
+          },
+          {
+            "url": "https://digitalservices.honda.com/rental/",
+            "source_domain": "honda.com",
+            "title": "Honda Rental"
+          }
+        ]
+      }
+    },
+    {
+      "stage": "3_crawler",
+      "input": {
+        "url": "https://automobiles.honda.com/civic"
+      },
+      "output": {
+        "success": true,
+        "markdown_length": 40625,
+        "markdown_preview": "  * [ Acura Autos ](https://www.acura.com/)\n  * [ Powersports ](https://powersports.honda.com)\n  * [ Power Equipment ](https://powerequipment.honda.com)\n  * [ Engines ](https://engines.honda.com/)\n  * [ HondaJet HondaJet ](https://www.hondajet.com/)\n  * [ Financial Services ](https://honda.americanhondafinance.com/s/)\n  * [ Marine ](https://marine.honda.com)\n  * [ Honda Racing ](https://hondaracing-us.honda.com)\n  * [ About Honda ](https://global.honda/en/)\n\n\n[ Skip to Main Content ](https://automobiles.honda.com/civic#navEnd)\n  * [Skip Navigation](https://automobiles.honda.com/civic#navEnd) [ Visit Honda Automobiles homepage ](https://automobiles.honda.com/) [ Honda, Proud Partner of Team USA. ](https://www.honda.com/teamusa)\n  * [ Location ](https://automobiles.honda.com/civic)\n  *     *"
+      }
+    },
+    {
+      "stage": "4_llm_extractor",
+      "input": {
+        "source_url": "https://automobiles.honda.com/civic",
+        "markdown_length": 40625,
+        "markdown_sent_preview": "  * [ Acura Autos ](https://www.acura.com/)\n  * [ Powersports ](https://powersports.honda.com)\n  * [ Power Equipment ](https://powerequipment.honda.com)\n  * [ Engines ](https://engines.honda.com/)\n  * [ HondaJet HondaJet ](https://www.hondajet.com/)\n  * [ Financial Services ](https://honda.americanhondafinance.com/s/)\n  * [ Marine ](https://marine.honda.com)\n  * [ Honda Racing ](https://hondaracing-us.honda.com)\n  * [ About Honda ](https://global.honda/en/)\n\n\n[ Skip to Main Content ](https://automobiles.honda.com/civic#navEnd)\n  * [Skip Navigation](https://automobiles.honda.com/civic#navEnd) [ Visit Honda Automobiles homepage ](https://automobiles.honda.com/) [ Honda, Proud Partner of Team USA. ](https://www.honda.com/teamusa)\n  * [ Location ](https://automobiles.honda.com/civic)\n  *     *"
+      },
+      "output": {
+        "source_url": "https://automobiles.honda.com/civic",
+        "make": "Honda",
+        "model": "Civic",
+        "year": 2026,
+        "trim": null,
+        "price_usd": null,
+        "mileage": null,
+        "colors_available": [],
+        "engine": null,
+        "horsepower": null,
+        "fuel_type": null,
+        "transmission": null,
+        "drivetrain": null,
+        "seating_capacity": null,
+        "extra_specs": {
+          "available_variants": "Civic Sedan, Civic Sedan Hybrid, Civic Hatchback, Civic Hatchback Hybrid, Civic Si Sedan, Civic Type R",
+          "starting_msrp_sedan": "$24,695",
+          "starting_msrp_sedan_hybrid": "$29,395",
+          "starting_msrp_hatchback": "$27,895",
+          "starting_msrp_hatchback_hybrid": "$30,595",
+          "starting_msrp_si_sedan": "$31,495",
+          "starting_msrp_type_r": "$47,395",
+          "sedan_mpg_hwy_city": "41/32 MPG",
+          "sedan_hybrid_mpg_hwy_city": "47/50 MPG",
+          "hatchback_mpg_hwy_city": "38/30 MPG",
+          "hatchback_hybrid_mpg_hwy_city": "45/50 MPG",
+          "si_sedan_mpg_hwy_city": "37/27 MPG",
+          "type_r_mpg_hwy_city": "28/22 MPG"
+        }
+      }
+    },
+    {
+      "stage": "3_crawler",
+      "input": {
+        "url": "https://automobiles.honda.com/tools/inventory-"
+      },
+      "output": {
+        "success": true,
+        "markdown_length": 30663,
+        "markdown_preview": "  * [ Acura Autos ](https://www.acura.com/)\n  * [ Powersports ](https://powersports.honda.com)\n  * [ Power Equipment ](https://powerequipment.honda.com)\n  * [ Engines ](https://engines.honda.com/)\n  * [ HondaJet HondaJet ](https://www.hondajet.com/)\n  * [ Financial Services ](https://honda.americanhondafinance.com/s/)\n  * [ Marine ](https://marine.honda.com)\n  * [ Honda Racing ](https://hondaracing-us.honda.com)\n  * [ About Honda ](https://global.honda/en/)\n\n\n[ Skip to Main Content ](https://automobiles.honda.com/tools/inventory-#navEnd)\n  * [Skip Navigation](https://automobiles.honda.com/tools/inventory-#navEnd) [ Visit Honda Automobiles homepage ](https://automobiles.honda.com/) [ Honda, Proud Partner of Team USA. ](https://www.honda.com/teamusa)\n  * [ Location ](https://automobiles.hond"
+      }
+    },
+    {
+      "stage": "4_llm_extractor",
+      "input": {
+        "source_url": "https://automobiles.honda.com/tools/inventory-",
+        "markdown_length": 30663,
+        "markdown_sent_preview": "  * [ Acura Autos ](https://www.acura.com/)\n  * [ Powersports ](https://powersports.honda.com)\n  * [ Power Equipment ](https://powerequipment.honda.com)\n  * [ Engines ](https://engines.honda.com/)\n  * [ HondaJet HondaJet ](https://www.hondajet.com/)\n  * [ Financial Services ](https://honda.americanhondafinance.com/s/)\n  * [ Marine ](https://marine.honda.com)\n  * [ Honda Racing ](https://hondaracing-us.honda.com)\n  * [ About Honda ](https://global.honda/en/)\n\n\n[ Skip to Main Content ](https://automobiles.honda.com/tools/inventory-#navEnd)\n  * [Skip Navigation](https://automobiles.honda.com/tools/inventory-#navEnd) [ Visit Honda Automobiles homepage ](https://automobiles.honda.com/) [ Honda, Proud Partner of Team USA. ](https://www.honda.com/teamusa)\n  * [ Location ](https://automobiles.hond"
+      },
+      "output": {
+        "source_url": "https://automobiles.honda.com/tools/inventory-",
+        "make": "Honda",
+        "model": null,
+        "year": null,
+        "trim": null,
+        "price_usd": null,
+        "mileage": null,
+        "colors_available": [],
+        "engine": null,
+        "horsepower": null,
+        "fuel_type": null,
+        "transmission": null,
+        "drivetrain": null,
+        "seating_capacity": null,
+        "extra_specs": {}
+      }
+    },
+    {
+      "stage": "3_crawler",
+      "input": {
+        "url": "https://www.honda.com/"
+      },
+      "output": {
+        "success": true,
+        "markdown_length": 21941,
+        "markdown_preview": "  * [ ![Honda Autos Brand Logo](https://www.honda.com/-/media/Honda-Homepage/Images/universal-header-icons/HondaAutosLogo.svg) Honda Autos ](https://automobiles.honda.com)\n  * [ ![Acura Brand Logo](https://www.honda.com/-/media/Honda-Homepage/Images/universal-header-icons/AcuraLogo.svg) Acura Autos ](https://www.acura.com)\n  * [ ![Honda Power Sports Brand Logo](https://www.honda.com/-/media/Honda-Homepage/Images/universal-header-icons/PowersportsLogo.svg) Powersports ](http://powersports.honda.com)\n  * [ ![Honda Power Equipment Brand Logo](https://www.honda.com/-/media/Honda-Homepage/Images/universal-header-icons/PowerEquipmentLogo.svg) Power Equipment ](http://powerequipment.honda.com)\n  * [ ![Honda Engines Brand Logo](https://www.honda.com/-/media/Honda-Homepage/Images/universal-header-i"
+      }
+    },
+    {
+      "stage": "4_llm_extractor",
+      "input": {
+        "source_url": "https://www.honda.com/",
+        "markdown_length": 21941,
+        "markdown_sent_preview": "  * [ ![Honda Autos Brand Logo](https://www.honda.com/-/media/Honda-Homepage/Images/universal-header-icons/HondaAutosLogo.svg) Honda Autos ](https://automobiles.honda.com)\n  * [ ![Acura Brand Logo](https://www.honda.com/-/media/Honda-Homepage/Images/universal-header-icons/AcuraLogo.svg) Acura Autos ](https://www.acura.com)\n  * [ ![Honda Power Sports Brand Logo](https://www.honda.com/-/media/Honda-Homepage/Images/universal-header-icons/PowersportsLogo.svg) Powersports ](http://powersports.honda.com)\n  * [ ![Honda Power Equipment Brand Logo](https://www.honda.com/-/media/Honda-Homepage/Images/universal-header-icons/PowerEquipmentLogo.svg) Power Equipment ](http://powerequipment.honda.com)\n  * [ ![Honda Engines Brand Logo](https://www.honda.com/-/media/Honda-Homepage/Images/universal-header-i"
+      },
+      "output": {
+        "source_url": "https://www.honda.com/",
+        "make": "Honda",
+        "model": null,
+        "year": null,
+        "trim": null,
+        "price_usd": null,
+        "mileage": null,
+        "colors_available": [
+          "Ash Green Metallic",
+          "Sonic Gray Pearl"
+        ],
+        "engine": null,
+        "horsepower": null,
+        "fuel_type": null,
+        "transmission": null,
+        "drivetrain": null,
+        "seating_capacity": null,
+        "extra_specs": {}
+      }
+    },
+    {
+      "stage": "3_crawler",
+      "input": {
+        "url": "https://powerequipment.honda.com/pumps/models/wt30"
+      },
+      "output": {
+        "success": true,
+        "markdown_length": 33295,
+        "markdown_preview": "; \n[![Honda Power Equipment](https://powerequipment.honda.com/-/media/images/logos/header-logos/honda.svg)](https://honda.com) [![Honda Power Equipment](https://powerequipment.honda.com/-/media/images/logos/header-logos/hps.svg)](https://powersports.honda.com) [![Honda Marine](https://powerequipment.honda.com/-/media/images/logos/header-logos/marine.svg)](https://marine.honda.com) [![Honda Engines](https://powerequipment.honda.com/-/media/images/logos/header-logos/engines.svg)](https://engines.honda.com)\n[ ![Honda Power Equipment](https://powerequipment.honda.com/Content/images/logo/hondalogo.png) ](https://powerequipment.honda.com/)\n[ ](https://powerequipment.honda.com/dealer-locator) [ ](https://powerequipment.honda.com/pumps/models/wt30#!)\nGo\nPower Equipment \n  * [ Generators ](https://"
+      }
+    },
+    {
+      "stage": "4_llm_extractor",
+      "input": {
+        "source_url": "https://powerequipment.honda.com/pumps/models/wt30",
+        "markdown_length": 33295,
+        "markdown_sent_preview": "; \n[![Honda Power Equipment](https://powerequipment.honda.com/-/media/images/logos/header-logos/honda.svg)](https://honda.com) [![Honda Power Equipment](https://powerequipment.honda.com/-/media/images/logos/header-logos/hps.svg)](https://powersports.honda.com) [![Honda Marine](https://powerequipment.honda.com/-/media/images/logos/header-logos/marine.svg)](https://marine.honda.com) [![Honda Engines](https://powerequipment.honda.com/-/media/images/logos/header-logos/engines.svg)](https://engines.honda.com)\n[ ![Honda Power Equipment](https://powerequipment.honda.com/Content/images/logo/hondalogo.png) ](https://powerequipment.honda.com/)\n[ ](https://powerequipment.honda.com/dealer-locator) [ ](https://powerequipment.honda.com/pumps/models/wt30#!)\nGo\nPower Equipment \n  * [ Generators ](https://"
+      },
+      "output": {
+        "source_url": "https://powerequipment.honda.com/pumps/models/wt30",
+        "make": "Honda",
+        "model": "WT30",
+        "year": null,
+        "trim": "WT30XK4A",
+        "price_usd": 1699.0,
+        "mileage": null,
+        "colors_available": [],
+        "engine": "GX270",
+        "horsepower": null,
+        "fuel_type": null,
+        "transmission": null,
+        "drivetrain": null,
+        "seating_capacity": null,
+        "extra_specs": {
+          "product_type": "3\" trash pump",
+          "capacity": "317 gal./min",
+          "solid_handling_capability": "Up to 1 1/16 inches",
+          "displacement": "270 cc",
+          "bore_and_stroke": "3.0\" x 2.3\"",
+          "compression_ratio": "8.5:1",
+          "oil_alert": "Std",
+          "pump_type": "Trash Centrifugal Self-priming",
+          "volute": "Rigid Mounted Cast Iron w/ Stainless Wear Plate",
+          "impeller": "Conical Cast Iron",
+          "mechanical_seal": "Silicon Carbide/Silicon Carbide",
+          "priming_time": "90 sec. @ 16.4 ft.",
+          "drive_system": "Direct",
+          "suction_port_diameter": "3\"",
+          "discharge_port_diameter": "3\"",
+          "total_head_lift": "82 ft.",
+          "suction_head_lift": "26 ft.",
+          "maximum_pressure": "36 psi",
+          "solids_handling": "1 1/16 inches",
+          "dimensions": "26.0\" x 19.5\" x 20.3\"",
+          "dry_weight": "134 lb.",
+          "fuel_capacity": "1.4 gal",
+          "run_time_at_max_discharge": "1.5 hr",
+          "strainer_part_number": "78325-YG1-003",
+          "residential_warranty": "24 months",
+          "commercial_warranty": "12 months"
+        }
+      }
+    },
+    {
+      "stage": "3_crawler",
+      "input": {
+        "url": "https://digitalservices.honda.com/rental/"
+      },
+      "output": {
+        "success": false,
+        "markdown_length": 0,
+        "markdown_preview": ""
+      }
+    }
+  ],
+  "final_results": [
+    {
+      "source_url": "https://automobiles.honda.com/civic",
+      "make": "Honda",
+      "model": "Civic",
+      "year": 2026,
+      "trim": null,
+      "price_usd": null,
+      "mileage": null,
+      "colors_available": [],
+      "engine": null,
+      "horsepower": null,
+      "fuel_type": null,
+      "transmission": null,
+      "drivetrain": null,
+      "seating_capacity": null,
+      "extra_specs": {
+        "available_variants": "Civic Sedan, Civic Sedan Hybrid, Civic Hatchback, Civic Hatchback Hybrid, Civic Si Sedan, Civic Type R",
+        "starting_msrp_sedan": "$24,695",
+        "starting_msrp_sedan_hybrid": "$29,395",
+        "starting_msrp_hatchback": "$27,895",
+        "starting_msrp_hatchback_hybrid": "$30,595",
+        "starting_msrp_si_sedan": "$31,495",
+        "starting_msrp_type_r": "$47,395",
+        "sedan_mpg_hwy_city": "41/32 MPG",
+        "sedan_hybrid_mpg_hwy_city": "47/50 MPG",
+        "hatchback_mpg_hwy_city": "38/30 MPG",
+        "hatchback_hybrid_mpg_hwy_city": "45/50 MPG",
+        "si_sedan_mpg_hwy_city": "37/27 MPG",
+        "type_r_mpg_hwy_city": "28/22 MPG"
+      }
+    },
+    {
+      "source_url": "https://automobiles.honda.com/tools/inventory-",
+      "make": "Honda",
+      "model": null,
+      "year": null,
+      "trim": null,
+      "price_usd": null,
+      "mileage": null,
+      "colors_available": [],
+      "engine": null,
+      "horsepower": null,
+      "fuel_type": null,
+      "transmission": null,
+      "drivetrain": null,
+      "seating_capacity": null,
+      "extra_specs": {}
+    },
+    {
+      "source_url": "https://www.honda.com/",
+      "make": "Honda",
+      "model": null,
+      "year": null,
+      "trim": null,
+      "price_usd": null,
+      "mileage": null,
+      "colors_available": [
+        "Ash Green Metallic",
+        "Sonic Gray Pearl"
+      ],
+      "engine": null,
+      "horsepower": null,
+      "fuel_type": null,
+      "transmission": null,
+      "drivetrain": null,
+      "seating_capacity": null,
+      "extra_specs": {}
+    },
+    {
+      "source_url": "https://powerequipment.honda.com/pumps/models/wt30",
+      "make": "Honda",
+      "model": "WT30",
+      "year": null,
+      "trim": "WT30XK4A",
+      "price_usd": 1699.0,
+      "mileage": null,
+      "colors_available": [],
+      "engine": "GX270",
+      "horsepower": null,
+      "fuel_type": null,
+      "transmission": null,
+      "drivetrain": null,
+      "seating_capacity": null,
+      "extra_specs": {
+        "product_type": "3\" trash pump",
+        "capacity": "317 gal./min",
+        "solid_handling_capability": "Up to 1 1/16 inches",
+        "displacement": "270 cc",
+        "bore_and_stroke": "3.0\" x 2.3\"",
+        "compression_ratio": "8.5:1",
+        "oil_alert": "Std",
+        "pump_type": "Trash Centrifugal Self-priming",
+        "volute": "Rigid Mounted Cast Iron w/ Stainless Wear Plate",
+        "impeller": "Conical Cast Iron",
+        "mechanical_seal": "Silicon Carbide/Silicon Carbide",
+        "priming_time": "90 sec. @ 16.4 ft.",
+        "drive_system": "Direct",
+        "suction_port_diameter": "3\"",
+        "discharge_port_diameter": "3\"",
+        "total_head_lift": "82 ft.",
+        "suction_head_lift": "26 ft.",
+        "maximum_pressure": "36 psi",
+        "solids_handling": "1 1/16 inches",
+        "dimensions": "26.0\" x 19.5\" x 20.3\"",
+        "dry_weight": "134 lb.",
+        "fuel_capacity": "1.4 gal",
+        "run_time_at_max_discharge": "1.5 hr",
+        "strainer_part_number": "78325-YG1-003",
+        "residential_warranty": "24 months",
+        "commercial_warranty": "12 months"
+      }
+    }
+  ]
+}

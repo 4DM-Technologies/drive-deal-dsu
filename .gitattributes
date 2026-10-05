@@ -1,0 +1,52 @@
+# This repository is developed on Windows but built, tested and deployed on
+# Linux. Without this file git checks files out with CRLF on a Windows
+# workstation and can silently write CRLF into files that a POSIX shell later
+# executes, which fails as `/bin/bash^M: bad interpreter` or
+# `$'\r': command not found`. GitHub Actions happens to tolerate CRLF in YAML,
+# so this class of bug would first appear on EC2 rather than in CI.
+
+# Let git detect text vs binary, and normalize text to LF in the repository.
+* text=auto
+
+# ---------------------------------------------------------------------------
+# Must be LF in the working tree on EVERY platform, because Linux consumes them.
+# ---------------------------------------------------------------------------
+*.sh           text eol=lf
+Dockerfile     text eol=lf
+*.dockerignore text eol=lf
+*.yml          text eol=lf
+*.yaml         text eol=lf
+*.env          text eol=lf
+*.ini          text eol=lf
+*.toml         text eol=lf
+*.json         text eol=lf
+*.mako          text eol=lf
+serve.json     text eol=lf
+# Lockfiles have no extension, so they would otherwise fall through to
+# `* text=auto` and pick up CRLF from core.autocrlf=true on Windows.
+uv.lock        text eol=lf
+
+# ---------------------------------------------------------------------------
+# Windows-native formats: keep CRLF, these are only ever run on Windows.
+# ---------------------------------------------------------------------------
+*.bat          text eol=crlf
+*.cmd          text eol=crlf
+*.ps1          text eol=crlf
+
+# ---------------------------------------------------------------------------
+# Never newline-convert binary assets.
+# ---------------------------------------------------------------------------
+*.png          binary
+*.jpg          binary
+*.jpeg         binary
+*.gif          binary
+*.ico          binary
+*.webp         binary
+*.pdf          binary
+*.zip          binary
+*.gz           binary
+*.ttf          binary
+*.otf          binary
+*.woff         binary
+*.woff2        binary
+*.mp4          binary

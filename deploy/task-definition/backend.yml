@@ -1,0 +1,105 @@
+# Env contract for the DriveDeal API container.
+#
+# scripts/generate_env.py reads this file and, for every key below, resolves a
+# value in the order: GitHub Secret -> GitHub repo Variable -> `default`.
+# A key with no `default` and no `required` is simply omitted when it cannot be
+# resolved, so pydantic-settings falls back to its own default in
+# backend/src/settings.py.
+#
+# This file is safe to commit: it declares key names and non-sensitive defaults
+# only. Never put an actual secret here.
+
+env:
+  # --- Required: no working default exists, the build fails without them -----
+  - key: DATABASE_URL
+    required: true
+  - key: JWT_SECRET_KEY
+    required: true
+    # Must be at least 32 characters or the app refuses to start
+    # (see validate_settings in backend/src/settings.py).
+  - key: CORS_ORIGINS
+    required: true
+    # MUST be a JSON array of exact browser origins, with double quotes:
+    #   ["http://your-ec2-host","https://your-ec2-host"]
+    # pydantic-settings JSON-decodes list fields before the split_origins
+    # validator runs, so a plain comma-separated value is rejected at startup.
+    # No trailing slash, no path.
+
+  # --- Application identity -------------------------------------------------
+  - key: APP_ENV
+    default: development
+    # "production" additionally requires STORAGE_DRIVER=s3. Switch to it only
+    # once S3 is configured, otherwise startup fails by design.
+  - key: API_PREFIX
+    default: /api/v1
+  - key: APP_NAME
+    # Display name only; settings.py falls back to "Deal&Drive API" when unset.
+
+  # --- Auth -----------------------------------------------------------------
+  - key: JWT_ALGORITHM
+    default: HS256
+  - key: ACCESS_TOKEN_MINUTES
+    default: 60
+  - key: REFRESH_TOKEN_DAYS
+    default: 14
+
+  # --- Object storage -------------------------------------------------------
+  # No `default` on purpose: when STORAGE_DRIVER is unset, pydantic-settings
+  # falls back to its own default in settings.py instead. Setting it to "s3"
+  # requires AWS_REGION + S3_BUCKET, and validate_settings() rejects any
+  # combination of APP_ENV=production with a non-s3 driver, so flipping this
+  # is what makes a production deploy possible.
+  - key: STORAGE_DRIVER
+  - key: AWS_REGION
+  - key: S3_BUCKET
+  - key: AWS_ACCESS_KEY_ID
+  - key: AWS_SECRET_ACCESS_KEY
+
+  # --- AI / Serra provider --------------------------------------------------
+  - key: OPENAI_MODEL
+    default: gpt-5.6-luna
+  - key: OPENAI_REASONING_EFFORT
+    default: medium
+  - key: AI_PROVIDER
+    default: openai
+  - key: AI_DISABLED
+    default: "false"
+  - key: AI_ENABLE_WEB_SEARCH
+    default: "false"
+  - key: AI_MAX_INPUT_TOKENS
+    default: "12000"
+  - key: AI_MAX_OUTPUT_TOKENS
+    default: "5000"
+  - key: AI_REQUEST_TIMEOUT_SECONDS
+    default: "45"
+
+  # Serra credential precedence: OPENAI_API_KEY, then CODEX_OAUTH_ACCESS_TOKEN,
+  # then CODEX_OAUTH_CLIENT_ID + CODEX_OAUTH_REFRESH_TOKEN.
+  - key: OPENAI_API_KEY
+  - key: CODEX_OAUTH_ACCESS_TOKEN
+  - key: CODEX_OAUTH_CLIENT_ID
+  - key: CODEX_OAUTH_REFRESH_TOKEN
+  - key: CODEX_OAUTH_S3_PREFIX
+    default: private/codex-oauth
+
+  # --- Web search -----------------------------------------------------------
+  - key: GOOGLE_API_KEY
+  - key: GOOGLE_CSE_ID
+  - key: WEB_SEARCH_MAX_RESULTS
+    default: "5"
+  - key: WEB_SEARCH_REQUEST_TIMEOUT_SECONDS
+    default: "20"
+
+  # --- Observability --------------------------------------------------------
+  - key: LANGSMITH_TRACING
+    default: "false"
+  - key: LANGSMITH_API_KEY
+  - key: LANGSMITH_PROJECT
+    default: drivedeal-serra
+  - key: LANGSMITH_ENDPOINT
+
+  # --- Logging --------------------------------------------------------------
+  - key: LOG_LEVEL
+    default: INFO
+  - key: LOG_FLOW_ENABLED
+    default: "true"

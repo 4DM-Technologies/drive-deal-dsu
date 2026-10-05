@@ -1,0 +1,312 @@
+%% Deal&Drive current entity relationship diagram
+%% Source of truth: backend/src/repositories/schema/tables.py
+%% 21 tables. Render with Mermaid Live, VS Code Mermaid preview, or:
+%% mmdc -i define/schema-erd.mmd -o define/schema-erd.svg
+%% Tables using AuditMixin also contain created_at, updated_at, created_by and updated_by.
+%% Support Administrator buyer/dealer workspace views are read-only API projections over buyer_requests
+%% and deal_quotes; they intentionally add no persistence table or impersonation session.
+
+erDiagram
+    states ||--o{ profiles : "locates"
+    states ||--o{ cars : "lists in"
+    states ||--o{ buyer_requests : "search area"
+    brands ||--o{ cars : "identifies"
+    brands ||--o{ buyer_requests : "requested brand"
+    profiles ||--|| users : "authenticates"
+    profiles ||--o| buyer_preference : "owns"
+    profiles ||--o{ conversation_history : "owns"
+    profiles ||--o{ buyer_requests : "creates"
+    profiles ||--o{ buyer_request_views : "dealer opens"
+    profiles ||--o{ deal_quotes : "buyer"
+    profiles ||--o{ deal_quotes : "dealer"
+    profiles ||--o{ deal_chats : "sends"
+    profiles ||--o{ deal_documents : "uploads"
+    profiles ||--o{ support_tickets : "raises"
+    profiles ||--o{ support_verifications : "applicant"
+    profiles ||--o{ support_verifications : "decides"
+    profiles ||--o{ error_logs : "associated user"
+    buyer_requests ||--o{ deal_quotes : "receives"
+    buyer_requests ||--o{ buyer_request_views : "viewed by"
+    deal_quotes ||--o{ deal_chats : "conversation"
+    deal_quotes ||--o{ deal_documents : "attachments"
+    ai_traces ||--o{ ai_trace_spans : "contains"
+
+    states {
+        uuid id PK
+        text name UK
+        text code UK
+        numeric sales_tax_rate
+        bool is_active
+    }
+
+    brands {
+        uuid id PK
+        text name UK
+        text country_code
+        bool is_premium
+        bool is_active
+    }
+
+    profiles {
+        uuid id PK
+        uuid state_id FK
+        text full_name
+        text email UK
+        text role
+        text phone
+        text address
+        text dealership_name
+        text branch_name
+        text dealer_license UK
+        text website
+        json coordinates
+        json supported_brands
+        bool terms_accepted
+        text terms_version
+        timestamptz terms_accepted_at
+    }
+
+    users {
+        uuid id PK
+        uuid profile_id FK,UK
+        text password_hash
+        bool is_active
+        timestamptz last_login_at
+        text refresh_token_hash
+    }
+
+    cars {
+        uuid id PK
+        uuid brand_id FK
+        uuid state_id FK
+        text title
+        text model
+        int model_year
+        text body_type
+        int seating_capacity
+        text condition
+        int mileage
+        text fuel
+        text transmission
+        numeric price
+        numeric rating
+        json reviews
+        json image_paths
+        text status
+    }
+
+    conversation_history {
+        text thread_id PK
+        text checkpoint_id PK
+        text parent_checkpoint_id
+        uuid user_id FK
+        text thread_type
+        json checkpoint
+        json metadata
+    }
+
+    buyer_preference {
+        uuid profile_id PK,FK
+        json preferences
+    }
+
+    buyer_requests {
+        uuid id PK
+        uuid buyer_id FK
+        uuid brand_id FK
+        uuid buyer_area_state_id FK
+        text model
+        text body_type
+        text fuel_type
+        int year_min
+        int year_max
+        text trim
+        text drivetrain
+        text transmission
+        text color
+        numeric budget_min
+        numeric budget_max
+        numeric target_otd_price
+        text buyer_area
+        json coordinates
+        int search_radius_miles
+        text timeline
+        text condition
+        json must_haves
+        json trade_in
+        text paying_with
+        text additional_information
+        timestamptz request_expire
+        text market_brief
+        text status
+    }
+
+    buyer_request_views {
+        uuid id PK
+        uuid buyer_request_id FK
+        uuid dealer_id FK
+        timestamptz first_viewed_at
+        timestamptz last_viewed_at
+    }
+
+    deal_quotes {
+        uuid id PK
+        uuid buyer_request_id FK
+        uuid buyer_id FK
+        uuid dealer_id FK
+        numeric vehicle_price
+        numeric doc_fee
+        numeric sales_tax
+        numeric title_reg
+        numeric trade_in_credit
+        numeric final_price "computed"
+        text message
+        bool read_by_buyer
+        text status
+        text deal_status
+        json deal_history
+        timestamptz expires_at
+        text chat_request_status
+        text chat_request_message
+        timestamptz chat_requested_at
+        timestamptz chat_decided_at
+    }
+
+    deal_chats {
+        uuid id PK
+        uuid quote_id FK
+        uuid sender_id FK
+        text message
+        text client_message_id UK
+        timestamptz read_at
+        json hidden_for
+    }
+
+    deal_documents {
+        uuid id PK
+        uuid quote_id FK
+        uuid dealer_id FK
+        text document_type
+        json image_paths
+        text document_path
+        text status
+    }
+
+    support_tickets {
+        uuid id PK
+        text ticket_id
+        text category
+        uuid caller_id FK
+        text issue_summary
+        text issue_description
+        text issue_type
+        text page_context
+        text issue_image_url
+        text status
+        text priority
+        json notes
+        text rca
+    }
+
+    support_verifications {
+        uuid id PK
+        text ticket_id UK
+        text category
+        uuid profile_id FK
+        json proof_docs
+        text status
+        json notes
+        bool email_sent
+        uuid decided_by FK
+        timestamptz decided_at
+    }
+
+    llm_audits {
+        bigint id PK
+        uuid uuid UK
+        text task_type
+        text provider
+        text model_name
+        text thread_id
+        int input_tokens
+        int output_tokens
+        int total_tokens
+        int latency_ms
+        text status
+        text prompt_version
+    }
+
+    error_logs {
+        bigint id PK
+        uuid uuid UK
+        text level
+        text error_code
+        text error_message
+        text source
+        text endpoint
+        text thread_id
+        uuid user_id FK
+        json error_context
+    }
+
+    configuration_revisions {
+        uuid id PK
+        text config_type
+        text config_key
+        int version
+        text status
+        json payload
+        text checksum
+        timestamptz published_at
+        text published_by
+    }
+
+    administration_audit_events {
+        bigint id PK
+        uuid uuid UK
+        text action
+        text resource_type
+        text resource_key
+        uuid revision_id
+        text actor_id
+        json details
+        timestamptz created_at
+    }
+
+    configuration_defaults {
+        uuid id PK
+        text config_type
+        text config_key
+        int version
+    }
+
+    ai_traces {
+        uuid id PK
+        text thread_id
+        uuid user_id
+        text query
+        text status
+        bool is_test
+        text route
+        text model_name
+        int input_tokens
+        int output_tokens
+        int duration_ms
+        text error_message
+        text configuration_version
+    }
+
+    ai_trace_spans {
+        uuid id PK
+        uuid trace_id FK
+        int sequence
+        text name
+        text kind
+        text status
+        int duration_ms
+        int input_tokens
+        int output_tokens
+        text model_name
+        json details
+        timestamptz created_at
+    }

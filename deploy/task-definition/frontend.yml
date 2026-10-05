@@ -1,0 +1,21 @@
+# Env contract for the DriveDeal web container.
+#
+# scripts/generate_env.py resolves these keys from GitHub Secrets, then GitHub
+# repo Variables. The result is written to frontend/.env.production, which the
+# Vite build inside frontend/Dockerfile picks up.
+#
+# These are URLs, not secrets, so set them as repository variables rather than
+# repository secrets. Both are required: frontend/src/config/environment.ts
+# throws at module load if either is blank, and a wrong localhost value would
+# point the browser at the visitor's own machine.
+
+env:
+  # Full path to the API, reachable from the browser. Backend is published on
+  # host port 8000, e.g. http://your-ec2-host:8000/api/v1
+  - key: VITE_API_BASE_URL
+    required: true
+
+  # Same host, websocket scheme, ending at the ws path:
+  # e.g. ws://your-ec2-host:8000/api/v1/ws
+  - key: VITE_WS_BASE_URL
+    required: true

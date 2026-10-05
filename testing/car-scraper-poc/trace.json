@@ -1,0 +1,133 @@
+{
+  "trace": [
+    {
+      "stage": "1_query_parser",
+      "input": {
+        "user_query": "I want a BMW X3 under 55000"
+      },
+      "output": {
+        "make": "BMW",
+        "model": "X3",
+        "max_price": 55000.0,
+        "min_price": null,
+        "body_type": null,
+        "top_n": 5,
+        "country_market": "US"
+      }
+    },
+    {
+      "stage": "2_search_resolver (SKIPPED - using fixed URL, no SEARCH_API_KEY set)",
+      "input": {
+        "intent": {
+          "make": "BMW",
+          "model": "X3",
+          "max_price": 55000.0,
+          "min_price": null,
+          "body_type": null,
+          "top_n": 5,
+          "country_market": "US"
+        }
+      },
+      "output": {
+        "candidate": {
+          "url": "https://www.bmwusa.com/vehicles/x-series/x3/bmw-x3.html",
+          "source_domain": "www.bmwusa.com",
+          "title": ""
+        }
+      }
+    },
+    {
+      "stage": "3_crawler",
+      "input": {
+        "url": "https://www.bmwusa.com/vehicles/x-series/x3/bmw-x3.html"
+      },
+      "output": {
+        "success": true,
+        "markdown_length": 53612,
+        "markdown_preview": "!!!?? ? ] [ ?i\n[Skip to main content](https://www.bmwusa.com/vehicles/x-series/x3/bmw-x3.html#main)\n[ Skip to main content ](https://www.bmwusa.com/vehicles/x-series/x3/bmw-x3.html#main)\n[ ![](https://www.bmwusa.com/content/dam/bmw/marketUS/common/images/logo-icons/BMW/BMW_White_Logo.svg.asset.1695740583851.svg) ![](https://www.bmwusa.com/content/dam/bmw/marketUS/common/images/logo-icons/BMW/BMW_Grey_Logo.svg.asset.1695740583799.svg) ](https://www.bmwusa.com/)\n* Models\n* [ Build Your Own ](https://www.bmwusa.com/build-your-own.html)\n* Shopping\n* Electric\n* Owners\n* About Us\nCancel\nPopular searches:\n  * [MyBMW](https://www.bmwusa.com/search-results.html#stq=MyBMW)\n  * [BMW FS](https://www.bmwusa.com/search-results.html#stq=BMW%20FS)\n  * [ShopBMWUSA](https://www.bmwusa.com/search-results.htm"
+      }
+    },
+    {
+      "stage": "4_llm_extractor",
+      "input": {
+        "source_url": "https://www.bmwusa.com/vehicles/x-series/x3/bmw-x3.html",
+        "markdown_length": 53612,
+        "markdown_sent_preview": "!!!?? ? ] [ ?i\n[Skip to main content](https://www.bmwusa.com/vehicles/x-series/x3/bmw-x3.html#main)\n[ Skip to main content ](https://www.bmwusa.com/vehicles/x-series/x3/bmw-x3.html#main)\n[ ![](https://www.bmwusa.com/content/dam/bmw/marketUS/common/images/logo-icons/BMW/BMW_White_Logo.svg.asset.1695740583851.svg) ![](https://www.bmwusa.com/content/dam/bmw/marketUS/common/images/logo-icons/BMW/BMW_Grey_Logo.svg.asset.1695740583799.svg) ](https://www.bmwusa.com/)\n* Models\n* [ Build Your Own ](https://www.bmwusa.com/build-your-own.html)\n* Shopping\n* Electric\n* Owners\n* About Us\nCancel\nPopular searches:\n  * [MyBMW](https://www.bmwusa.com/search-results.html#stq=MyBMW)\n  * [BMW FS](https://www.bmwusa.com/search-results.html#stq=BMW%20FS)\n  * [ShopBMWUSA](https://www.bmwusa.com/search-results.htm"
+      },
+      "output": {
+        "source_url": "https://www.bmwusa.com/vehicles/x-series/x3/bmw-x3.html",
+        "make": "BMW",
+        "model": "X3",
+        "year": 2026,
+        "trim": "30 xDrive",
+        "price_usd": 51300.0,
+        "mileage": null,
+        "colors_available": [
+          "Alpine White",
+          "Black Sapphire Metallic",
+          "Dark Graphite Metallic",
+          "Mineral White Metallic",
+          "Tanzanite Blue II Metallic",
+          "Arctic Race Blue metallic",
+          "Skyscraper Grey Metallic",
+          "Vegas Red Metallic",
+          "Dune Grey Metallic"
+        ],
+        "engine": "2.0-liter inline 4-cylinder BMW TwinPower Turbo gasoline engine with 48V mild-hybrid technology",
+        "horsepower": 255,
+        "fuel_type": "Gasoline",
+        "transmission": null,
+        "drivetrain": "BMW xDrive intelligent all-wheel drive",
+        "seating_capacity": null,
+        "extra_specs": {
+          "as_built_msrp": "$57,100",
+          "0_to_60_mph": "6.0 seconds",
+          "towing_capacity": "Up to 4,001 pounds when properly equipped with factory-installed trailer hitch",
+          "length": "187.2 inches",
+          "height": "65.4 inches",
+          "width": "75.6 inches excluding side mirrors",
+          "assembly_location": "Spartanburg plant in South Carolina",
+          "display": "14.9-inch BMW Curved Display",
+          "wheel_size": "19-inch Midnight Grey bi-color wheels"
+        }
+      }
+    }
+  ],
+  "final_result": {
+    "source_url": "https://www.bmwusa.com/vehicles/x-series/x3/bmw-x3.html",
+    "make": "BMW",
+    "model": "X3",
+    "year": 2026,
+    "trim": "30 xDrive",
+    "price_usd": 51300.0,
+    "mileage": null,
+    "colors_available": [
+      "Alpine White",
+      "Black Sapphire Metallic",
+      "Dark Graphite Metallic",
+      "Mineral White Metallic",
+      "Tanzanite Blue II Metallic",
+      "Arctic Race Blue metallic",
+      "Skyscraper Grey Metallic",
+      "Vegas Red Metallic",
+      "Dune Grey Metallic"
+    ],
+    "engine": "2.0-liter inline 4-cylinder BMW TwinPower Turbo gasoline engine with 48V mild-hybrid technology",
+    "horsepower": 255,
+    "fuel_type": "Gasoline",
+    "transmission": null,
+    "drivetrain": "BMW xDrive intelligent all-wheel drive",
+    "seating_capacity": null,
+    "extra_specs": {
+      "as_built_msrp": "$57,100",
+      "0_to_60_mph": "6.0 seconds",
+      "towing_capacity": "Up to 4,001 pounds when properly equipped with factory-installed trailer hitch",
+      "length": "187.2 inches",
+      "height": "65.4 inches",
+      "width": "75.6 inches excluding side mirrors",
+      "assembly_location": "Spartanburg plant in South Carolina",
+      "display": "14.9-inch BMW Curved Display",
+      "wheel_size": "19-inch Midnight Grey bi-color wheels"
+    }
+  }
+}

@@ -1,0 +1,31 @@
+# Gitleaks configuration for the DriveDeal DSU repository.
+#
+# The CI pipeline runs:
+#   gitleaks detect --config .gitleaks.toml --verbose --source=.
+#
+# `useDefault` pulls in gitleaks' complete built-in rule set (AWS keys, GitHub
+# tokens, JWTs, private keys, generic high-entropy assignments and so on).
+
+title = "DriveDeal DSU gitleaks configuration"
+
+[extend]
+useDefault = true
+
+# ---------------------------------------------------------------------------
+# Allowlists
+#
+# Both entries are path scoped and justified; neither weakens detection anywhere
+# else in the repository.
+# ---------------------------------------------------------------------------
+
+[[allowlists]]
+description = "OpenAPI contract: descriptive prose about password hashing and account states trips the generic-api-key rule. Contains no credentials."
+paths = [
+  '''design/openapi\.yaml''',
+]
+
+[[allowlists]]
+description = "Serra/Codex OAuth token cache. It is gitignored (see .gitignore) and is written at runtime by the app. Historical commits are still scanned by gitleaks, and the tokens captured in those commits must be treated as compromised and revoked - this allowlist only silences the detector, it does not make those credentials safe."
+paths = [
+  '''backend/\.codex_oauth_state/''',
+]
