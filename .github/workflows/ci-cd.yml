@@ -7,8 +7,25 @@ on:
     branches: [ dev ]
 
 concurrency:
+  # One group per branch. Pull request runs use refs/pull/N/merge and push runs
+  # use refs/heads/dev, so they never collide with each other and both still run.
   group: ci-cd-${{ github.ref }}
-  cancel-in-progress: true
+  # Superseded pull request runs are cancelled automatically: a newer commit on
+  # the branch makes the older run's results worthless, so freeing the runner is
+  # better than finishing work nobody will read.
+  #
+  # Deployment runs are never auto-cancelled. Two reasons:
+  #   1. Stage 9 stops the old containers before starting the new ones, so
+  #      cancelling mid-deploy can leave EC2 with no frontend or backend at all.
+  #   2. cancel-in-progress: true makes a second push CANCEL the in-flight
+  #      deploy rather than wait, which is how you end up with two runs fighting
+  #      over the same containers.
+  # A second push instead queues behind the running deploy. Only one deploy ever
+  # touches EC2 at a time.
+  #
+  # Cancelling by hand from the Actions UI always works and is unaffected by any
+  # of the above, including for queued runs.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   # =========================================================================
@@ -16,11 +33,11 @@ jobs:
   # =========================================================================
   pr-validation:
     name: "Stage 1: PR Description Format Check"
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     if: github.event_name == 'pull_request'
     steps:
       - name: Validate Markdown Template Structural Anchors
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           script: |
             const body = context.payload.pull_request.body;
@@ -59,11 +76,11 @@ jobs:
   # =========================================================================
   compliance-check:
     name: "Stage 2: Directory Structure Compliance"
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     steps:
       - name: Checkout Code Repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Verify Mandatory Workspace Partitions
         run: |
@@ -223,17 +240,19 @@ jobs:
   code-linting:
     name: "Stage 3: Code Linting & Quality Verification"
     needs: [compliance-check]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     steps:
       - name: Checkout Code Codebase
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       # Frontend (React) Environment Setup & ESLint
+      # Pinned to 22 to match the frontend Dockerfile's node:22-alpine base, so
+      # lint and tests exercise the same runtime that produces the deployed image.
       - name: Setup Node Environment
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
-          node-version: '20'
+          node-version: '22'
 
       - name: Install and Execute React ESLint
         run: |
@@ -255,7 +274,7 @@ jobs:
 
       # Backend (Python) Environment Setup & Ruff
       - name: Setup Python Runtime Environment
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: '3.11'
 
@@ -276,21 +295,21 @@ jobs:
   code-coverage:
     name: "Stage 4: Automated Testing & 75% Coverage Floor"
     needs: [code-linting]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup Python Environment
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: '3.11'
 
       # Dependencies come from uv.lock, the same lockfile the backend image and
       # local development use, so the tested tree is the tree that ships.
       - name: Install uv and Sync Locked Dependencies
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true
           cache-dependency-glob: "backend/uv.lock"
@@ -320,11 +339,11 @@ jobs:
   secrets-code-dockerfile-scan:
     name: "Stage 5: Secrets Code & Dockerfile Scan"
     needs: [code-coverage]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     steps:
       - name: Checkout Code Base
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
@@ -390,15 +409,15 @@ jobs:
   security-scans:
     name: "Stage 6 & 7: SAST and SCA Security Audits"
     needs: [secrets-code-dockerfile-scan]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     steps:
       - name: Checkout Code Repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       # STAGE 6: SAST (Static Application Security Testing)
       - name: Setup Python for Bandit SAST Scan
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: '3.11'
 
@@ -482,14 +501,14 @@ jobs:
     name: "Stage 8: Docker Hub Compilation & Push (dev)"
     needs: [security-scans]
     if: github.event_name == 'push'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     steps:
       - name: Checkout Code Repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Log in to Free Docker Hub Account
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           username: ${{ secrets.DEV_DOCKERHUB_USERNAME }}
           password: ${{ secrets.DEV_DOCKERHUB_TOKEN }}
@@ -498,7 +517,7 @@ jobs:
       # BACKEND IMAGE
       # -----------------------------------------------------------------------
       - name: Build and Push Backend Image
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v7
         with:
           context: ./backend
           file: ./backend/Dockerfile
@@ -525,7 +544,7 @@ jobs:
       # FRONTEND IMAGE
       # -----------------------------------------------------------------------
       - name: Build and Push Frontend Image
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v7
         with:
           context: ./frontend
           file: ./frontend/Dockerfile
@@ -558,11 +577,11 @@ jobs:
     name: "Stage 9: Remote Live EC2 Deployment (dev)"
     needs: [docker-build-push]
     if: github.event_name == 'push'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     steps:
       - name: Checkout Code Repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       # -----------------------------------------------------------------------
       # BACKEND ENVIRONMENT
