@@ -59,7 +59,9 @@ async def refresh(payload: RefreshRequest, session: AsyncSession = Depends(get_s
 
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
 @log_flow(layer="route")
-async def logout(profile: Profile = Depends(get_current_profile), session: AsyncSession = Depends(get_session)) -> Response:
+async def logout(
+    profile: Profile = Depends(get_current_profile), session: AsyncSession = Depends(get_session)
+) -> Response:
     await AuthService(session).logout(profile)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
@@ -76,7 +78,9 @@ async def forgot_password(_: ForgotPasswordRequest) -> dict:
 async def reset_password(payload: ResetPasswordRequest, session: AsyncSession = Depends(get_session)) -> dict:
     if payload.reset_code != "DEMO-RESET":
         raise AppError(error_codes.INVALID_CREDENTIALS, "The reset code is invalid or expired.", 400)
-    user = (await session.execute(select(User).join(Profile).where(Profile.email == payload.email.lower()))).scalar_one_or_none()
+    user = (
+        await session.execute(select(User).join(Profile).where(Profile.email == payload.email.lower()))
+    ).scalar_one_or_none()
     if user is None:
         raise AppError(error_codes.INVALID_CREDENTIALS, "The reset code is invalid or expired.", 400)
     user.password_hash = hash_password(payload.new_password)

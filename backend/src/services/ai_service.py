@@ -108,14 +108,25 @@ class AiService:
         yield {"type": "status", "phase": "composing", "label": "Preparing response"}
         answer = main_result.get("answer", "I could not prepare an answer from the available evidence.")
         for index in range(0, len(answer), 18):
-            yield {"type": "token", "text": answer[index:index + 18]}
+            yield {"type": "token", "text": answer[index : index + 18]}
             await asyncio.sleep(0)
         if comparison_payload is not None:
             yield {"type": "card", "kind": "compare", "payload": comparison_payload}
         if not requirement_result.get("missing_fields") and requirement_result.get("requirements"):
-            yield {"type": "card", "kind": "requestPreview", "payload": {**requirement_result["requirements"], "confirmation_required": True}}
+            yield {
+                "type": "card",
+                "kind": "requestPreview",
+                "payload": {**requirement_result["requirements"], "confirmation_required": True},
+            }
         elif requirement_result.get("suggested_questions"):
-            yield {"type": "card", "kind": "requestPreview", "payload": {"questions": requirement_result["suggested_questions"], "draft": requirement_result.get("requirements", {})}}
+            yield {
+                "type": "card",
+                "kind": "requestPreview",
+                "payload": {
+                    "questions": requirement_result["suggested_questions"],
+                    "draft": requirement_result.get("requirements", {}),
+                },
+            }
         if main_result.get("sources"):
             yield {"type": "sources", "items": main_result["sources"]}
         await self._finish_trace(trace, main_result, trace_started)
@@ -141,12 +152,24 @@ class AiService:
             card = {"type": "card", "kind": "compare", "payload": comparison}
         elif "request" in lower or "car" in lower or "buy" in lower:
             answer = "## Good start — I captured the essentials\nYour dealer brief now has the vehicle, search area, timing, and must-have equipment.\n## One useful next step\nTell me your preferred trim or color, and anything you will not compromise on.\nYou can edit the preview below. It stays private until you choose to post it."
-            card = {"type": "card", "kind": "requestPreview", "payload": {"brand": "Ford", "model": "Bronco", "years": "2024–2026", "budget": "$65,000–$72,000 OTD", "area": "Austin, TX · 75 miles", "timeline": "Within 2 weeks", "mustHaves": "4WD, hard top, adaptive cruise"}}
+            card = {
+                "type": "card",
+                "kind": "requestPreview",
+                "payload": {
+                    "brand": "Ford",
+                    "model": "Bronco",
+                    "years": "2024–2026",
+                    "budget": "$65,000–$72,000 OTD",
+                    "area": "Austin, TX · 75 miles",
+                    "timeline": "Within 2 weeks",
+                    "mustHaves": "4WD, hard top, adaptive cruise",
+                },
+            }
         else:
             answer = "## Let’s make this decision easier\nTell me what you care about most: daily comfort, family space, performance, running cost, or the lowest possible price.\n## I can help with\n- A focused vehicle shortlist\n- Side-by-side dealer quote comparisons\n- Questions worth asking before you accept\n- An editable request you approve before posting"
             card = None
         for index in range(0, len(answer), 14):
-            yield {"type": "token", "text": answer[index:index + 14]}
+            yield {"type": "token", "text": answer[index : index + 14]}
             await asyncio.sleep(0.025)
         if card:
             yield card
@@ -169,9 +192,15 @@ class AiService:
         runtime = await AdministrationService(self.session).runtime_bundle()
         trace_started = perf_counter()
         trace = AiTrace(
-            id=state["trace_id"], thread_id=state["thread_id"], user_id=buyer.id,
-            query=state["message"], status="running", is_test=False,
-            configuration_version=runtime["version"], created_by=buyer.id, updated_by=buyer.id,
+            id=state["trace_id"],
+            thread_id=state["thread_id"],
+            user_id=buyer.id,
+            query=state["message"],
+            status="running",
+            is_test=False,
+            configuration_version=runtime["version"],
+            created_by=buyer.id,
+            updated_by=buyer.id,
         )
         self.session.add(trace)
         await self.session.flush()
@@ -194,13 +223,19 @@ class AiService:
         }
 
     async def _finish_trace(self, trace: AiTrace, result: dict, started: float) -> None:
-        usage = (await self.session.execute(select(
-            func.coalesce(func.sum(LlmAudit.input_tokens), 0),
-            func.coalesce(func.sum(LlmAudit.output_tokens), 0),
-        ).where(LlmAudit.thread_id == trace.id))).one()
-        models = (await self.session.execute(select(LlmAudit.model_name).where(
-            LlmAudit.thread_id == trace.id
-        ).order_by(LlmAudit.id.desc()).limit(1))).scalar_one_or_none()
+        usage = (
+            await self.session.execute(
+                select(
+                    func.coalesce(func.sum(LlmAudit.input_tokens), 0),
+                    func.coalesce(func.sum(LlmAudit.output_tokens), 0),
+                ).where(LlmAudit.thread_id == trace.id)
+            )
+        ).one()
+        models = (
+            await self.session.execute(
+                select(LlmAudit.model_name).where(LlmAudit.thread_id == trace.id).order_by(LlmAudit.id.desc()).limit(1)
+            )
+        ).scalar_one_or_none()
         trace.status = "success"
         trace.route = result.get("route")
         trace.model_name = models
@@ -211,57 +246,108 @@ class AiService:
 
     @log_flow(layer="service")
     async def list_threads(self, buyer: Profile) -> list[dict]:
-        rows = (await self.session.execute(select(ConversationHistory).where(ConversationHistory.user_id == buyer.id, ConversationHistory.thread_type.in_(["sera", "compare"])).order_by(ConversationHistory.updated_at.desc()))).scalars()
+        rows = (
+            await self.session.execute(
+                select(ConversationHistory)
+                .where(
+                    ConversationHistory.user_id == buyer.id, ConversationHistory.thread_type.in_(["sera", "compare"])
+                )
+                .order_by(ConversationHistory.updated_at.desc())
+            )
+        ).scalars()
         seen: set[str] = set()
         result = []
         for row in rows:
             if row.thread_id not in seen:
-                result.append({"id": row.thread_id, "type": row.thread_type, "title": row.metadata_json.get("title", "Vehicle advice"), "updated_at": row.updated_at.isoformat()})
+                result.append(
+                    {
+                        "id": row.thread_id,
+                        "type": row.thread_type,
+                        "title": row.metadata_json.get("title", "Vehicle advice"),
+                        "updated_at": row.updated_at.isoformat(),
+                    }
+                )
                 seen.add(row.thread_id)
         return result
 
     @log_flow(layer="service")
     async def get_thread(self, thread_id: str, buyer: Profile) -> dict:
-        rows = (await self.session.execute(select(ConversationHistory).where(ConversationHistory.thread_id == thread_id, ConversationHistory.user_id == buyer.id).order_by(ConversationHistory.created_at))).scalars().all()
+        rows = (
+            (
+                await self.session.execute(
+                    select(ConversationHistory)
+                    .where(ConversationHistory.thread_id == thread_id, ConversationHistory.user_id == buyer.id)
+                    .order_by(ConversationHistory.created_at)
+                )
+            )
+            .scalars()
+            .all()
+        )
         if not rows:
             raise AppError(error_codes.RESOURCE_NOT_FOUND, "AI thread not found.", 404)
         return {"id": thread_id, "checkpoints": [row.checkpoint for row in rows]}
 
     @log_flow(layer="service")
     async def delete_thread(self, thread_id: str, buyer: Profile) -> None:
-        owned_thread = (await self.session.execute(
-            select(ConversationHistory.thread_id).where(
+        owned_thread = (
+            await self.session.execute(
+                select(ConversationHistory.thread_id)
+                .where(
+                    ConversationHistory.thread_id == thread_id,
+                    ConversationHistory.user_id == buyer.id,
+                    ConversationHistory.thread_type.in_(["sera", "compare"]),
+                )
+                .limit(1)
+            )
+        ).scalar_one_or_none()
+        if owned_thread is None:
+            raise AppError(error_codes.RESOURCE_NOT_FOUND, "AI thread not found.", 404)
+        await self.session.execute(
+            delete(ConversationHistory).where(
                 ConversationHistory.thread_id == thread_id,
                 ConversationHistory.user_id == buyer.id,
                 ConversationHistory.thread_type.in_(["sera", "compare"]),
-            ).limit(1)
-        )).scalar_one_or_none()
-        if owned_thread is None:
-            raise AppError(error_codes.RESOURCE_NOT_FOUND, "AI thread not found.", 404)
-        await self.session.execute(delete(ConversationHistory).where(
-            ConversationHistory.thread_id == thread_id,
-            ConversationHistory.user_id == buyer.id,
-            ConversationHistory.thread_type.in_(["sera", "compare"]),
-        ))
+            )
+        )
         await self.session.commit()
 
     @log_flow(layer="service")
     async def _latest_memory(self, thread_id: str, user_id: str) -> dict:
-        row = (await self.session.execute(select(ConversationHistory).where(ConversationHistory.thread_id == thread_id, ConversationHistory.user_id == user_id).order_by(ConversationHistory.created_at.desc()).limit(1))).scalar_one_or_none()
+        row = (
+            await self.session.execute(
+                select(ConversationHistory)
+                .where(ConversationHistory.thread_id == thread_id, ConversationHistory.user_id == user_id)
+                .order_by(ConversationHistory.created_at.desc())
+                .limit(1)
+            )
+        ).scalar_one_or_none()
         return row.checkpoint if row else {}
 
     @log_flow(layer="service")
-    async def _save_checkpoint(self, thread_id: str, user_id: str, payload: AiChatRequest, main: dict, requirements: dict) -> None:
-        self.session.add(ConversationHistory(
-            thread_id=thread_id, checkpoint_id=str(uuid4()), user_id=user_id,
-            thread_type="compare" if payload.agent == "compare-agent" else "sera",
-            checkpoint={
-                "user": payload.message, "assistant": main.get("answer"), "requirements": requirements.get("requirements", {}),
-                "questions": requirements.get("suggested_questions", []), "preferences": main.get("preferences", {}),
-                "preferences_pending": main.get("preferences_pending", False),
-            },
-            metadata_json={"title": payload.message[:72], "agent": payload.agent, "saved_at": datetime.now(UTC).isoformat()},
-        ))
+    async def _save_checkpoint(
+        self, thread_id: str, user_id: str, payload: AiChatRequest, main: dict, requirements: dict
+    ) -> None:
+        self.session.add(
+            ConversationHistory(
+                thread_id=thread_id,
+                checkpoint_id=str(uuid4()),
+                user_id=user_id,
+                thread_type="compare" if payload.agent == "compare-agent" else "sera",
+                checkpoint={
+                    "user": payload.message,
+                    "assistant": main.get("answer"),
+                    "requirements": requirements.get("requirements", {}),
+                    "questions": requirements.get("suggested_questions", []),
+                    "preferences": main.get("preferences", {}),
+                    "preferences_pending": main.get("preferences_pending", False),
+                },
+                metadata_json={
+                    "title": payload.message[:72],
+                    "agent": payload.agent,
+                    "saved_at": datetime.now(UTC).isoformat(),
+                },
+            )
+        )
 
     @log_flow(layer="service")
     async def _comparison_rows(self, request_ids: list[str], buyer: Profile) -> list[dict]:
@@ -270,7 +356,17 @@ class AiService:
             buyer_request = await self.session.get(BuyerRequest, request_id)
             if buyer_request is None or buyer_request.buyer_id != buyer.id:
                 raise AppError(error_codes.RESOURCE_NOT_FOUND, "One or more buyer requests were not found.", 404)
-            offers = (await self.session.execute(select(DealQuote).where(DealQuote.buyer_request_id == request_id).order_by(DealQuote.final_price))).scalars().all()
+            offers = (
+                (
+                    await self.session.execute(
+                        select(DealQuote)
+                        .where(DealQuote.buyer_request_id == request_id)
+                        .order_by(DealQuote.final_price)
+                    )
+                )
+                .scalars()
+                .all()
+            )
             request_row = model_dict(buyer_request)
             brand = await self.session.get(Brand, buyer_request.brand_id)
             request_row["brand_name"] = brand.name if brand else "Vehicle"
@@ -280,7 +376,9 @@ class AiService:
                 dealer = await self.session.get(Profile, offer.dealer_id)
                 quote_row["dealer_name"] = (dealer.dealership_name or dealer.full_name) if dealer else "Verified dealer"
                 quote_rows.append(quote_row)
-            rows.append({"request": request_row, "quotes": quote_rows, "best_quote": quote_rows[0] if quote_rows else None})
+            rows.append(
+                {"request": request_row, "quotes": quote_rows, "best_quote": quote_rows[0] if quote_rows else None}
+            )
         return rows
 
     @log_flow(layer="service")

@@ -287,22 +287,23 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Download Test Runner and Core Dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install pytest pytest-cov pytest-asyncio
-
-          if [ -f backend/requirements.txt ]; then
-            pip install -r backend/requirements.txt
-          fi
+      # Dependencies come from uv.lock, the same lockfile the backend image and
+      # local development use, so the tested tree is the tree that ships.
+      - name: Install uv and Sync Locked Dependencies
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          cache-dependency-glob: "backend/uv.lock"
 
       - name: Execute Test Coverage Verification Logic
         run: |
           cd backend
 
-          python -m pytest --cov=src --cov-report=term-missing tests/
+          uv sync --frozen
 
-          COVERAGE=$(python -m coverage report | grep TOTAL | awk '{print $4}' | sed 's/%//')
+          uv run python -m pytest --cov=src --cov-report=term-missing tests/
+
+          COVERAGE=$(uv run python -m coverage report | grep TOTAL | awk '{print $4}' | sed 's/%//')
 
           echo "Current Calculated System Code Coverage Metrics: $COVERAGE%"
 
@@ -330,7 +331,7 @@ jobs:
       # Gitleaks for Code Secret Identification
       - name: Explicitly Download and Install Gitleaks CLI Tool
         run: |
-          VERSION="8.18.2"
+          VERSION="8.30.1"
 
           curl -sSLo gitleaks.tar.gz \
             "https://github.com/gitleaks/gitleaks/releases/download/v${VERSION}/gitleaks_${VERSION}_linux_x64.tar.gz"
@@ -341,12 +342,23 @@ jobs:
 
           rm gitleaks.tar.gz
 
+      # `gitleaks git` walks every commit in the checked-out history. The older
+      # `gitleaks detect` alias silently ignored the [allowlists] section in
+      # .gitleaks.toml, so a repository with legitimate documentation matches
+      # would fail the build with no way to suppress them.
       - name: Scan Code for Hardcoded Secrets
         run: |
-          gitleaks detect \
-            --config .gitleaks.toml \
-            --verbose \
-            --source=.
+          if [ -f .gitleaks.toml ]; then
+            gitleaks git \
+              --config .gitleaks.toml \
+              --verbose \
+              --log-opts="--all"
+          else
+            echo "No .gitleaks.toml found, falling back to the built-in rule set."
+            gitleaks git \
+              --verbose \
+              --log-opts="--all"
+          fi
 
       # Hadolint for Dockerfile Rules Configuration Checking
       - name: Explicitly Download and Install Hadolint CLI Tool
@@ -422,16 +434,17 @@ jobs:
         run: |
           echo "Auditing Backend Python packages for vulnerabilities..."
 
-          if [ -f backend/requirements.txt ]; then
+          # uv.lock is the single source of truth for backend dependencies.
+          if [ -f backend/uv.lock ]; then
             trivy fs \
               --exit-code 0 \
-              backend/requirements.txt
+              backend/uv.lock
 
             trivy fs \
               --exit-code 1 \
               --severity CRITICAL \
               --ignore-unfixed \
-              backend/requirements.txt
+              backend/uv.lock
           fi
 
           echo "Auditing Frontend Node dependencies for vulnerabilities..."
@@ -565,6 +578,56 @@ jobs:
             backend \
             --out backend.env
 
+      - name: Normalize Generated Env Files for Their Consumers
+        run: |
+          python - <<'PY'
+          import pathlib
+          import re
+
+          # generate_env.py does two things that depend on who reads the file.
+          #
+          # 1. It quotes and backslash-escapes any value containing characters
+          #    outside its safe set. That encoding is correct for `source` (used
+          #    by the frontend Dockerfile) but wrong for `docker run
+          #    --env-file`, which performs no unescaping and would hand the
+          #    container literal quote and backslash characters.
+          #
+          #    CORS_ORIGINS is the value that actually breaks. It must reach the
+          #    app as a JSON array; with the escapes left in place pydantic
+          #    decodes it into a single bogus origin that no browser ever sends,
+          #    so every cross-origin request is rejected while /api/v1/health
+          #    still returns 200 and the deploy looks healthy.
+          #
+          # 2. It writes with pathlib.write_text, which translates "\n" to the
+          #    host separator. That is LF on this runner, but CRLF on a Windows
+          #    workstation -- and a trailing CR silently corrupts every value.
+          #    Read with newline handling that cannot leak CR, and rewrite LF.
+          #
+          # backend.env is read by `docker run --env-file`, so it gets unescaped.
+          # frontend/.env.production is read by `source`, which performs its own
+          # unescaping, so its quoting must be preserved and only CR removed.
+          def read_lines(path):
+              return path.read_text(encoding="utf-8").splitlines()
+
+          backend = pathlib.Path("backend.env")
+          lines = []
+          for line in read_lines(backend):
+              key, separator, value = line.partition("=")
+              if not separator or not value.startswith('"') or not value.endswith('"'):
+                  lines.append(line)
+                  continue
+              lines.append(key + "=" + re.sub(r"\\(.)", r"\1", value[1:-1]))
+          backend.write_text("\n".join(lines) + "\n", encoding="utf-8", newline="\n")
+          print("normalized backend.env for docker run --env-file")
+
+          frontend = pathlib.Path("frontend/.env.production")
+          if frontend.exists():
+              frontend.write_text(
+                  "\n".join(read_lines(frontend)) + "\n", encoding="utf-8", newline="\n"
+              )
+              print("normalized frontend/.env.production for source")
+          PY
+
       # -----------------------------------------------------------------------
       # UPLOAD BACKEND ENVIRONMENT TO EC2
       # -----------------------------------------------------------------------
@@ -611,6 +674,18 @@ jobs:
             sudo mv \
               /tmp/backend.env \
               /opt/drive-deal-dsu/backend.env
+
+            # =================================================================
+            # PERSISTENT VOLUMES
+            # =================================================================
+
+            # `docker run -v name:/path` creates a missing named volume on its
+            # own, but declaring them here makes the requirement explicit and
+            # surfaces a full or unmountable disk before the app starts. Both
+            # commands are no-ops when the volume already exists, so
+            # application data and uploads survive every container replacement.
+            sudo docker volume create drive-deal-dsu-data
+            sudo docker volume create drive-deal-dsu-uploads
 
             # =================================================================
             # BACKEND CONTAINER

@@ -22,7 +22,9 @@ def describe_schema() -> dict[str, list[str]]:
 
 
 @log_flow(layer="agent")
-async def query_data(session: AsyncSession, table: str, filters: dict[str, Any] | None = None, limit: int = 20) -> list[dict[str, Any]]:
+async def query_data(
+    session: AsyncSession, table: str, filters: dict[str, Any] | None = None, limit: int = 20
+) -> list[dict[str, Any]]:
     """Read-only, parameterized SELECT against any mapped table. Never writes: the only statement it can ever
     build is a `select()`. Column names in `filters` are validated against the table's real columns before use,
     and values are always bound parameters via SQLAlchemy Core - never string-interpolated SQL."""
@@ -47,7 +49,13 @@ async def update_preferences(session: AsyncSession, profile_id: str, features: l
     column on that row, and never touches any other table."""
     row = await session.get(BuyerPreference, profile_id)
     if row is None:
-        row = BuyerPreference(profile_id=profile_id, must_have_features=list(features), source="advisor", created_by=profile_id, updated_by=profile_id)
+        row = BuyerPreference(
+            profile_id=profile_id,
+            must_have_features=list(features),
+            source="advisor",
+            created_by=profile_id,
+            updated_by=profile_id,
+        )
         session.add(row)
     else:
         row.must_have_features = list(features)
@@ -78,8 +86,14 @@ async def write_car(
     web-search extraction for the same vehicle updates the existing row instead of duplicating it.
     The listing's owning dealer is recorded in `created_by`."""
     existing = (
-        await session.execute(select(Car).where(Car.brand_id == brand_id, Car.model == model, Car.model_year == model_year))
-    ).scalars().first()
+        (
+            await session.execute(
+                select(Car).where(Car.brand_id == brand_id, Car.model == model, Car.model_year == model_year)
+            )
+        )
+        .scalars()
+        .first()
+    )
     if existing:
         existing.price = price
         existing.mileage = mileage
@@ -91,9 +105,20 @@ async def write_car(
         await session.flush()
         return {"id": existing.id, "model": existing.model, "model_year": existing.model_year, "upserted": "updated"}
     car = Car(
-        created_by=created_by, brand_id=brand_id, state_id=state_id, title=title or f"{model_year} {model}",
-        model=model, model_year=model_year, body_type=body_type, condition=condition, mileage=mileage,
-        fuel=fuel, transmission=transmission, price=price, status=status, updated_by=created_by,
+        created_by=created_by,
+        brand_id=brand_id,
+        state_id=state_id,
+        title=title or f"{model_year} {model}",
+        model=model,
+        model_year=model_year,
+        body_type=body_type,
+        condition=condition,
+        mileage=mileage,
+        fuel=fuel,
+        transmission=transmission,
+        price=price,
+        status=status,
+        updated_by=created_by,
     )
     session.add(car)
     await session.flush()

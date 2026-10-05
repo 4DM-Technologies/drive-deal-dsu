@@ -59,7 +59,10 @@ def test_workflow_cycle_and_low_contrast_theme_are_rejected() -> None:
     workflow = default_workflow()
     compose_edge = next(edge for edge in workflow["edges"] if edge["source"] == "compose")
     compose_edge["target"] = "triage"
-    assert any("cycles are disabled" in error for error in AdministrationService.validate_payload("workflow", "sera-main", workflow))
+    assert any(
+        "cycles are disabled" in error
+        for error in AdministrationService.validate_payload("workflow", "sera-main", workflow)
+    )
 
     theme = default_theme()
     theme["primary_rgb"] = [245, 245, 245]
@@ -147,9 +150,7 @@ def test_configuration_validation_and_normalization_cover_each_surface() -> None
         "Select a model from the approved runtime catalog."
     ]
     assert AdministrationService.validate_payload("workflow", "sera-main", {})
-    assert AdministrationService.validate_payload("unsupported", "anything", {}) == [
-        "Unsupported configuration type."
-    ]
+    assert AdministrationService.validate_payload("unsupported", "anything", {}) == ["Unsupported configuration type."]
 
     workflow = default_workflow()
     theme = default_theme()
@@ -166,14 +167,20 @@ async def test_draft_publish_and_rollback_are_versioned_and_audited() -> None:
         original = await service.repository.latest("theme", "global", "published")
         if original and original.created_by in test_actors:
             original = await service.repository.latest_developer("theme", "global")
-        await session.execute(delete(AdministrationAuditEvent).where(AdministrationAuditEvent.actor_id.in_(test_actors)))
+        await session.execute(
+            delete(AdministrationAuditEvent).where(AdministrationAuditEvent.actor_id.in_(test_actors))
+        )
         await session.execute(delete(ConfigurationRevision).where(ConfigurationRevision.created_by.in_(test_actors)))
         if original:
-            await session.execute(update(ConfigurationRevision).where(
-                ConfigurationRevision.config_type == "theme",
-                ConfigurationRevision.config_key == "global",
-                ConfigurationRevision.status == "published",
-            ).values(status="archived"))
+            await session.execute(
+                update(ConfigurationRevision)
+                .where(
+                    ConfigurationRevision.config_type == "theme",
+                    ConfigurationRevision.config_key == "global",
+                    ConfigurationRevision.status == "published",
+                )
+                .values(status="archived")
+            )
             original.status = "published"
         await session.commit()
 
@@ -194,17 +201,27 @@ async def test_draft_publish_and_rollback_are_versioned_and_audited() -> None:
             assert restored["status"] == "published"
             assert len(await service.audit_history(250)) == before_audits + 3
         finally:
-            await session.execute(delete(AdministrationAuditEvent).where(AdministrationAuditEvent.actor_id == "pytest:test-admin"))
-            await session.execute(delete(ConfigurationRevision).where(ConfigurationRevision.created_by == "pytest:test-admin"))
+            await session.execute(
+                delete(AdministrationAuditEvent).where(AdministrationAuditEvent.actor_id == "pytest:test-admin")
+            )
+            await session.execute(
+                delete(ConfigurationRevision).where(ConfigurationRevision.created_by == "pytest:test-admin")
+            )
             if original:
-                await session.execute(update(ConfigurationRevision).where(
-                    ConfigurationRevision.config_type == "theme",
-                    ConfigurationRevision.config_key == "global",
-                    ConfigurationRevision.status == "published",
-                ).values(status="archived"))
-                await session.execute(update(ConfigurationRevision).where(
-                    ConfigurationRevision.id == original.id
-                ).values(status="published"))
+                await session.execute(
+                    update(ConfigurationRevision)
+                    .where(
+                        ConfigurationRevision.config_type == "theme",
+                        ConfigurationRevision.config_key == "global",
+                        ConfigurationRevision.status == "published",
+                    )
+                    .values(status="archived")
+                )
+                await session.execute(
+                    update(ConfigurationRevision)
+                    .where(ConfigurationRevision.id == original.id)
+                    .values(status="published")
+                )
             await session.commit()
 
 

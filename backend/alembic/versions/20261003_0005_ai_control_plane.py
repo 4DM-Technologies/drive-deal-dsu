@@ -1,7 +1,8 @@
 """Add default configuration pointers and AI execution traces."""
 
-from alembic import op
 import sqlalchemy as sa
+
+from alembic import op
 
 revision = "20261003_0005"
 down_revision = "20261003_0004"

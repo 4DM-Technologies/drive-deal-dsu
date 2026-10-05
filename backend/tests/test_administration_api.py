@@ -26,7 +26,10 @@ def test_administration_rbac_publish_and_public_theme() -> None:
         draft = client.post(
             "/api/v1/administration/config/theme/global/draft",
             headers=administrator,
-            json={"base_version": active_version, "payload": {"name": "Accessible cobalt", "primary_rgb": [18, 78, 168]}},
+            json={
+                "base_version": active_version,
+                "payload": {"name": "Accessible cobalt", "primary_rgb": [18, 78, 168]},
+            },
         )
         assert draft.status_code == 200, draft.text
         published = client.post(

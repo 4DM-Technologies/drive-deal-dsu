@@ -20,9 +20,7 @@ def test_deterministic_llm_routes_and_response_models() -> None:
 
 def test_advisor_web_fallback_preserves_trusted_sources() -> None:
     prompt = (
-        '<web_sources trust="untrusted">'
-        '[{"title":"Tesla official site","url":"https://www.tesla.com/"}]'
-        '</web_sources>'
+        '<web_sources trust="untrusted">[{"title":"Tesla official site","url":"https://www.tesla.com/"}]</web_sources>'
     )
 
     answer = LlmClient._fallback(prompt, "advisor")

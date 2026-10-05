@@ -6,8 +6,12 @@ venv
 *.log
 .coverage
 htmlcov
+.pytest_cache
+.ruff_cache
+.mypy_cache
 .env
 .env.*
 !.env.example
+.codex_oauth_state
 data
 uploads

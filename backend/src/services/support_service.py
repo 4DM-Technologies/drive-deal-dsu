@@ -56,7 +56,9 @@ class SupportService:
             "supported_brands": profile.supported_brands if profile else [],
             "terms_accepted": profile.terms_accepted if profile else False,
             "terms_version": profile.terms_version if profile else None,
-            "terms_accepted_at": profile.terms_accepted_at.isoformat() if profile and profile.terms_accepted_at else None,
+            "terms_accepted_at": profile.terms_accepted_at.isoformat()
+            if profile and profile.terms_accepted_at
+            else None,
             "decided_by_name": decider.full_name if decider else None,
         }
 
@@ -110,7 +112,10 @@ class SupportService:
         if payload.status:
             ticket.status = payload.status
         if payload.note:
-            ticket.notes = [*ticket.notes, {"at": datetime.now(UTC).isoformat(), "actor_id": actor.id, "note": payload.note}]
+            ticket.notes = [
+                *ticket.notes,
+                {"at": datetime.now(UTC).isoformat(), "actor_id": actor.id, "note": payload.note},
+            ]
         if payload.rca:
             ticket.rca = payload.rca
         await self.session.commit()
@@ -119,7 +124,11 @@ class SupportService:
 
     @log_flow(layer="service")
     async def list_verifications(self) -> list[dict]:
-        rows = list((await self.session.execute(select(SupportVerification).order_by(SupportVerification.created_at.desc()))).scalars())
+        rows = list(
+            (
+                await self.session.execute(select(SupportVerification).order_by(SupportVerification.created_at.desc()))
+            ).scalars()
+        )
         profiles = await self._profile_map({row.profile_id for row in rows})
         state_ids = {profile.state_id for profile in profiles.values() if profile.state_id}
         states = {}
@@ -145,17 +154,31 @@ class SupportService:
         if verification.status != "pending":
             raise AppError(error_codes.ILLEGAL_TRANSITION, "This verification has already been decided.", 422)
         if verification.category == "agent" and actor.role not in {"support-admin", "admin"}:
-            raise AppError(error_codes.FORBIDDEN_ROLE, "Only a support administrator can approve support accounts.", 403)
+            raise AppError(
+                error_codes.FORBIDDEN_ROLE, "Only a support administrator can approve support accounts.", 403
+            )
         verification.status = payload.decision
         verification.decided_by = actor.id
         verification.decided_at = datetime.now(UTC)
-        verification.notes = [*verification.notes, {"at": datetime.now(UTC).isoformat(), "actor_id": actor.id, "decision": payload.decision, "reason": payload.reason}]
+        verification.notes = [
+            *verification.notes,
+            {
+                "at": datetime.now(UTC).isoformat(),
+                "actor_id": actor.id,
+                "decision": payload.decision,
+                "reason": payload.reason,
+            },
+        ]
         if payload.decision == "approved":
-            user = (await self.session.execute(select(User).where(User.profile_id == verification.profile_id))).scalar_one()
+            user = (
+                await self.session.execute(select(User).where(User.profile_id == verification.profile_id))
+            ).scalar_one()
             user.is_active = True
             verification.email_sent = True
         await self.session.commit()
-        logger.info("verification_decided", verification_id=verification.ticket_id, actor_id=actor.id, decision=payload.decision)
+        logger.info(
+            "verification_decided", verification_id=verification.ticket_id, actor_id=actor.id, decision=payload.decision
+        )
         return await self._verification_dict(verification)
 
     @log_flow(layer="service")

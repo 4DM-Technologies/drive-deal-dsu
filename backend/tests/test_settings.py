@@ -22,14 +22,25 @@ def test_settings_accept_valid_local_configuration() -> None:
     assert settings.storage_driver == "local"
 
 
-def test_settings_require_environment_specific_values() -> None:
+def test_settings_require_environment_specific_values(monkeypatch: pytest.MonkeyPatch) -> None:
+    # conftest.py exports these three into the real process environment, and
+    # `_env_file=None` only disables the dotenv *file* source, not the
+    # environment source. Without clearing them Settings finds the conftest
+    # values and never raises, so the assertion below would not test anything.
+    for key in ("DATABASE_URL", "JWT_SECRET_KEY", "CORS_ORIGINS"):
+        monkeypatch.delenv(key, raising=False)
+
     with pytest.raises(ValidationError):
         Settings(_env_file=None)
 
 
 def test_settings_reject_short_jwt_secret() -> None:
     with pytest.raises(ValueError, match="JWT_SECRET_KEY"):
-        validate_settings(local_settings(jwt_secret_key="too-short"))  # nosec B106 - intentional invalid fixture
+        # The whole point of this assertion is that the value is invalid, so the
+        # literal cannot be moved out of the call. S106 is suppressed rather than
+        # satisfied because there is no compliant rewrite; the real secret scanner
+        # for this repository is gitleaks, which still scans this file.
+        validate_settings(local_settings(jwt_secret_key="too-short"))  # noqa: S106
 
 
 def test_settings_require_s3_location_for_s3_driver() -> None:

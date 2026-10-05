@@ -32,29 +32,34 @@ def serialize_trace_spans(spans: list, llm_calls: list) -> list[dict[str, Any]]:
     """Merge graph spans and LLM calls into one chronological, hand-off-aware execution timeline."""
     serialized = [model_dict(span) for span in spans]
     has_native_llm_spans = any(item.get("kind") == "llm" for item in serialized)
-    serialized.extend({
-        "id": row.uuid,
-        "trace_id": row.thread_id,
-        "sequence": 0,
-        "name": row.task_type,
-        "kind": "llm",
-        "status": row.status,
-        "duration_ms": row.latency_ms,
-        "input_tokens": row.input_tokens,
-        "output_tokens": row.output_tokens,
-        "model_name": row.model_name,
-        "details": {
-            "provider": row.provider,
-            "prompt_version": row.prompt_version,
-            "llm_called": True,
-            "legacy_record": True,
-        },
-        "created_at": row.created_at,
-    } for row in ([] if has_native_llm_spans else llm_calls))
+    serialized.extend(
+        {
+            "id": row.uuid,
+            "trace_id": row.thread_id,
+            "sequence": 0,
+            "name": row.task_type,
+            "kind": "llm",
+            "status": row.status,
+            "duration_ms": row.latency_ms,
+            "input_tokens": row.input_tokens,
+            "output_tokens": row.output_tokens,
+            "model_name": row.model_name,
+            "details": {
+                "provider": row.provider,
+                "prompt_version": row.prompt_version,
+                "llm_called": True,
+                "legacy_record": True,
+            },
+            "created_at": row.created_at,
+        }
+        for row in ([] if has_native_llm_spans else llm_calls)
+    )
     serialized.sort(key=lambda item: (str(item.get("created_at") or ""), 0 if item.get("kind") != "llm" else 1))
     for index, item in enumerate(serialized, start=1):
         item["sequence"] = index
-        item.setdefault("details", {})["next_step"] = serialized[index]["name"] if index < len(serialized) else "response"
+        item.setdefault("details", {})["next_step"] = (
+            serialized[index]["name"] if index < len(serialized) else "response"
+        )
     return serialized
 
 
@@ -141,13 +146,23 @@ class AdministrationService:
                     return ["Unknown theme key."]
                 theme = ThemeDefinition.model_validate(payload)
                 contrast = cls._contrast_with_white(theme.primary_rgb)
-                errors = [] if contrast >= 4.5 else [f"Primary color needs at least 4.5:1 contrast with white text; current contrast is {contrast:.2f}:1."]
+                errors = (
+                    []
+                    if contrast >= 4.5
+                    else [
+                        f"Primary color needs at least 4.5:1 contrast with white text; current contrast is {contrast:.2f}:1."
+                    ]
+                )
                 text_luminance = cls._relative_luminance(theme.text_rgb)
                 for label, color in (("page background", theme.background_rgb), ("surface", theme.surface_rgb)):
                     background_luminance = cls._relative_luminance(color)
-                    ratio = (max(text_luminance, background_luminance) + 0.05) / (min(text_luminance, background_luminance) + 0.05)
+                    ratio = (max(text_luminance, background_luminance) + 0.05) / (
+                        min(text_luminance, background_luminance) + 0.05
+                    )
                     if ratio < 4.5:
-                        errors.append(f"Text and {label} need at least 4.5:1 contrast; current contrast is {ratio:.2f}:1.")
+                        errors.append(
+                            f"Text and {label} need at least 4.5:1 contrast; current contrast is {ratio:.2f}:1."
+                        )
                 return errors
         except ValidationError as exc:
             return [error["msg"] for error in exc.errors()]
@@ -192,7 +207,9 @@ class AdministrationService:
                 continue
             allowed_conditions = CONDITIONS_BY_SOURCE.get(edge.source, set())
             if edge.condition not in allowed_conditions:
-                errors.append(f"Connection {edge.id} uses condition {edge.condition!r}, which {edge.source} does not support.")
+                errors.append(
+                    f"Connection {edge.id} uses condition {edge.condition!r}, which {edge.source} does not support."
+                )
             condition_key = (edge.source, edge.condition)
             if condition_key in seen_conditions:
                 errors.append(f"{edge.source} has more than one {edge.condition!r} connection.")
@@ -269,7 +286,9 @@ class AdministrationService:
         active = await self.repository.latest(config_type, config_key, "published")
         active_version = active.version if active else 0
         if base_version is not None and base_version != active_version:
-            raise AppError(error_codes.CONFLICT, "A newer version is already active. Reload before saving this draft.", 409)
+            raise AppError(
+                error_codes.CONFLICT, "A newer version is already active. Reload before saving this draft.", 409
+            )
         await self.repository.archive_drafts(config_type, config_key, actor_id)
         revision = ConfigurationRevision(
             config_type=config_type,
@@ -361,21 +380,27 @@ class AdministrationService:
         else:
             pointer.version = version
             pointer.updated_by = actor_id
-        self.session.add(AdministrationAuditEvent(
-            action="default_selected",
-            resource_type=config_type,
-            resource_key=config_key,
-            revision_id=None,
-            actor_id=actor_id,
-            details={"version": version},
-        ))
+        self.session.add(
+            AdministrationAuditEvent(
+                action="default_selected",
+                resource_type=config_type,
+                resource_key=config_key,
+                revision_id=None,
+                actor_id=actor_id,
+                details={"version": version},
+            )
+        )
         await self.session.commit()
         return {"config_type": config_type, "config_key": config_key, "default_version": version}
 
     @log_flow(layer="service")
     async def reset_to_default(self, config_type: str, config_key: str, actor_id: str) -> dict[str, Any]:
         pointer = await self.repository.default_pointer(config_type, config_key)
-        return await self.rollback(config_type, config_key, pointer.version if pointer else 0, actor_id) if pointer and pointer.version else await self._publish_builtin_default(config_type, config_key, actor_id)
+        return (
+            await self.rollback(config_type, config_key, pointer.version if pointer else 0, actor_id)
+            if pointer and pointer.version
+            else await self._publish_builtin_default(config_type, config_key, actor_id)
+        )
 
     async def _publish_builtin_default(self, config_type: str, config_key: str, actor_id: str) -> dict[str, Any]:
         active = await self.repository.latest(config_type, config_key, "published")
@@ -456,14 +481,16 @@ class AdministrationService:
         return synced
 
     def _audit(self, action: str, revision: ConfigurationRevision, actor_id: str, details: dict[str, Any]) -> None:
-        self.session.add(AdministrationAuditEvent(
-            action=action,
-            resource_type=revision.config_type,
-            resource_key=revision.config_key,
-            revision_id=revision.id,
-            actor_id=actor_id,
-            details={**details, "version": revision.version, "checksum": revision.checksum},
-        ))
+        self.session.add(
+            AdministrationAuditEvent(
+                action=action,
+                resource_type=revision.config_type,
+                resource_key=revision.config_key,
+                revision_id=revision.id,
+                actor_id=actor_id,
+                details={**details, "version": revision.version, "checksum": revision.checksum},
+            )
+        )
 
     @log_flow(layer="service")
     async def prompt_bundles(self) -> list[dict[str, Any]]:
@@ -498,15 +525,19 @@ class AdministrationService:
         for item in PROMPT_CATALOG:
             row = active.get(("prompt", item["key"]))
             revision = self._revision_dict(row) if row else self._virtual_default("prompt", item["key"])
-            prompts.append({
-                "key": item["key"],
-                "label": item["label"],
-                "description": item["description"],
-                "source_file": item["file"],
-                "version": revision["version"],
-                **revision["payload"],
-            })
-        workflow_revision = self._revision_dict(workflow) if workflow else self._virtual_default("workflow", WORKFLOW_KEY)
+            prompts.append(
+                {
+                    "key": item["key"],
+                    "label": item["label"],
+                    "description": item["description"],
+                    "source_file": item["file"],
+                    "version": revision["version"],
+                    **revision["payload"],
+                }
+            )
+        workflow_revision = (
+            self._revision_dict(workflow) if workflow else self._virtual_default("workflow", WORKFLOW_KEY)
+        )
         theme_revision = self._revision_dict(theme) if theme else self._virtual_default("theme", THEME_KEY)
         return {
             "schema_version": 1,

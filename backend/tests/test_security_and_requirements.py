@@ -71,8 +71,10 @@ async def _run(message: str, llm_text: str) -> tuple[dict, str]:
     async def reference_data(_session):
         return ["Ford", "Toyota", "Honda"], STATES
 
-    with patch("src.agents.requirements._reference_data", new=reference_data), \
-         patch("src.agents.llm.LlmClient.generate", new=AsyncMock(return_value=_FakeLlmResult(llm_text))) as generate:
+    with (
+        patch("src.agents.requirements._reference_data", new=reference_data),
+        patch("src.agents.llm.LlmClient.generate", new=AsyncMock(return_value=_FakeLlmResult(llm_text))) as generate,
+    ):
         result = await gather_requirements_from_message(
             AsyncMock(), {"message": message, "requirements": {}, "thread_id": "t1"}
         )
@@ -104,14 +106,19 @@ async def test_llm_pass_never_overwrites_deterministic_values() -> None:
 
 
 async def test_llm_pass_rejects_a_state_that_is_not_a_real_state() -> None:
-    result, _ = await _run("hello", '{"model_name":null,"body_type":null,"buyer_area":null,"state":"Texus","timeline":null,"budget_max":null}')
+    result, _ = await _run(
+        "hello",
+        '{"model_name":null,"body_type":null,"buyer_area":null,"state":"Texus","timeline":null,"budget_max":null}',
+    )
     assert "state" not in result["requirements"]
 
 
 async def test_requirement_extraction_falls_back_when_the_model_fails() -> None:
     """The requirements card is advisory, so a bad model reply must never fail the turn."""
-    with patch("src.agents.requirements._reference_data", new=AsyncMock(return_value=(["Ford"], STATES))), \
-         patch("src.agents.llm.LlmClient.generate", new=AsyncMock(side_effect=RuntimeError("provider down"))):
+    with (
+        patch("src.agents.requirements._reference_data", new=AsyncMock(return_value=(["Ford"], STATES))),
+        patch("src.agents.llm.LlmClient.generate", new=AsyncMock(side_effect=RuntimeError("provider down"))),
+    ):
         result = await gather_requirements_from_message(
             AsyncMock(), {"message": "Ford under 40000", "requirements": {}, "thread_id": "t1"}
         )

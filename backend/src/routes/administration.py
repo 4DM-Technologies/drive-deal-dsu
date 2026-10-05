@@ -42,7 +42,13 @@ async def active_theme(session: AsyncSession = Depends(get_session)):
 @router.get("/administration/catalog")
 @log_flow(layer="route")
 async def catalog(_: Profile = Depends(admin_profile)):
-    return {"workflow_key": WORKFLOW_KEY, "theme_key": THEME_KEY, "nodes": NODE_CATALOG, "prompts": PROMPT_CATALOG, "models": MODEL_CATALOG}
+    return {
+        "workflow_key": WORKFLOW_KEY,
+        "theme_key": THEME_KEY,
+        "nodes": NODE_CATALOG,
+        "prompts": PROMPT_CATALOG,
+        "models": MODEL_CATALOG,
+    }
 
 
 @router.get("/administration/config/{config_type}/{config_key}")
@@ -198,7 +204,7 @@ async def _prepare_preview(
     preview_thread_id = (
         requested_thread
         if requested_thread.startswith(thread_prefix)
-        else f"{thread_prefix}{requested_thread[:80 - len(thread_prefix)]}"
+        else f"{thread_prefix}{requested_thread[: 80 - len(thread_prefix)]}"
     )
     if payload.workflow_payload is not None:
         errors = service.validate_payload("workflow", WORKFLOW_KEY, payload.workflow_payload)
@@ -221,28 +227,36 @@ async def _prepare_preview(
     trace_id = str(uuid4())
     started = perf_counter()
     configuration_version = f"preview:{str(payload.revision_id or runtime['version'])[:24]}"
-    session.add(AiTrace(
-        id=trace_id,
-        thread_id=preview_thread_id,
-        user_id=actor_id,
-        query=payload.message,
-        status="running",
-        is_test=True,
-        configuration_version=configuration_version,
-        created_by=actor_id,
-        updated_by=actor_id,
-    ))
-    await session.flush()
-    checkpoint_rows = (await session.execute(
-        select(ConversationHistory)
-        .where(
-            ConversationHistory.thread_id == preview_thread_id,
-            ConversationHistory.user_id == actor_id,
-            ConversationHistory.thread_type == "admin-preview",
+    session.add(
+        AiTrace(
+            id=trace_id,
+            thread_id=preview_thread_id,
+            user_id=actor_id,
+            query=payload.message,
+            status="running",
+            is_test=True,
+            configuration_version=configuration_version,
+            created_by=actor_id,
+            updated_by=actor_id,
         )
-        .order_by(ConversationHistory.created_at.desc())
-        .limit(6)
-    )).scalars().all()
+    )
+    await session.flush()
+    checkpoint_rows = (
+        (
+            await session.execute(
+                select(ConversationHistory)
+                .where(
+                    ConversationHistory.thread_id == preview_thread_id,
+                    ConversationHistory.user_id == actor_id,
+                    ConversationHistory.thread_type == "admin-preview",
+                )
+                .order_by(ConversationHistory.created_at.desc())
+                .limit(6)
+            )
+        )
+        .scalars()
+        .all()
+    )
     conversation_context = [
         {
             "user": str(row.checkpoint.get("user", ""))[:2000],
@@ -274,20 +288,34 @@ async def _finalize_preview(
     state: dict,
     result: dict,
 ) -> dict:
-    span_rows = (await session.execute(select(AiTraceSpan).where(
-        AiTraceSpan.trace_id == trace_id
-    ).order_by(AiTraceSpan.sequence))).scalars().all()
-    llm_rows = (await session.execute(select(LlmAudit).where(
-        LlmAudit.thread_id == trace_id
-    ).order_by(LlmAudit.id))).scalars().all()
+    span_rows = (
+        (
+            await session.execute(
+                select(AiTraceSpan).where(AiTraceSpan.trace_id == trace_id).order_by(AiTraceSpan.sequence)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    llm_rows = (
+        (await session.execute(select(LlmAudit).where(LlmAudit.thread_id == trace_id).order_by(LlmAudit.id)))
+        .scalars()
+        .all()
+    )
     spans = serialize_trace_spans(span_rows, llm_rows)
-    usage = (await session.execute(select(
-        func.coalesce(func.sum(LlmAudit.input_tokens), 0),
-        func.coalesce(func.sum(LlmAudit.output_tokens), 0),
-    ).where(LlmAudit.thread_id == trace_id))).one()
-    model_name = (await session.execute(select(LlmAudit.model_name).where(
-        LlmAudit.thread_id == trace_id
-    ).order_by(LlmAudit.id.desc()).limit(1))).scalar_one_or_none()
+    usage = (
+        await session.execute(
+            select(
+                func.coalesce(func.sum(LlmAudit.input_tokens), 0),
+                func.coalesce(func.sum(LlmAudit.output_tokens), 0),
+            ).where(LlmAudit.thread_id == trace_id)
+        )
+    ).one()
+    model_name = (
+        await session.execute(
+            select(LlmAudit.model_name).where(LlmAudit.thread_id == trace_id).order_by(LlmAudit.id.desc()).limit(1)
+        )
+    ).scalar_one_or_none()
     await session.rollback()  # previews never retain KB inserts, cars, profile changes, or raw LLM audits
     trace = AiTrace(
         id=trace_id,
@@ -308,25 +336,37 @@ async def _finalize_preview(
     session.add(trace)
     await session.flush()
     for row in spans:
-        session.add(AiTraceSpan(
-            id=row["id"], trace_id=trace_id, sequence=row["sequence"], name=row["name"], kind=row["kind"],
-            status=row["status"], duration_ms=row["duration_ms"], input_tokens=row["input_tokens"],
-            output_tokens=row["output_tokens"], model_name=row["model_name"], details=row["details"],
-        ))
-    session.add(ConversationHistory(
-        thread_id=state["thread_id"],
-        checkpoint_id=str(uuid4()),
-        user_id=actor_id,
-        thread_type="admin-preview",
-        checkpoint={
-            "user": payload.message,
-            "assistant": result.get("answer") or "",
-            "trace_id": trace_id,
-        },
-        metadata_json={"title": payload.message[:80], "preview": True},
-        created_by=actor_id,
-        updated_by=actor_id,
-    ))
+        session.add(
+            AiTraceSpan(
+                id=row["id"],
+                trace_id=trace_id,
+                sequence=row["sequence"],
+                name=row["name"],
+                kind=row["kind"],
+                status=row["status"],
+                duration_ms=row["duration_ms"],
+                input_tokens=row["input_tokens"],
+                output_tokens=row["output_tokens"],
+                model_name=row["model_name"],
+                details=row["details"],
+            )
+        )
+    session.add(
+        ConversationHistory(
+            thread_id=state["thread_id"],
+            checkpoint_id=str(uuid4()),
+            user_id=actor_id,
+            thread_type="admin-preview",
+            checkpoint={
+                "user": payload.message,
+                "assistant": result.get("answer") or "",
+                "trace_id": trace_id,
+            },
+            metadata_json={"title": payload.message[:80], "preview": True},
+            created_by=actor_id,
+            updated_by=actor_id,
+        )
+    )
     await session.commit()
     return {
         "trace_id": trace_id,
@@ -378,15 +418,17 @@ async def stream_preview_workflow(
                 payload, actor_id, session
             )
             events: asyncio.Queue[dict] = asyncio.Queue()
-            task = asyncio.create_task(main_agent(
-                session,
-                workflow_definition=workflow,
-                prompt_overrides=runtime["prompts"],
-                agent_profiles=runtime["agent_profiles"],
-                prompt_version=f"preview:{str(payload.revision_id or runtime['version'])[:24]}",
-                preview=True,
-                trace_event_sink=events.put,
-            ).ainvoke(state))
+            task = asyncio.create_task(
+                main_agent(
+                    session,
+                    workflow_definition=workflow,
+                    prompt_overrides=runtime["prompts"],
+                    agent_profiles=runtime["agent_profiles"],
+                    prompt_version=f"preview:{str(payload.revision_id or runtime['version'])[:24]}",
+                    preview=True,
+                    trace_event_sink=events.put,
+                ).ainvoke(state)
+            )
             yield f"data: {json.dumps({'type': 'started', 'trace_id': trace_id, 'thread_id': state['thread_id']})}\n\n"
             try:
                 while not task.done() or not events.empty():
@@ -403,7 +445,7 @@ async def stream_preview_workflow(
                 # a synthetic client-side animation after the request has already finished.
                 answer = preview.get("answer") or ""
                 for offset in range(0, len(answer), 22):
-                    yield f"data: {json.dumps({'type': 'token', 'text': answer[offset:offset + 22]})}\n\n"
+                    yield f"data: {json.dumps({'type': 'token', 'text': answer[offset : offset + 22]})}\n\n"
                     await asyncio.sleep(0.012)
                 yield f"data: {json.dumps({'type': 'complete', 'result': preview}, default=str)}\n\n"
             except asyncio.CancelledError:

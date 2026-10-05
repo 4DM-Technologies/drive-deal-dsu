@@ -27,6 +27,8 @@ from src.utils.logger import logger
 _NON_US_LOCALE_PATH = re.compile(r"/(?!en[-_]us\b)[a-z]{2}[-_][a-z]{2}(?:/|$)", re.IGNORECASE)
 
 EXTRACTION_SCHEMA = CarSpecs.model_json_schema()
+
+
 class _ReadableHtmlParser(HTMLParser):
     """Small dependency-free fallback for pages that do not require JavaScript to expose their content."""
 
@@ -115,7 +117,12 @@ async def _search_google(client: httpx.AsyncClient, query: str, domains: list[st
         raise RuntimeError("Google Custom Search not configured (google_api_key / google_cse_id missing)")
     response = await client.get(
         "https://www.googleapis.com/customsearch/v1",
-        params={"key": settings.google_api_key, "cx": settings.google_cse_id, "q": _site_restrict(query, domains), "num": min(num_results, 10)},
+        params={
+            "key": settings.google_api_key,
+            "cx": settings.google_cse_id,
+            "q": _site_restrict(query, domains),
+            "num": min(num_results, 10),
+        },
     )
     response.raise_for_status()
     data = response.json()
@@ -131,6 +138,7 @@ def _search_duckduckgo(query: str, domains: list[str], num_results: int) -> list
     """Synchronous (ddgs has no native async API) - called via asyncio.to_thread. Queries one domain at a time
     since DuckDuckGo's backend doesn't reliably handle a long `site:a OR site:b OR ...` query the way Google does."""
     from ddgs import DDGS
+
     results: list[dict] = []
     try:
         with DDGS() as ddgs:
@@ -140,11 +148,13 @@ def _search_duckduckgo(query: str, domains: list[str], num_results: int) -> list
                 for item in ddgs.text(f"{query} site:{domain}", max_results=num_results):
                     url = item.get("href") or item.get("link")
                     if url:
-                        results.append({
-                            "url": url,
-                            "title": item.get("title", ""),
-                            "snippet": item.get("body") or item.get("description") or "",
-                        })
+                        results.append(
+                            {
+                                "url": url,
+                                "title": item.get("title", ""),
+                                "snippet": item.get("body") or item.get("description") or "",
+                            }
+                        )
     except Exception as exc:
         # DDGS and its browser-impersonation transport evolve independently. A provider compatibility issue
         # must never terminate the user's streaming chat request.
@@ -153,7 +163,9 @@ def _search_duckduckgo(query: str, domains: list[str], num_results: int) -> list
 
 
 @log_flow(layer="agent")
-async def get_urls(query: str, domains: list[str] | None = None, make: str | None = None, limit: int | None = None) -> list[dict[str, str]]:
+async def get_urls(
+    query: str, domains: list[str] | None = None, make: str | None = None, limit: int | None = None
+) -> list[dict[str, str]]:
     """Resolve a search query to allow-listed, robots.txt-permitting, US-market candidate URLs. Tries Google
     Custom Search first, falls back to DuckDuckGo when unset or failing."""
     settings = get_settings()
@@ -279,7 +291,7 @@ async def process_url(
         "Put any specs that don't map to a known field into extra_specs as key/value strings.\n"
         f"JSON schema to follow:\n{EXTRACTION_SCHEMA}\n\n"
         f"Source URL: {url}\n\n"
-        f"<page_content trust=\"untrusted\">\n{page_content}\n</page_content>"
+        f'<page_content trust="untrusted">\n{page_content}\n</page_content>'
     )
     try:
         profile = profile or {}

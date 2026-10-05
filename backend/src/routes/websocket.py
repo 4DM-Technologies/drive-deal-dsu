@@ -25,7 +25,9 @@ async def websocket_endpoint(websocket: WebSocket, token: str):
         while True:
             frame = await websocket.receive_json()
             if frame.get("type") == "ping":
-                await websocket.send_json({"type": "heartbeat", "seq": manager.sequence, "at": datetime.now(UTC).isoformat()})
+                await websocket.send_json(
+                    {"type": "heartbeat", "seq": manager.sequence, "at": datetime.now(UTC).isoformat()}
+                )
             elif frame.get("type") == "chat.send":
                 await websocket.send_json({"type": "ack", "id": frame.get("id"), "status": 201})
     except WebSocketDisconnect:

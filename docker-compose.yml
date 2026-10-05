@@ -1,34 +1,50 @@
+# Local/container topology that mirrors the EC2 deployment: the API is published
+# on 8000 and the built frontend is published on 80. In day-to-day development you
+# do not need this file - run the Vite dev server on 5173 and uvicorn on 8080.
+name: drive-deal-dsu
+
 services:
   backend:
-    build: ./backend
-    env_file: ./backend/.env
-    environment:
-      DATABASE_URL: sqlite+aiosqlite:///./data/drivedeal.db
-      AUTO_SEED_DEMO: "true"
+    build:
+      context: ./backend
+    # Provides DATABASE_URL, JWT_SECRET_KEY, CORS_ORIGINS and every other setting
+    # the app reads. Values here are intentionally not repeated under
+    # `environment:` because compose would let them win over env_file.
+    env_file:
+      - ./backend/.env
     volumes:
       - drivedeal-data:/app/data
       - drivedeal-uploads:/app/uploads
     ports:
       - "8000:8000"
+    restart: unless-stopped
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/v1/health')"]
       interval: 10s
       timeout: 5s
       retries: 5
+      start_period: 30s
 
   frontend:
     build:
       context: ./frontend
       args:
-        VITE_USE_MOCKS: "false"
-        VITE_API_BASE_URL: http://localhost:8000/api/v1
-        VITE_WS_BASE_URL: ws://localhost:8000/api/v1/ws
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:8000/api/v1}
+        VITE_WS_BASE_URL: ${VITE_WS_BASE_URL:-ws://localhost:8000/api/v1/ws}
     ports:
-      - "5173:80"
+      - "80:80"
+    restart: unless-stopped
     depends_on:
       backend:
         condition: service_healthy
 
 volumes:
+  # `name:` is pinned to the exact volume names the CI/CD pipeline creates with
+  # `docker volume create`. Without it Compose derives names from the project
+  # directory (drive-deal-dsu_drivedeal-data), which would be a *different*
+  # volume from the one production mounts -- so running `docker compose up` on
+  # EC2 would silently start against an empty database and empty uploads folder.
   drivedeal-data:
+    name: drive-deal-dsu-data
   drivedeal-uploads:
+    name: drive-deal-dsu-uploads

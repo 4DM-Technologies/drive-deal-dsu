@@ -34,7 +34,11 @@ def create_token(profile_id: str, role: str, token_type: Literal["access", "refr
         else timedelta(days=settings.refresh_token_days)
     )
     now = datetime.now(UTC)
-    return jwt.encode({"sub": profile_id, "role": role, "type": token_type, "iat": now, "exp": now + lifetime}, settings.jwt_secret_key, algorithm=settings.jwt_algorithm)
+    return jwt.encode(
+        {"sub": profile_id, "role": role, "type": token_type, "iat": now, "exp": now + lifetime},
+        settings.jwt_secret_key,
+        algorithm=settings.jwt_algorithm,
+    )
 
 
 def decode_token(token: str, expected_type: Literal["access", "refresh"] = "access") -> dict:

@@ -102,8 +102,13 @@ async def test_write_car_only_touches_cars_table(seeded_app: TestClient) -> None
         car_count_before = len((await session.execute(select(Car))).scalars().all())
 
         result = await write_car(
-            session, created_by=IDS["buyer"], brand_id=IDS["ford"], state_id=IDS["tx"],
-            model="F-150 Lightning", model_year=2026, price=54999.0,
+            session,
+            created_by=IDS["buyer"],
+            brand_id=IDS["ford"],
+            state_id=IDS["tx"],
+            model="F-150 Lightning",
+            model_year=2026,
+            price=54999.0,
         )
         await session.commit()
 
@@ -117,10 +122,26 @@ async def test_write_car_only_touches_cars_table(seeded_app: TestClient) -> None
 
 async def test_write_car_upserts_same_vehicle_instead_of_duplicating(seeded_app: TestClient) -> None:
     async with SessionFactory() as session:
-        first = await write_car(session, created_by=IDS["buyer"], brand_id=IDS["ford"], state_id=IDS["tx"], model="Mach-E", model_year=2026, price=45000.0)
+        first = await write_car(
+            session,
+            created_by=IDS["buyer"],
+            brand_id=IDS["ford"],
+            state_id=IDS["tx"],
+            model="Mach-E",
+            model_year=2026,
+            price=45000.0,
+        )
         await session.commit()
     async with SessionFactory() as session:
-        second = await write_car(session, created_by=IDS["buyer"], brand_id=IDS["ford"], state_id=IDS["tx"], model="Mach-E", model_year=2026, price=43000.0)
+        second = await write_car(
+            session,
+            created_by=IDS["buyer"],
+            brand_id=IDS["ford"],
+            state_id=IDS["tx"],
+            model="Mach-E",
+            model_year=2026,
+            price=43000.0,
+        )
         await session.commit()
         car = await session.get(Car, first["id"])
         assert float(car.price) == 43000.0

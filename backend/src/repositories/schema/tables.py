@@ -36,7 +36,9 @@ def utc_now() -> datetime:
 
 class AuditMixin:
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False
+    )
     created_by: Mapped[str] = mapped_column(String(64), default="system", nullable=False)
     updated_by: Mapped[str] = mapped_column(String(64), default="system", nullable=False)
 
@@ -128,7 +130,9 @@ class ConversationHistory(AuditMixin, Base):
     metadata_json: Mapped[dict] = mapped_column("metadata", JSON, default=dict, nullable=False)
 
 
-def preference_field(name: str, default: Callable[[], Any], coerce: Callable[[Any], Any] | None = None) -> hybrid_property:
+def preference_field(
+    name: str, default: Callable[[], Any], coerce: Callable[[Any], Any] | None = None
+) -> hybrid_property:
     """Expose one key of the `buyer_preference.preferences` JSON document as a plain attribute.
 
     The live schema stores the whole buyer profile in a single JSON column, so these give the rest of
@@ -208,7 +212,9 @@ class BuyerPreference(AuditMixin, Base):
     must_have_features = preference_field("must_have_features", list)
     never_want_features = preference_field("never_want_features", list)
     source = preference_field("source", lambda: "advisor")
-    confidence = preference_field("confidence", lambda: Decimal("0"), lambda value: float(value) if value is not None else None)
+    confidence = preference_field(
+        "confidence", lambda: Decimal("0"), lambda value: float(value) if value is not None else None
+    )
 
 
 class BuyerRequest(AuditMixin, Base):
@@ -258,17 +264,23 @@ class BuyerRequestView(Base):
     __tablename__ = "buyer_request_views"
     __table_args__ = (UniqueConstraint("buyer_request_id", "dealer_id", name="uq_request_view_dealer"),)
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
-    buyer_request_id: Mapped[str] = mapped_column(ForeignKey("buyer_requests.id", ondelete="CASCADE"), nullable=False, index=True)
+    buyer_request_id: Mapped[str] = mapped_column(
+        ForeignKey("buyer_requests.id", ondelete="CASCADE"), nullable=False, index=True
+    )
     dealer_id: Mapped[str] = mapped_column(ForeignKey("profiles.id", ondelete="CASCADE"), nullable=False, index=True)
     first_viewed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
-    last_viewed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False)
+    last_viewed_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False
+    )
 
 
 class DealQuote(AuditMixin, Base):
     __tablename__ = "deal_quotes"
     __table_args__ = (
         UniqueConstraint("buyer_request_id", "dealer_id", name="uq_quote_request_dealer"),
-        CheckConstraint("status IN ('pending','negotiating','accepted','declined','withdrawn','expired')", name="ck_quotes_status"),
+        CheckConstraint(
+            "status IN ('pending','negotiating','accepted','declined','withdrawn','expired')", name="ck_quotes_status"
+        ),
     )
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
     buyer_request_id: Mapped[str] = mapped_column(ForeignKey("buyer_requests.id"), nullable=False, index=True)
@@ -279,7 +291,9 @@ class DealQuote(AuditMixin, Base):
     sales_tax: Mapped[Decimal] = mapped_column(Numeric(12, 2), default=Decimal("0"), nullable=False)
     title_reg: Mapped[Decimal] = mapped_column(Numeric(12, 2), default=Decimal("0"), nullable=False)
     trade_in_credit: Mapped[Decimal] = mapped_column(Numeric(12, 2), default=Decimal("0"), nullable=False)
-    final_price: Mapped[Decimal] = mapped_column(Numeric(12, 2), Computed("vehicle_price + doc_fee + sales_tax + title_reg - trade_in_credit"))
+    final_price: Mapped[Decimal] = mapped_column(
+        Numeric(12, 2), Computed("vehicle_price + doc_fee + sales_tax + title_reg - trade_in_credit")
+    )
     message: Mapped[str | None] = mapped_column(Text)
     read_by_buyer: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     status: Mapped[str] = mapped_column(String(30), default="pending", nullable=False, index=True)

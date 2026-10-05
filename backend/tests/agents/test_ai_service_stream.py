@@ -28,17 +28,25 @@ def _payload(message: str) -> SimpleNamespace:
 async def _drain(message: str, main_result: dict, main_delay: float = 0.0):
     started: list[str] = []
     main = _graph(main_result, started, "main", main_delay)
-    requirements = _graph({"requirements": {"budget": 40000}, "suggested_questions": ["q"]}, started, "requirements", 5.0)
+    requirements = _graph(
+        {"requirements": {"budget": 40000}, "suggested_questions": ["q"]}, started, "requirements", 5.0
+    )
     session = AsyncMock()
     session.add = MagicMock()
 
-    with patch("src.services.ai_service.main_agent", return_value=main), \
-         patch("src.services.ai_service.build_requirement_graph", return_value=requirements), \
-         patch("src.services.ai_service.get_settings", return_value=SimpleNamespace(ai_disabled=False)), \
-         patch.object(AdministrationService, "runtime_bundle", new=AsyncMock(return_value={"version": "test", "workflow": {}, "prompts": {}, "agent_profiles": {}})), \
-         patch.object(AiService, "_finish_trace", new=AsyncMock()), \
-         patch.object(AiService, "_latest_memory", new=AsyncMock(return_value={})), \
-         patch.object(AiService, "_save_checkpoint", new=AsyncMock()):
+    with (
+        patch("src.services.ai_service.main_agent", return_value=main),
+        patch("src.services.ai_service.build_requirement_graph", return_value=requirements),
+        patch("src.services.ai_service.get_settings", return_value=SimpleNamespace(ai_disabled=False)),
+        patch.object(
+            AdministrationService,
+            "runtime_bundle",
+            new=AsyncMock(return_value={"version": "test", "workflow": {}, "prompts": {}, "agent_profiles": {}}),
+        ),
+        patch.object(AiService, "_finish_trace", new=AsyncMock()),
+        patch.object(AiService, "_latest_memory", new=AsyncMock(return_value={})),
+        patch.object(AiService, "_save_checkpoint", new=AsyncMock()),
+    ):
         service = AiService(session=session)
         started_at = time.perf_counter()
         events = [event async for event in service.stream_chat(_payload(message), SimpleNamespace(id="u1"))]
@@ -57,7 +65,9 @@ async def test_greeting_never_starts_the_requirements_graph() -> None:
 
     assert started == ["main"]
     assert not any(event.get("phase") == "searching" for event in events)
-    assert "Doing well - how can I help with your car search?" == "".join(e["text"] for e in events if e["type"] == "token")
+    assert "Doing well - how can I help with your car search?" == "".join(
+        e["text"] for e in events if e["type"] == "token"
+    )
 
 
 async def test_explicit_vehicle_search_starts_only_web_pipeline() -> None:
@@ -79,7 +89,9 @@ async def test_explicit_vehicle_search_starts_only_web_pipeline() -> None:
 async def test_out_of_scope_message_stops_waiting_for_requirements() -> None:
     """The classifier may only rule out of scope *after* the parallel requirements task was created, so the
     reply must no longer wait on it: a 5s requirements graph must not delay a one-call answer."""
-    started, events, elapsed = await _drain("tell me a joke about cats", {"route": "off_topic", "answer": "Let's talk cars."})
+    started, events, elapsed = await _drain(
+        "tell me a joke about cats", {"route": "off_topic", "answer": "Let's talk cars."}
+    )
 
     assert "main" in started
     assert elapsed < 1.0, f"reply waited {elapsed}s on the cancelled requirements graph"
@@ -120,14 +132,20 @@ async def test_compare_chat_passes_selected_offers_to_the_agent_and_card() -> No
     session = AsyncMock()
     session.add = MagicMock()
 
-    with patch("src.services.ai_service.main_agent", return_value=SimpleNamespace(ainvoke=invoke)), \
-         patch("src.services.ai_service.build_requirement_graph", requirements_builder), \
-         patch("src.services.ai_service.get_settings", return_value=SimpleNamespace(ai_disabled=False)), \
-         patch.object(AdministrationService, "runtime_bundle", new=AsyncMock(return_value={"version": "test", "workflow": {}, "prompts": {}, "agent_profiles": {}})), \
-         patch.object(AiService, "_finish_trace", new=AsyncMock()), \
-         patch.object(AiService, "_latest_memory", new=AsyncMock(return_value={})), \
-         patch.object(AiService, "_comparison_payload", new=AsyncMock(return_value=comparison)), \
-         patch.object(AiService, "_save_checkpoint", new=AsyncMock()):
+    with (
+        patch("src.services.ai_service.main_agent", return_value=SimpleNamespace(ainvoke=invoke)),
+        patch("src.services.ai_service.build_requirement_graph", requirements_builder),
+        patch("src.services.ai_service.get_settings", return_value=SimpleNamespace(ai_disabled=False)),
+        patch.object(
+            AdministrationService,
+            "runtime_bundle",
+            new=AsyncMock(return_value={"version": "test", "workflow": {}, "prompts": {}, "agent_profiles": {}}),
+        ),
+        patch.object(AiService, "_finish_trace", new=AsyncMock()),
+        patch.object(AiService, "_latest_memory", new=AsyncMock(return_value={})),
+        patch.object(AiService, "_comparison_payload", new=AsyncMock(return_value=comparison)),
+        patch.object(AiService, "_save_checkpoint", new=AsyncMock()),
+    ):
         events = [event async for event in AiService(session).stream_chat(payload, SimpleNamespace(id="u1"))]
 
     assert captured_states[0]["comparison_rows"] == comparison["rows"]

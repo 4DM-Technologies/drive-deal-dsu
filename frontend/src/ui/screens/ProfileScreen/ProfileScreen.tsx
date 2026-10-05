@@ -13,6 +13,7 @@ export default function ProfileScreen() {
   const [address, setAddress] = useState(session?.address ?? '');
   const [branchName, setBranchName] = useState(session?.branchName ?? '');
   const [website, setWebsite] = useState(session?.website ?? '');
+  const [syncedSession, setSyncedSession] = useState(session);
   const [savingProfile, setSavingProfile] = useState(false);
   const [profileSaved, setProfileSaved] = useState(false);
   const [profileError, setProfileError] = useState('');
@@ -31,13 +32,19 @@ export default function ProfileScreen() {
     void client.auth.me().then(setSession).catch(() => undefined);
   }, [setSession]);
 
-  useEffect(() => {
+  // Reset the editable fields whenever the session object is replaced (initial
+  // `auth.me()` response, or a profile save). React's "adjust state when a prop
+  // changes" pattern does this during render instead of in an effect: an effect
+  // would first paint the stale values and then force a second render, which is
+  // what the react-hooks/set-state-in-effect rule flags.
+  if (session !== syncedSession) {
+    setSyncedSession(session);
     setFullName(session?.fullName ?? '');
     setPhone(session?.phone ?? '');
     setAddress(session?.address ?? '');
     setBranchName(session?.branchName ?? '');
     setWebsite(session?.website ?? '');
-  }, [session]);
+  }
 
   useEffect(() => {
     if (!isBuyer) return;

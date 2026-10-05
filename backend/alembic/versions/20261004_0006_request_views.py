@@ -7,6 +7,7 @@ Revises: 20261003_0005
 from collections.abc import Sequence
 
 import sqlalchemy as sa
+
 from alembic import op
 
 revision: str = "20261004_0006"
@@ -28,7 +29,9 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("buyer_request_id", "dealer_id", name="uq_request_view_dealer"),
     )
-    op.create_index(op.f("ix_buyer_request_views_buyer_request_id"), "buyer_request_views", ["buyer_request_id"], unique=False)
+    op.create_index(
+        op.f("ix_buyer_request_views_buyer_request_id"), "buyer_request_views", ["buyer_request_id"], unique=False
+    )
     op.create_index(op.f("ix_buyer_request_views_dealer_id"), "buyer_request_views", ["dealer_id"], unique=False)
 
 

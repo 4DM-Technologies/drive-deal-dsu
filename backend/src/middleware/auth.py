@@ -35,7 +35,9 @@ async def get_current_profile(
     except jwt.InvalidTokenError as exc:
         logger.warning("auth_rejected", reason="invalid_token")
         raise AppError(error_codes.UNAUTHENTICATED, "Your session is invalid or expired.", 401) from exc
-    result = await session.execute(select(Profile).join(User).where(Profile.id == payload["sub"], User.is_active.is_(True)))
+    result = await session.execute(
+        select(Profile).join(User).where(Profile.id == payload["sub"], User.is_active.is_(True))
+    )
     profile = result.scalar_one_or_none()
     if profile is None:
         reject("account_inactive", "Your account is not active.")

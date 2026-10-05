@@ -46,7 +46,11 @@ async def cars(profile: Profile = Depends(get_current_profile), session: AsyncSe
 
 @router.post("", status_code=status.HTTP_201_CREATED)
 @log_flow(layer="route")
-async def create_car(payload: CarCreate, profile: Profile = Depends(require_roles("dealer")), session: AsyncSession = Depends(get_session)):
+async def create_car(
+    payload: CarCreate,
+    profile: Profile = Depends(require_roles("dealer")),
+    session: AsyncSession = Depends(get_session),
+):
     row = Car(created_by=profile.id, updated_by=profile.id, **payload.model_dump())
     session.add(row)
     await session.commit()
@@ -66,7 +70,12 @@ async def car(car_id: str, _: Profile = Depends(get_current_profile), session: A
 
 @router.patch("/{car_id}")
 @log_flow(layer="route")
-async def update_car(car_id: str, payload: CarCreate, profile: Profile = Depends(require_roles("dealer")), session: AsyncSession = Depends(get_session)):
+async def update_car(
+    car_id: str,
+    payload: CarCreate,
+    profile: Profile = Depends(require_roles("dealer")),
+    session: AsyncSession = Depends(get_session),
+):
     row = await session.get(Car, car_id)
     if row is None or row.created_by != profile.id:
         raise AppError(error_codes.RESOURCE_NOT_FOUND, "Vehicle not found.", 404)
@@ -79,7 +88,12 @@ async def update_car(car_id: str, payload: CarCreate, profile: Profile = Depends
 
 @router.patch("/{car_id}/status")
 @log_flow(layer="route")
-async def car_status(car_id: str, payload: CarStatus, profile: Profile = Depends(require_roles("dealer")), session: AsyncSession = Depends(get_session)):
+async def car_status(
+    car_id: str,
+    payload: CarStatus,
+    profile: Profile = Depends(require_roles("dealer")),
+    session: AsyncSession = Depends(get_session),
+):
     row = await session.get(Car, car_id)
     if row is None or row.created_by != profile.id:
         raise AppError(error_codes.RESOURCE_NOT_FOUND, "Vehicle not found.", 404)

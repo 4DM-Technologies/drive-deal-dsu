@@ -17,22 +17,31 @@ class AdministrationRepository:
         self.session = session
 
     @log_flow(layer="repository")
-    async def latest(self, config_type: str, config_key: str, status: str | None = None) -> ConfigurationRevision | None:
+    async def latest(
+        self, config_type: str, config_key: str, status: str | None = None
+    ) -> ConfigurationRevision | None:
         statement = select(ConfigurationRevision).where(
             ConfigurationRevision.config_type == config_type,
             ConfigurationRevision.config_key == config_key,
         )
         if status:
             statement = statement.where(ConfigurationRevision.status == status)
-        return (await self.session.execute(statement.order_by(ConfigurationRevision.version.desc()).limit(1))).scalar_one_or_none()
+        return (
+            await self.session.execute(statement.order_by(ConfigurationRevision.version.desc()).limit(1))
+        ).scalar_one_or_none()
 
     @log_flow(layer="repository")
     async def latest_developer(self, config_type: str, config_key: str) -> ConfigurationRevision | None:
-        statement = select(ConfigurationRevision).where(
-            ConfigurationRevision.config_type == config_type,
-            ConfigurationRevision.config_key == config_key,
-            ConfigurationRevision.created_by == "developer:startup",
-        ).order_by(ConfigurationRevision.version.desc()).limit(1)
+        statement = (
+            select(ConfigurationRevision)
+            .where(
+                ConfigurationRevision.config_type == config_type,
+                ConfigurationRevision.config_key == config_key,
+                ConfigurationRevision.created_by == "developer:startup",
+            )
+            .order_by(ConfigurationRevision.version.desc())
+            .limit(1)
+        )
         return (await self.session.execute(statement)).scalar_one_or_none()
 
     @log_flow(layer="repository")
@@ -41,31 +50,46 @@ class AdministrationRepository:
 
     @log_flow(layer="repository")
     async def by_version(self, config_type: str, config_key: str, version: int) -> ConfigurationRevision | None:
-        return (await self.session.execute(select(ConfigurationRevision).where(
-            ConfigurationRevision.config_type == config_type,
-            ConfigurationRevision.config_key == config_key,
-            ConfigurationRevision.version == version,
-        ))).scalar_one_or_none()
+        return (
+            await self.session.execute(
+                select(ConfigurationRevision).where(
+                    ConfigurationRevision.config_type == config_type,
+                    ConfigurationRevision.config_key == config_key,
+                    ConfigurationRevision.version == version,
+                )
+            )
+        ).scalar_one_or_none()
 
     @log_flow(layer="repository")
     async def history(self, config_type: str, config_key: str, limit: int = 30) -> list[ConfigurationRevision]:
-        rows = await self.session.execute(select(ConfigurationRevision).where(
-            ConfigurationRevision.config_type == config_type,
-            ConfigurationRevision.config_key == config_key,
-        ).order_by(ConfigurationRevision.version.desc()).limit(limit))
+        rows = await self.session.execute(
+            select(ConfigurationRevision)
+            .where(
+                ConfigurationRevision.config_type == config_type,
+                ConfigurationRevision.config_key == config_key,
+            )
+            .order_by(ConfigurationRevision.version.desc())
+            .limit(limit)
+        )
         return list(rows.scalars())
 
     @log_flow(layer="repository")
     async def next_version(self, config_type: str, config_key: str) -> int:
-        value = (await self.session.execute(select(func.max(ConfigurationRevision.version)).where(
-            ConfigurationRevision.config_type == config_type,
-            ConfigurationRevision.config_key == config_key,
-        ))).scalar_one()
+        value = (
+            await self.session.execute(
+                select(func.max(ConfigurationRevision.version)).where(
+                    ConfigurationRevision.config_type == config_type,
+                    ConfigurationRevision.config_key == config_key,
+                )
+            )
+        ).scalar_one()
         return int(value or 0) + 1
 
     @log_flow(layer="repository")
     async def published_all(self) -> list[ConfigurationRevision]:
-        rows = await self.session.execute(select(ConfigurationRevision).where(ConfigurationRevision.status == "published"))
+        rows = await self.session.execute(
+            select(ConfigurationRevision).where(ConfigurationRevision.status == "published")
+        )
         return list(rows.scalars())
 
     @log_flow(layer="repository")
@@ -82,9 +106,9 @@ class AdministrationRepository:
 
     @log_flow(layer="repository")
     async def audits(self, limit: int = 100) -> list[AdministrationAuditEvent]:
-        rows = await self.session.execute(select(AdministrationAuditEvent).order_by(
-            AdministrationAuditEvent.created_at.desc()
-        ).limit(limit))
+        rows = await self.session.execute(
+            select(AdministrationAuditEvent).order_by(AdministrationAuditEvent.created_at.desc()).limit(limit)
+        )
         return list(rows.scalars())
 
     @log_flow(layer="repository")

@@ -16,10 +16,25 @@ REQUIRED = ["brand", "model", "buyer_area", "state", "timeline"]
 
 # Only used by the synchronous entry point (no session, e.g. unit tests). The graph node reads the real
 # brands table instead, so this list is a fallback and not a second source of truth.
-FALLBACK_BRANDS = ["Audi", "BMW", "Chevrolet", "Ford", "Honda", "Hyundai", "Kia", "Mahindra", "Mercedes-Benz", "Nissan", "Tesla", "Toyota"]
+FALLBACK_BRANDS = [
+    "Audi",
+    "BMW",
+    "Chevrolet",
+    "Ford",
+    "Honda",
+    "Hyundai",
+    "Kia",
+    "Mahindra",
+    "Mercedes-Benz",
+    "Nissan",
+    "Tesla",
+    "Toyota",
+]
 
 TIMELINES = ["ASAP", "Within 1 week", "Within 2 weeks", "Just exploring"]
-BUDGET_RE = re.compile(r"(?:under|budget|max|around|about|approximately|up\s+to|~)\s*\$?\s*([0-9][0-9,]*(?:\s*[kKmM])?)", re.IGNORECASE)
+BUDGET_RE = re.compile(
+    r"(?:under|budget|max|around|about|approximately|up\s+to|~)\s*\$?\s*([0-9][0-9,]*(?:\s*[kKmM])?)", re.IGNORECASE
+)
 
 
 def _normalize_budget(raw: str) -> str | None:
@@ -35,6 +50,7 @@ def _normalize_budget(raw: str) -> str | None:
         return str(int(float(text) * multiplier))
     except ValueError:
         return None
+
 
 # "Austin, TX" / "in TX" / "near TX". Codes are matched case-sensitively and only after a comma or a
 # preposition, otherwise Indiana ("IN"), Oregon ("OR") and Maine ("ME") match the ordinary words
@@ -54,8 +70,12 @@ class ExtractedRequirements(BaseModel):
 
 
 async def _reference_data(session: AsyncSession) -> tuple[list[str], list[dict[str, str]]]:
-    brands = list((await session.execute(select(Brand.name).where(Brand.is_active.is_(True)).order_by(Brand.name))).scalars())
-    rows = (await session.execute(select(State.name, State.code).where(State.is_active.is_(True)).order_by(State.name))).all()
+    brands = list(
+        (await session.execute(select(Brand.name).where(Brand.is_active.is_(True)).order_by(Brand.name))).scalars()
+    )
+    rows = (
+        await session.execute(select(State.name, State.code).where(State.is_active.is_(True)).order_by(State.name))
+    ).all()
     return brands, [{"name": name, "code": code} for name, code in rows]
 
 
@@ -74,7 +94,9 @@ def _extract_deterministic(text: str, current: dict, brands: list[str], states: 
         if timeline.lower() in lowered:
             current["timeline"] = timeline
     for state in states:
-        if re.search(rf"\b{re.escape(state['name'])}\b", text, re.IGNORECASE) or state["code"] in STATE_CODE_RE.findall(text):
+        if re.search(rf"\b{re.escape(state['name'])}\b", text, re.IGNORECASE) or state["code"] in STATE_CODE_RE.findall(
+            text
+        ):
             current["state"] = state["name"]
             break
     return current
@@ -84,13 +106,31 @@ def _finish(current: dict, step: int) -> dict:
     missing = [field for field in REQUIRED if not current.get(field)]
     questions = []
     if "brand" in missing:
-        questions.append({"field": "brand", "question": "Which brands are you open to?", "options": FALLBACK_BRANDS[:6], "multiple": True})
+        questions.append(
+            {
+                "field": "brand",
+                "question": "Which brands are you open to?",
+                "options": FALLBACK_BRANDS[:6],
+                "multiple": True,
+            }
+        )
     if "model" in missing:
-        questions.append({"field": "model", "question": "Do you have a model in mind?", "options": [], "multiple": False})
+        questions.append(
+            {"field": "model", "question": "Do you have a model in mind?", "options": [], "multiple": False}
+        )
     if "buyer_area" in missing:
-        questions.append({"field": "buyer_area", "question": "What city and state should dealers search around?", "options": [], "multiple": False})
+        questions.append(
+            {
+                "field": "buyer_area",
+                "question": "What city and state should dealers search around?",
+                "options": [],
+                "multiple": False,
+            }
+        )
     if "timeline" in missing:
-        questions.append({"field": "timeline", "question": "When are you hoping to buy?", "options": TIMELINES, "multiple": False})
+        questions.append(
+            {"field": "timeline", "question": "When are you hoping to buy?", "options": TIMELINES, "multiple": False}
+        )
     return {"requirements": current, "missing_fields": missing, "suggested_questions": questions[:3], "step": step}
 
 
@@ -128,7 +168,7 @@ async def _llm_extract(
         "budget_max. Use null for anything the buyer did not say. state must be one of the full state names "
         "listed above, resolved from whatever city or region the buyer mentioned. Do not guess and do not "
         "invent a model the buyer did not name.\n\n"
-        f"<buyer_message trust=\"untrusted\">\n{state.get('message', '')}\n</buyer_message>"
+        f'<buyer_message trust="untrusted">\n{state.get("message", "")}\n</buyer_message>'
     )
     try:
         profile = agent_profile or {}
@@ -180,14 +220,24 @@ async def gather_requirements_from_message(
     if session is not None and missing:
         try:
             enriched = await _llm_extract(
-                LlmClient(session), state, current, brands, states, missing, prompt_overrides, prompt_version, agent_profile
+                LlmClient(session),
+                state,
+                current,
+                brands,
+                states,
+                missing,
+                prompt_overrides,
+                prompt_version,
+                agent_profile,
             )
             for key, value in enriched.items():
                 # Never clobber a value the deterministic pass already trusted.
                 if value and not current.get(key):
                     current[key] = value
         except Exception as exc:  # pragma: no cover - defensive, _llm_extract already swallows
-            logger.warning("agent_requirement_enrichment_failed", thread_id=state.get("thread_id"), error=str(exc)[:200])
+            logger.warning(
+                "agent_requirement_enrichment_failed", thread_id=state.get("thread_id"), error=str(exc)[:200]
+            )
     return _finish(current, step)
 
 

@@ -1,7 +1,8 @@
 """Add versioned administrator configuration and audit history."""
 
-from alembic import op
 import sqlalchemy as sa
+
+from alembic import op
 
 revision = "20261003_0004"
 down_revision = "20260930_0003"
@@ -58,11 +59,21 @@ def upgrade() -> None:
         sa.UniqueConstraint("uuid"),
     )
     op.create_index("ix_administration_audit_events_action", "administration_audit_events", ["action"], unique=False)
-    op.create_index("ix_administration_audit_events_actor_id", "administration_audit_events", ["actor_id"], unique=False)
-    op.create_index("ix_administration_audit_events_created_at", "administration_audit_events", ["created_at"], unique=False)
-    op.create_index("ix_administration_audit_events_resource_key", "administration_audit_events", ["resource_key"], unique=False)
-    op.create_index("ix_administration_audit_events_resource_type", "administration_audit_events", ["resource_type"], unique=False)
-    op.create_index("ix_administration_audit_events_revision_id", "administration_audit_events", ["revision_id"], unique=False)
+    op.create_index(
+        "ix_administration_audit_events_actor_id", "administration_audit_events", ["actor_id"], unique=False
+    )
+    op.create_index(
+        "ix_administration_audit_events_created_at", "administration_audit_events", ["created_at"], unique=False
+    )
+    op.create_index(
+        "ix_administration_audit_events_resource_key", "administration_audit_events", ["resource_key"], unique=False
+    )
+    op.create_index(
+        "ix_administration_audit_events_resource_type", "administration_audit_events", ["resource_type"], unique=False
+    )
+    op.create_index(
+        "ix_administration_audit_events_revision_id", "administration_audit_events", ["revision_id"], unique=False
+    )
 
 
 def downgrade() -> None:

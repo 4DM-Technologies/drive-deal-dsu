@@ -41,7 +41,9 @@ class AuthService:
             website=str(payload.website),
             supported_brands=payload.supported_brand_ids,
         )
-        verification = SupportVerification(ticket_id=f"DV{int(time())}", category="dealer", profile_id=profile.id, status="pending", notes=[])
+        verification = SupportVerification(
+            ticket_id=f"DV{int(time())}", category="dealer", profile_id=profile.id, status="pending", notes=[]
+        )
         self.session.add(verification)
         await self.repository.commit()
         logger.info("dealer_signup", profile_id=profile.id, role="dealer", verification_id=verification.ticket_id)
@@ -51,7 +53,10 @@ class AuthService:
     async def signup_support(self, payload: SupportSignup) -> dict:
         profile = await self._create_profile(payload, "support", is_active=False)
         verification = SupportVerification(
-            ticket_id=f"SA{str(int(time()))[-6:]}", category="agent", profile_id=profile.id, status="pending",
+            ticket_id=f"SA{str(int(time()))[-6:]}",
+            category="agent",
+            profile_id=profile.id,
+            status="pending",
             notes=[{"at": datetime.now(UTC).isoformat(), "note": payload.extra_information or "Application submitted"}],
         )
         self.session.add(verification)
@@ -81,12 +86,18 @@ class AuthService:
         except jwt.InvalidTokenError as exc:
             raise AppError(error_codes.UNAUTHENTICATED, "The refresh token is invalid or expired.", 401) from exc
         profile = await self.repository.profile_with_user(payload["sub"])
-        if profile is None or not profile.user.is_active or profile.user.refresh_token_hash != token_hash(refresh_token):
+        if (
+            profile is None
+            or not profile.user.is_active
+            or profile.user.refresh_token_hash != token_hash(refresh_token)
+        ):
             raise AppError(error_codes.UNAUTHENTICATED, "The refresh token is no longer valid.", 401)
         if payload.get("role") != profile.role:
             profile.user.refresh_token_hash = None
             await self.repository.commit()
-            raise AppError(error_codes.UNAUTHENTICATED, "Your access changed. Sign in again to refresh your permissions.", 401)
+            raise AppError(
+                error_codes.UNAUTHENTICATED, "Your access changed. Sign in again to refresh your permissions.", 401
+            )
         response = self._tokens(profile, True)
         profile.user.refresh_token_hash = token_hash(response.refresh_token)
         await self.repository.commit()
@@ -108,9 +119,16 @@ class AuthService:
         accepted_at = datetime.now(UTC)
         profile = Profile(
             id=str(uuid4()),
-            state_id=payload.state_id, full_name=payload.full_name, email=str(payload.email).lower(), role=role,
-            phone=payload.phone, address=payload.address, terms_accepted=payload.terms_accepted,
-            terms_version=payload.terms_version or DEFAULT_TERMS_VERSION, terms_accepted_at=accepted_at, **extra,
+            state_id=payload.state_id,
+            full_name=payload.full_name,
+            email=str(payload.email).lower(),
+            role=role,
+            phone=payload.phone,
+            address=payload.address,
+            terms_accepted=payload.terms_accepted,
+            terms_version=payload.terms_version or DEFAULT_TERMS_VERSION,
+            terms_accepted_at=accepted_at,
+            **extra,
         )
         user = User(profile=profile, password_hash=hash_password(payload.password), is_active=is_active)
         await self.repository.add_profile(profile, user)
@@ -123,5 +141,12 @@ class AuthService:
             access_token=create_token(profile.id, profile.role, "access"),
             refresh_token=create_token(profile.id, profile.role, "refresh"),
             expires_in=settings.access_token_minutes * 60,
-            profile=SessionProfile(id=profile.id, full_name=profile.full_name, email=profile.email, phone=profile.phone, role=profile.role, is_active=is_active),
+            profile=SessionProfile(
+                id=profile.id,
+                full_name=profile.full_name,
+                email=profile.email,
+                phone=profile.phone,
+                role=profile.role,
+                is_active=is_active,
+            ),
         )

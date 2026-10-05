@@ -179,7 +179,16 @@ class MarketplaceService:
         for key, value in payload.model_dump(exclude_none=True).items():
             setattr(quote, key, value)
         await self.session.flush()
-        quote.deal_history = [*quote.deal_history, {"ts": datetime.now(UTC).isoformat(), "actor_id": dealer.id, "actor_role": dealer.role, "event": "quote_revised", "previous_final_price": previous}]
+        quote.deal_history = [
+            *quote.deal_history,
+            {
+                "ts": datetime.now(UTC).isoformat(),
+                "actor_id": dealer.id,
+                "actor_role": dealer.role,
+                "event": "quote_revised",
+                "previous_final_price": previous,
+            },
+        ]
         await self.repository.commit()
         await self.session.refresh(quote)
         logger.info("quote_revised", quote_id=quote.id, dealer_id=dealer.id, previous_final_price=previous)
@@ -194,7 +203,15 @@ class MarketplaceService:
         quote.status = "accepted"
         quote.deal_status = "paperwork_going_on"
         quote.chat_request_status = "accepted"
-        quote.deal_history = [*quote.deal_history, {"ts": datetime.now(UTC).isoformat(), "actor_id": buyer.id, "actor_role": buyer.role, "event": "quote_accepted"}]
+        quote.deal_history = [
+            *quote.deal_history,
+            {
+                "ts": datetime.now(UTC).isoformat(),
+                "actor_id": buyer.id,
+                "actor_role": buyer.role,
+                "event": "quote_accepted",
+            },
+        ]
         request = await self._request(quote.buyer_request_id)
         request.status = "fulfilled"
         for sibling in await self.repository.quotes_for_request(request.id):
@@ -210,9 +227,20 @@ class MarketplaceService:
         quote = await self._quote(quote_id)
         self._require_party(quote, actor)
         if quote.status != "accepted" and quote.chat_request_status != "accepted":
-            raise AppError(error_codes.DEALER_CONTACT_WITHHELD, "Dealer contact remains private until the contact gate opens.", 403)
+            raise AppError(
+                error_codes.DEALER_CONTACT_WITHHELD, "Dealer contact remains private until the contact gate opens.", 403
+            )
         dealer = await self.session.get(Profile, quote.dealer_id)
-        return {"contact_available": True, "dealer": {"id": dealer.id, "name": dealer.full_name, "dealership_name": dealer.dealership_name, "phone": dealer.phone, "email": dealer.email}}
+        return {
+            "contact_available": True,
+            "dealer": {
+                "id": dealer.id,
+                "name": dealer.full_name,
+                "dealership_name": dealer.dealership_name,
+                "phone": dealer.phone,
+                "email": dealer.email,
+            },
+        }
 
     @log_flow(layer="service")
     async def request_chat(self, quote_id: str, payload: ChatRequestCreate, buyer: Profile) -> dict:
@@ -236,7 +264,13 @@ class MarketplaceService:
         quote.chat_decided_at = datetime.now(UTC)
         if quote.status == "pending":
             quote.status = "negotiating"
-        self.repository.add(DealChat(quote_id=quote.id, sender_id=quote.buyer_id, message=quote.chat_request_message or "I would like to discuss this offer."))
+        self.repository.add(
+            DealChat(
+                quote_id=quote.id,
+                sender_id=quote.buyer_id,
+                message=quote.chat_request_message or "I would like to discuss this offer.",
+            )
+        )
         await self.repository.commit()
         await self.session.refresh(quote)
         logger.info("chat_accepted", quote_id=quote.id, dealer_id=dealer.id)
@@ -250,10 +284,7 @@ class MarketplaceService:
             raise AppError(error_codes.CHAT_NOT_OPEN, "This conversation is not open.", 403)
         rows = [row for row in await self.repository.chat_messages(quote_id) if actor.id not in row.hidden_for]
         profiles = await self._profile_map({row.sender_id for row in rows})
-        return [
-            {**model_dict(row), "sender_name": self._chat_sender_name(profiles.get(row.sender_id))}
-            for row in rows
-        ]
+        return [{**model_dict(row), "sender_name": self._chat_sender_name(profiles.get(row.sender_id))} for row in rows]
 
     @log_flow(layer="service")
     async def send_chat(self, quote_id: str, payload: ChatSend, actor: Profile) -> dict:
@@ -261,7 +292,9 @@ class MarketplaceService:
         self._require_party(quote, actor)
         if quote.status != "accepted" and quote.chat_request_status != "accepted":
             raise AppError(error_codes.CHAT_NOT_OPEN, "This conversation is not open.", 403)
-        existing = next((row for row in await self.repository.chat_messages(quote_id) if row.client_message_id == payload.id), None)
+        existing = next(
+            (row for row in await self.repository.chat_messages(quote_id) if row.client_message_id == payload.id), None
+        )
         if existing:
             sender = await self.session.get(Profile, existing.sender_id)
             return {**model_dict(existing), "sender_name": self._chat_sender_name(sender)}
@@ -287,10 +320,22 @@ class MarketplaceService:
         if not allowed or current in {"completed", "cancelled"}:
             raise AppError(error_codes.ILLEGAL_TRANSITION, "That deal status transition is not allowed.", 422)
         quote.deal_status = payload.status
-        quote.deal_history = [*quote.deal_history, {"ts": datetime.now(UTC).isoformat(), "actor_id": actor.id, "actor_role": actor.role, "event": "deal_status_changed", "from": current, "to": payload.status}]
+        quote.deal_history = [
+            *quote.deal_history,
+            {
+                "ts": datetime.now(UTC).isoformat(),
+                "actor_id": actor.id,
+                "actor_role": actor.role,
+                "event": "deal_status_changed",
+                "from": current,
+                "to": payload.status,
+            },
+        ]
         await self.repository.commit()
         await self.session.refresh(quote)
-        logger.info("deal_status_changed", quote_id=quote.id, actor_id=actor.id, from_status=current, to_status=payload.status)
+        logger.info(
+            "deal_status_changed", quote_id=quote.id, actor_id=actor.id, from_status=current, to_status=payload.status
+        )
         return await self.quote_dict(quote)
 
     @log_flow(layer="service")
@@ -316,5 +361,8 @@ class MarketplaceService:
     @staticmethod
     @log_flow(layer="service")
     def _require_party(quote: DealQuote, actor: Profile) -> None:
-        if actor.role not in {"support", "support-admin", "admin"} and actor.id not in {quote.buyer_id, quote.dealer_id}:
+        if actor.role not in {"support", "support-admin", "admin"} and actor.id not in {
+            quote.buyer_id,
+            quote.dealer_id,
+        }:
             raise AppError(error_codes.RESOURCE_NOT_FOUND, "Resource not found.", 404)

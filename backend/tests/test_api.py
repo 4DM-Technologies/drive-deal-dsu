@@ -7,6 +7,7 @@ from starlette.websockets import WebSocketDisconnect
 
 from main import app
 from src.services.storage.s3_storage import S3Storage
+from src.settings import get_settings
 from tests.demo_data import IDS
 
 
@@ -28,7 +29,10 @@ def test_health_and_reference_data() -> None:
 
 def test_auth_profile_and_preferences() -> None:
     with TestClient(app) as client:
-        assert client.post("/api/v1/auth/login", json={"email": "rahul@drivedeal.demo", "password": "wrong"}).status_code == 401
+        assert (
+            client.post("/api/v1/auth/login", json={"email": "rahul@drivedeal.demo", "password": "wrong"}).status_code
+            == 401
+        )
         headers = login(client, "rahul@drivedeal.demo")
         assert client.get("/api/v1/auth/me", headers=headers).json()["role"] == "buyer"
         updated = client.patch("/api/v1/profiles/me", headers=headers, json={"phone": "+14695550142"})
@@ -53,7 +57,9 @@ def test_buyer_marketplace_and_serra() -> None:
         quotes = client.get(f"/api/v1/requests/{IDS['bronco']}/quotes", headers=headers)
         assert len(quotes.json()) == 3
         assert client.get(f"/api/v1/quotes/{IDS['q1']}/dealer-contact", headers=headers).status_code == 403
-        compare = client.post("/api/v1/ai/compare", headers=headers, json={"quote_ids": [IDS["q1"], quotes.json()[1]["id"]]})
+        compare = client.post(
+            "/api/v1/ai/compare", headers=headers, json={"quote_ids": [IDS["q1"], quotes.json()[1]["id"]]}
+        )
         assert compare.status_code == 200
         assert len(compare.json()["rows"]) == 2
         request_compare = client.post(
@@ -66,7 +72,11 @@ def test_buyer_marketplace_and_serra() -> None:
         chat = client.post(
             "/api/v1/ai/chat",
             headers=headers,
-            json={"message": "I want a Ford Bronco under $70000 within 2 weeks", "agent": "sera-agent", "quote_ids": []},
+            json={
+                "message": "I want a Ford Bronco under $70000 within 2 weeks",
+                "agent": "sera-agent",
+                "quote_ids": [],
+            },
         )
         assert chat.status_code == 200
         assert "event: done" in chat.text
@@ -79,7 +89,11 @@ def test_buyer_marketplace_and_serra() -> None:
         compare_stream = client.post(
             "/api/v1/ai/chat",
             headers=headers,
-            json={"message": "Compare these requests", "agent": "compare-agent", "request_ids": [IDS["bronco"], IDS["jazz"]]},
+            json={
+                "message": "Compare these requests",
+                "agent": "compare-agent",
+                "request_ids": [IDS["bronco"], IDS["jazz"]],
+            },
         )
         assert '"kind": "compare"' in compare_stream.text
         assert client.get("/api/v1/ai/threads", headers=headers).status_code == 200
@@ -94,8 +108,14 @@ def test_dealer_inventory_feed_and_quote() -> None:
         assert cars.status_code == 200 and len(cars.json()) >= 10
         car_id = cars.json()[0]["id"]
         assert client.get(f"/api/v1/cars/{car_id}", headers=headers).status_code == 200
-        assert client.patch(f"/api/v1/cars/{car_id}/status", headers=headers, json={"status": "reserved"}).status_code == 200
-        assert client.patch(f"/api/v1/cars/{car_id}/status", headers=headers, json={"status": "available"}).status_code == 200
+        assert (
+            client.patch(f"/api/v1/cars/{car_id}/status", headers=headers, json={"status": "reserved"}).status_code
+            == 200
+        )
+        assert (
+            client.patch(f"/api/v1/cars/{car_id}/status", headers=headers, json={"status": "available"}).status_code
+            == 200
+        )
         assert client.get("/api/v1/chats/requests", headers=headers).status_code == 200
 
 
@@ -128,8 +148,7 @@ def test_support_workflows_and_error_envelope() -> None:
         assert rejected.status_code == 200
         assert rejected.json()["status"] == "rejected"
         another_pending = next(
-            item for item in verifications.json()
-            if item["status"] == "pending" and item["id"] != rejectable["id"]
+            item for item in verifications.json() if item["status"] == "pending" and item["id"] != rejectable["id"]
         )
         denied_verification = client.post(
             f"/api/v1/verifications/{another_pending['id']}/deny",
@@ -150,23 +169,31 @@ def test_support_admin_read_only_workspace_views_and_enriched_reviews() -> None:
         administrator = login(client, "priya@drivedeal.demo")
 
         assert client.get("/api/v1/support/workspaces/buyer/requests", headers=support).status_code == 403
-        assert client.get("/api/v1/support/workspaces/not-a-workspace/requests", headers=administrator).status_code == 404
+        assert (
+            client.get("/api/v1/support/workspaces/not-a-workspace/requests", headers=administrator).status_code == 404
+        )
 
         requests = client.get("/api/v1/support/workspaces/buyer/requests", headers=administrator)
         quotes = client.get("/api/v1/support/workspaces/dealer/quotes", headers=administrator)
         assert requests.status_code == 200 and requests.json()
         assert quotes.status_code == 200 and quotes.json()
         quote_id = quotes.json()[0]["id"]
-        assert client.post(
-            f"/api/v1/chats/{quote_id}",
-            headers=administrator,
-            json={"id": str(uuid4()), "message": "This must remain read-only."},
-        ).status_code == 403
-        assert client.patch(
-            f"/api/v1/deals/{quote_id}/status",
-            headers=administrator,
-            json={"status": "dispatch"},
-        ).status_code == 403
+        assert (
+            client.post(
+                f"/api/v1/chats/{quote_id}",
+                headers=administrator,
+                json={"id": str(uuid4()), "message": "This must remain read-only."},
+            ).status_code
+            == 403
+        )
+        assert (
+            client.patch(
+                f"/api/v1/deals/{quote_id}/status",
+                headers=administrator,
+                json={"status": "dispatch"},
+            ).status_code
+            == 403
+        )
 
         reviews = client.get("/api/v1/verifications", headers=administrator)
         assert reviews.status_code == 200 and reviews.json()
@@ -178,11 +205,21 @@ def test_complete_request_quote_chat_and_deal_flow() -> None:
     with TestClient(app) as client:
         buyer = login(client, "rahul@drivedeal.demo")
         request_payload = {
-            "brand_id": IDS["ford"], "buyer_area_state_id": IDS["tx"], "model": "Explorer",
-            "body_type": "SUV", "year_min": 2025, "year_max": 2026, "budget_max": "62000",
-            "target_otd_price": "60000", "buyer_area": "Frisco, TX", "search_radius_miles": 50,
-            "timeline": "Within 2 weeks", "condition": "new", "must_haves": ["AWD"],
-            "request_expire": (datetime.now(UTC) + timedelta(days=10)).isoformat(), "status": "draft",
+            "brand_id": IDS["ford"],
+            "buyer_area_state_id": IDS["tx"],
+            "model": "Explorer",
+            "body_type": "SUV",
+            "year_min": 2025,
+            "year_max": 2026,
+            "budget_max": "62000",
+            "target_otd_price": "60000",
+            "buyer_area": "Frisco, TX",
+            "search_radius_miles": 50,
+            "timeline": "Within 2 weeks",
+            "condition": "new",
+            "must_haves": ["AWD"],
+            "request_expire": (datetime.now(UTC) + timedelta(days=10)).isoformat(),
+            "status": "draft",
         }
         created_request = client.post("/api/v1/requests", headers=buyer, json=request_payload)
         assert created_request.status_code == 201, created_request.text
@@ -198,21 +235,48 @@ def test_complete_request_quote_chat_and_deal_flow() -> None:
         assert client.get(f"/api/v1/feed/requests/{request_id}", headers=second_dealer).json()["view_count"] == 2
         assert client.get(f"/api/v1/requests/{request_id}", headers=buyer).json()["view_count"] == 2
         quote = client.post(
-            "/api/v1/quotes", headers=dealer,
-            json={"buyer_request_id": request_id, "vehicle_price": "56000", "doc_fee": "500", "sales_tax": "3500", "title_reg": "225", "trade_in_credit": "0", "message": "Available now", "expires_at": (datetime.now(UTC) + timedelta(days=3)).isoformat()},
+            "/api/v1/quotes",
+            headers=dealer,
+            json={
+                "buyer_request_id": request_id,
+                "vehicle_price": "56000",
+                "doc_fee": "500",
+                "sales_tax": "3500",
+                "title_reg": "225",
+                "trade_in_credit": "0",
+                "message": "Available now",
+                "expires_at": (datetime.now(UTC) + timedelta(days=3)).isoformat(),
+            },
         )
         assert quote.status_code == 201, quote.text
         quote_id = quote.json()["id"]
         assert client.get(f"/api/v1/requests/{request_id}", headers=buyer).json()["quote_count"] == 1
-        assert client.patch(f"/api/v1/quotes/{quote_id}/revise", headers=dealer, json={"vehicle_price": "55500"}).status_code == 200
+        assert (
+            client.patch(
+                f"/api/v1/quotes/{quote_id}/revise", headers=dealer, json={"vehicle_price": "55500"}
+            ).status_code
+            == 200
+        )
 
-        assert client.post(f"/api/v1/chats/{quote_id}/request-access", headers=buyer, json={"message": "Can we discuss pickup?"}).status_code == 200
+        assert (
+            client.post(
+                f"/api/v1/chats/{quote_id}/request-access", headers=buyer, json={"message": "Can we discuss pickup?"}
+            ).status_code
+            == 200
+        )
         assert client.post(f"/api/v1/chats/requests/{quote_id}/accept", headers=dealer).status_code == 200
-        assert client.post(f"/api/v1/chats/{quote_id}", headers=buyer, json={"id": str(uuid4()), "message": "Thank you"}).status_code == 201
+        assert (
+            client.post(
+                f"/api/v1/chats/{quote_id}", headers=buyer, json={"id": str(uuid4()), "message": "Thank you"}
+            ).status_code
+            == 201
+        )
         buyer_messages = client.get(f"/api/v1/chats/{quote_id}", headers=dealer).json()
         assert len(buyer_messages) == 2
         assert all(message["sender_name"] == "Rahul Sharma" for message in buyer_messages)
-        dealer_message = client.post(f"/api/v1/chats/{quote_id}", headers=dealer, json={"id": str(uuid4()), "message": "Pickup is available."})
+        dealer_message = client.post(
+            f"/api/v1/chats/{quote_id}", headers=dealer, json={"id": str(uuid4()), "message": "Pickup is available."}
+        )
         assert dealer_message.status_code == 201
         assert dealer_message.json()["sender_name"] == "Navee Motors"
         assert client.post(f"/api/v1/chats/{quote_id}/read", headers=dealer).status_code == 200
@@ -220,16 +284,45 @@ def test_complete_request_quote_chat_and_deal_flow() -> None:
 
         accepted = client.post(f"/api/v1/quotes/{quote_id}/accept", headers=buyer)
         assert accepted.status_code == 200 and accepted.json()["deal_status"] == "paperwork_going_on"
-        assert client.patch(f"/api/v1/deals/{quote_id}/status", headers=dealer, json={"status": "funds_arrived"}).status_code == 200
-        upload = client.post("/api/v1/documents/presign", headers=dealer, json={"filename": "buyer-order.pdf", "content_type": "application/pdf", "quote_id": quote_id, "document_type": "quote_document", "size_bytes": 2048})
+        assert (
+            client.patch(
+                f"/api/v1/deals/{quote_id}/status", headers=dealer, json={"status": "funds_arrived"}
+            ).status_code
+            == 200
+        )
+        upload = client.post(
+            "/api/v1/documents/presign",
+            headers=dealer,
+            json={
+                "filename": "buyer-order.pdf",
+                "content_type": "application/pdf",
+                "quote_id": quote_id,
+                "document_type": "quote_document",
+                "size_bytes": 2048,
+            },
+        )
         assert upload.status_code == 200
         document_id = str(uuid4())
-        confirmed = client.post(f"/api/v1/documents/{document_id}/confirm", headers=dealer, json={"quote_id": quote_id, "document_type": "quote_document", "object_key": upload.json()["key"]})
+        confirmed = client.post(
+            f"/api/v1/documents/{document_id}/confirm",
+            headers=dealer,
+            json={"quote_id": quote_id, "document_type": "quote_document", "object_key": upload.json()["key"]},
+        )
         assert confirmed.status_code == 200
         documents = client.get(f"/api/v1/documents/{quote_id}", headers=buyer).json()
         assert len(documents) == 1
         assert documents[0]["file_name"] == "buyer-order.pdf"
-        duplicate = client.post("/api/v1/documents/presign", headers=dealer, json={"filename": "duplicate.pdf", "content_type": "application/pdf", "quote_id": quote_id, "document_type": "quote_document", "size_bytes": 1024})
+        duplicate = client.post(
+            "/api/v1/documents/presign",
+            headers=dealer,
+            json={
+                "filename": "duplicate.pdf",
+                "content_type": "application/pdf",
+                "quote_id": quote_id,
+                "document_type": "quote_document",
+                "size_bytes": 1024,
+            },
+        )
         assert duplicate.status_code == 409
         assert client.delete(f"/api/v1/documents/{quote_id}/{document_id}", headers=dealer).status_code == 204
 
@@ -237,30 +330,65 @@ def test_complete_request_quote_chat_and_deal_flow() -> None:
 def test_ticket_creation_update_and_password_reset_contract() -> None:
     with TestClient(app) as client:
         buyer = login(client, "adithyaa@drivedeal.demo")
-        created = client.post("/api/v1/support/tickets", headers=buyer, json={"issue_summary": "I need help understanding a quote", "issue_description": "The total shown on the request does not match the quote detail.", "issue_type": "incorrect_data", "page_context": "/requests/demo", "priority": "medium"})
+        created = client.post(
+            "/api/v1/support/tickets",
+            headers=buyer,
+            json={
+                "issue_summary": "I need help understanding a quote",
+                "issue_description": "The total shown on the request does not match the quote detail.",
+                "issue_type": "incorrect_data",
+                "page_context": "/requests/demo",
+                "priority": "medium",
+            },
+        )
         assert created.status_code == 201
         assert created.json()["category"] == "customer"
         assert created.json()["issue_type"] == "incorrect_data"
         assert created.json()["page_context"] == "/requests/demo"
         ticket_id = created.json()["id"]
         assert client.get(f"/api/v1/support/tickets/{ticket_id}", headers=buyer).status_code == 200
-        assert client.patch(f"/api/v1/support/tickets/{ticket_id}", headers=buyer, json={"status": "closed", "note": "Resolved"}).status_code == 200
+        assert (
+            client.patch(
+                f"/api/v1/support/tickets/{ticket_id}", headers=buyer, json={"status": "closed", "note": "Resolved"}
+            ).status_code
+            == 200
+        )
         dealer = login(client, "naveen@naveemotors.demo")
-        dealer_ticket = client.post("/api/v1/support/tickets", headers=dealer, json={"issue_summary": "Buyer feed is showing stale request data", "issue_type": "incorrect_data", "page_context": "/feed", "priority": "high"})
+        dealer_ticket = client.post(
+            "/api/v1/support/tickets",
+            headers=dealer,
+            json={
+                "issue_summary": "Buyer feed is showing stale request data",
+                "issue_type": "incorrect_data",
+                "page_context": "/feed",
+                "priority": "high",
+            },
+        )
         assert dealer_ticket.status_code == 201
         assert dealer_ticket.json()["category"] == "dealer"
         assert dealer_ticket.json()["ticket_id"].startswith("DS")
         assert client.post("/api/v1/auth/forgot-password", json={"email": "nobody@example.com"}).status_code == 202
-        assert client.post("/api/v1/auth/reset-password", json={"email": "nobody@example.com", "reset_code": "invalid", "new_password": "new-password"}).status_code == 400
+        assert (
+            client.post(
+                "/api/v1/auth/reset-password",
+                json={"email": "nobody@example.com", "reset_code": "invalid", "new_password": "new-password"},
+            ).status_code
+            == 400
+        )
 
 
 def test_signup_refresh_and_pending_account_flows() -> None:
     with TestClient(app) as client:
         suffix = uuid4().hex[:8]
         common = {
-            "full_name": "Fresh Buyer", "email": f"buyer-{suffix}@example.com", "phone": "+12145550999",
-            "password": "secure-demo-password", "state_id": IDS["tx"], "address": "Dallas, TX",
-            "terms_accepted": True, "terms_version": "2026-09-30",
+            "full_name": "Fresh Buyer",
+            "email": f"buyer-{suffix}@example.com",
+            "phone": "+12145550999",
+            "password": "secure-demo-password",
+            "state_id": IDS["tx"],
+            "address": "Dallas, TX",
+            "terms_accepted": True,
+            "terms_version": "2026-09-30",
         }
         signup = client.post("/api/v1/auth/signup/buyer", json=common)
         assert signup.status_code == 201, signup.text
@@ -270,15 +398,29 @@ def test_signup_refresh_and_pending_account_flows() -> None:
 
         dealer = client.post(
             "/api/v1/auth/signup/dealer",
-            json={**common, "email": f"dealer-{suffix}@example.com", "dealership_name": "Fresh Motors", "branch_name": "Dallas", "dealer_license": f"TX-{suffix}", "website": "https://fresh-motors.example", "supported_brand_ids": [IDS["ford"]]},
+            json={
+                **common,
+                "email": f"dealer-{suffix}@example.com",
+                "dealership_name": "Fresh Motors",
+                "branch_name": "Dallas",
+                "dealer_license": f"TX-{suffix}",
+                "website": "https://fresh-motors.example",
+                "supported_brand_ids": [IDS["ford"]],
+            },
         )
         assert dealer.status_code == 202
-        pending_login = client.post("/api/v1/auth/login", json={"email": f"dealer-{suffix}@example.com", "password": "secure-demo-password"})
+        pending_login = client.post(
+            "/api/v1/auth/login", json={"email": f"dealer-{suffix}@example.com", "password": "secure-demo-password"}
+        )
         assert pending_login.status_code == 403
 
         support = client.post(
             "/api/v1/auth/signup/support",
-            json={**common, "email": f"support-{suffix}@example.com", "extra_information": "Automotive support background"},
+            json={
+                **common,
+                "email": f"support-{suffix}@example.com",
+                "extra_information": "Automotive support background",
+            },
         )
         assert support.status_code == 202
 
@@ -287,7 +429,8 @@ def test_support_decision_and_inventory_crud() -> None:
     with TestClient(app) as client:
         support = login(client, "maya@drivedeal.demo")
         pending = next(
-            item for item in client.get("/api/v1/verifications", headers=support).json()
+            item
+            for item in client.get("/api/v1/verifications", headers=support).json()
             if item["status"] == "pending" and item["category"] == "dealer"
         )
         decision = client.post(
@@ -299,10 +442,19 @@ def test_support_decision_and_inventory_crud() -> None:
 
         dealer = login(client, "naveen@naveemotors.demo")
         payload = {
-            "brand_id": IDS["ford"], "state_id": IDS["tx"], "title": "2026 Ford Explorer",
-            "model": "Explorer", "model_year": 2026, "body_type": "SUV", "seating_capacity": 7,
-            "condition": "new", "mileage": 9, "fuel": "Gasoline", "transmission": "Automatic",
-            "price": "54500", "image_paths": [],
+            "brand_id": IDS["ford"],
+            "state_id": IDS["tx"],
+            "title": "2026 Ford Explorer",
+            "model": "Explorer",
+            "model_year": 2026,
+            "body_type": "SUV",
+            "seating_capacity": 7,
+            "condition": "new",
+            "mileage": 9,
+            "fuel": "Gasoline",
+            "transmission": "Automatic",
+            "price": "54500",
+            "image_paths": [],
         }
         created = client.post("/api/v1/cars", headers=dealer, json=payload)
         assert created.status_code == 201, created.text
@@ -331,7 +483,9 @@ def test_support_admin_can_provision_role_and_force_new_sign_in() -> None:
         maya_login = client.post("/api/v1/auth/login", json={"email": "maya@drivedeal.demo", "password": "demo1234"})
         assert maya_login.status_code == 200
         support = {"Authorization": f"Bearer {maya_login.json()['access_token']}"}
-        support_admin_login = client.post("/api/v1/auth/login", json={"email": "priya@drivedeal.demo", "password": "demo1234"})
+        support_admin_login = client.post(
+            "/api/v1/auth/login", json={"email": "priya@drivedeal.demo", "password": "demo1234"}
+        )
         assert support_admin_login.status_code == 200
         support_admin = {"Authorization": f"Bearer {support_admin_login.json()['access_token']}"}
         assert client.get("/api/v1/auth/me", headers=support_admin).json()["role"] == "support-admin"
@@ -345,16 +499,22 @@ def test_support_admin_can_provision_role_and_force_new_sign_in() -> None:
         assert member_detail.json()["role"] == "support"
         assert member_detail.json()["is_active"] is True
         assert client.get(f"/api/v1/members/{uuid4()}", headers=support_admin).status_code == 404
-        assert client.patch(
-            f"/api/v1/members/{priya['id']}/support-role",
-            headers=support_admin,
-            json={"role": "support"},
-        ).status_code == 409
-        assert client.patch(
-            f"/api/v1/members/{uuid4()}/support-role",
-            headers=support_admin,
-            json={"role": "support-admin"},
-        ).status_code == 404
+        assert (
+            client.patch(
+                f"/api/v1/members/{priya['id']}/support-role",
+                headers=support_admin,
+                json={"role": "support"},
+            ).status_code
+            == 409
+        )
+        assert (
+            client.patch(
+                f"/api/v1/members/{uuid4()}/support-role",
+                headers=support_admin,
+                json={"role": "support-admin"},
+            ).status_code
+            == 404
+        )
         denied = client.patch(
             f"/api/v1/members/{maya['id']}/support-role",
             headers=support,
@@ -369,16 +529,22 @@ def test_support_admin_can_provision_role_and_force_new_sign_in() -> None:
         assert promoted.status_code == 200
         assert promoted.json() == {"profile_id": maya["id"], "role": "support-admin", "requires_sign_in": True}
         assert client.get("/api/v1/support/queue/tickets", headers=support).status_code == 401
-        assert client.post(
-            "/api/v1/auth/refresh",
-            json={"refresh_token": maya_login.json()["refresh_token"]},
-        ).status_code == 401
+        assert (
+            client.post(
+                "/api/v1/auth/refresh",
+                json={"refresh_token": maya_login.json()["refresh_token"]},
+            ).status_code
+            == 401
+        )
         queue = client.get("/api/v1/support/queue/tickets", headers=support_admin).json()
-        assert client.patch(
-            f"/api/v1/support/queue/tickets/{queue[0]['id']}",
-            headers=support_admin,
-            json={"status": "in_progress", "note": "Assigned during support-admin validation."},
-        ).status_code == 200
+        assert (
+            client.patch(
+                f"/api/v1/support/queue/tickets/{queue[0]['id']}",
+                headers=support_admin,
+                json={"status": "in_progress", "note": "Assigned during support-admin validation."},
+            ).status_code
+            == 200
+        )
         assert client.get(f"/api/v1/support/tickets/{uuid4()}", headers=support_admin).status_code == 404
 
         admin = login(client, "alex@drivedeal.demo")
@@ -394,6 +560,13 @@ def test_s3_storage_creates_scoped_upload_and_download_urls(monkeypatch: pytest.
     class FakeS3:
         def generate_presigned_url(self, operation: str, **_: object) -> str:
             return f"https://s3.example/{operation}"
+
+    # S3Storage() reads the cached settings singleton, so the bucket location has
+    # to be injected explicitly. Relying on it being present in a developer's
+    # local backend/.env made this test pass on a workstation and fail in CI.
+    settings = get_settings()
+    monkeypatch.setattr(settings, "aws_region", "ap-south-1")
+    monkeypatch.setattr(settings, "s3_bucket", "test-bucket")
 
     monkeypatch.setattr("src.services.storage.s3_storage.boto3.client", lambda *_args, **_kwargs: FakeS3())
     storage = S3Storage()

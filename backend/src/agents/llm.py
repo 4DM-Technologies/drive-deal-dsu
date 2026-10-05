@@ -100,39 +100,56 @@ class LlmClient:
         else:
             result = LlmResult(self._fallback(prompt, task_type))
         elapsed = int((perf_counter() - started) * 1000)
-        self.session.add(LlmAudit(
-            task_type=task_type, provider=provider, model_name=model_name, thread_id=thread_id,
-            input_tokens=result.input_tokens, output_tokens=result.output_tokens,
-            total_tokens=result.input_tokens + result.output_tokens, latency_ms=elapsed, status=status,
-            prompt_version=prompt_version,
-        ))
-        if thread_id and await self.session.get(AiTrace, thread_id):
-            self.session.add(AiTraceSpan(
-                trace_id=thread_id,
-                sequence=0,
-                name=task_type,
-                kind="llm",
-                status=status,
-                duration_ms=elapsed,
+        self.session.add(
+            LlmAudit(
+                task_type=task_type,
+                provider=provider,
+                model_name=model_name,
+                thread_id=thread_id,
                 input_tokens=result.input_tokens,
                 output_tokens=result.output_tokens,
-                model_name=model_name,
-                details={
-                    "provider": provider,
-                    "prompt_version": prompt_version,
-                    "input": _safe_trace_value(prompt),
-                    "output": _safe_trace_value(result.text),
-                    "llm_called": True,
-                    "reasoning_effort": reasoning_effort or self.settings.openai_reasoning_effort,
-                    "max_output_tokens": max_output_tokens or self.settings.ai_max_output_tokens,
-                    "attempt_count": result.attempts,
-                    "error": error_message,
-                },
-            ))
+                total_tokens=result.input_tokens + result.output_tokens,
+                latency_ms=elapsed,
+                status=status,
+                prompt_version=prompt_version,
+            )
+        )
+        if thread_id and await self.session.get(AiTrace, thread_id):
+            self.session.add(
+                AiTraceSpan(
+                    trace_id=thread_id,
+                    sequence=0,
+                    name=task_type,
+                    kind="llm",
+                    status=status,
+                    duration_ms=elapsed,
+                    input_tokens=result.input_tokens,
+                    output_tokens=result.output_tokens,
+                    model_name=model_name,
+                    details={
+                        "provider": provider,
+                        "prompt_version": prompt_version,
+                        "input": _safe_trace_value(prompt),
+                        "output": _safe_trace_value(result.text),
+                        "llm_called": True,
+                        "reasoning_effort": reasoning_effort or self.settings.openai_reasoning_effort,
+                        "max_output_tokens": max_output_tokens or self.settings.ai_max_output_tokens,
+                        "attempt_count": result.attempts,
+                        "error": error_message,
+                    },
+                )
+            )
         await self.session.flush()
         logger.info(
-            "agent_llm_call", thread_id=thread_id, task_type=task_type, provider=provider, model=model_name,
-            status=status, input_tokens=result.input_tokens, output_tokens=result.output_tokens, latency_ms=elapsed,
+            "agent_llm_call",
+            thread_id=thread_id,
+            task_type=task_type,
+            provider=provider,
+            model=model_name,
+            status=status,
+            input_tokens=result.input_tokens,
+            output_tokens=result.output_tokens,
+            latency_ms=elapsed,
             reasoning_effort=reasoning_effort or self.settings.openai_reasoning_effort,
             prompt_version=prompt_version,
             prompt_excerpt=_safe_error_value(prompt, limit=200),
@@ -209,9 +226,9 @@ class LlmClient:
             return "advice"
         if task_type == "compare":
             return "The lowest out-the-door total is the strongest starting point. Check delivery timing, included equipment, dealer rating, and every not-reported field before deciding."
-        if task_type == "advisor" and (match := re.search(
-            r'<web_sources trust="untrusted">(.*?)</web_sources>', prompt, re.DOTALL
-        )):
+        if task_type == "advisor" and (
+            match := re.search(r'<web_sources trust="untrusted">(.*?)</web_sources>', prompt, re.DOTALL)
+        ):
             try:
                 sources = json.loads(match.group(1))
             except (json.JSONDecodeError, TypeError):

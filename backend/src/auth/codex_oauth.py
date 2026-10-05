@@ -63,6 +63,7 @@ from src.settings import (
 from src.settings import (
     CODEX_OAUTH_TOKENS_FILE as TOKENS_NAME,
 )
+from src.utils.logger import logger
 
 
 def _state_store() -> CodexOAuthS3Store:
@@ -140,7 +141,19 @@ def _saved_client_id() -> str:
 
 
 def _read_cache() -> dict:
-    raw = _read_state(TOKENS_NAME)
+    # The cached ChatGPT OAuth token is an optional optimisation, not a
+    # dependency: LlmClient._resolve_client() treats "no cached token" as
+    # "fall back to OPENAI_API_KEY, then to the deterministic stub". So a failure
+    # to read the cache must degrade to an empty result. Raising instead turns
+    # every /api/v1/ai/* request into a 500 whenever the token store is
+    # unreachable -- which is the normal state for a deployment running
+    # STORAGE_DRIVER=local with no AWS_REGION/S3_BUCKET configured, because
+    # _read_state() resolves the S3 store unconditionally.
+    try:
+        raw = _read_state(TOKENS_NAME)
+    except Exception as exc:
+        logger.warning("codex_oauth_token_cache_unavailable", error=str(exc)[:200])
+        return {}
     if not raw:
         return {}
     try:

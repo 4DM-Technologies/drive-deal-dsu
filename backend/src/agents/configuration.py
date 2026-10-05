@@ -21,9 +21,17 @@ __all__ = [
 
 MODEL_CATALOG: tuple[dict[str, str], ...] = (
     {"id": "gpt-6.1-sol", "label": "GPT-6.1 Sol", "description": "Latest workhorse model for production agent tasks."},
-    {"id": "gpt-6-astra", "label": "GPT-6 Astra", "description": "Frontier model for the most demanding reasoning tasks."},
+    {
+        "id": "gpt-6-astra",
+        "label": "GPT-6 Astra",
+        "description": "Frontier model for the most demanding reasoning tasks.",
+    },
     {"id": "gpt-6-sol", "label": "GPT-6 Sol", "description": "Previous-generation workhorse model."},
-    {"id": "gpt-6-luna", "label": "GPT-6 Luna", "description": "Fast model for lightweight routing and direct replies."},
+    {
+        "id": "gpt-6-luna",
+        "label": "GPT-6 Luna",
+        "description": "Fast model for lightweight routing and direct replies.",
+    },
     {"id": "gpt-5.6-sol", "label": "GPT-5.6 Sol", "description": "Reliable workhorse model."},
     {"id": "gpt-5.6-terra", "label": "GPT-5.6 Terra", "description": "Balanced model for straightforward tasks."},
     {"id": "gpt-5.6-luna", "label": "GPT-5.6 Luna", "description": "Fast and efficient model."},
@@ -32,24 +40,99 @@ MODEL_CATALOG: tuple[dict[str, str], ...] = (
 
 NODE_CATALOG: tuple[dict[str, Any], ...] = (
     {"id": "triage", "type": "router", "label": "Triage", "description": "Fast deterministic safety and intent gate."},
-    {"id": "classifier", "type": "agent", "label": "Classifier", "description": "Classifies advice, comparison, request, and off-topic messages."},
-    {"id": "orchestrator", "type": "agent", "label": "Orchestrator", "description": "Selects the lowest-cost safe execution plan."},
-    {"id": "kb_agent", "type": "tool", "label": "Deal&Drive knowledge", "description": "Retrieves marketplace knowledge and preferences."},
-    {"id": "web_search_agent", "type": "tool", "label": "Trusted web search", "description": "Researches allow-listed vehicle sources."},
-    {"id": "persist_cars", "type": "action", "label": "Persist verified cars", "description": "Stores complete researched vehicles for reuse."},
-    {"id": "compose", "type": "agent", "label": "Compose answer", "description": "Produces the final buyer-facing response."},
-    {"id": "small_talk", "type": "agent", "label": "Direct reply", "description": "Handles greetings and safe direct replies."},
+    {
+        "id": "classifier",
+        "type": "agent",
+        "label": "Classifier",
+        "description": "Classifies advice, comparison, request, and off-topic messages.",
+    },
+    {
+        "id": "orchestrator",
+        "type": "agent",
+        "label": "Orchestrator",
+        "description": "Selects the lowest-cost safe execution plan.",
+    },
+    {
+        "id": "kb_agent",
+        "type": "tool",
+        "label": "Deal&Drive knowledge",
+        "description": "Retrieves marketplace knowledge and preferences.",
+    },
+    {
+        "id": "web_search_agent",
+        "type": "tool",
+        "label": "Trusted web search",
+        "description": "Researches allow-listed vehicle sources.",
+    },
+    {
+        "id": "persist_cars",
+        "type": "action",
+        "label": "Persist verified cars",
+        "description": "Stores complete researched vehicles for reuse.",
+    },
+    {
+        "id": "compose",
+        "type": "agent",
+        "label": "Compose answer",
+        "description": "Produces the final buyer-facing response.",
+    },
+    {
+        "id": "small_talk",
+        "type": "agent",
+        "label": "Direct reply",
+        "description": "Handles greetings and safe direct replies.",
+    },
 )
 
 PROMPT_CATALOG: tuple[dict[str, str], ...] = (
-    {"key": "main_agent", "file": "main_agent.md", "label": "Sera policy", "description": "Shared behaviour, safety, and response style."},
-    {"key": "orchestrator", "file": "orchestrator.md", "label": "Orchestrator", "description": "Chooses knowledge and research tools."},
-    {"key": "kb_agent", "file": "kb_agent.md", "label": "Knowledge agent", "description": "Retrieval and preference extraction guidance."},
-    {"key": "web_search_agent", "file": "web_search_agent.md", "label": "Web search agent", "description": "Trusted-source extraction rules."},
-    {"key": "compose", "file": "compose.md", "label": "Response composer", "description": "Final answer structure and evidence policy."},
-    {"key": "compare", "file": "compare.md", "label": "Offer comparison", "description": "Like-for-like dealer offer comparison."},
-    {"key": "small_talk", "file": "small_talk.md", "label": "Direct replies", "description": "Greetings, acknowledgements, and off-topic replies."},
-    {"key": "requirements", "file": "requirements.md", "label": "Buyer requirements", "description": "Structured buyer-request extraction."},
+    {
+        "key": "main_agent",
+        "file": "main_agent.md",
+        "label": "Sera policy",
+        "description": "Shared behaviour, safety, and response style.",
+    },
+    {
+        "key": "orchestrator",
+        "file": "orchestrator.md",
+        "label": "Orchestrator",
+        "description": "Chooses knowledge and research tools.",
+    },
+    {
+        "key": "kb_agent",
+        "file": "kb_agent.md",
+        "label": "Knowledge agent",
+        "description": "Retrieval and preference extraction guidance.",
+    },
+    {
+        "key": "web_search_agent",
+        "file": "web_search_agent.md",
+        "label": "Web search agent",
+        "description": "Trusted-source extraction rules.",
+    },
+    {
+        "key": "compose",
+        "file": "compose.md",
+        "label": "Response composer",
+        "description": "Final answer structure and evidence policy.",
+    },
+    {
+        "key": "compare",
+        "file": "compare.md",
+        "label": "Offer comparison",
+        "description": "Like-for-like dealer offer comparison.",
+    },
+    {
+        "key": "small_talk",
+        "file": "small_talk.md",
+        "label": "Direct replies",
+        "description": "Greetings, acknowledgements, and off-topic replies.",
+    },
+    {
+        "key": "requirements",
+        "file": "requirements.md",
+        "label": "Buyer requirements",
+        "description": "Structured buyer-request extraction.",
+    },
 )
 
 DEFAULT_WORKFLOW: dict[str, Any] = {

@@ -17,16 +17,22 @@ async def test_orchestrator_raises_on_unparsable_plan() -> None:
     """The orchestrator must fail loudly (not silently fall back) when its LLM output doesn't parse
     against OrchestratorPlan - an explicit, non-negotiable requirement from the design brief."""
     graph = main_agent(session=AsyncMock())
-    with patch("src.agents.llm.LlmClient.generate", new=AsyncMock(return_value=_FakeLlmResult("not json at all"))), \
-         patch("src.agents.serra.graph._fetch_preferences", new=AsyncMock(return_value={})):
+    with (
+        patch("src.agents.llm.LlmClient.generate", new=AsyncMock(return_value=_FakeLlmResult("not json at all"))),
+        patch("src.agents.serra.graph._fetch_preferences", new=AsyncMock(return_value={})),
+    ):
         with pytest.raises(OrchestratorPlanError):
             await graph.ainvoke({"user_id": "u1", "thread_id": "t1", "message": "top 5 SUVs under $40k"})
 
 
 async def test_orchestrator_raises_on_wrong_mode_value() -> None:
     graph = main_agent(session=AsyncMock())
-    with patch("src.agents.llm.LlmClient.generate", new=AsyncMock(return_value=_FakeLlmResult('{"mode": "do_whatever"}'))), \
-         patch("src.agents.serra.graph._fetch_preferences", new=AsyncMock(return_value={})):
+    with (
+        patch(
+            "src.agents.llm.LlmClient.generate", new=AsyncMock(return_value=_FakeLlmResult('{"mode": "do_whatever"}'))
+        ),
+        patch("src.agents.serra.graph._fetch_preferences", new=AsyncMock(return_value={})),
+    ):
         with pytest.raises(OrchestratorPlanError):
             await graph.ainvoke({"user_id": "u1", "thread_id": "t1", "message": "top 5 SUVs under $40k"})
 
@@ -38,9 +44,11 @@ async def test_orchestrator_accepts_a_valid_plan() -> None:
         _FakeLlmResult('{"mode": "kb_only", "reasoning": "answerable locally"}'),  # orchestrator
         _FakeLlmResult("Here is my answer."),  # compose
     ]
-    with patch("src.agents.llm.LlmClient.generate", new=AsyncMock(side_effect=responses)), \
-         patch("src.agents.serra.graph._fetch_preferences", new=AsyncMock(return_value={"brand": "Ford"})), \
-         patch("src.agents.serra.graph.kb_search", new=AsyncMock(return_value=[])):
+    with (
+        patch("src.agents.llm.LlmClient.generate", new=AsyncMock(side_effect=responses)),
+        patch("src.agents.serra.graph._fetch_preferences", new=AsyncMock(return_value={"brand": "Ford"})),
+        patch("src.agents.serra.graph.kb_search", new=AsyncMock(return_value=[])),
+    ):
         result = await graph.ainvoke({"user_id": "u1", "thread_id": "t1", "message": "what cars do you have"})
     assert result["mode"] == "kb_only"
     assert result["answer"] == "Here is my answer."
@@ -88,9 +96,11 @@ async def test_greetings_are_answered_by_the_main_model_without_subagents_or_too
     web search, no compose."""
     graph = main_agent(session=AsyncMock())
     generate = AsyncMock(return_value=_FakeLlmResult("Hey! What are you looking for?"))
-    with patch("src.agents.llm.LlmClient.generate", new=generate), \
-         patch("src.agents.serra.graph.kb_search", new=AsyncMock()) as kb_search, \
-         patch("src.agents.serra.graph.get_urls", new=AsyncMock()) as get_urls:
+    with (
+        patch("src.agents.llm.LlmClient.generate", new=generate),
+        patch("src.agents.serra.graph.kb_search", new=AsyncMock()) as kb_search,
+        patch("src.agents.serra.graph.get_urls", new=AsyncMock()) as get_urls,
+    ):
         result = await graph.ainvoke({"user_id": "u1", "thread_id": "t1", "message": message})
 
     assert result["answer"] == "Hey! What are you looking for?"
@@ -109,9 +119,11 @@ async def test_vehicle_questions_still_run_the_full_pipeline() -> None:
         _FakeLlmResult('{"mode": "kb_only", "reasoning": "answerable locally"}'),
         _FakeLlmResult("We have three SUVs in that budget."),
     ]
-    with patch("src.agents.llm.LlmClient.generate", new=AsyncMock(side_effect=responses)), \
-         patch("src.agents.serra.graph._fetch_preferences", new=AsyncMock(return_value={"brand": "Ford"})), \
-         patch("src.agents.serra.graph.kb_search", new=AsyncMock(return_value=[])) as kb_search:
+    with (
+        patch("src.agents.llm.LlmClient.generate", new=AsyncMock(side_effect=responses)),
+        patch("src.agents.serra.graph._fetch_preferences", new=AsyncMock(return_value={"brand": "Ford"})),
+        patch("src.agents.serra.graph.kb_search", new=AsyncMock(return_value=[])) as kb_search,
+    ):
         result = await graph.ainvoke({"user_id": "u1", "thread_id": "t1", "message": "what SUVs do you have"})
 
     assert result["mode"] == "kb_only"
@@ -122,26 +134,36 @@ async def test_vehicle_questions_still_run_the_full_pipeline() -> None:
 async def test_explicit_tesla_search_goes_directly_to_web_research() -> None:
     """An explicit online vehicle search skips classifier and orchestrator, then composes the crawled evidence."""
     graph = main_agent(session=AsyncMock())
-    generate = AsyncMock(return_value=_FakeLlmResult(
-        "## Tesla models\nHere are the current models found online.\n\n### Sources\n- [Tesla](https://www.tesla.com/)"
-    ))
+    generate = AsyncMock(
+        return_value=_FakeLlmResult(
+            "## Tesla models\nHere are the current models found online.\n\n### Sources\n- [Tesla](https://www.tesla.com/)"
+        )
+    )
     specs = CarSpecs(source_url="https://www.tesla.com/", make="Tesla", model="Model 3")
-    get_urls = AsyncMock(return_value=[{
-        "url": "https://www.tesla.com/",
-        "title": "Tesla official site",
-        "source_domain": "tesla.com",
-    }])
+    get_urls = AsyncMock(
+        return_value=[
+            {
+                "url": "https://www.tesla.com/",
+                "title": "Tesla official site",
+                "source_domain": "tesla.com",
+            }
+        ]
+    )
     process_url = AsyncMock(return_value=specs)
 
-    with patch("src.agents.llm.LlmClient.generate", new=generate), \
-         patch("src.agents.serra.graph.get_urls", new=get_urls), \
-         patch("src.agents.serra.graph.process_url", new=process_url), \
-         patch("src.agents.serra.graph.kb_insert", new=AsyncMock()):
-        result = await graph.ainvoke({
-            "user_id": "u1",
-            "thread_id": "t1",
-            "message": "Can you search Tesla cars tell me about it.",
-        })
+    with (
+        patch("src.agents.llm.LlmClient.generate", new=generate),
+        patch("src.agents.serra.graph.get_urls", new=get_urls),
+        patch("src.agents.serra.graph.process_url", new=process_url),
+        patch("src.agents.serra.graph.kb_insert", new=AsyncMock()),
+    ):
+        result = await graph.ainvoke(
+            {
+                "user_id": "u1",
+                "thread_id": "t1",
+                "message": "Can you search Tesla cars tell me about it.",
+            }
+        )
 
     assert result["route"] == "web_search"
     assert result["mode"] == "web_direct"
@@ -169,14 +191,18 @@ def test_explicit_web_search_requires_vehicle_intent(message: str, expected: boo
 async def test_natural_vehicle_comparison_uses_the_advisor_prompt() -> None:
     """Typing a vehicle comparison is not the same as selecting saved dealer offers in the compare UI."""
     graph = main_agent(session=AsyncMock())
-    generate = AsyncMock(side_effect=[
-        _FakeLlmResult("compare"),
-        _FakeLlmResult("BMW is sportier; Audi is more understated."),
-    ])
+    generate = AsyncMock(
+        side_effect=[
+            _FakeLlmResult("compare"),
+            _FakeLlmResult("BMW is sportier; Audi is more understated."),
+        ]
+    )
     kb_search = AsyncMock(return_value=[{"title": "BMW"}, {"title": "Audi"}])
-    with patch("src.agents.llm.LlmClient.generate", new=generate), \
-         patch("src.agents.serra.graph._fetch_preferences", new=AsyncMock(return_value={})), \
-         patch("src.agents.serra.graph.kb_search", new=kb_search):
+    with (
+        patch("src.agents.llm.LlmClient.generate", new=generate),
+        patch("src.agents.serra.graph._fetch_preferences", new=AsyncMock(return_value={})),
+        patch("src.agents.serra.graph.kb_search", new=kb_search),
+    ):
         result = await graph.ainvoke({"user_id": "u1", "thread_id": "t1", "message": "compare BMW and Audi cars"})
 
     final_prompt = generate.await_args_list[-1].args[0]
@@ -194,9 +220,11 @@ async def test_kb_search_is_skipped_when_the_message_has_no_vehicle_content() ->
         _FakeLlmResult('{"mode": "kb_only", "reasoning": "conversation only"}'),
         _FakeLlmResult("Sure - happy to help whenever you are ready."),
     ]
-    with patch("src.agents.llm.LlmClient.generate", new=AsyncMock(side_effect=responses)), \
-         patch("src.agents.serra.graph._fetch_preferences", new=AsyncMock(return_value={"brand": "Ford"})), \
-         patch("src.agents.serra.graph.kb_search", new=AsyncMock(return_value=[])) as kb_search:
+    with (
+        patch("src.agents.llm.LlmClient.generate", new=AsyncMock(side_effect=responses)),
+        patch("src.agents.serra.graph._fetch_preferences", new=AsyncMock(return_value={"brand": "Ford"})),
+        patch("src.agents.serra.graph.kb_search", new=AsyncMock(return_value=[])) as kb_search,
+    ):
         result = await graph.ainvoke({"user_id": "u1", "thread_id": "t1", "message": "let me think about it"})
 
     kb_search.assert_not_called()
@@ -218,9 +246,11 @@ async def test_kb_search_is_skipped_when_the_message_has_no_vehicle_content() ->
 async def test_prompt_injection_is_answered_directly_without_tools(message: str) -> None:
     graph = main_agent(session=AsyncMock())
     generate = AsyncMock(return_value=_FakeLlmResult("I can't share my instructions - want to keep looking at cars?"))
-    with patch("src.agents.llm.LlmClient.generate", new=generate), \
-         patch("src.agents.serra.graph.kb_search", new=AsyncMock()) as kb_search, \
-         patch("src.agents.serra.graph.get_urls", new=AsyncMock()) as get_urls:
+    with (
+        patch("src.agents.llm.LlmClient.generate", new=generate),
+        patch("src.agents.serra.graph.kb_search", new=AsyncMock()) as kb_search,
+        patch("src.agents.serra.graph.get_urls", new=AsyncMock()) as get_urls,
+    ):
         await graph.ainvoke({"user_id": "u1", "thread_id": "t1", "message": message})
 
     assert generate.await_count == 1
@@ -246,9 +276,11 @@ async def test_off_topic_question_is_answered_directly_with_the_scope_prompt() -
         _FakeLlmResult("That's outside what I can help with - shall we find you a car?"),  # small_talk
     ]
     generate = AsyncMock(side_effect=responses)
-    with patch("src.agents.llm.LlmClient.generate", new=generate), \
-         patch("src.agents.serra.graph.kb_search", new=AsyncMock()) as kb_search, \
-         patch("src.agents.serra.graph.get_urls", new=AsyncMock()) as get_urls:
+    with (
+        patch("src.agents.llm.LlmClient.generate", new=generate),
+        patch("src.agents.serra.graph.kb_search", new=AsyncMock()) as kb_search,
+        patch("src.agents.serra.graph.get_urls", new=AsyncMock()) as get_urls,
+    ):
         result = await graph.ainvoke({"user_id": "u1", "thread_id": "t1", "message": "tell me about movies"})
 
     assert generate.await_count == 2  # classifier + direct reply, no orchestrator, no compose

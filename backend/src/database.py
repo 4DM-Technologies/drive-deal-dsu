@@ -33,7 +33,9 @@ async def create_schema() -> None:
     if settings.storage_driver == "local":
         DATA_DIRECTORY.mkdir(parents=True, exist_ok=True)
         UPLOAD_DIRECTORY.mkdir(parents=True, exist_ok=True)
-        logger.info("storage_directories_ready", data_directory=str(DATA_DIRECTORY), upload_directory=str(UPLOAD_DIRECTORY))
+        logger.info(
+            "storage_directories_ready", data_directory=str(DATA_DIRECTORY), upload_directory=str(UPLOAD_DIRECTORY)
+        )
     logger.info("schema_creation_started", dialect=engine.dialect.name, table_count=len(Base.metadata.tables))
     async with engine.begin() as connection:
         await connection.run_sync(Base.metadata.create_all)

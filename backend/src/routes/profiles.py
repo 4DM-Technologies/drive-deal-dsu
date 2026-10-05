@@ -51,7 +51,11 @@ async def me(profile: Profile = Depends(get_current_profile)) -> dict:
 
 @router.patch("/me")
 @log_flow(layer="route")
-async def update_me(payload: ProfileUpdate, profile: Profile = Depends(get_current_profile), session: AsyncSession = Depends(get_session)) -> dict:
+async def update_me(
+    payload: ProfileUpdate,
+    profile: Profile = Depends(get_current_profile),
+    session: AsyncSession = Depends(get_session),
+) -> dict:
     for field, value in payload.model_dump(exclude_unset=True).items():
         setattr(profile, field, value)
     profile.updated_by = profile.id
@@ -62,18 +66,26 @@ async def update_me(payload: ProfileUpdate, profile: Profile = Depends(get_curre
 
 @router.get("/me/preferences")
 @log_flow(layer="route")
-async def preferences(profile: Profile = Depends(require_roles("buyer")), session: AsyncSession = Depends(get_session)) -> dict:
+async def preferences(
+    profile: Profile = Depends(require_roles("buyer")), session: AsyncSession = Depends(get_session)
+) -> dict:
     row = await session.get(BuyerPreference, profile.id)
     return model_dict(row) if row else {"profile_id": profile.id}
 
 
 @router.put("/me/preferences")
 @log_flow(layer="route")
-async def save_preferences(payload: PreferenceUpdate, profile: Profile = Depends(require_roles("buyer")), session: AsyncSession = Depends(get_session)) -> dict:
+async def save_preferences(
+    payload: PreferenceUpdate,
+    profile: Profile = Depends(require_roles("buyer")),
+    session: AsyncSession = Depends(get_session),
+) -> dict:
     row = await session.get(BuyerPreference, profile.id)
     values = payload.model_dump()
     if row is None:
-        row = BuyerPreference(profile_id=profile.id, source="profile", created_by=profile.id, updated_by=profile.id, **values)
+        row = BuyerPreference(
+            profile_id=profile.id, source="profile", created_by=profile.id, updated_by=profile.id, **values
+        )
         session.add(row)
     else:
         for field, value in values.items():
@@ -86,7 +98,11 @@ async def save_preferences(payload: PreferenceUpdate, profile: Profile = Depends
 
 @router.get("/{profile_id}")
 @log_flow(layer="route")
-async def profile_by_id(profile_id: str, _: Profile = Depends(require_roles("support", "support-admin", "admin")), session: AsyncSession = Depends(get_session)) -> dict:
+async def profile_by_id(
+    profile_id: str,
+    _: Profile = Depends(require_roles("support", "support-admin", "admin")),
+    session: AsyncSession = Depends(get_session),
+) -> dict:
     row = (await session.execute(select(Profile).join(User).where(Profile.id == profile_id))).scalar_one_or_none()
     if row is None:
         raise AppError(error_codes.RESOURCE_NOT_FOUND, "Profile not found.", 404)

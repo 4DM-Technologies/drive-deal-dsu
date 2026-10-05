@@ -14,14 +14,46 @@ def _request_id(request: Request) -> str:
 
 
 async def app_error_handler(request: Request, exc: AppError) -> JSONResponse:
-    logger.warning("app_error", request_id=_request_id(request), path=request.url.path, code=exc.code, status_code=exc.status_code)
-    return JSONResponse(status_code=exc.status_code, content={"error": {"code": exc.code, "message": exc.message, "details": exc.details, "request_id": _request_id(request)}})
+    logger.warning(
+        "app_error", request_id=_request_id(request), path=request.url.path, code=exc.code, status_code=exc.status_code
+    )
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={
+            "error": {
+                "code": exc.code,
+                "message": exc.message,
+                "details": exc.details,
+                "request_id": _request_id(request),
+            }
+        },
+    )
 
 
 async def validation_error_handler(request: Request, exc: RequestValidationError) -> JSONResponse:
-    return JSONResponse(status_code=422, content={"error": {"code": error_codes.VALIDATION_ERROR, "message": "The request contains invalid data.", "details": exc.errors(), "request_id": _request_id(request)}})
+    return JSONResponse(
+        status_code=422,
+        content={
+            "error": {
+                "code": error_codes.VALIDATION_ERROR,
+                "message": "The request contains invalid data.",
+                "details": exc.errors(),
+                "request_id": _request_id(request),
+            }
+        },
+    )
 
 
 async def unexpected_error_handler(request: Request, exc: Exception) -> JSONResponse:
     logger.exception("unhandled_exception", request_id=_request_id(request), path=request.url.path)
-    return JSONResponse(status_code=500, content={"error": {"code": error_codes.INTERNAL_ERROR, "message": "The server could not complete the request.", "details": None, "request_id": _request_id(request)}})
+    return JSONResponse(
+        status_code=500,
+        content={
+            "error": {
+                "code": error_codes.INTERNAL_ERROR,
+                "message": "The server could not complete the request.",
+                "details": None,
+                "request_id": _request_id(request),
+            }
+        },
+    )

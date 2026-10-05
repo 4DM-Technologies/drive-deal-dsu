@@ -12,12 +12,16 @@ class AuthRepository:
 
     @log_flow(layer="repository")
     async def profile_by_email(self, email: str) -> Profile | None:
-        result = await self.session.execute(select(Profile).options(selectinload(Profile.user)).where(Profile.email == email.lower()))
+        result = await self.session.execute(
+            select(Profile).options(selectinload(Profile.user)).where(Profile.email == email.lower())
+        )
         return result.scalar_one_or_none()
 
     @log_flow(layer="repository")
     async def profile_with_user(self, profile_id: str) -> Profile | None:
-        result = await self.session.execute(select(Profile).options(selectinload(Profile.user)).where(Profile.id == profile_id))
+        result = await self.session.execute(
+            select(Profile).options(selectinload(Profile.user)).where(Profile.id == profile_id)
+        )
         return result.scalar_one_or_none()
 
     @log_flow(layer="repository")

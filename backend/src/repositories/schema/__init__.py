@@ -23,7 +23,25 @@ from src.repositories.schema.tables import (
 )
 
 __all__ = [
-    "AdministrationAuditEvent", "AiTrace", "AiTraceSpan", "Brand", "BuyerPreference", "BuyerRequest", "BuyerRequestView", "Car", "ConversationHistory", "ConfigurationDefault", "ConfigurationRevision", "DealChat",
-    "DealDocument", "DealQuote", "ErrorLog", "LlmAudit", "Profile", "State", "SupportTicket",
-    "SupportVerification", "User",
+    "AdministrationAuditEvent",
+    "AiTrace",
+    "AiTraceSpan",
+    "Brand",
+    "BuyerPreference",
+    "BuyerRequest",
+    "BuyerRequestView",
+    "Car",
+    "ConversationHistory",
+    "ConfigurationDefault",
+    "ConfigurationRevision",
+    "DealChat",
+    "DealDocument",
+    "DealQuote",
+    "ErrorLog",
+    "LlmAudit",
+    "Profile",
+    "State",
+    "SupportTicket",
+    "SupportVerification",
+    "User",
 ]

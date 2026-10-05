@@ -59,22 +59,161 @@ SMALL_TALK_PATTERNS = (
 
 # Terms that mean the message actually has vehicle/inventory content worth retrieving for.
 DOMAIN_TERMS = (
-    "car", "cars", "vehicle", "vehicles", "truck", "trucks", "suv", "sedan", "hatchback", "coupe", "van",
-    "auto", "automobile", "motor", "diesel", "hybrid", "electric", "ev", "evs", "toyota", "honda", "ford",
-    "chevrolet", "chevy", "bmw", "mercedes", "audi", "tesla", "hyundai", "kia", "nissan", "mazda", "subaru",
-    "volkswagen", "vw", "jeep", "dodge", "ram", "ford", "gmc", "cadillac", "lexus", "acura", "infiniti",
-    "honda", "rivian", "lucid", "porsche", "lexus", "mitsubishi", "genesis", "land rover", "range rover",
-    "price", "prices", "pricing", "cost", "costs", "budget", "afford", "cheap", "cheapest", "msrp", "quote",
-    "quotes", "offer", "offers", "deal", "deals", "discount", "payment", "monthly", "finance", "financing",
-    "loan", "apr", "down", "payment", "trade", "trade-in", "value", "worth", "mileage", "miles", "km",
-    "year", "years", "model", "models", "make", "brand", "brands", "trim", "engine", "hp", "horsepower",
-    "transmission", "drivetrain", "awd", "fwd", "rwd", "4wd", "seats", "seating", "capacity", "body",
-    "color", "colour", "miles", "range", "battery", "charge", "charging", "mpg", "towing", "cargo",
-    "feature", "features", "option", "options", "package", "packages", "warranty", "insurance", "tax",
-    "dealer", "dealers", "showroom", r"test\s+drive", "inventory", "listing", "listings", "stock",
-    "compare", "versus", "vs", "better", "best", "cheapest", "recommend", "recommendation", r"should\s+i",
-    r"worth\s+it", "reliable", "reliability", "maintenance", "resale", "depreciation", "ownership",
-    r"total\s+cost", "out-the-door", r"out\s+of\s+the\s+door", "odometer", "accident", "history",
+    "car",
+    "cars",
+    "vehicle",
+    "vehicles",
+    "truck",
+    "trucks",
+    "suv",
+    "sedan",
+    "hatchback",
+    "coupe",
+    "van",
+    "auto",
+    "automobile",
+    "motor",
+    "diesel",
+    "hybrid",
+    "electric",
+    "ev",
+    "evs",
+    "toyota",
+    "honda",
+    "ford",
+    "chevrolet",
+    "chevy",
+    "bmw",
+    "mercedes",
+    "audi",
+    "tesla",
+    "hyundai",
+    "kia",
+    "nissan",
+    "mazda",
+    "subaru",
+    "volkswagen",
+    "vw",
+    "jeep",
+    "dodge",
+    "ram",
+    "ford",
+    "gmc",
+    "cadillac",
+    "lexus",
+    "acura",
+    "infiniti",
+    "honda",
+    "rivian",
+    "lucid",
+    "porsche",
+    "lexus",
+    "mitsubishi",
+    "genesis",
+    "land rover",
+    "range rover",
+    "price",
+    "prices",
+    "pricing",
+    "cost",
+    "costs",
+    "budget",
+    "afford",
+    "cheap",
+    "cheapest",
+    "msrp",
+    "quote",
+    "quotes",
+    "offer",
+    "offers",
+    "deal",
+    "deals",
+    "discount",
+    "payment",
+    "monthly",
+    "finance",
+    "financing",
+    "loan",
+    "apr",
+    "down",
+    "payment",
+    "trade",
+    "trade-in",
+    "value",
+    "worth",
+    "mileage",
+    "miles",
+    "km",
+    "year",
+    "years",
+    "model",
+    "models",
+    "make",
+    "brand",
+    "brands",
+    "trim",
+    "engine",
+    "hp",
+    "horsepower",
+    "transmission",
+    "drivetrain",
+    "awd",
+    "fwd",
+    "rwd",
+    "4wd",
+    "seats",
+    "seating",
+    "capacity",
+    "body",
+    "color",
+    "colour",
+    "miles",
+    "range",
+    "battery",
+    "charge",
+    "charging",
+    "mpg",
+    "towing",
+    "cargo",
+    "feature",
+    "features",
+    "option",
+    "options",
+    "package",
+    "packages",
+    "warranty",
+    "insurance",
+    "tax",
+    "dealer",
+    "dealers",
+    "showroom",
+    r"test\s+drive",
+    "inventory",
+    "listing",
+    "listings",
+    "stock",
+    "compare",
+    "versus",
+    "vs",
+    "better",
+    "best",
+    "cheapest",
+    "recommend",
+    "recommendation",
+    r"should\s+i",
+    r"worth\s+it",
+    "reliable",
+    "reliability",
+    "maintenance",
+    "resale",
+    "depreciation",
+    "ownership",
+    r"total\s+cost",
+    "out-the-door",
+    r"out\s+of\s+the\s+door",
+    "odometer",
+    "accident",
+    "history",
 )
 
 SMALL_TALK_RE = re.compile("|".join(SMALL_TALK_PATTERNS), re.IGNORECASE)
@@ -210,7 +349,7 @@ def main_agent(
         if not context:
             return ""
         return (
-            "<conversation_context trust=\"internal\">\n"
+            '<conversation_context trust="internal">\n'
             f"{json.dumps(context[-6:], ensure_ascii=False)}\n"
             "</conversation_context>\n\n"
         )
@@ -223,20 +362,22 @@ def main_agent(
             sequence = int(state.get("step", 0) + 1)
             if trace_id and trace_event_sink:
                 try:
-                    await trace_event_sink({
-                        "id": span_id,
-                        "trace_id": trace_id,
-                        "sequence": sequence,
-                        "name": name,
-                        "kind": kind,
-                        "status": "running",
-                        "duration_ms": 0,
-                        "input_tokens": 0,
-                        "output_tokens": 0,
-                        "model_name": None,
-                        "details": {"input": _trace_snapshot(state), "llm_called": False},
-                        "created_at": datetime.now(UTC).isoformat(),
-                    })
+                    await trace_event_sink(
+                        {
+                            "id": span_id,
+                            "trace_id": trace_id,
+                            "sequence": sequence,
+                            "name": name,
+                            "kind": kind,
+                            "status": "running",
+                            "duration_ms": 0,
+                            "input_tokens": 0,
+                            "output_tokens": 0,
+                            "model_name": None,
+                            "details": {"input": _trace_snapshot(state), "llm_called": False},
+                            "created_at": datetime.now(UTC).isoformat(),
+                        }
+                    )
                 except Exception as exc:
                     logger.warning("agent_trace_event_sink_failed", trace_id=trace_id, error=str(exc)[:200])
             result = None
@@ -272,6 +413,7 @@ def main_agent(
                             # Observability must never be allowed to change the workflow result.
                             logger.warning("agent_trace_event_sink_failed", trace_id=trace_id, error=str(exc)[:200])
             return result or {}
+
         return wrapped
 
     def configured_target(source: str, condition: str, fallback: str) -> str:
@@ -287,7 +429,10 @@ def main_agent(
         message = state["message"]
         if _is_prompt_injection(message):
             logger.info("agent_prompt_injection_blocked", thread_id=state.get("thread_id"))
-            return {"route": "small_talk", "step": log_agent_step("serra", "triage", state, small_talk=True, reason="prompt_injection")}
+            return {
+                "route": "small_talk",
+                "step": log_agent_step("serra", "triage", state, small_talk=True, reason="prompt_injection"),
+            }
         if _is_small_talk(message):
             step = log_agent_step("serra", "triage", state, small_talk=True)
             logger.info("agent_small_talk_short_circuit", thread_id=state.get("thread_id"))
@@ -304,7 +449,7 @@ def main_agent(
         step = log_agent_step("serra", "small_talk", state)
         prompt = (
             f"{small_talk_prompt}\n\n{conversation_block(state)}"
-            f"<buyer_message trust=\"untrusted\">\n{state['message']}\n</buyer_message>"
+            f'<buyer_message trust="untrusted">\n{state["message"]}\n</buyer_message>'
         )
         result = await llm.generate(
             prompt,
@@ -333,7 +478,10 @@ def main_agent(
             f"{conversation_block(state)}USER: {state['message']}"
         )
         result = await llm.generate(
-            prompt, "classifier", state.get("trace_id") or state.get("thread_id"), prompt_version=prompt_version,
+            prompt,
+            "classifier",
+            state.get("trace_id") or state.get("thread_id"),
+            prompt_version=prompt_version,
             **profile_kwargs("main_agent", "low"),
         )
         return {"route": _normalize_route(result.text), "step": step}
@@ -348,18 +496,25 @@ def main_agent(
             f"{load_prompt('orchestrator.md', prompt_overrides)}\n\n"
             f"{conversation_block(state)}"
             f"ROUTE: {state.get('route')}\n"
-            f"<buyer_question trust=\"untrusted\">\n{state['message']}\n</buyer_question>\n"
+            f'<buyer_question trust="untrusted">\n{state["message"]}\n</buyer_question>\n'
             f"KNOWN PREFERENCES: {preferences or 'none'}\nPREFERENCES_PENDING: {state.get('preferences_pending', False)}"
         )
         result = await llm.generate(
-            prompt, "orchestrator", state.get("trace_id") or state.get("thread_id"), prompt_version=prompt_version,
+            prompt,
+            "orchestrator",
+            state.get("trace_id") or state.get("thread_id"),
+            prompt_version=prompt_version,
             **profile_kwargs("orchestrator", "low"),
         )
         try:
             plan = OrchestratorPlan.model_validate(_extract_json(result.text))
         except Exception as exc:
-            raise OrchestratorPlanError(f"Orchestrator produced an unparsable plan for thread {state.get('thread_id')}: {result.text[:200]!r}") from exc
-        logger.info("agent_orchestrator_plan", thread_id=state.get("thread_id"), mode=plan.mode, reasoning=plan.reasoning)
+            raise OrchestratorPlanError(
+                f"Orchestrator produced an unparsable plan for thread {state.get('thread_id')}: {result.text[:200]!r}"
+            ) from exc
+        logger.info(
+            "agent_orchestrator_plan", thread_id=state.get("thread_id"), mode=plan.mode, reasoning=plan.reasoning
+        )
         return {"mode": plan.mode, "preferences": preferences, "step": step}
 
     async def route_from_classifier(state: AgentState) -> str:
@@ -384,7 +539,10 @@ def main_agent(
         if preferences_pending:
             extraction_prompt = f"{load_prompt('kb_agent.md', prompt_overrides)}\n\nExtract must-have car features as a JSON array of short strings from this buyer reply:\n{state['message']}"
             result = await llm.generate(
-                extraction_prompt, "preference_extraction", state.get("trace_id") or state.get("thread_id"), prompt_version=prompt_version,
+                extraction_prompt,
+                "preference_extraction",
+                state.get("trace_id") or state.get("thread_id"),
+                prompt_version=prompt_version,
                 **profile_kwargs("kb_agent"),
             )
             try:
@@ -394,18 +552,30 @@ def main_agent(
             preferences = await update_preferences(session, state["user_id"], features)
             preferences_pending = False
         elif not preferences and state.get("route") != "compare":
-            question = "Do you have any preferences I should know about — brand, budget, body type, or must-have features?"
+            question = (
+                "Do you have any preferences I should know about — brand, budget, body type, or must-have features?"
+            )
             return {"answer": question, "preferences": {}, "preferences_pending": True, "kb_results": [], "step": step}
 
         if not _has_domain_content(state["message"]):
             # Nothing about a vehicle was asked, so there is nothing worth embedding or retrieving. Skip the
             # lookup and let compose answer from the conversation instead of a meaningless KB result set.
             logger.info("agent_kb_search_skipped", thread_id=state.get("thread_id"), reason="no_domain_content")
-            return {"preferences": preferences, "preferences_pending": preferences_pending, "kb_results": [], "step": step}
+            return {
+                "preferences": preferences,
+                "preferences_pending": preferences_pending,
+                "kb_results": [],
+                "step": step,
+            }
 
         query = f"{state['message']} {' '.join(str(value) for value in preferences.values() if value)}".strip()
         kb_results = await kb_search(session, query)
-        update: AgentState = {"kb_results": kb_results, "preferences": preferences, "preferences_pending": preferences_pending, "step": step}
+        update: AgentState = {
+            "kb_results": kb_results,
+            "preferences": preferences,
+            "preferences_pending": preferences_pending,
+            "step": step,
+        }
 
         if state.get("mode") == "web_per_car":
             shortlist_prompt = (
@@ -414,7 +584,10 @@ def main_agent(
                 "optionally year range) that best fit this ask."
             )
             shortlist_result = await llm.generate(
-                shortlist_prompt, "car_shortlist", state.get("trace_id") or state.get("thread_id"), prompt_version=prompt_version,
+                shortlist_prompt,
+                "car_shortlist",
+                state.get("trace_id") or state.get("thread_id"),
+                prompt_version=prompt_version,
                 **profile_kwargs("kb_agent"),
             )
             try:
@@ -424,15 +597,24 @@ def main_agent(
         return update
 
     async def after_kb(state: AgentState) -> str:
-        condition = "web_per_car" if not state.get("preferences_pending") and state.get("mode") == "web_per_car" else "default"
+        condition = (
+            "web_per_car" if not state.get("preferences_pending") and state.get("mode") == "web_per_car" else "default"
+        )
         return configured_target("kb_agent", condition, "web_search_agent" if condition == "web_per_car" else "compose")
 
-    async def _resolve_one(name: str, preferences: dict, thread_id: str | None, trace_id: str | None) -> CarSpecs | None:
+    async def _resolve_one(
+        name: str, preferences: dict, thread_id: str | None, trace_id: str | None
+    ) -> CarSpecs | None:
         try:
             make = (name.split() or [""])[0]
             candidates = await get_urls(name, make=make)
             for candidate in candidates:
-                specs = await process_url(llm, candidate["url"], state_trace_id=trace_id or thread_id, profile=profiles.get("web_search_agent"))
+                specs = await process_url(
+                    llm,
+                    candidate["url"],
+                    state_trace_id=trace_id or thread_id,
+                    profile=profiles.get("web_search_agent"),
+                )
                 if specs:
                     return specs
         except Exception as exc:
@@ -448,7 +630,9 @@ def main_agent(
         candidate_evidence: list[dict[str, str]] = []
 
         if state.get("mode") == "web_per_car" and state.get("car_names"):
-            results = await asyncio.gather(*[_resolve_one(name, preferences, thread_id, state.get("trace_id")) for name in state["car_names"]])
+            results = await asyncio.gather(
+                *[_resolve_one(name, preferences, thread_id, state.get("trace_id")) for name in state["car_names"]]
+            )
             specs = [spec for spec in results if spec]
         else:
             query_terms = [state["message"]] + [str(value) for value in preferences.values() if value]
@@ -460,7 +644,12 @@ def main_agent(
                         "title": candidate.get("title") or candidate.get("source_domain") or "Trusted vehicle source",
                         "url": candidate["url"],
                     }
-                    spec = await process_url(llm, candidate["url"], state_trace_id=state.get("trace_id") or thread_id, profile=profiles.get("web_search_agent"))
+                    spec = await process_url(
+                        llm,
+                        candidate["url"],
+                        state_trace_id=state.get("trace_id") or thread_id,
+                        profile=profiles.get("web_search_agent"),
+                    )
                     if spec:
                         specs.append(spec)
             except Exception as exc:
@@ -472,7 +661,12 @@ def main_agent(
             resolved_sources[spec.source_url] = {"title": spec.model or spec.source_url, "url": spec.source_url}
         sources = list(resolved_sources.values())
         if specs and not (preview or state.get("preview")):
-            await kb_insert(session, state["message"], [{"title": s.model or s.source_url, "url": s.source_url, "content": s.model_dump()} for s in specs], state["user_id"])
+            await kb_insert(
+                session,
+                state["message"],
+                [{"title": s.model or s.source_url, "url": s.source_url, "content": s.model_dump()} for s in specs],
+                state["user_id"],
+            )
         structured_specs = [spec.model_dump() for spec in specs]
         return {
             "car_specs": structured_specs,
@@ -494,9 +688,16 @@ def main_agent(
             if not brand or not state_row:
                 continue
             result = await write_car(
-                session, created_by=state["user_id"], brand_id=brand.id, state_id=state_row.id,
-                model=spec["model"], model_year=int(spec["year"]), price=float(spec["price_usd"]),
-                body_type=spec.get("trim"), mileage=spec.get("mileage") or 0, fuel=spec.get("fuel_type"),
+                session,
+                created_by=state["user_id"],
+                brand_id=brand.id,
+                state_id=state_row.id,
+                model=spec["model"],
+                model_year=int(spec["year"]),
+                price=float(spec["price_usd"]),
+                body_type=spec.get("trim"),
+                mileage=spec.get("mileage") or 0,
+                fuel=spec.get("fuel_type"),
                 transmission=spec.get("transmission"),
             )
             persisted.append(result)
@@ -515,7 +716,9 @@ def main_agent(
         system_prompt = compare_prompt if is_compare else compose_prompt
         kb_block = f'<knowledge_base trust="internal">{json.dumps(state.get("kb_results") or [], default=str)}</knowledge_base>'
         web_block = f'<web_research trust="untrusted">{json.dumps(state.get("car_specs") or state.get("web_results") or [], default=str)}</web_research>'
-        source_block = f'<web_sources trust="untrusted">{json.dumps(state.get("sources") or [], default=str)}</web_sources>'
+        source_block = (
+            f'<web_sources trust="untrusted">{json.dumps(state.get("sources") or [], default=str)}</web_sources>'
+        )
         comparison_block = f'<selected_offers trust="internal">{json.dumps(state.get("comparison_rows") or [], default=str)}</selected_offers>'
         question_block = f'<buyer_question trust="untrusted">{state["message"]}</buyer_question>'
         prompt = (
@@ -535,9 +738,7 @@ def main_agent(
         if state.get("route") == "small_talk":
             return configured_target("triage", "small_talk", "small_talk")
         condition = "web_search" if state.get("route") == "web_search" else "default"
-        return configured_target(
-            "triage", condition, "web_search_agent" if condition == "web_search" else "classifier"
-        )
+        return configured_target("triage", condition, "web_search_agent" if condition == "web_search" else "classifier")
 
     graph = StateGraph(AgentState)
     graph.add_node("triage", traced_node("triage", "router", triage))
@@ -558,9 +759,7 @@ def main_agent(
         allowed_targets,
     )
     graph.add_edge("small_talk", allowed_targets[configured_target("small_talk", "always", "end")])
-    graph.add_conditional_edges(
-        "classifier", route_from_classifier, allowed_targets
-    )
+    graph.add_conditional_edges("classifier", route_from_classifier, allowed_targets)
     graph.add_conditional_edges("orchestrator", route_from_orchestrator, allowed_targets)
     graph.add_conditional_edges("kb_agent", after_kb, allowed_targets)
     graph.add_edge("web_search_agent", allowed_targets[configured_target("web_search_agent", "always", "persist_cars")])
