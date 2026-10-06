@@ -7,7 +7,17 @@ on:
     branches: [ dev ]
 
 concurrency:
-  group: ci-cd-${{ github.ref }}
+  # Group by the TARGET branch so every run aimed at dev shares one group:
+  #
+  #   pull_request -> github.base_ref = "dev"  -> ci-cd-dev
+  #   push to dev  -> github.ref_name = "dev"  -> ci-cd-dev
+  #
+  # With github.ref instead, a PR run used refs/pull/N/merge and a push used
+  # refs/heads/dev -- two different groups, so merging or approving a PR let
+  # both pipelines run side by side (the duplicate-pipeline problem).
+  group: ci-cd-${{ github.base_ref || github.ref_name }}
+  # A merge/approve push cancels the superseded PR run; a new commit cancels
+  # the older one. Only one dev pipeline runs at a time.
   cancel-in-progress: true
 
 jobs:
@@ -481,7 +491,6 @@ jobs:
   docker-build-push:
     name: "Stage 8: Docker Hub Compilation & Push (dev)"
     needs: [security-scans]
-    if: github.event_name == 'push'
     runs-on: ubuntu-latest
 
     steps:
@@ -557,7 +566,6 @@ jobs:
   ec2-deployment:
     name: "Stage 9: Remote Live EC2 Deployment (dev)"
     needs: [docker-build-push]
-    if: github.event_name == 'push'
     runs-on: ubuntu-latest
 
     steps:
