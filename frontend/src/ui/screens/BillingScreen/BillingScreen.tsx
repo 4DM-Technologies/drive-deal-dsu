@@ -41,7 +41,7 @@ export default function BillingScreen() {
 
   return <div className="shell page-content billing-page">
     <header className="billing-head">
-      <div><span className="eyebrow">Account</span><h1>Plan &amp; billing</h1></div>
+      <h1>Plan &amp; billing</h1>
       <Link className="billing-back" to="/profiles"><ArrowLeft size={16} /> Back to profile</Link>
     </header>
     {!subscription

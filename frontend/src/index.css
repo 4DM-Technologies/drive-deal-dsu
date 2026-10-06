@@ -1694,9 +1694,9 @@ h1, h2, h3, .display { font-family: 'Manrope', 'DM Sans', sans-serif; letter-spa
 .profile-account-link svg { transition: transform .18s var(--ease); }
 .profile-account-card:hover .profile-account-link svg { transform: translateX(3px); }
 
-.billing-page { max-width: 1180px; padding-top: 1.25rem; padding-bottom: 1.5rem; }
-.billing-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 1rem; margin-bottom: 1rem; }
-.billing-head h1 { margin: .15rem 0 0; font-size: clamp(1.6rem, 2.4vw, 2.1rem); }
+.billing-page { max-width: 1180px; padding-top: .9rem; padding-bottom: 1.25rem; }
+.billing-head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: .8rem; }
+.billing-head h1 { margin: 0; font-size: clamp(1.5rem, 2.2vw, 1.95rem); }
 .billing-back { display: inline-flex; align-items: center; gap: .4rem; color: var(--muted); font-size: .84rem; font-weight: 700; }
 .billing-back:hover { color: var(--accent); }
 /* Plan and card preview stack on the left; the checkout card takes the whole right column. */
@@ -1774,18 +1774,18 @@ h1, h2, h3, .display { font-family: 'Manrope', 'DM Sans', sans-serif; letter-spa
 /* Checkout */
 .billing-preview { display: grid; justify-items: center; gap: .7rem; }
 .billing-card-note { display: flex; align-items: center; gap: .4rem; margin: 0; color: var(--muted); font-size: .76rem; text-align: center; }
-.billing-pay { display: grid; gap: 1rem; padding: 1.35rem 1.5rem 1.5rem; }
-.billing-pay-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; }
+.billing-pay { display: grid; gap: .85rem; padding: 1.15rem 1.4rem 1.3rem; }
+.billing-pay-head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
 .billing-pay-head h2 { margin: 0; font-size: 1.3rem; }
-.billing-pay-head p { margin: .2rem 0 0; color: var(--muted); font-size: .84rem; }
 .pay-networks { display: flex; flex: none; gap: .35rem; }
 .pay-networks > span { width: 54px; height: 32px; display: grid; place-items: center; border: 1px solid var(--border); border-radius: 9px; background: var(--raised); opacity: .5; transition: opacity .2s, border-color .2s, box-shadow .2s; }
 .pay-networks > span.on { opacity: 1; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(20,86,184,.1); }
 .pay-networks .pay-brand { width: auto; max-width: 40px; height: 14px; color: var(--navy); }
 
-.billing-form { display: grid; gap: .8rem; }
+.billing-form { display: grid; gap: .7rem; }
+.billing-pay .input { min-height: 42px; padding-block: .6rem; }
 .pay-kind { display: grid; grid-template-columns: 1fr 1fr; gap: .6rem; min-width: 0; margin: 0; padding: 0; border: 0; }
-.pay-tile { position: relative; display: flex; align-items: center; gap: .6rem; padding: .7rem .9rem; border: 1px solid var(--border-strong); border-radius: 12px; background: var(--raised); font-size: .88rem; font-weight: 700; cursor: pointer; transition: border-color .15s, background-color .15s, box-shadow .15s, color .15s; }
+.pay-tile { position: relative; display: flex; align-items: center; gap: .6rem; padding: .62rem .9rem; border: 1px solid var(--border-strong); border-radius: 12px; background: var(--raised); font-size: .88rem; font-weight: 700; cursor: pointer; transition: border-color .15s, background-color .15s, box-shadow .15s, color .15s; }
 .pay-tile:hover { border-color: #b8b2a8; }
 .pay-tile input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; }
 .pay-tile:focus-within { outline: 3px solid var(--focus-ring); outline-offset: 2px; }
@@ -1798,7 +1798,7 @@ h1, h2, h3, .display { font-family: 'Manrope', 'DM Sans', sans-serif; letter-spa
 /* Label on the left, field on the right */
 .pay-row { display: grid; grid-template-columns: 6.4rem minmax(0, 1fr); align-items: start; gap: .75rem; }
 .pay-row-split { grid-template-columns: 6.4rem minmax(0, 1fr) auto minmax(0, 7.2rem); }
-.pay-row > label { padding-top: .8rem; color: var(--muted); font-size: .84rem; font-weight: 650; }
+.pay-row > label { padding-top: .65rem; color: var(--muted); font-size: .84rem; font-weight: 650; }
 .pay-cell { display: grid; gap: .3rem; min-width: 0; }
 .billing-number .input { padding-right: 4.8rem; font-variant-numeric: tabular-nums; letter-spacing: .05em; }
 .billing-number-brand { position: absolute; top: 50%; right: .8rem; display: flex; align-items: center; transform: translateY(-50%); color: var(--navy); pointer-events: none; }
@@ -1808,7 +1808,7 @@ h1, h2, h3, .display { font-family: 'Manrope', 'DM Sans', sans-serif; letter-spa
 .input[aria-invalid="true"]:focus { outline-color: rgba(181,58,58,.16); border-color: var(--danger); }
 
 /* Summary and pay */
-.pay-summary { display: grid; gap: .45rem; margin: .1rem 0 0; padding: .85rem 1rem; border-radius: 12px; background: var(--surface); }
+.pay-summary { display: grid; gap: .4rem; margin: 0; padding: .75rem 1rem; border-radius: 12px; background: var(--surface); }
 .pay-summary > div { display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; font-size: .84rem; }
 .pay-summary dt { color: var(--ink); }
 .pay-summary dd { margin: 0; font-weight: 700; font-variant-numeric: tabular-nums; text-align: right; }
@@ -1817,7 +1817,7 @@ h1, h2, h3, .display { font-family: 'Manrope', 'DM Sans', sans-serif; letter-spa
 .pay-total dt { font-size: .72rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
 .pay-total dd { font-family: 'Manrope', 'DM Sans', sans-serif; font-size: 1.3rem; letter-spacing: -.02em; }
 .pay-total dd small { color: var(--muted); font-family: 'DM Sans', sans-serif; font-size: .7rem; font-weight: 700; letter-spacing: 0; }
-.billing-submit { width: 100%; min-height: 50px; gap: .55rem; }
+.billing-submit { width: 100%; min-height: 48px; gap: .55rem; }
 .billing-kind button, .billing-submit, .upgrade-prompt-cta, .trial-banner button, .receipt-actions .button, .pay-tile { touch-action: manipulation; }
 .billing-spinner { width: 16px; height: 16px; border: 2px solid rgba(255,255,255,.4); border-top-color: #fff; border-radius: 50%; animation: billing-spin .7s linear infinite; }
 @keyframes billing-spin { to { transform: rotate(360deg); } }
@@ -1897,7 +1897,8 @@ h1, h2, h3, .display { font-family: 'Manrope', 'DM Sans', sans-serif; letter-spa
 @media (max-width: 640px) {
   .billing-layout .billing-plan { flex-direction: column-reverse; align-items: flex-start; }
   .billing-pay { padding: 1.15rem; }
-  .billing-pay-head { flex-direction: column; }
+  .billing-pay-head { flex-direction: column; align-items: flex-start; }
+  .pay-tile { gap: .45rem; padding: .62rem .7rem; font-size: .82rem; }
   .pay-row { grid-template-columns: minmax(0, 1fr); gap: .35rem; }
   .pay-row > label { padding-top: 0; }
   .pay-row-split { grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-areas: "l1 l2" "i1 i2"; }

@@ -77,7 +77,7 @@ export function CheckoutForm({ subscription, onPaid }: { subscription: Subscript
       </div>
       <section className="card billing-pay" aria-labelledby="billing-pay-title">
         <header className="billing-pay-head">
-          <div><h2 id="billing-pay-title">{subscription.isPremium ? 'Renew Premium' : 'Upgrade to Premium'}</h2><p>Pay by debit or credit card.</p></div>
+          <h2 id="billing-pay-title">{subscription.isPremium ? 'Renew Premium' : 'Upgrade to Premium'}</h2>
           <div className="pay-networks" role="img" aria-label="Accepted cards: Visa, Mastercard, American Express and Discover">
             {networks.map((item) => <span key={item} className={item === brand ? 'on' : ''} title={brandLabels[item]}><BrandMark brand={item} /></span>)}
           </div>
