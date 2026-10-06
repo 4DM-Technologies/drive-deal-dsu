@@ -19,7 +19,8 @@ from src.agents.schemas import CarSpecs, OrchestratorPlan
 from src.agents.state import AgentState
 from src.agents.tools.kb import kb_insert, kb_search
 from src.agents.tools.kb_db import update_preferences, write_car
-from src.agents.tools.web_search import get_urls, process_url
+from src.agents.tools.web_search import get_urls, has_official_domain, process_url
+from src.database import SessionFactory
 from src.repositories.schema import AiTraceSpan, Brand, BuyerPreference, State
 from src.settings import get_settings
 from src.utils.logger import logger
@@ -269,6 +270,27 @@ def _has_domain_content(message: str) -> bool:
     return bool(DOMAIN_TERM_RE.search(message))
 
 
+def _kb_results_are_relevant(message: str, kb_results: list[dict]) -> bool:
+    """kb_search() ORs Car.model and Brand.name together (src/agents/tools/kb.py) - a message naming one
+    specific model (e.g. "BMW M3") matches ANY car of that brand in inventory (e.g. a 5 Series), not
+    necessarily the model actually asked about. A result only counts as a real answer if its own model name
+    (or a cached web finding's model, see kb_insert/kb_search's "learned_web_knowledge" entries) appears in
+    the message - a same-brand-wrong-model row must not block the kb-miss escalation in after_kb()."""
+    message_lower = message.lower()
+
+    def _mentioned(model: object) -> bool:
+        text = str(model or "").strip().lower()
+        return bool(text) and text in message_lower
+
+    for result in kb_results:
+        if _mentioned(result.get("model")):
+            return True
+        for finding in result.get("findings") or []:
+            if _mentioned((finding.get("content") or {}).get("model")):
+                return True
+    return False
+
+
 def _normalize_route(raw: str) -> str:
     """The classifier is a free-text LLM call, so its reply is coerced into exactly one valid route.
 
@@ -309,6 +331,69 @@ def _trace_snapshot(value: dict | None, *, output: bool = False) -> dict:
 async def _fetch_preferences(session: AsyncSession, user_id: str) -> dict:
     row = await session.get(BuyerPreference, user_id)
     return model_dict(row) if row else {}
+
+
+# asyncio only holds a weak reference to a task - with nothing else referencing it, a fire-and-forget task can
+# be garbage-collected mid-run. Keeping a strong reference here (self-removed on completion) is the standard
+# pattern to prevent that silent loss; see https://docs.python.org/3/library/asyncio-task.html#asyncio.create_task
+_background_tasks: set[asyncio.Task] = set()
+
+
+def _fire_and_forget(coro: Awaitable[None]) -> None:
+    task = asyncio.create_task(coro)
+    _background_tasks.add(task)
+    task.add_done_callback(_background_tasks.discard)
+
+
+async def _persist_cars_background(
+    car_specs: list[dict], user_id: str, buyer_state_name: str | None, thread_id: str | None
+) -> None:
+    """Upserts web-crawled CarSpecs into the `cars` table so kb_agent can serve them next time, without the
+    buyer's streamed answer waiting on it. Runs on its own SessionFactory() session rather than the request's
+    shared session, since concurrent flushes on one AsyncSession are not safe (see stream_chat's
+    requirement_task/requirement_session in ai_service.py for the same pattern) and this task outlives the
+    request/response that triggered it."""
+    persisted = []
+    async with SessionFactory() as bg_session:
+        try:
+            state_row = None
+            if buyer_state_name:
+                state_row = (
+                    (await bg_session.execute(select(State).where(State.name.ilike(buyer_state_name))))
+                    .scalars()
+                    .first()
+                )
+            for spec in car_specs:
+                if not spec.get("make") or not spec.get("model") or not spec.get("year") or not spec.get("price_usd"):
+                    continue
+                brand = (
+                    (await bg_session.execute(select(Brand).where(Brand.name.ilike(spec["make"]))))
+                    .scalars()
+                    .first()
+                )
+                if not brand or not state_row:
+                    # Without a buyer-stated state, there is no reliable location for this listing - persisting
+                    # it under an arbitrary State row would silently corrupt location data, so skip it instead.
+                    continue
+                result = await write_car(
+                    bg_session,
+                    created_by=user_id,
+                    brand_id=brand.id,
+                    state_id=state_row.id,
+                    model=spec["model"],
+                    model_year=int(spec["year"]),
+                    price=float(spec["price_usd"]),
+                    body_type=spec.get("trim"),
+                    mileage=spec.get("mileage") or 0,
+                    fuel=spec.get("fuel_type"),
+                    transmission=spec.get("transmission"),
+                )
+                persisted.append(result)
+            await bg_session.commit()
+            logger.info("agent_persist_cars", thread_id=thread_id, persisted=persisted)
+        except Exception as exc:
+            await bg_session.rollback()
+            logger.warning("agent_persist_cars_failed", thread_id=thread_id, error=str(exc)[:200])
 
 
 def main_agent(
@@ -574,6 +659,9 @@ def main_agent(
         kb_results = await kb_search(session, query)
         update: AgentState = {
             "kb_results": kb_results,
+            "kb_searched": True,  # distinguishes a real zero-match search from the early-return paths above,
+            # which also leave kb_results empty but never actually searched (nothing worth escalating for)
+            "kb_results_relevant": _kb_results_are_relevant(state["message"], kb_results),
             "preferences": preferences,
             "preferences_pending": preferences_pending,
             "step": step,
@@ -599,26 +687,67 @@ def main_agent(
         return update
 
     async def after_kb(state: AgentState) -> str:
-        condition = (
-            "web_per_car" if not state.get("preferences_pending") and state.get("mode") == "web_per_car" else "default"
-        )
-        return configured_target("kb_agent", condition, "web_search_agent" if condition == "web_per_car" else "compose")
+        if state.get("preferences_pending"):
+            return configured_target("kb_agent", "default", "compose")
+        if state.get("mode") == "web_per_car":
+            return configured_target("kb_agent", "web_per_car", "web_search_agent")
+        if (
+            state.get("mode") == "kb_only"
+            and state.get("route") == "requirements"
+            and state.get("kb_searched")
+            and not state.get("kb_results_relevant")
+        ):
+            # The classifier already decided this message is "describing a vehicle wanted" (route ==
+            # "requirements"), the orchestrator judged it answerable from inventory alone (mode == "kb_only"),
+            # and Deal&Drive's own inventory had nothing that actually matches the named model - kb_results
+            # can be non-empty and still irrelevant, since kb_search ORs Car.model with Brand.name, so "BMW
+            # M3" matches any BMW in inventory (e.g. a 5 Series) even with zero M3s - see
+            # _kb_results_are_relevant. kb_searched is only set when a real search ran, not on the early-return
+            # paths that also leave kb_results empty (a generic "what SUVs do you have" browsing question
+            # classifies as "advice", not "requirements", and correctly never reaches here). Escalate to a
+            # live web lookup instead of settling for "nothing found" (see WEB_SEARCH_CRAWLING_AGENT.md).
+            # search_web's direct-mode branch builds its query from state["message"] + preferences regardless
+            # of mode value, so no further state change is needed.
+            return configured_target("kb_agent", "kb_miss", "web_search_agent")
+        return configured_target("kb_agent", "default", "compose")
 
     async def _resolve_one(
         name: str, preferences: dict, thread_id: str | None, trace_id: str | None
     ) -> CarSpecs | None:
-        try:
-            make = (name.split() or [""])[0]
-            candidates = await get_urls(name, make=make)
-            for candidate in candidates:
+        effective_trace_id = trace_id or thread_id
+
+        async def _try(cands: list[dict]) -> CarSpecs | None:
+            for candidate in cands:
                 specs = await process_url(
                     llm,
                     candidate["url"],
-                    state_trace_id=trace_id or thread_id,
+                    state_trace_id=effective_trace_id,
                     profile=profiles.get("web_search_agent"),
+                    prompt_overrides=prompt_overrides,
                 )
                 if specs:
                     return specs
+            return None
+
+        try:
+            make = (name.split() or [""])[0]
+            candidates = await get_urls(
+                name, make=make, llm=llm, thread_id=effective_trace_id, prompt_overrides=prompt_overrides
+            )
+            if specs := await _try(candidates):
+                return specs
+            if candidates and has_official_domain(name, make=make):
+                # Every candidate from the official-domain-scoped search failed to crawl (e.g. a domain-wide
+                # bot wall like Tesla's Akamai block) - retry the open web instead of giving up on this make.
+                fallback_candidates = await get_urls(
+                    name,
+                    make=make,
+                    llm=llm,
+                    thread_id=effective_trace_id,
+                    force_open=True,
+                    prompt_overrides=prompt_overrides,
+                )
+                return await _try(fallback_candidates)
         except Exception as exc:
             logger.warning("agent_web_search_item_failed", thread_id=thread_id, vehicle=name, error=str(exc)[:200])
         return None
@@ -638,11 +767,11 @@ def main_agent(
             specs = [spec for spec in results if spec]
         else:
             query_terms = [state["message"]] + [str(value) for value in preferences.values() if value]
-            try:
-                settings = get_settings()
-                candidates = await get_urls(" ".join(query_terms), limit=settings.web_search_max_crawl_sites)
-                crawl_candidates = candidates[: settings.web_search_max_crawl_sites]
-                for candidate in crawl_candidates:
+            full_query = " ".join(query_terms)
+            trace_id = state.get("trace_id") or thread_id
+
+            async def _crawl_all(cands: list[dict]) -> list[CarSpecs]:
+                for candidate in cands:
                     candidate_evidence.append(candidate)
                     resolved_sources[candidate["url"]] = {
                         "title": candidate.get("title") or candidate.get("source_domain") or "Trusted vehicle source",
@@ -653,13 +782,38 @@ def main_agent(
                         process_url(
                             llm,
                             candidate["url"],
-                            state_trace_id=state.get("trace_id") or thread_id,
+                            state_trace_id=trace_id,
                             profile=profiles.get("web_search_agent"),
+                            prompt_overrides=prompt_overrides,
                         )
-                        for candidate in crawl_candidates
+                        for candidate in cands
                     ]
                 )
-                specs = [spec for spec in results if spec]
+                return [spec for spec in results if spec]
+
+            try:
+                settings = get_settings()
+                candidates = await get_urls(
+                    full_query,
+                    limit=settings.web_search_max_crawl_sites,
+                    llm=llm,
+                    thread_id=trace_id,
+                    prompt_overrides=prompt_overrides,
+                )
+                crawl_candidates = candidates[: settings.web_search_max_crawl_sites]
+                specs = await _crawl_all(crawl_candidates)
+                if not specs and crawl_candidates and has_official_domain(full_query):
+                    # Every candidate from the official-domain-scoped search failed to crawl - retry the open
+                    # web instead of giving up (same reasoning as _resolve_one's fallback, above).
+                    fallback_candidates = await get_urls(
+                        full_query,
+                        limit=settings.web_search_max_crawl_sites,
+                        llm=llm,
+                        thread_id=trace_id,
+                        force_open=True,
+                        prompt_overrides=prompt_overrides,
+                    )
+                    specs = await _crawl_all(fallback_candidates)
             except Exception as exc:
                 # Compose can still give a transparent, useful fallback. A search-provider failure must not tear
                 # down the SSE stream and surface a framework traceback to the buyer.
@@ -685,38 +839,16 @@ def main_agent(
 
     async def persist_cars(state: AgentState) -> AgentState:
         step = log_agent_step("serra", "persist_cars", state, count=len(state.get("car_specs") or []))
-        if preview or state.get("preview"):
-            return {"step": step}
-        persisted = []
-        buyer_state_name = (state.get("requirements") or {}).get("state")
-        state_row = None
-        if buyer_state_name:
-            state_row = (
-                (await session.execute(select(State).where(State.name.ilike(buyer_state_name)))).scalars().first()
+        car_specs = state.get("car_specs") or []
+        if not (preview or state.get("preview")) and car_specs:
+            # Fire-and-forget: the buyer's streamed answer must not wait on this write. Runs on its own
+            # session (_persist_cars_background), not `session` above, since that one is still in active use
+            # by the rest of this request's graph/stream and concurrent flushes on one AsyncSession aren't
+            # safe. A failed or slow write here never surfaces to or delays the compose step that follows.
+            buyer_state_name = (state.get("requirements") or {}).get("state")
+            _fire_and_forget(
+                _persist_cars_background(car_specs, state["user_id"], buyer_state_name, state.get("thread_id"))
             )
-        for spec in state.get("car_specs") or []:
-            if not spec.get("make") or not spec.get("model") or not spec.get("year") or not spec.get("price_usd"):
-                continue
-            brand = (await session.execute(select(Brand).where(Brand.name.ilike(spec["make"])))).scalars().first()
-            if not brand or not state_row:
-                # Without a buyer-stated state, there is no reliable location for this listing - persisting it
-                # under an arbitrary State row would silently corrupt location data, so skip it instead.
-                continue
-            result = await write_car(
-                session,
-                created_by=state["user_id"],
-                brand_id=brand.id,
-                state_id=state_row.id,
-                model=spec["model"],
-                model_year=int(spec["year"]),
-                price=float(spec["price_usd"]),
-                body_type=spec.get("trim"),
-                mileage=spec.get("mileage") or 0,
-                fuel=spec.get("fuel_type"),
-                transmission=spec.get("transmission"),
-            )
-            persisted.append(result)
-        logger.info("agent_persist_cars", thread_id=state.get("thread_id"), persisted=persisted)
         return {"step": step}
 
     async def compose(state: AgentState) -> AgentState:
