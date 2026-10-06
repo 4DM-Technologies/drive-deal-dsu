@@ -7,28 +7,17 @@ on:
     branches: [ dev ]
 
 concurrency:
-  # The key is the SOURCE branch, not the ref.
+  # Group by the TARGET branch so every run aimed at dev shares one group:
   #
-  # github.head_ref is the pull request's source branch on pull_request events
-  # and is empty on push, so `github.head_ref || github.ref` yields:
+  #   pull_request -> github.base_ref = "dev"  -> ci-cd-dev
+  #   push to dev  -> github.ref_name = "dev"  -> ci-cd-dev
   #
-  #   pull_request from feature-x -> ci-cd-feature-x
-  #   push to dev                    -> ci-cd-dev
-  #
-  # Merging feature-x into dev produces a pull_request run (refs/pull/N/merge)
-  # and a push run (refs/heads/dev). Grouping by github.ref gave those two
-  # different groups, so neither could cancel the other and both ran
-  # simultaneously. That is the duplicate pipeline.
-  #
-  # Cancelling the superseded run on merge is safe: by the time the merge push
-  # exists, the pull request run is validating code that is already on dev.
-  group: ci-cd-${{ github.head_ref || github.ref }}
-  # Newer commits supersede older ones. Combined with the group above, a merge
-  # cancels the pull request run it supersedes, and a second push cancels the
-  # first.
-  #
-  # Cancelling by hand from the Actions UI remains available at all times,
-  # including for runs waiting on a runner.
+  # With github.ref instead, a PR run used refs/pull/N/merge and a push used
+  # refs/heads/dev -- two different groups, so merging or approving a PR let
+  # both pipelines run side by side (the duplicate-pipeline problem).
+  group: ci-cd-${{ github.base_ref || github.ref_name }}
+  # A merge/approve push cancels the superseded PR run; a new commit cancels
+  # the older one. Only one dev pipeline runs at a time.
   cancel-in-progress: true
 
 jobs:
@@ -37,11 +26,11 @@ jobs:
   # =========================================================================
   pr-validation:
     name: "Stage 1: PR Description Format Check"
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
     if: github.event_name == 'pull_request'
     steps:
       - name: Validate Markdown Template Structural Anchors
-        uses: actions/github-script@v8
+        uses: actions/github-script@v7
         with:
           script: |
             const body = context.payload.pull_request.body;
@@ -80,11 +69,11 @@ jobs:
   # =========================================================================
   compliance-check:
     name: "Stage 2: Directory Structure Compliance"
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout Code Repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@v4
 
       - name: Verify Mandatory Workspace Partitions
         run: |
@@ -244,19 +233,17 @@ jobs:
   code-linting:
     name: "Stage 3: Code Linting & Quality Verification"
     needs: [compliance-check]
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout Code Codebase
-        uses: actions/checkout@v5
+        uses: actions/checkout@v4
 
       # Frontend (React) Environment Setup & ESLint
-      # Pinned to 22 to match the frontend Dockerfile's node:22-alpine base, so
-      # lint and tests exercise the same runtime that produces the deployed image.
       - name: Setup Node Environment
-        uses: actions/setup-node@v5
+        uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: '20'
 
       - name: Install and Execute React ESLint
         run: |
@@ -278,7 +265,7 @@ jobs:
 
       # Backend (Python) Environment Setup & Ruff
       - name: Setup Python Runtime Environment
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
@@ -299,21 +286,21 @@ jobs:
   code-coverage:
     name: "Stage 4: Automated Testing & 75% Coverage Floor"
     needs: [code-linting]
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@v4
 
       - name: Setup Python Environment
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
       # Dependencies come from uv.lock, the same lockfile the backend image and
       # local development use, so the tested tree is the tree that ships.
       - name: Install uv and Sync Locked Dependencies
-        uses: astral-sh/setup-uv@v7
+        uses: astral-sh/setup-uv@v5
         with:
           enable-cache: true
           cache-dependency-glob: "backend/uv.lock"
@@ -343,11 +330,11 @@ jobs:
   secrets-code-dockerfile-scan:
     name: "Stage 5: Secrets Code & Dockerfile Scan"
     needs: [code-coverage]
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout Code Base
-        uses: actions/checkout@v5
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
@@ -413,15 +400,15 @@ jobs:
   security-scans:
     name: "Stage 6 & 7: SAST and SCA Security Audits"
     needs: [secrets-code-dockerfile-scan]
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout Code Repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@v4
 
       # STAGE 6: SAST (Static Application Security Testing)
       - name: Setup Python for Bandit SAST Scan
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
@@ -502,30 +489,16 @@ jobs:
   # The SHA tag gives us a permanent version for rollback.
   # =========================================================================
   docker-build-push:
-    name: "Stage 8: Docker Compilation & Push (dev)"
+    name: "Stage 8: Docker Hub Compilation & Push (dev)"
     needs: [security-scans]
-    runs-on: ubuntu-24.04
-
-    # The job itself always runs so a pull request reports a real result instead
-    # of "skipping". What changes per event is only whether the images leave the
-    # runner:
-    #
-    #   push            -> build and publish to Docker Hub
-    #   pull_request    -> build only, discarded at the end of the job
-    #
-    # Pushing and deploying unmerged code would overwrite the live site, so
-    # publish stays push-only. Building on a pull request still catches a broken
-    # Dockerfile or a failing image build before anyone merges it.
-    env:
-      IMAGE_TAG_SUFFIX: ${{ github.event_name == 'push' && github.sha || format('pr-{0}', github.event.pull_request.number) }}
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout Code Repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@v4
 
       - name: Log in to Free Docker Hub Account
-        if: github.event_name == 'push'
-        uses: docker/login-action@v4
+        uses: docker/login-action@v3
         with:
           username: ${{ secrets.DEV_DOCKERHUB_USERNAME }}
           password: ${{ secrets.DEV_DOCKERHUB_TOKEN }}
@@ -534,14 +507,14 @@ jobs:
       # BACKEND IMAGE
       # -----------------------------------------------------------------------
       - name: Build and Push Backend Image
-        uses: docker/build-push-action@v7
+        uses: docker/build-push-action@v5
         with:
           context: ./backend
           file: ./backend/Dockerfile
-          push: ${{ github.event_name == 'push' }}
+          push: true
           tags: |
             ${{ secrets.DEV_DOCKERHUB_USERNAME }}/drive-deal-dsu-api:latest
-            ${{ secrets.DEV_DOCKERHUB_USERNAME }}/drive-deal-dsu-api:${{ env.IMAGE_TAG_SUFFIX }}
+            ${{ secrets.DEV_DOCKERHUB_USERNAME }}/drive-deal-dsu-api:${{ github.sha }}
 
       # -----------------------------------------------------------------------
       # FRONTEND ENVIRONMENT
@@ -561,14 +534,14 @@ jobs:
       # FRONTEND IMAGE
       # -----------------------------------------------------------------------
       - name: Build and Push Frontend Image
-        uses: docker/build-push-action@v7
+        uses: docker/build-push-action@v5
         with:
           context: ./frontend
           file: ./frontend/Dockerfile
-          push: ${{ github.event_name == 'push' }}
+          push: true
           tags: |
             ${{ secrets.DEV_DOCKERHUB_USERNAME }}/drive-deal-dsu-web:latest
-            ${{ secrets.DEV_DOCKERHUB_USERNAME }}/drive-deal-dsu-web:${{ env.IMAGE_TAG_SUFFIX }}
+            ${{ secrets.DEV_DOCKERHUB_USERNAME }}/drive-deal-dsu-web:${{ github.sha }}
 
   # =========================================================================
   # STAGE 9: AWS EC2 DEPLOYMENT
@@ -593,18 +566,11 @@ jobs:
   ec2-deployment:
     name: "Stage 9: Remote Live EC2 Deployment (dev)"
     needs: [docker-build-push]
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
 
-    # Same shape as Stage 8: the job always runs so a pull request reports a real
-    # result, but it only touches EC2 on a push.
-    #
-    # On a pull request it performs the deployment dry run: generate the env
-    # files, normalise them, and verify every value EC2 needs is present. That
-    # catches a missing secret or a broken task definition before merge, without
-    # stopping or replacing a live container.
     steps:
       - name: Checkout Code Repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@v4
 
       # -----------------------------------------------------------------------
       # BACKEND ENVIRONMENT
@@ -674,7 +640,6 @@ jobs:
       # UPLOAD BACKEND ENVIRONMENT TO EC2
       # -----------------------------------------------------------------------
       - name: Upload Backend Env File to EC2 Host
-        if: github.event_name == 'push'
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.DEV_EC2_HOST }}
@@ -687,7 +652,6 @@ jobs:
       # DEPLOY TO EC2
       # -----------------------------------------------------------------------
       - name: Execute Safe Remote SSH Deployment Script
-        if: github.event_name == 'push'
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.DEV_EC2_HOST }}
