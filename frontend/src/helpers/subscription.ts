@@ -11,7 +11,7 @@ const text = (value: unknown) => (typeof value === 'string' && value ? value : n
 const count = (value: unknown) => (typeof value === 'number' ? value : null);
 const reasons: SubscriptionReason[] = ['trial_quota_exhausted', 'trial_expired', 'premium_expired', 'request_limit_reached'];
 
-/** Maps the API's `subscription` block. Dealers report quotes and buyers report posts; both become one usage shape. */
+/** Maps the API's `subscription` block. Dealers report quotes and buyers report requests; both become one usage shape. */
 export function parseSubscription(value: unknown): Subscription | null {
   if (!value || typeof value !== 'object') return null;
   const row = value as Row;
@@ -55,6 +55,9 @@ export type PlanTone = 'premium' | 'live' | 'ended';
 /** Colour family for a plan: premium, active (can still create), or ended (needs an upgrade). */
 export const planTone = (subscription: Subscription): PlanTone => (subscription.plan === 'premium' ? 'premium' : subscription.canCreate ? 'live' : 'ended');
 
+/** The `.status` pill modifier for each tone. */
+export const planStatusClass: Record<PlanTone, string> = { premium: 'status-premium', live: 'status-live', ended: 'status-declined' };
+
 /** The posting gate Sera attaches to a request preview (`posting_allowed` / `posting_reason`). */
 export function postingGate(payload: unknown): { allowed: boolean; reason: SubscriptionReason | null } | null {
   if (!payload || typeof payload !== 'object') return null;
@@ -70,7 +73,7 @@ export function premiumTerm(subscription: Subscription): string {
   return `+1 year · to ${formatLongDate(until)}`;
 }
 
-export const usageNoun = (role: Subscription['role']) => (role === 'dealer' ? { one: 'quote', many: 'quotes' } : { one: 'post', many: 'posts' });
+export const usageNoun = (role: Subscription['role']) => (role === 'dealer' ? { one: 'quote', many: 'quotes' } : { one: 'request', many: 'requests' });
 
 export function planLabel(subscription: Subscription | null | undefined): string {
   if (!subscription) return 'Free';
@@ -92,7 +95,7 @@ export function gateCopy(reason: SubscriptionReason | null, role: Subscription['
   const keep = `Your existing ${role === 'dealer' ? 'quotes and deals' : 'requests'} stay visible.`;
   switch (reason) {
     case 'request_limit_reached':
-      return { title: `You’ve used your ${limit ?? 3} free posts`, body: `Upgrade to Premium to publish more car-buy requests. ${keep}` };
+      return { title: `You’ve used your ${limit ?? 3} free requests`, body: `Upgrade to Premium to publish more car-buy requests. ${keep}` };
     case 'trial_quota_exhausted':
       return { title: `You’ve used all ${limit ?? 3} trial ${noun.many}`, body: `Upgrade to Premium to keep sending quotes. ${keep}` };
     case 'trial_expired':

@@ -22,7 +22,7 @@ describe('parseSubscription', () => {
     });
   });
 
-  it('folds buyer post fields into the same shape', () => {
+  it('folds buyer request fields into the same shape', () => {
     expect(parseSubscription(buyerFree)).toMatchObject({ role: 'buyer', plan: 'free', limit: 3, used: 3, remaining: 0, canCreate: false, premiumPrice: '100.00' });
   });
 
@@ -49,7 +49,7 @@ describe('plan wording', () => {
 
   it('summarises what is left', () => {
     expect(usageSummary(parseSubscription(dealerTrial)!)).toBe('2 of 3 quotes left');
-    expect(usageSummary(parseSubscription(buyerFree)!)).toBe('0 of 3 posts left');
+    expect(usageSummary(parseSubscription(buyerFree)!)).toBe('0 of 3 requests left');
   });
 });
 
@@ -75,7 +75,7 @@ describe('subscription gating', () => {
   });
 
   it('writes plain-language copy for each reason', () => {
-    expect(gateCopy('request_limit_reached', 'buyer', 3).title).toBe('You’ve used your 3 free posts');
+    expect(gateCopy('request_limit_reached', 'buyer', 3).title).toBe('You’ve used your 3 free requests');
     expect(gateCopy('trial_quota_exhausted', 'dealer', 3).title).toBe('You’ve used all 3 trial quotes');
     expect(gateCopy('trial_expired', 'dealer').body).toContain('stay visible');
   });

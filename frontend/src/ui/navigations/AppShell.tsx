@@ -1,9 +1,12 @@
 import { AnimatePresence, motion } from 'motion/react';
-import { BriefcaseBusiness, ClipboardCheck, Eye, FileText, Gauge, Headphones, Home, LifeBuoy, LogOut, Menu, MessageCircle, PackageCheck, ScrollText, Search, ShieldCheck, Sparkles, TicketCheck, UserRound, Users, X } from 'lucide-react';
+import { BriefcaseBusiness, ClipboardCheck, Eye, FileText, Gauge, Headphones, Home, LifeBuoy, LogOut, Menu, MessageCircle, PackageCheck, ScrollText, Search, ShieldCheck, Sparkles, TicketCheck, UserRound, Users, WalletCards, X } from 'lucide-react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
+import { planDetailLine } from '@/helpers/plans';
+import { planLabel } from '@/helpers/subscription';
 import { SerraWidget } from '@/ui/reusables/SerraWidget/SerraWidget';
 import { Brand } from '@/ui/reusables/Brand/Brand';
+import { ProfileMenu } from '@/ui/reusables/ProfileMenu/ProfileMenu';
 import { useDemoStore } from '@/services/platform/demoStore';
 import { SupportReporter } from '@/ui/reusables/SupportReporter/SupportReporter';
 import type { Role } from '@/types/domain';
@@ -54,19 +57,12 @@ export function AppShell() {
   // Switching conversations (/chat/:quoteId) is not a page change: keep the same page instance so nothing remounts or re-animates.
   const pageKey = /^\/chat\/(?!requests$)[^/]+$/.test(location.pathname) ? '/chat' : location.pathname;
   useEffect(() => { window.scrollTo({ top: 0, left: 0 }); }, [pageKey]);
-  const [signOutOpen, setSignOutOpen] = useState(false);
-  const signOutRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (!signOutOpen) return;
-    const close = (event: MouseEvent) => { if (!signOutRef.current?.contains(event.target as Node)) setSignOutOpen(false); };
-    const escape = (event: KeyboardEvent) => { if (event.key === 'Escape') setSignOutOpen(false); };
-    document.addEventListener('mousedown', close);
-    document.addEventListener('keydown', escape);
-    return () => { document.removeEventListener('mousedown', close); document.removeEventListener('keydown', escape); };
-  }, [signOutOpen]);
   if (!session) return null;
 
   const nav = links[session.role];
+  // Plans and billing belong to buyers and dealers acting as themselves, not to staff or read-only previews.
+  const showAccount = (session.role === 'buyer' || session.role === 'dealer') && !previewSearch;
+  const subscription = showAccount ? session.subscription ?? null : null;
   const roleHome = ['support', 'support-admin', 'admin'].includes(session.role) ? '/support' : '/home';
   const signOut = () => {
     if (isThemePreview) return;
@@ -87,14 +83,7 @@ export function AppShell() {
           <div className="topbar-actions">
             {accountSession && ['support-admin', 'admin'].includes(accountSession.role) && !isThemePreview && <label className="workspace-switcher desktop-header-action"><Eye size={16} /><span className="sr-only">View workspace</span><select aria-label="View workspace" value={workspaceView ?? 'support'} onChange={(event) => navigate(event.target.value === 'support' ? '/support' : `/home?workspaceView=${event.target.value}`)}><option value="support">Support workspace</option><option value="buyer">Buyer · read only</option><option value="dealer">Dealer · read only</option></select></label>}
             {(session.role === 'buyer' || session.role === 'dealer') && <button className="support-help-trigger desktop-header-action" onClick={() => setSupportOpen(true)} aria-label="Open help and support"><LifeBuoy size={18} /><span>Help</span></button>}
-            <button className="profile-menu desktop-header-action" onClick={() => navigate(previewPath('/profiles'))} aria-label="Open profile">
-              <span className="avatar">{session.avatarInitials}</span>
-              <span className="profile-meta"><strong>{session.fullName}</strong><span>{session.role}</span></span>
-            </button>
-            <div className="signout-wrap desktop-header-action" ref={signOutRef}>
-              <button className={`button button-ghost button-sm signout-trigger ${signOutOpen ? 'open' : ''}`} disabled={isThemePreview} onClick={() => setSignOutOpen((open) => !open)} aria-label={isThemePreview ? 'Sign out unavailable in theme preview' : 'Account menu'} aria-haspopup="menu" aria-expanded={signOutOpen}><LogOut size={18} /></button>
-              {signOutOpen && <div className="signout-menu" role="menu"><button className="signout-item" role="menuitem" onClick={signOut} autoFocus><LogOut size={16} /> Sign out</button></div>}
-            </div>
+            <ProfileMenu session={session} previewSearch={previewSearch} showAccount={showAccount} signOutDisabled={isThemePreview} onSignOut={signOut} />
             <button className="button button-ghost mobile-menu" onClick={() => setSidebarOpen(!sidebarOpen)} aria-label="Open menu"><Menu /></button>
           </div>
         </div>
@@ -109,6 +98,7 @@ export function AppShell() {
               {accountSession && ['support-admin', 'admin'].includes(accountSession.role) && !isThemePreview && <label className="workspace-switcher mobile-workspace-switcher"><Eye size={16} /><select aria-label="View workspace" value={workspaceView ?? 'support'} onChange={(event) => { navigate(event.target.value === 'support' ? '/support' : `/home?workspaceView=${event.target.value}`); setSidebarOpen(false); }}><option value="support">Support workspace</option><option value="buyer">Buyer · read only</option><option value="dealer">Dealer · read only</option></select></label>}
               <div className="mobile-nav-account">
                 <button type="button" onClick={() => { navigate(previewPath('/profiles')); setSidebarOpen(false); }}><span className="avatar">{session.avatarInitials}</span><span><strong>{session.fullName}</strong><small>Profile</small></span></button>
+                {showAccount && <button type="button" onClick={() => { navigate('/account'); setSidebarOpen(false); }}><WalletCards size={18} /><span><strong>Account</strong><small>{subscription ? `${planLabel(subscription)} · ${planDetailLine(subscription)}` : 'Your plan and billing'}</small></span></button>}
                 {(session.role === 'buyer' || session.role === 'dealer') && <button type="button" onClick={() => { setSupportOpen(true); setSidebarOpen(false); }}><LifeBuoy size={18} /><span><strong>Help</strong><small>Contact support</small></span></button>}
                 <button type="button" className="mobile-signout" disabled={isThemePreview} onClick={signOut}><LogOut size={18} /><span><strong>Sign out</strong><small>{isThemePreview ? 'Unavailable in preview' : 'End this session'}</small></span></button>
               </div>
