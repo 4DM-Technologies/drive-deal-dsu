@@ -1,6 +1,6 @@
 %% Deal&Drive current entity relationship diagram
 %% Source of truth: backend/src/repositories/schema/tables.py
-%% 21 tables. Render with Mermaid Live, VS Code Mermaid preview, or:
+%% 22 tables. Render with Mermaid Live, VS Code Mermaid preview, or:
 %% mmdc -i define/schema-erd.mmd -o define/schema-erd.svg
 %% Tables using AuditMixin also contain created_at, updated_at, created_by and updated_by.
 %% Support Administrator buyer/dealer workspace views are read-only API projections over buyer_requests
@@ -25,6 +25,7 @@ erDiagram
     profiles ||--o{ support_verifications : "applicant"
     profiles ||--o{ support_verifications : "decides"
     profiles ||--o{ error_logs : "associated user"
+    profiles ||--o{ payments : "pays"
     buyer_requests ||--o{ deal_quotes : "receives"
     buyer_requests ||--o{ buyer_request_views : "viewed by"
     deal_quotes ||--o{ deal_chats : "conversation"
@@ -64,6 +65,10 @@ erDiagram
         bool terms_accepted
         text terms_version
         timestamptz terms_accepted_at
+        timestamptz trial_started_at
+        timestamptz trial_expires_at
+        bool is_premium
+        timestamptz premium_expires_at
     }
 
     users {
@@ -73,6 +78,19 @@ erDiagram
         bool is_active
         timestamptz last_login_at
         text refresh_token_hash
+    }
+
+    payments {
+        uuid id PK
+        uuid profile_id FK
+        text plan
+        numeric amount
+        text currency
+        text payment_method
+        text card_brand
+        text card_last4
+        text status
+        timestamptz premium_expires_at
     }
 
     cars {

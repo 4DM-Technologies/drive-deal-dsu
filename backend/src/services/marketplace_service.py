@@ -13,6 +13,7 @@ from src.models.marketplace import (
 )
 from src.repositories.marketplace_repository import MarketplaceRepository
 from src.repositories.schema import Brand, BuyerRequest, DealChat, DealQuote, Profile
+from src.services.billing_service import BillingService
 from src.settings import MARKETPLACE_DEAL_FLOW
 from src.utils.exceptions import AppError, error_codes
 from src.utils.log_flow import log_flow
@@ -111,6 +112,7 @@ class MarketplaceService:
 
     @log_flow(layer="service")
     async def create_request(self, payload: RequestCreate, buyer: Profile) -> dict:
+        await BillingService(self.session).assert_can_create_request(buyer)
         row = BuyerRequest(buyer_id=buyer.id, **payload.model_dump())
         self.repository.add(row)
         await self.repository.commit()
@@ -159,6 +161,7 @@ class MarketplaceService:
 
     @log_flow(layer="service")
     async def create_quote(self, payload: QuoteCreate, dealer: Profile) -> dict:
+        await BillingService(self.session).assert_can_quote(dealer)
         request = await self._request(payload.buyer_request_id)
         if request.status != "open":
             raise AppError(error_codes.CONFLICT, "Only open requests can receive quotes.", 409)

@@ -17,6 +17,7 @@ from src.routes import (
     default,
     documents,
     marketplace,
+    payment,
     profiles,
     reference,
     support,
@@ -43,7 +44,19 @@ settings = get_settings()
 # lifespan. configure_logging() is idempotent, so the call inside lifespan stays as a safety net.
 configure_logging()
 
-ROUTER_MODULES = (auth, profiles, reference, marketplace, documents, cars, support, administration, ai, websocket)
+ROUTER_MODULES = (
+    auth,
+    profiles,
+    reference,
+    marketplace,
+    documents,
+    cars,
+    support,
+    administration,
+    ai,
+    payment,
+    websocket,
+)
 
 
 def database_driver() -> str:

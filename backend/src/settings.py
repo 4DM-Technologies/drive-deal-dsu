@@ -1,3 +1,4 @@
+from decimal import Decimal
 from functools import lru_cache
 from pathlib import Path
 
@@ -22,6 +23,19 @@ REQUEST_CONTEXT_LOGGED_METHODS = frozenset({"GET", "POST", "PUT", "PATCH", "DELE
 
 # Marketplace state transitions
 MARKETPLACE_DEAL_FLOW = ("paperwork_going_on", "funds_arrived", "dispatch", "delivery", "completed")
+
+# Premium subscription rules. The dealer trial runs for two months from the first login and allows
+# three quotes in total; the buyer free plan allows three car-buy posts for the lifetime of the
+# account. Paying unlocks unlimited usage for one year from the payment timestamp.
+DEALER_TRIAL_DAYS = 60
+DEALER_TRIAL_QUOTE_LIMIT = 3
+BUYER_FREE_REQUEST_LIMIT = 3
+DEALER_PREMIUM_PRICE = Decimal("500")
+BUYER_PREMIUM_PRICE = Decimal("100")
+PREMIUM_DURATION_DAYS = 365
+PREMIUM_CURRENCY = "USD"
+PAYMENT_PLAN_BY_ROLE = {"dealer": "dealer_premium", "buyer": "buyer_premium"}
+PREMIUM_PRICE_BY_ROLE = {"dealer": DEALER_PREMIUM_PRICE, "buyer": BUYER_PREMIUM_PRICE}
 
 # Administrator-managed AI configuration identifiers
 ADMIN_WORKFLOW_KEY = "sera-main"
@@ -150,6 +164,8 @@ class Settings(BaseSettings):
     web_search_request_timeout_seconds: int = 20
     web_search_max_crawl_sites: int = 2
     web_search_max_retries: int = 3
+    web_search_candidate_pool_size: int = 8
+    web_search_min_score: float = 0.5
     langsmith_tracing: bool = False
     langsmith_api_key: str | None = None
     langsmith_project: str = "drivedeal-serra"

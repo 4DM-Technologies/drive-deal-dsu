@@ -85,8 +85,10 @@ async def request_preview(
     profile: Profile = Depends(require_roles("buyer")),
     session: AsyncSession = Depends(get_session),
 ):
+    service = AiService(session)
     events = []
-    async for event in AiService(session).stream_chat(payload, profile):
+    async for event in service.stream_chat(payload, profile):
         if event["type"] == "card" and event["kind"] == "requestPreview":
             events.append(event["payload"])
-    return {"previews": events, "confirmation_required": True}
+    gate = await service.posting_gate(profile)
+    return {"previews": events, "confirmation_required": True, **gate}

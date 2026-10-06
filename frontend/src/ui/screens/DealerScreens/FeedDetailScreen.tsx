@@ -2,8 +2,13 @@ import { ArrowLeft, Calculator, FileUp, ImagePlus, MapPin, Send, ShieldCheck, X 
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { computeOtd, formatMoney } from '@/helpers/currency';
+import { gateReasonFor, subscriptionGate } from '@/helpers/subscription';
+import type { SubscriptionGate } from '@/helpers/subscription';
 import { client } from '@/services/platform/client';
+import { useDemoStore } from '@/services/platform/demoStore';
 import { PageLoading } from '@/ui/reusables/PageLoading/PageLoading';
+import { UpgradePrompt } from '@/ui/reusables/UpgradePrompt/UpgradePrompt';
+import { UsageChip } from '@/ui/reusables/UsageMeter/UsageMeter';
 import type { BuyerRequest } from '@/types/domain';
 
 export default function FeedDetailScreen() {
@@ -19,6 +24,10 @@ export default function FeedDetailScreen() {
   const [documentFile, setDocumentFile] = useState<File | null>(null);
   const [uploadError, setUploadError] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const subscription = useDemoStore((state) => state.session?.subscription ?? null);
+  const setSession = useDemoStore((state) => state.setSession);
+  const [gate, setGate] = useState<SubscriptionGate | null>(null);
+  const blocked = subscription !== null && !subscription.canCreate;
 
   useEffect(() => { void client.feed.get(requestId).then(setRequest).catch(() => setRequest(null)); }, [requestId]);
   const images = useMemo(() => imageFiles.map((file) => ({ file, url: URL.createObjectURL(file) })), [imageFiles]);
@@ -37,9 +46,12 @@ export default function FeedDetailScreen() {
       const created = await client.quotes.create({ buyerRequestId: request!.id, vehiclePrice, docFee, salesTax: tax, titleReg, tradeInCredit: trade, message, expiresAt: new Date(Date.now() + 5 * 86_400_000).toISOString() });
       await Promise.all(imageFiles.map((file) => client.documents.upload(created.id, file, 'vehicle_image')));
       if (documentFile) await client.documents.upload(created.id, documentFile, 'quote_document');
+      void client.auth.me().then(setSession).catch(() => undefined);
       navigate(`/quotes/${created.id}`);
     } catch (cause) {
-      setUploadError(cause instanceof Error ? cause.message : 'The quote could not be sent. Please try again.');
+      const refusal = subscriptionGate(cause);
+      if (refusal) setGate(refusal);
+      else setUploadError(cause instanceof Error ? cause.message : 'The quote could not be sent. Please try again.');
     } finally {
       setSubmitting(false);
     }
@@ -48,6 +60,8 @@ export default function FeedDetailScreen() {
   return <div className="shell page-content quote-create-page">
     <Link className="button button-ghost" to="/feed"><ArrowLeft size={17} /> Back to feed</Link>
     <div className="page-heading request-detail-heading"><div><span className="eyebrow">Buyer request · Identity protected</span><h1>{request.brand} {request.model}</h1><p>{request.yearMin}–{request.yearMax} · {request.bodyType} · {request.timeline}</p></div><div className="distance-chip"><MapPin size={16} /><span><strong>Approx. 12 miles away</strong><small>{request.area} · within {request.radiusMiles} mi</small></span></div></div>
+    {subscription && <div className="plan-strip"><UsageChip subscription={subscription} /></div>}
+    {(gate || blocked) && <UpgradePrompt reason={gate?.reason ?? (subscription ? gateReasonFor(subscription) : null)} role="dealer" limit={gate?.limit ?? subscription?.limit ?? null} subscription={subscription} reveal={gate !== null} />}
     <div className="detail-grid"><section className="card card-pad quote-builder"><span className="eyebrow">Transparent dealer response</span><h2>Build your itemized quote</h2>
       <form className="form-grid" onSubmit={(event) => { event.preventDefault(); void submit(); }}>
         <div className="field form-span"><label htmlFor="vehicle-price">Vehicle price</label><input id="vehicle-price" name="vehiclePrice" className="input price" value={vehiclePrice} onChange={(event) => setVehiclePrice(event.target.value)} inputMode="decimal" required /></div>

@@ -13,6 +13,7 @@ from src.database import SessionFactory
 from src.models.marketplace import AiChatRequest, CompareRequest
 from src.repositories.schema import AiTrace, Brand, BuyerRequest, ConversationHistory, DealQuote, LlmAudit, Profile
 from src.services.administration_service import AdministrationService
+from src.services.billing_service import BillingService
 from src.settings import get_settings
 from src.utils.exceptions import AppError, error_codes
 from src.utils.log_flow import log_flow
@@ -22,6 +23,21 @@ from src.utils.serialization import model_dict
 class AiService:
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
+
+    @log_flow(layer="service")
+    async def posting_gate(self, buyer: Profile) -> dict:
+        """Whether the buyer's plan currently allows turning a Sera preview into a published post."""
+        state = await BillingService(self.session).subscription_state(buyer)
+        allowed = True if state is None else bool(state.get("can_create_request", True))
+        reason = None
+        if not allowed:
+            reason = "premium_expired" if buyer.is_premium else "request_limit_reached"
+        return {
+            "posting_allowed": allowed,
+            "posting_reason": reason,
+            "requests_used": None if state is None else state.get("requests_used"),
+            "request_limit": None if state is None else state.get("request_limit"),
+        }
 
     @log_flow(layer="service")
     async def stream_chat(self, payload: AiChatRequest, buyer: Profile):
@@ -132,11 +148,17 @@ class AiService:
             await asyncio.sleep(0)
         if comparison_payload is not None:
             yield {"type": "card", "kind": "compare", "payload": comparison_payload}
+        gate = await self.posting_gate(buyer)
         if not requirement_result.get("missing_fields") and requirement_result.get("requirements"):
             yield {
                 "type": "card",
                 "kind": "requestPreview",
-                "payload": {**requirement_result["requirements"], "confirmation_required": True},
+                "payload": {
+                    **requirement_result["requirements"],
+                    "confirmation_required": True,
+                    "posting_allowed": gate["posting_allowed"],
+                    "posting_reason": gate["posting_reason"],
+                },
             }
         elif requirement_result.get("suggested_questions"):
             yield {
@@ -145,6 +167,8 @@ class AiService:
                 "payload": {
                     "questions": requirement_result["suggested_questions"],
                     "draft": requirement_result.get("requirements", {}),
+                    "posting_allowed": gate["posting_allowed"],
+                    "posting_reason": gate["posting_reason"],
                 },
             }
         if main_result.get("sources"):
@@ -172,6 +196,7 @@ class AiService:
             card = {"type": "card", "kind": "compare", "payload": comparison}
         elif "request" in lower or "car" in lower or "buy" in lower:
             answer = "## Good start — I captured the essentials\nYour dealer brief now has the vehicle, search area, timing, and must-have equipment.\n## One useful next step\nTell me your preferred trim or color, and anything you will not compromise on.\nYou can edit the preview below. It stays private until you choose to post it."
+            gate = await self.posting_gate(buyer)
             card = {
                 "type": "card",
                 "kind": "requestPreview",
@@ -183,6 +208,8 @@ class AiService:
                     "area": "Austin, TX · 75 miles",
                     "timeline": "Within 2 weeks",
                     "mustHaves": "4WD, hard top, adaptive cruise",
+                    "posting_allowed": gate["posting_allowed"],
+                    "posting_reason": gate["posting_reason"],
                 },
             }
         else:

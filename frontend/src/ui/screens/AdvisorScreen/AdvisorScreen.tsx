@@ -7,10 +7,12 @@ import remarkGfm from 'remark-gfm';
 import { formatMoney } from '@/helpers/currency';
 import { relativeTime } from '@/helpers/dateTime';
 import { createId } from '@/helpers/ids';
+import { postingGate } from '@/helpers/subscription';
 import { client } from '@/services/platform/client';
 import { CompareIcon } from '@/ui/reusables/Icons/CompareIcon';
 import { SerraLoader } from '@/ui/reusables/PageLoading/PageLoading';
 import { SerraLogo } from '@/ui/reusables/SerraLogo/SerraLogo';
+import { UpgradePrompt } from '@/ui/reusables/UpgradePrompt/UpgradePrompt';
 import type { AiMessage, AiThread, BuyerRequest, Quote } from '@/types/domain';
 
 type RequestDraft = Record<string, string>;
@@ -89,6 +91,9 @@ export default function AdvisorScreen() {
   const [compare, setCompare] = useState<CompareDraft | null>(null);
   const [editing, setEditing] = useState(false);
   const [published, setPublished] = useState(false);
+  // Sera attaches the buyer's posting gate to each request preview; a blocked buyer sees an upgrade prompt instead of the post button.
+  const [postGate, setPostGate] = useState<ReturnType<typeof postingGate>>(null);
+  const postBlocked = postGate?.allowed === false;
   const [threadMenuId, setThreadMenuId] = useState<string | null>(null);
   const [deletingThreadId, setDeletingThreadId] = useState<string | null>(null);
   const [threadActionError, setThreadActionError] = useState('');
@@ -140,6 +145,7 @@ export default function AdvisorScreen() {
     ++greetingRunRef.current;
     setStatus('');
     setDraft(null);
+    setPostGate(null);
     setCompare(null);
     setThreadLoading(true);
     try {
@@ -173,7 +179,7 @@ export default function AdvisorScreen() {
   function newChat() {
     cancelActiveResponse(false);
     ++greetingRunRef.current;
-    setDraft(null); setCompare(null); setSelected([]); setSelectedQuoteIds([]); setThreadId(undefined); setPublished(false); setSidebarOpen(false); setParams({}, { replace: true });
+    setDraft(null); setPostGate(null); setCompare(null); setSelected([]); setSelectedQuoteIds([]); setThreadId(undefined); setPublished(false); setSidebarOpen(false); setParams({}, { replace: true });
     streamGreeting();
   }
 
@@ -250,7 +256,7 @@ export default function AdvisorScreen() {
         if (controller.signal.aborted || activeRunRef.current !== run) break;
         if (event.type === 'status') setStatus(activity[event.phase]);
         if (event.type === 'token') { setStatus(''); setMessages((items) => items.map((item) => item.id === assistantId ? { ...item, body: item.body + event.text } : item)); }
-        if (event.type === 'card' && event.kind === 'requestPreview') setDraft(normalizeRequestDraft(event.payload));
+        if (event.type === 'card' && event.kind === 'requestPreview') { setDraft(normalizeRequestDraft(event.payload)); setPostGate(postingGate(event.payload)); }
         if (event.type === 'card' && event.kind === 'compare') setCompare(event.payload as CompareDraft);
         if (event.type === 'error') {
           setStatus('');
@@ -301,7 +307,7 @@ export default function AdvisorScreen() {
             </article>;
           })}
           {stopped && <div className="inline-notice">Response stopped. Your partial answer remains in this chat.</div>}
-          {draft && <section className="ai-result-card request-preview"><div className="result-card-head"><div><span className="eyebrow">Dealer-ready draft</span><h3>Your buying request</h3></div><button className="button button-secondary button-sm" onClick={() => setEditing(!editing)}><Pencil size={14} /> {editing ? 'Done' : 'Edit'}</button></div><div className="request-preview-grid">{Object.entries(draft).map(([key, value]) => <label key={key}><span>{key === 'mustHaves' ? 'Must-haves' : key.replace(/([A-Z])/g, ' $1')}</span>{editing ? <input value={value} onChange={(event) => setDraft({ ...draft, [key]: event.target.value })} /> : <strong>{value}</strong>}</label>)}</div><div className="result-card-actions"><p><CheckCircle2 size={16} /> Nothing is posted until you confirm.</p><button className="button button-primary" onClick={() => setPublished(true)} disabled={published}><FileCheck2 size={17} /> {published ? 'Request posted' : 'Post this request'}</button></div></section>}
+          {draft && <section className="ai-result-card request-preview"><div className="result-card-head"><div><span className="eyebrow">Dealer-ready draft</span><h3>Your buying request</h3></div><button className="button button-secondary button-sm" onClick={() => setEditing(!editing)}><Pencil size={14} /> {editing ? 'Done' : 'Edit'}</button></div><div className="request-preview-grid">{Object.entries(draft).map(([key, value]) => <label key={key}><span>{key === 'mustHaves' ? 'Must-haves' : key.replace(/([A-Z])/g, ' $1')}</span>{editing ? <input value={value} onChange={(event) => setDraft({ ...draft, [key]: event.target.value })} /> : <strong>{value}</strong>}</label>)}</div>{postBlocked && <UpgradePrompt reason={postGate?.reason ?? 'request_limit_reached'} role="buyer" />}<div className="result-card-actions"><p><CheckCircle2 size={16} /> Nothing is posted until you confirm.</p><button className="button button-primary" onClick={() => setPublished(true)} disabled={published || postBlocked}><FileCheck2 size={17} /> {published ? 'Request posted' : 'Post this request'}</button></div></section>}
           {compare && <ComparisonCard compare={compare} selected={selected} selectedQuoteIds={selectedQuoteIds} quotes={quotes} requests={requests} />}
           <div ref={endRef} />
         </div>

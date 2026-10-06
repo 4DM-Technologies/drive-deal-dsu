@@ -2,13 +2,14 @@ import { ArrowRight, Clock3, DollarSign, FileText, MessageCircle, Radio, Sparkle
 import type { LucideIcon } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { PageLoading } from '@/ui/reusables/PageLoading/PageLoading';
-import { Link, Navigate, useLocation } from 'react-router-dom';
+import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { formatMoney } from '@/helpers/currency';
 import { relativeTime } from '@/helpers/dateTime';
 import { client } from '@/services/platform/client';
 import { SerraLogo } from '@/ui/reusables/SerraLogo/SerraLogo';
 import { Reveal } from '@/ui/reusables/Reveal/Reveal';
 import { StatusBadge } from '@/ui/reusables/StatusBadge/StatusBadge';
+import { TrialBanner } from '@/ui/reusables/TrialBanner/TrialBanner';
 import type { BuyerRequest, Quote } from '@/types/domain';
 import { previewQuery, useEffectiveSession } from '@/ui/navigations/previewSession';
 
@@ -21,6 +22,7 @@ function StatGrid({ items }: { items: Stat[] }) {
 export default function HomeScreen() {
   const session = useEffectiveSession();
   const previewSearch = previewQuery(useLocation().search);
+  const navigate = useNavigate();
   const [requests, setRequests] = useState<BuyerRequest[]>([]);
   const [quotes, setQuotes] = useState<Quote[]>([]);
   const [loaded, setLoaded] = useState(false);
@@ -71,6 +73,7 @@ export default function HomeScreen() {
     { label: 'Open requests', value: liveRequests.length, note: 'Across your market', icon: Clock3 },
   ];
   return <div className="shell page-content dashboard-page">
+    <TrialBanner subscription={session.subscription ?? null} onUpgrade={() => navigate(`/billing${previewSearch}`)} />
     <Reveal><div className="dashboard-welcome"><div><span className="eyebrow">Dealer workspace</span><h1>Demand is moving.</h1><p>Respond quickly, keep totals transparent, and follow through on every conversation you open.</p></div><Link className="button button-primary" to="/feed">Browse buyer demand <ArrowRight size={17} /></Link></div></Reveal>
     <StatGrid items={stats} />
     <div className="grid dashboard-main-grid dealer-overview-grid">

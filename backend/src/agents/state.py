@@ -14,6 +14,8 @@ class AgentState(TypedDict, total=False):
     car_names: list[str]
     car_specs: list[dict[str, Any]]
     kb_results: list[dict[str, Any]]
+    kb_searched: bool
+    kb_results_relevant: bool
     web_results: list[dict[str, str]]
     requirements: dict[str, Any]
     missing_fields: list[str]

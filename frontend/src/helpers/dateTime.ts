@@ -8,3 +8,12 @@ export function relativeTime(value: string): string {
   if (!unit) return 'now';
   return formatter.format(Math.round(seconds / unit[1]), unit[0]);
 }
+
+export function formatLongDate(value: string): string {
+  return new Intl.DateTimeFormat('en-US', { month: 'long', day: 'numeric', year: 'numeric' }).format(new Date(value));
+}
+
+/** Whole days until `value`, rounded up, so the last partial day still counts as one day left. */
+export function daysUntil(value: string): number {
+  return Math.ceil((new Date(value).getTime() - Date.now()) / 86_400_000);
+}

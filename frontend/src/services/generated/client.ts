@@ -1,4 +1,4 @@
-import type { ActiveTheme, AdministrationAuditEvent, AdminCatalog, AdminConfigBundle, AdminConfigType, AdminPromptBundle, AdminRevision, AiThread, AiTrace, BrandRef, BuyerPreferences, BuyerRequest, CarCreateInput, ChatMessage, DealDocument, DealerSignupInput, InventoryCar, ProfileUpdateInput, PromptDefinition, Quote, QuoteCreateInput, RequestCreateInput, Session, StateRef, SignupInput, SupportMember, SupportSignupInput, SupportTicketCreate, Ticket, Verification, WorkflowDefinition, WorkflowPreview, WorkflowPreviewStreamEvent } from '@/types/domain';
+import type { PaymentInput, PaymentReceipt, ActiveTheme, AdministrationAuditEvent, AdminCatalog, AdminConfigBundle, AdminConfigType, AdminPromptBundle, AdminRevision, AiThread, AiTrace, BrandRef, BuyerPreferences, BuyerRequest, CarCreateInput, ChatMessage, DealDocument, DealerSignupInput, InventoryCar, ProfileUpdateInput, PromptDefinition, Quote, QuoteCreateInput, RequestCreateInput, Session, StateRef, SignupInput, SupportMember, SupportSignupInput, SupportTicketCreate, Ticket, Verification, WorkflowDefinition, WorkflowPreview, WorkflowPreviewStreamEvent } from '@/types/domain';
 
 export type AiStreamEvent =
   | { type: 'status'; phase: 'classifying' | 'searching' | 'crawling' | 'composing'; label: string }
@@ -44,6 +44,7 @@ export interface DriveDealClient {
     withdraw(id: string): Promise<Quote>;
     dealerContact(id: string): Promise<{ name: string; email: string; phone: string | null }>;
   };
+  payments: { create(input: PaymentInput): Promise<PaymentReceipt> };
   documents: { list(quoteId: string): Promise<DealDocument[]>; upload(quoteId: string, file: File, type: 'vehicle_image' | 'quote_document'): Promise<DealDocument> };
   chats: {
     list(quoteId: string): Promise<ChatMessage[]>;
