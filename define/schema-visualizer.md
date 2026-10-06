@@ -28,9 +28,9 @@ doing the work of real columns. The sample data proves the damage:
 | Near-duplicate tables | `support_agent_verifications` (2 rows) + `support_dealer_verifications` (13 rows), identical columns | merged into `support_verifications` |
 | Near-duplicate tables | `support_customer_tickets` (2 rows) + `support_dealer_tickets` (7 rows), identical columns | merged into `support_tickets` + `category` |
 | Denormalised profile copy | `support_*.profile_data` stores a full JSONB dump of the `profiles` row | removed — read through `profile_id` |
-| No audit trail | only `created_at` exists; 0 of 15 tables track *who* changed what | `created_at`/`updated_at`/`created_by`/`updated_by` on all 15 |
+| No audit trail | only `created_at` exists; 0 of 15 tables track *who* changed what | `created_at`/`updated_at`/`created_by`/`updated_by` on all 16 |
 
-**15 tables remain** (down from 40). 37 tables dropped.
+**16 tables remain** (the original 15 plus `payments`, added later for premium billing). 37 tables dropped.
 
 ---
 
@@ -53,12 +53,13 @@ doing the work of real columns. The sample data proves the damage:
 | 13 | `support_verifications` | Support | was `support_agent_verifications` + `support_dealer_verifications` |
 | 14 | `llm_audits` | Ops | **new** |
 | 15 | `error_logs` | Ops | **new** |
+| 16 | `payments` | Billing | **new** — premium-subscription ledger |
 
 ### Conventions used throughout
 
 - **UUID** primary keys (`gen_random_uuid()`), except `llm_audits.id` which is `bigserial`
   because it is a high-volume append-only log.
-- **Audit columns** on all 15 tables: `created_at`, `updated_at`, `created_by`, `updated_by`.
+- **Audit columns** on all 16 tables: `created_at`, `updated_at`, `created_by`, `updated_by`.
   `created_by`/`updated_by` are `text` holding **either** the literal `'system'` **or** a
   `profiles.id` uuid, enforced by a `CHECK`. *Decision: a `uuid`-or-`'system'` sentinel in
   `text` is the only single-column way to express "backend wrote this" and "this user
@@ -81,7 +82,7 @@ doing the work of real columns. The sample data proves the damage:
 ### 2.1 `set_audit_actor()` — the audit trigger
 
 The four audit columns are never written by application code. A single `BEFORE INSERT OR
-UPDATE` trigger on all 15 tables resolves the actor:
+UPDATE` trigger on all 16 tables resolves the actor:
 
 - `auth.uid()` returns a value → a signed-in user did this → store that `profiles.id`
 - `auth.uid()` returns `NULL` → backend job, cron, migration, or service-role call →
@@ -264,6 +265,10 @@ One row per human. `id` is the Supabase Auth uid.
 | `terms_accepted` | `boolean` | NO | `false` | | **Added by `solution-backend.md` §2 Delta 10.** `true` once the account accepted the Terms. The server rejects signup when it is false or absent with `VALIDATION_ERROR` |
 | `terms_version` | `text` | NO | `'2026-09-01'` | | **Delta 10.** The version string the user was shown. Server-assigned from the `TERMS_VERSION` constant, never taken from the request |
 | `terms_accepted_at` | `timestamptz` | YES | | | **Delta 10.** `now()` at signup, written with the row so no account exists without a consent record. Deliberately nullable: a `NULL` on a backfilled legacy row means *not consented*, and is never backfilled with the migration timestamp |
+| `trial_started_at` | `timestamptz` | YES | | | **Subscription.** Stamped by the server on a dealer's first login; `NULL` = trial never started (buyers and staff never get one) |
+| `trial_expires_at` | `timestamptz` | YES | | | **Subscription.** `trial_started_at` + `DEALER_TRIAL_DAYS` (60). Expiry is evaluated on read, never by a background job |
+| `is_premium` | `boolean` | NO | `false` | | **Subscription.** Convenience flag maintained with `premium_expires_at`; entitlement is always derived from `premium_expires_at > now()` |
+| `premium_expires_at` | `timestamptz` | YES | | | **Subscription.** One year from the last successful `payments` row. `NULL` or past = not premium |
 | `created_at` | `timestamptz` | NO | `now()` | | |
 | `updated_at` | `timestamptz` | NO | `now()` | | |
 | `created_by` | `text` | YES | `'system'` | `CHECK (created_by = 'system' OR created_by ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$')` | `auth.uid()`, else `'system'` |
@@ -342,6 +347,35 @@ Holds **only** the account credential linked to a profile.
 | `c4e1a902-7f35-4d18-b2c6-91a0e7d3f001` | `250d3f1c-3f4b-4cf6-8e7f-b1c972e2237f` | `NULL` | true | 2026-09-28 11:14:03+00 |
 | `c4e1a902-7f35-4d18-b2c6-91a0e7d3f002` | `6c795ae0-edb8-4546-aef2-dab9edc2221f` | `NULL` | true | 2026-09-28 09:02:41+00 |
 | `c4e1a902-7f35-4d18-b2c6-91a0e7d3f003` | `4772bb1a-ee75-4f45-b8e6-53d70f6e42b1` | `$argon2id$v=19$m=65536,t=3,p=4$...` | true | 2026-09-08 07:44:19+00 |
+
+---
+
+### 4.3 `payments` — premium-subscription ledger
+
+One row per successful (or failed/refunded) subscription payment. The table is append-only in
+practice: a new row is written on every checkout and the caller's new expiry is computed from the
+previous `premium_expires_at` (stacking) or from `now()`.
+
+**Columns**
+
+| Name | Type | Null | Default | Key / Constraints | Notes |
+|---|---|---|---|---|---|
+| `id` | `uuid` | NO | `gen_random_uuid()` | **PK** | |
+| `profile_id` | `uuid` | NO | — | `REFERENCES profiles(id) ON DELETE CASCADE`, indexed | The subscriber |
+| `plan` | `text` | NO | — | `CHECK (plan IN ('dealer_premium','buyer_premium'))` | Price tier is derived from this, not from `profiles.role` at read time |
+| `amount` | `numeric(12,2)` | NO | — | | `500.00` dealer, `100.00` buyer — from `PREMIUM_PRICE_BY_ROLE` |
+| `currency` | `char(3)` | NO | `'USD'` | | |
+| `payment_method` | `text` | NO | — | `CHECK (payment_method IN ('credit_card','debit_card'))` | |
+| `card_brand` | `text` | YES | | | Detected brand (`visa`, `mastercard`, …) — **the only card-derived value stored besides the last four** |
+| `card_last4` | `char(4)` | YES | | | Full PAN and CVV are accepted by `POST /payment` for UX parity and **never persisted** |
+| `status` | `text` | NO | `'succeeded'` | `CHECK (status IN ('succeeded','failed','refunded'))` | Checkout is simulated: well-formed cards always `succeeded` |
+| `premium_expires_at` | `timestamptz` | YES | | | The profile expiry this payment produced — the audit answer to "why does my plan end then?" |
+| `created_at` / `updated_at` / `created_by` / `updated_by` | | | | audit columns | As everywhere (§2) |
+
+**Derived entitlement, not stored state.** `profiles.is_premium` / `premium_expires_at` are a
+cache of "the newest successful payment's outcome"; `subscription_state()` always recomputes
+`premium_active` from `premium_expires_at > now()`, and the dealer trial
+(`trial_started_at` → `trial_expires_at`, 3-quote cap) sits below premium in the precedence order.
 
 ---
 
@@ -998,8 +1032,8 @@ One row per LLM invocation. Adapted from the supplied SQLAlchemy model.
 | `task_type`, `model_name`, `input_tokens`, `output_tokens`, `total_tokens`, `latency_ms`, `status`, `is_active`, `is_deleted` | kept | |
 | `email_id` FK → `emails.id` | **dropped** | No `emails` table in this project |
 | `chat_message_id` FK → `chat_messages.id` | **dropped → `thread_id`** | `chat_messages` is removed; `thread_id` links to `conversation_history` |
-| `modified_at` | **renamed** `updated_at` | Standardised across all 15 tables |
-| `modified_by` | **renamed** `updated_by` | Standardised across all 15 tables |
+| `modified_at` | **renamed** `updated_at` | Standardised across all 16 tables |
+| `modified_by` | **renamed** `updated_by` | Standardised across all 16 tables |
 | — | **added** `uuid`, `provider`, `error_code`, `updated_at`, `updated_by` | Correlation + failure diagnosis |
 
 **Columns**
@@ -1138,9 +1172,11 @@ Markdown and renders identically on GitHub, in VS Code and in PDF export.
   │  automatic, budget │
   └────────────────────┘
 
-  ┌──────────────────┐   ┌──────────────────────┐
-  │ support_tickets  │   │ support_verifications│
-  └──────────────────┘   └──────────────────────┘
+  ┌──────────────────┐   ┌──────────────────────┐   ┌─────────────────────┐
+  │ support_tickets  │   │ support_verifications│   │      payments       │
+  └──────────────────┘   └──────────────────────┘   │ profiles 1:N        │
+                                                     │ (premium ledger)    │
+                                                     └─────────────────────┘
 ```
 
 ### 10.3 Relationship matrix
@@ -1164,6 +1200,7 @@ Markdown and renders identically on GitHub, in VS Code and in PDF export.
 | `profiles` | `support_tickets` | 1:N | `support_tickets.caller_id` | SET NULL | Ticket must outlive the user |
 | `profiles` | `support_verifications` | 1:N | `support_verifications.profile_id` | CASCADE | |
 | `profiles` | `error_logs` | 1:N | `error_logs.user_id` | SET NULL | |
+| `profiles` | `payments` | 1:N | `payments.profile_id` | CASCADE | Subscription ledger; a refund/receipt must die with the subscriber |
 | `buyer_requests` | `deal_quotes` | 1:N | `deal_quotes.buyer_request_id` | CASCADE | Full cleanup on request delete |
 | `deal_quotes` | `deal_chats` | 1:N | `deal_chats.quote_id` | CASCADE | |
 | `deal_quotes` | `deal_documents` | 1:N | `deal_documents.quote_id` | CASCADE | Owning side. Do **not** make this 1:1 |
@@ -1203,6 +1240,9 @@ Markdown and renders identically on GitHub, in VS Code and in PDF export.
 | `llm_audits.task_type` | 8 values, see §9.1 | |
 | `llm_audits.status` | `success` \| `error` \| `timeout` \| `rate_limited` \| `refused` \| `content_filtered` | |
 | `error_logs.level` | `DEBUG` \| `INFO` \| `WARN` \| `ERROR` \| `FATAL` | |
+| `payments.plan` | `dealer_premium` \| `buyer_premium` | Price tier recorded at checkout; read time never re-derives it from `profiles.role` |
+| `payments.status` | `succeeded` \| `failed` \| `refunded` | Checkout is simulated — well-formed cards are always `succeeded` |
+| `payments.payment_method` | `credit_card` \| `debit_card` | |
 
 > The `deal_status` values are display strings, not enums. This is a **known wart** — they
 > contain spaces and capital letters, so they cannot become a Postgres `ENUM` cleanly and
@@ -1327,7 +1367,7 @@ with no equivalent** — they are a product decision, not a cleanup.
 
 ## 14. Row Level Security
 
-Policies for all 15 tables. `auth.uid()` returns `profiles.id` because `profiles.id` is the
+Policies for all 16 tables. `auth.uid()` returns `profiles.id` because `profiles.id` is the
 Auth uid.
 
 | Table | Policy | Command | USING | WITH CHECK |
@@ -1360,6 +1400,7 @@ Auth uid.
 | `support_verifications` | Support full access | ALL | role IN ('support','admin') | same |
 | `llm_audits` | Backend only | ALL | `false` (service_role) | — |
 | `error_logs` | Backend only | ALL | `false` (service_role) | — |
+| `payments` | Backend only | ALL | `false` (service_role) | — |
 
 **Hardening the live policies.** The current live policies contain three defects that must
 not be carried forward:
@@ -1387,12 +1428,12 @@ Requires `REPLICA IDENTITY FULL` on both tables, or the filter only sees `NEW.id
 
 | Metric | Live | v2 | Δ |
 |---|---|---|---|
-| Tables | 40 | 15 | **−25** |
+| Tables | 40 | 16 | **−24** |
 | Columns (approx.) | ~700 | ~210 | −490 |
 | JSONB blobs holding structured data | 7 | 2 (`market_brief`, `reviews`) | −5 |
 | Tables with `UNIQUE` constraints | 4 | 15 | +11 |
-| Tables with `CHECK` constraints | 0 | 15 | +15 |
-| Tables with full audit columns | 0 | 15 | +15 |
+| Tables with `CHECK` constraints | 0 | 16 | +16 |
+| Tables with full audit columns | 0 | 16 | +16 |
 | Free-text geography values | 15 | 0 | −15 |
 | Free-text brand values | 33 | 0 | −33 |
-| Tables with documented RLS | 22 | 15 | −7 (and all defects fixed) |
+| Tables with documented RLS | 22 | 16 | −6 (and all defects fixed) |

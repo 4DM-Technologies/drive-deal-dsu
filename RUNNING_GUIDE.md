@@ -32,6 +32,18 @@ but it never creates a database and never seeds data. The provisioned RDS instan
 To install the demo dataset into an empty local database, run `uv run python -m tests.demo_data`
 (idempotent — it only fills rows that are missing).
 
+A fresh empty database needs no migration: `create_schema()` creates the complete schema on first
+boot. A database created **before** the subscription feature is missing the billing columns and the
+`payments` table; `create_schema()` never alters existing tables, so apply them with:
+
+```powershell
+uv run alembic stamp 20261004_0006
+uv run alembic upgrade head
+```
+
+(The schema was historically created by `create_schema()` rather than Alembic, hence the stamp; the
+billing revision `20261006_0007` is existence-guarded, so the upgrade is safe on any schema state.)
+
 ### Serra AI layer: live versus demo mode
 
 `AI_DISABLED` is **opt-in**. By default the Serra LangGraph workflow executes; set `AI_DISABLED=true`
@@ -122,18 +134,103 @@ demo. To use the running API, change it to `false` and restart Vite.
 
 Every account uses password `demo1234`.
 
-| Workspace | Email | Home after login |
-|---|---|---|
-| Buyer | `rahul@drivedeal.demo` | `/home` |
-| Buyer | `adithyaa@drivedeal.demo` | `/home` |
-| Dealer | `naveen@naveemotors.demo` | `/home` |
-| Support | `maya@drivedeal.demo` | `/support` |
-| Support administrator | `priya@drivedeal.demo` | `/support` |
-| Admin | `alex@drivedeal.demo` | `/support` |
+| Workspace | Email | Home after login | Plan |
+|---|---|---|---|
+| Buyer | `rahul@drivedeal.demo` | `/home` | Premium (1 year) |
+| Buyer | `adithyaa@drivedeal.demo` | `/home` | Premium (1 year) |
+| Buyer | `buyer3@drivedeal.demo` … `buyer10@drivedeal.demo` | `/home` | Free, 3/3 posts used — buyer paywall demo |
+| Dealer | `naveen@naveemotors.demo` | `/home` | Premium (1 year) |
+| Dealer | `elena@lonestar.demo` | `/home` | Premium (1 year) |
+| Dealer | `dealer4@`, `dealer5@`, `dealer6@`, `dealer7@`, `dealer9@`, `dealer10@drivedeal.demo` | `/home` | Trial — 3 quotes left |
+| Dealer | `dealer8@drivedeal.demo` | `/home` | Trial expired — dealer paywall demo |
+| Dealer | `jordan@northtexas.demo` | `/home` | Suspended on the live RDS (support moderation demo) |
+| Support | `maya@drivedeal.demo` | `/support` | n/a — staff have no subscription state |
+| Support administrator | `priya@drivedeal.demo` | `/support` | n/a — staff |
+| Admin | `alex@drivedeal.demo` | `/support` | n/a — staff |
+
+Premium (rahul, adithyaa, naveen, elena), the expired `dealer8` trial and the buyers sitting at
+3/3 posts are applied idempotently by `tests/demo_data.py` on both seed paths, so a fresh local
+database matches the live RDS demo state — on RDS the premium plans run to **2027-10-06** and the
+trial dealers' 60-day clock was pre-stamped to **2026-12-05**; locally premium is granted 365 days
+from the seeding run and a dealer trial otherwise starts at that dealer's first login. `jordan` is
+suspended on RDS; a fresh local seed starts him active until he is suspended from the support
+workspace.
 
 On the login page, pick Buyer or Dealer. Team sign-in accepts both support and support-admin accounts and is intentionally kept on the restricted team route. The Deal&Drive wordmark always returns an authenticated user to their role home. Only support-admin and admin sessions see the Administrator navigation item; changing a support member's role invalidates their existing session and requires a new sign-in.
 
-## 4. Verification
+## 4. Premium subscriptions & billing
+
+Subscription state is derived on every read — profiles store only timestamps
+(`trial_started_at`, `trial_expires_at`, `is_premium`, `premium_expires_at`), and every successful
+payment is appended to the `payments` ledger. Card numbers and CVVs are never persisted: only the
+detected brand and the last four digits.
+
+| Plan | Price | Grants |
+|---|---|---|
+| Buyer premium | $100 / year | Unlimited car-buy posts |
+| Buyer free | — | 3 car-buy posts for life, then the paywall |
+| Dealer premium | $500 / year | Unlimited quotes |
+| Dealer trial | Free, 60 days from first login | 3 quotes total |
+| Dealer free | — | 0 quotes (trial expired or never started) |
+
+Effective order: active premium → active dealer trial → free tier. Existing quotes, deals and
+requests stay visible after expiry — only creating new ones is blocked, and Serra chat itself is
+never blocked.
+
+### Reading the state
+
+`GET /api/v1/profiles/me` and `GET /api/v1/auth/me` include a `subscription` object for buyers and
+dealers; staff sessions (support, support-admin, admin) are excluded:
+
+```json
+{
+  "subscription": {
+    "role": "dealer",
+    "plan": "trial",
+    "is_premium": false,
+    "premium_expires_at": null,
+    "trial_started_at": "2026-10-06T13:02:42+00:00",
+    "trial_expires_at": "2026-12-05T13:02:42+00:00",
+    "premium_price": "500.00",
+    "currency": "USD",
+    "quote_limit": 3,
+    "quotes_used": 1,
+    "quotes_remaining": 2,
+    "can_quote": true
+  }
+}
+```
+
+Buyers get `request_limit`, `requests_used`, `requests_remaining`, `can_create_request` and
+`ai_posting_allowed` instead of the quote fields; the limit fields are `null` while premium is
+active. `plan` is one of `premium`, `trial`, `free`.
+
+### Paywalled surfaces
+
+Out of allowance returns **402** with `error.code = "SUBSCRIPTION_REQUIRED"` and
+`error.details.reason` set to one of `trial_quota_exhausted`, `trial_expired`, `premium_expired`,
+`request_limit_reached`:
+
+- Dealers: `POST /api/v1/quotes`.
+- Buyers: `POST /api/v1/requests`, plus `POST /api/v1/ai/request-preview`, which reports
+  `posting_allowed: false` before the hard block.
+
+### Simulated checkout
+
+`POST /api/v1/payment` accepts any well-formed card and activates premium for one year, stacking
+onto the current expiry when an unexpired premium is extended. Sessions other than buyer/dealer get
+403; malformed card details get 422.
+
+```powershell
+curl -X POST http://127.0.0.1:8000/api/v1/payment `
+  -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" `
+  -d '{"payment_method":"credit_card","card_number":"4242424242424242","cardholder_name":"Demo Buyer","expiry_month":12,"expiry_year":2027,"cvv":"123"}'
+```
+
+The response carries `payment_id`, `status`, `plan`, `amount`, `card_brand`, `card_last4`,
+`premium_expires_at` and the refreshed `subscription` block.
+
+## 5. Verification
 
 ```powershell
 cd "C:\Users\Syed Thameemuddin\Desktop\Cube Simple\drive-deal-dsu\frontend"
@@ -143,6 +240,7 @@ npm run build
 
 cd "C:\Users\Syed Thameemuddin\Desktop\Cube Simple\drive-deal-dsu\backend"
 uv run ruff check .
+uv run ruff format --check src tests
 uv run pytest -q
 uv run bandit -q -r src
 ```
@@ -150,12 +248,15 @@ uv run bandit -q -r src
 Current status of these gates:
 
 - `uv run ruff check .` — passes.
-- `uv run pytest -q` — passes (174 tests), coverage 75.22%, above the 75% floor in `pyproject.toml`.
-- `uv run bandit -q -r src` — passes, no findings.
-- `uv run ruff format --check src` — passes. 38 files were reformatted, so keep this green by running
-  `uv run ruff format src` before committing; CI Stage 3 fails the pipeline on a formatting diff.
+- `uv run pytest -q` — passes (194 tests), coverage 75.45%, above the 75% floor in `pyproject.toml`.
+- `uv run bandit -q -r src` — reports 2 known LOW findings and therefore exits non-zero: B105 false
+  positives on the committed OpenAI OAuth token URLs at `src/settings.py:68` and `src/settings.py:96`
+  (URLs, not secrets). CI Stage 6 runs `bandit -r src/ -x tests/,migration/,venv/,.venv/ -lll -iii`,
+  which fails only on HIGH issues, so the pipeline passes.
+- `uv run ruff format --check src tests` — passes. 95 files are checked, so keep this green by running
+  `uv run ruff format src tests` before committing; CI Stage 3 fails the pipeline on a formatting diff.
 
-## 5. Containers and CI
+## 6. Containers and CI
 
 `uv.lock` is the single source of truth for backend dependencies. `backend/requirements.txt` has been
 deleted; `backend/Dockerfile` creates a virtual environment with `uv sync --frozen --no-dev` and the CI

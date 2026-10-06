@@ -9,6 +9,7 @@ from src.middleware.auth import get_current_profile
 from src.models.auth import BuyerSignup, DealerSignup, LoginRequest, RefreshRequest, SupportSignup, TokenResponse
 from src.repositories.schema import Profile, User
 from src.services.auth_service import AuthService
+from src.services.billing_service import BillingService
 from src.utils.exceptions import AppError, error_codes
 from src.utils.log_flow import log_flow
 from src.utils.logger import logger
@@ -92,5 +93,9 @@ async def reset_password(payload: ResetPasswordRequest, session: AsyncSession = 
 
 @router.get("/me")
 @log_flow(layer="route")
-async def me(profile: Profile = Depends(get_current_profile)) -> dict:
-    return model_dict(profile)
+async def me(profile: Profile = Depends(get_current_profile), session: AsyncSession = Depends(get_session)) -> dict:
+    data = model_dict(profile)
+    subscription = await BillingService(session).subscription_state(profile)
+    if subscription is not None:
+        data["subscription"] = subscription
+    return data

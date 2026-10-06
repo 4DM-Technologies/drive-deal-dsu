@@ -885,6 +885,8 @@ paths:
                 $ref: '#/components/schemas/BuyerRequest'
         '401':
           $ref: '#/components/responses/unauthorized'
+        '402':
+          $ref: '#/components/responses/subscription_required'
         '403':
           $ref: '#/components/responses/forbidden'
         '422':
@@ -1211,6 +1213,8 @@ paths:
                 $ref: '#/components/schemas/QuoteDetail'
         '401':
           $ref: '#/components/responses/unauthorized'
+        '402':
+          $ref: '#/components/responses/subscription_required'
         '403':
           $ref: '#/components/responses/forbidden'
         '404':
@@ -3662,39 +3666,45 @@ paths:
                     content: Under 65k, used, automatic please
       responses:
         '200':
-          description: Draft request preview
+          description: Draft request preview with the billing posting gate
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/AiRequestPreview'
+                $ref: '#/components/schemas/AiRequestPreviewResult'
               examples:
                 preview:
                   value:
-                    thread_id: dce16b4b-7c8d-4e9f-a0b1-c2d3e4f5a6b
-                    complete: true
-                    missing_fields: []
-                    request:
-                      title: 7-seater SUV under 65k
-                      description: null
-                      state_id: null
-                      brand_id: null
-                      body_type: SUV
-                      seater_count: 7
-                      min_year: null
-                      max_mileage: null
-                      budget_min: '40000.00'
-                      budget_max: '65000.00'
-                      target_otd: null
-                      transmission: Automatic
-                      drivetrain: null
-                      fuel_type: null
-                      condition: Used
-                      exterior_color: null
-                      must_haves: []
-                      nice_to_haves: []
-                    preference:
-                      source: ai_inferred
-                      confidence: 0.92
+                    previews:
+                    - thread_id: dce16b4b-7c8d-4e9f-a0b1-c2d3e4f5a6b
+                      complete: true
+                      missing_fields: []
+                      request:
+                        title: 7-seater SUV under 65k
+                        description: null
+                        state_id: null
+                        brand_id: null
+                        body_type: SUV
+                        seater_count: 7
+                        min_year: null
+                        max_mileage: null
+                        budget_min: '40000.00'
+                        budget_max: '65000.00'
+                        target_otd: null
+                        transmission: Automatic
+                        drivetrain: null
+                        fuel_type: null
+                        condition: Used
+                        exterior_color: null
+                        must_haves: []
+                        nice_to_haves: []
+                      preference:
+                        source: ai_inferred
+                        confidence: 0.92
+                    confirmation_required: true
+                    posting_allowed: false
+                    posting_reason: request_limit_reached
+                    requests_used: 3
+                    request_limit: 3
         '401':
           $ref: '#/components/responses/unauthorized'
         '403':
@@ -3835,6 +3845,76 @@ paths:
             text/html:
               schema:
                 type: string
+  /payment:
+    post:
+      summary: Subscribe (simulated card checkout)
+      description: |-
+        Activates premium for one year for the calling buyer or dealer. If
+        the caller already has an unexpired premium, the new year stacks
+        onto the current `premium_expires_at`. Every success appends a row
+        to the `payments` ledger recording the plan, amount, currency,
+        detected brand and last four digits only.
+
+        Checkout is simulated: any well-formed card details succeed and
+        the full card number and CVV are never persisted. Staff sessions
+        (support, support-admin, admin) receive 403 FORBIDDEN_ROLE;
+        malformed card details receive 422.
+      operationId: createPayment
+      tags:
+      - Payment
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PaymentCreate'
+            examples:
+              dealer_annual:
+                value:
+                  payment_method: credit_card
+                  card_number: '4242424242424242'
+                  cardholder_name: Naveen Kumar
+                  expiry_month: 12
+                  expiry_year: 2027
+                  cvv: '123'
+      responses:
+        '200':
+          description: Payment recorded, premium extended
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentResult'
+              examples:
+                first_purchase:
+                  value:
+                    payment_id: 6b5a4d3c-2e1f-4a0b-9d8c-7e6f5a4b3c2d
+                    status: succeeded
+                    plan: dealer_premium
+                    amount: '500.00'
+                    currency: USD
+                    payment_method: credit_card
+                    card_brand: visa
+                    card_last4: '4242'
+                    premium_expires_at: '2027-10-06T13:02:42Z'
+                    subscription:
+                      role: dealer
+                      plan: premium
+                      is_premium: true
+                      premium_expires_at: '2027-10-06T13:02:42Z'
+                      trial_started_at: '2026-10-06T13:02:42Z'
+                      trial_expires_at: '2026-12-05T13:02:42Z'
+                      premium_price: '500.00'
+                      currency: USD
+                      quote_limit: null
+                      quotes_used: 31
+                      quotes_remaining: null
+                      can_quote: true
+        '401':
+          $ref: '#/components/responses/unauthorized'
+        '403':
+          $ref: '#/components/responses/forbidden'
+        '422':
+          $ref: '#/components/responses/validation_error'
 components:
   parameters:
     ConfigType:
@@ -4052,6 +4132,44 @@ components:
                     required_role: admin
                     your_role: support
                   request_id: 1b2c3d4e-5f60-4a1b-8c2d-3e4f5a6b7c8d
+    subscription_required:
+      description: |-
+        The caller's plan does not allow this action (HTTP 402,
+        `code = SUBSCRIPTION_REQUIRED`). `details.reason` distinguishes:
+        `trial_quota_exhausted` (dealer used all 3 trial quotes),
+        `trial_expired`, `premium_expired`, `request_limit_reached`
+        (buyer at the 3-post free limit). `details` also carries `plan`,
+        `used` and `limit`. Existing quotes, deals and requests stay
+        visible after expiry — only creating new ones is blocked.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            dealer_quota:
+              value:
+                error:
+                  code: SUBSCRIPTION_REQUIRED
+                  message: Your free trial includes 3 quotes. Subscribe to the premium plan to keep
+                    quoting.
+                  details:
+                    reason: trial_quota_exhausted
+                    plan: trial
+                    used: 3
+                    limit: 3
+                  request_id: 8f7e6d5c-4b3a-4c2d-9e1f-0a1b2c3d4e5f
+            buyer_limit:
+              value:
+                error:
+                  code: SUBSCRIPTION_REQUIRED
+                  message: Your free plan includes 3 car buy posts. Subscribe to the premium plan to
+                    publish more.
+                  details:
+                    reason: request_limit_reached
+                    plan: free
+                    used: 3
+                    limit: 3
+                  request_id: 7e6d5c4b-3a2f-4b1d-8c0e-9f8a7b6c5d4e
     pending_review:
       description: |-
         The account exists but is inactive pending manual approval. This is
@@ -4489,7 +4607,7 @@ components:
                 Stable machine-readable code. Branch on this, never on
                 `message`.
 
-                All codes: UNAUTHORIZED, TOKEN_EXPIRED, FORBIDDEN_ROLE, NOT_RESOURCE_OWNER, INSUFFICIENT_ROLE, DEALER_PENDING_REVIEW, SUPPORT_PENDING_REVIEW, NOT_FOUND, CONFLICT, ALREADY_EXISTS, INVALID_TRANSITION, VALIDATION_ERROR, RATE_LIMITED, INTERNAL_ERROR.
+                All codes: UNAUTHORIZED, TOKEN_EXPIRED, FORBIDDEN_ROLE, NOT_RESOURCE_OWNER, INSUFFICIENT_ROLE, DEALER_PENDING_REVIEW, SUPPORT_PENDING_REVIEW, NOT_FOUND, CONFLICT, ALREADY_EXISTS, INVALID_TRANSITION, VALIDATION_ERROR, SUBSCRIPTION_REQUIRED, RATE_LIMITED, INTERNAL_ERROR.
               example: UNAUTHORIZED
             message:
               type: string
@@ -4951,6 +5069,184 @@ components:
           description: |-
             The exact copy the pending screen shows. Dealers and agents get
             different sentences, not one templated string.
+    SubscriptionState:
+      type: object
+      description: |-
+        Derived subscription state for buyers and dealers — recomputed on
+        every read from the profile's trial/premium timestamps plus usage
+        counts, never stored as a plan flag. Omitted entirely for staff
+        roles (support, support-admin, admin), which are not subject to
+        marketplace limits. Precedence: active premium > active dealer
+        trial > free tier.
+      required:
+      - role
+      - plan
+      - is_premium
+      - premium_price
+      - currency
+      properties:
+        role:
+          $ref: '#/components/schemas/Role'
+        plan:
+          type: string
+          enum:
+          - premium
+          - trial
+          - free
+        is_premium:
+          type: boolean
+        premium_expires_at:
+          type: string
+          format: date-time
+          nullable: true
+        trial_started_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: Dealers only. Stamped server-side on first login; null for buyers and staff.
+        trial_expires_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: Dealers only. 60 days from trial_started_at; evaluated on read.
+        premium_price:
+          type: string
+          description: Display price of the caller's plan tier.
+          example: '500.00'
+        currency:
+          type: string
+          example: USD
+        quote_limit:
+          type: integer
+          nullable: true
+          description: Dealers only. null while premium (unlimited), 3 on trial, 0 when expired.
+        quotes_used:
+          type: integer
+          description: Dealers only. Counted across all quote statuses.
+        quotes_remaining:
+          type: integer
+          nullable: true
+          description: Dealers only. null while premium.
+        can_quote:
+          type: boolean
+          description: Dealers only. False triggers 402 SUBSCRIPTION_REQUIRED on POST /quotes.
+        request_limit:
+          type: integer
+          nullable: true
+          description: Buyers only. null while premium, otherwise 3 lifetime posts.
+        requests_used:
+          type: integer
+          description: Buyers only.
+        requests_remaining:
+          type: integer
+          nullable: true
+          description: Buyers only. null while premium.
+        can_create_request:
+          type: boolean
+          description: Buyers only. False triggers 402 SUBSCRIPTION_REQUIRED on POST /requests.
+        ai_posting_allowed:
+          type: boolean
+          description: Buyers only. Mirrors can_create_request for the Serra preview gate.
+    PaymentCreate:
+      type: object
+      description: |-
+        Simulated card checkout. Details are validated for shape only —
+        any well-formed card succeeds and activates (or extends) premium
+        for one year. The full card number and CVV are never persisted;
+        only the detected brand and last four digits reach the
+        `payments` ledger.
+      additionalProperties: false
+      required:
+      - payment_method
+      - card_number
+      - cardholder_name
+      - expiry_month
+      - expiry_year
+      - cvv
+      properties:
+        payment_method:
+          type: string
+          enum:
+          - credit_card
+          - debit_card
+        card_number:
+          type: string
+          minLength: 12
+          maxLength: 25
+          description: Any digit string of at least 12 digits. Never stored.
+          example: '4242424242424242'
+        cardholder_name:
+          type: string
+          minLength: 2
+          maxLength: 120
+          example: Demo Buyer
+        expiry_month:
+          type: integer
+          minimum: 1
+          maximum: 12
+          example: 12
+        expiry_year:
+          type: integer
+          minimum: 2020
+          maximum: 2100
+          example: 2027
+        cvv:
+          type: string
+          minLength: 3
+          maxLength: 4
+          description: Numeric security code. Never stored.
+          example: '123'
+    PaymentResult:
+      type: object
+      description: Receipt for a simulated payment plus the refreshed subscription block.
+      required:
+      - payment_id
+      - status
+      - plan
+      - amount
+      - currency
+      - payment_method
+      - premium_expires_at
+      - subscription
+      properties:
+        payment_id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          description: Checkout is simulated, so a 200 response is always succeeded.
+          enum:
+          - succeeded
+        plan:
+          type: string
+          enum:
+          - dealer_premium
+          - buyer_premium
+        amount:
+          type: string
+          example: '500.00'
+        currency:
+          type: string
+          example: USD
+        payment_method:
+          type: string
+          enum:
+          - credit_card
+          - debit_card
+        card_brand:
+          type: string
+          nullable: true
+          example: visa
+        card_last4:
+          type: string
+          maxLength: 4
+          nullable: true
+          example: '4242'
+        premium_expires_at:
+          type: string
+          format: date-time
+        subscription:
+          $ref: '#/components/schemas/SubscriptionState'
     Profile:
       type: object
       required:
@@ -5018,6 +5314,13 @@ components:
             description: Present for buyers with a stored preference row, else null.
             allOf:
             - $ref: '#/components/schemas/BuyerPreference'
+            nullable: true
+          subscription:
+            description: |-
+              Derived plan/limits for buyers and dealers; omitted for staff
+              roles. Present on both /auth/me and /profiles/me.
+            allOf:
+            - $ref: '#/components/schemas/SubscriptionState'
             nullable: true
     PublicProfile:
       type: object
@@ -7433,6 +7736,38 @@ components:
           type: string
           format: uuid
           nullable: true
+    AiRequestPreviewResult:
+      type: object
+      description: |-
+        Serra preview cards plus the billing posting gate, so the UI can
+        warn *before* the hard 402 on POST /requests instead of after it.
+      required:
+      - previews
+      - confirmation_required
+      - posting_allowed
+      properties:
+        previews:
+          type: array
+          description: requestPreview card payloads collected from the stream.
+          items:
+            $ref: '#/components/schemas/AiRequestPreview'
+        confirmation_required:
+          type: boolean
+          example: true
+        posting_allowed:
+          type: boolean
+          description: False when the buyer is at the 3-post free limit or premium expired.
+        posting_reason:
+          type: string
+          nullable: true
+          description: '`premium_expired` or `request_limit_reached` when posting_allowed is false.'
+        requests_used:
+          type: integer
+          nullable: true
+        request_limit:
+          type: integer
+          nullable: true
+          description: null while premium (unlimited).
     AiRequestPreview:
       type: object
       description: |-

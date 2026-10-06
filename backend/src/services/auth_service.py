@@ -9,6 +9,7 @@ from src.auth.security import create_token, decode_token, hash_password, token_h
 from src.models.auth import BuyerSignup, DealerSignup, LoginRequest, SessionProfile, SupportSignup, TokenResponse
 from src.repositories.auth_repository import AuthRepository
 from src.repositories.schema import Profile, SupportVerification, User
+from src.services.billing_service import BillingService
 from src.settings import DEFAULT_TERMS_VERSION, get_settings
 from src.utils.exceptions import AppError, error_codes
 from src.utils.log_flow import log_flow
@@ -73,6 +74,7 @@ class AuthService:
             code = error_codes.DEALER_PENDING_REVIEW if profile.role == "dealer" else error_codes.UNAUTHENTICATED
             raise AppError(code, f"Your {profile.role} account is awaiting approval.", 403)
         profile.user.last_login_at = datetime.now(UTC)
+        BillingService(self.session).ensure_dealer_trial(profile)
         response = self._tokens(profile, True)
         profile.user.refresh_token_hash = token_hash(response.refresh_token)
         await self.repository.commit()

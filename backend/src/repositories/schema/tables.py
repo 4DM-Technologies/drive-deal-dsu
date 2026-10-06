@@ -83,6 +83,10 @@ class Profile(AuditMixin, Base):
     terms_accepted: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     terms_version: Mapped[str | None] = mapped_column(String(40))
     terms_accepted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    trial_started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    trial_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    is_premium: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    premium_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     user: Mapped["User"] = relationship(back_populates="profile", uselist=False)
 
 
@@ -326,6 +330,31 @@ class DealDocument(AuditMixin, Base):
     image_paths: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
     document_path: Mapped[str | None] = mapped_column(String(1024))
     status: Mapped[str] = mapped_column(String(30), default="pending", nullable=False)
+
+
+class Payment(AuditMixin, Base):
+    """Simulated premium-subscription payment.
+
+    Only the card brand and last four digits are ever persisted - the full card number and CVV are
+    accepted by the payment endpoint for UX parity but are never written to the database.
+    """
+
+    __tablename__ = "payments"
+    __table_args__ = (
+        CheckConstraint("plan IN ('dealer_premium','buyer_premium')", name="ck_payments_plan"),
+        CheckConstraint("status IN ('succeeded','failed','refunded')", name="ck_payments_status"),
+        CheckConstraint("payment_method IN ('credit_card','debit_card')", name="ck_payments_method"),
+    )
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
+    profile_id: Mapped[str] = mapped_column(ForeignKey("profiles.id", ondelete="CASCADE"), nullable=False, index=True)
+    plan: Mapped[str] = mapped_column(String(30), nullable=False)
+    amount: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
+    currency: Mapped[str] = mapped_column(String(3), default="USD", nullable=False)
+    payment_method: Mapped[str] = mapped_column(String(20), nullable=False)
+    card_brand: Mapped[str | None] = mapped_column(String(20))
+    card_last4: Mapped[str | None] = mapped_column(String(4))
+    status: Mapped[str] = mapped_column(String(20), default="succeeded", nullable=False)
+    premium_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class SupportTicket(AuditMixin, Base):

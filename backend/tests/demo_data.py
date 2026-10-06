@@ -12,6 +12,7 @@ Run it by hand against an empty local database with:
 import asyncio
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
+from uuid import uuid4
 
 from sqlalchemy import func, select, text
 
@@ -28,13 +29,31 @@ from src.repositories.schema import (
     DealQuote,
     ErrorLog,
     LlmAudit,
+    Payment,
     Profile,
     State,
     SupportTicket,
     SupportVerification,
     User,
 )
+from src.services.billing_service import as_utc
+from src.settings import (
+    DEALER_TRIAL_DAYS,
+    PAYMENT_PLAN_BY_ROLE,
+    PREMIUM_CURRENCY,
+    PREMIUM_DURATION_DAYS,
+    PREMIUM_PRICE_BY_ROLE,
+)
 from src.utils.logger import configure_logging, logger
+
+PREMIUM_DEMO_EMAILS = {
+    "rahul@drivedeal.demo",
+    "adithyaa@drivedeal.demo",
+    "naveen@naveemotors.demo",
+    "elena@lonestar.demo",
+}
+EXPIRED_TRIAL_DEMO_EMAILS = {"dealer8@drivedeal.demo"}
+TRIAL_ENDED_DAYS_AGO = 30
 
 STATE_ROWS = [
     ("Alabama", "AL"),
@@ -160,6 +179,37 @@ async def expand_demo_data(session, now: datetime) -> dict[str, int]:
     if not support_admin.state_id:
         support_admin.state_id = texas.id
     profiles = list((await session.scalars(select(Profile).order_by(Profile.created_at))).all())
+    paid_profile_ids = set((await session.scalars(select(Payment.profile_id))).all())
+    for profile in profiles:
+        if profile.email not in PREMIUM_DEMO_EMAILS:
+            continue
+        if profile.premium_expires_at is None or as_utc(profile.premium_expires_at) < now:
+            profile.is_premium = True
+            profile.premium_expires_at = now + timedelta(days=PREMIUM_DURATION_DAYS)
+            profile.updated_by = profile.id
+        if profile.id not in paid_profile_ids:
+            session.add(
+                Payment(
+                    id=str(uuid4()),
+                    profile_id=profile.id,
+                    plan=PAYMENT_PLAN_BY_ROLE[profile.role],
+                    amount=PREMIUM_PRICE_BY_ROLE[profile.role],
+                    currency=PREMIUM_CURRENCY,
+                    payment_method="credit_card",
+                    card_brand="visa",
+                    card_last4="4242",
+                    status="succeeded",
+                    premium_expires_at=profile.premium_expires_at,
+                    created_by=profile.id,
+                    updated_by=profile.id,
+                )
+            )
+    for profile in profiles:
+        if profile.email not in EXPIRED_TRIAL_DEMO_EMAILS or profile.trial_started_at is not None:
+            continue
+        profile.trial_expires_at = now - timedelta(days=TRIAL_ENDED_DAYS_AGO)
+        profile.trial_started_at = profile.trial_expires_at - timedelta(days=DEALER_TRIAL_DAYS)
+        profile.updated_by = profile.id
     buyers = [profile for profile in profiles if profile.role == "buyer"]
     dealers = [profile for profile in profiles if profile.role == "dealer"]
     password = hash_password("demo1234")
