@@ -294,7 +294,7 @@ async def get_urls(
 
         if llm and len(candidates) > 1:
             scores = await _score_candidates(llm, query, candidates, thread_id, prompt_overrides)
-            ranked = sorted(zip(candidates, scores), key=lambda pair: pair[1], reverse=True)
+            ranked = sorted(zip(candidates, scores, strict=True), key=lambda pair: pair[1], reverse=True)
             _trace_step(
                 trace,
                 "score",
