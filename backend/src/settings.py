@@ -164,6 +164,8 @@ class Settings(BaseSettings):
     web_search_request_timeout_seconds: int = 20
     web_search_max_crawl_sites: int = 2
     web_search_max_retries: int = 3
+    web_search_candidate_pool_size: int = 8
+    web_search_min_score: float = 0.5
     langsmith_tracing: bool = False
     langsmith_api_key: str | None = None
     langsmith_project: str = "drivedeal-serra"
