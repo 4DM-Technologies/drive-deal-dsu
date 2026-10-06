@@ -18,6 +18,7 @@ export interface Session {
   dealerLicense?: string | null;
   website?: string | null;
   supportedBrands?: string[];
+  subscription?: Subscription | null;
 }
 
 export interface SupportMember {
@@ -449,3 +450,50 @@ export interface AiTrace {
   created_at: string;
   spans?: AiTraceSpan[];
 }
+
+export type PlanName = 'premium' | 'trial' | 'free';
+export type PaymentMethod = 'credit_card' | 'debit_card';
+
+/**
+ * The caller's plan and usage, from the `subscription` block on `/auth/me`. Dealers are limited by quotes and buyers by
+ * car-buy posts; both are folded into `limit`/`used`/`remaining`/`canCreate`. `limit` and `remaining` are null while premium.
+ */
+export interface Subscription {
+  role: 'buyer' | 'dealer';
+  plan: PlanName;
+  isPremium: boolean;
+  premiumExpiresAt: string | null;
+  trialStartedAt: string | null;
+  trialExpiresAt: string | null;
+  premiumPrice: string;
+  currency: string;
+  limit: number | null;
+  used: number;
+  remaining: number | null;
+  canCreate: boolean;
+}
+
+export interface PaymentInput {
+  paymentMethod: PaymentMethod;
+  /** Digits only. */
+  cardNumber: string;
+  cardholderName: string;
+  expiryMonth: number;
+  /** Four-digit year. */
+  expiryYear: number;
+  cvv: string;
+}
+
+export interface PaymentReceipt {
+  paymentId: string;
+  status: string;
+  plan: string;
+  amount: string;
+  currency: string;
+  paymentMethod: PaymentMethod;
+  cardBrand: string | null;
+  cardLast4: string | null;
+  premiumExpiresAt: string;
+  subscription: Subscription | null;
+}
+

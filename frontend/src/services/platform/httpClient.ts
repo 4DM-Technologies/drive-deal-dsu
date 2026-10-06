@@ -1,9 +1,11 @@
 import type { DriveDealClient, AiStreamEvent } from '@/services/generated/client';
-import type { ActiveTheme, AdministrationAuditEvent, AdminCatalog, AdminConfigBundle, AdminConfigType, AdminPromptBundle, AdminRevision, AiThread, AiTrace, BrandRef, BuyerRequest, CarCreateInput, ChatMessage, DealDocument, InventoryCar, PromptDefinition, Quote, Session, StateRef, SupportMember, Ticket, Verification, WorkflowDefinition, WorkflowPreview, WorkflowPreviewStreamEvent } from '@/types/domain';
+import type { ActiveTheme, AdministrationAuditEvent, AdminCatalog, AdminConfigBundle, AdminConfigType, AdminPromptBundle, AdminRevision, AiThread, AiTrace, BrandRef, BuyerRequest, CarCreateInput, ChatMessage, DealDocument, InventoryCar, PromptDefinition, Quote, Session, StateRef, SupportMember, Ticket, Verification, WorkflowDefinition, WorkflowPreview, WorkflowPreviewStreamEvent, PaymentReceipt } from '@/types/domain';
 import driveDealHero from '@/assets/vehicles/drivedeal-hero.png';
 import { BROWSER_STORAGE_KEYS, WORKSPACE_VIEW_QUERY_PARAMETER } from '@/config/browser';
 import { environment } from '@/config/environment';
 import { createId } from '@/helpers/ids';
+import { parseSubscription } from '@/helpers/subscription';
+import { ApiError } from '@/services/platform/apiError';
 
 const baseUrl = environment.apiBaseUrl;
 
@@ -40,7 +42,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   if (!response.ok) {
     if (response.status === 401) clearTokens();
     const body = await response.json().catch(() => null);
-    throw new Error(body?.error?.message ?? `Request failed (${response.status})`);
+    throw ApiError.fromResponse(response.status, body);
   }
   return response.status === 204 ? (undefined as T) : response.json();
 }
@@ -86,6 +88,7 @@ const profileToSession = (row: Record<string, unknown>): Session => ({
   dealerLicense: row.dealer_license == null ? null : String(row.dealer_license),
   website: row.website == null ? null : String(row.website),
   supportedBrands: (row.supported_brands as string[]) ?? [],
+  subscription: parseSubscription(row.subscription),
 });
 
 const requestToDomain = (row: Record<string, unknown>): BuyerRequest => ({
@@ -330,6 +333,16 @@ export const httpClient: DriveDealClient = {
     dealerContact: async (id) => {
       const row = await request<{ dealer: { name: string; email: string; phone: string | null } }>(`/quotes/${id}/dealer-contact`);
       return row.dealer;
+    },
+  },
+  payments: {
+    create: async (input) => {
+      const row = await request<Record<string, unknown>>('/payment', { method: 'POST', body: JSON.stringify({ payment_method: input.paymentMethod, card_number: input.cardNumber, cardholder_name: input.cardholderName, expiry_month: input.expiryMonth, expiry_year: input.expiryYear, cvv: input.cvv }) });
+      return {
+        paymentId: String(row.payment_id), status: String(row.status), plan: String(row.plan), amount: String(row.amount), currency: String(row.currency),
+        paymentMethod: row.payment_method as PaymentReceipt['paymentMethod'], cardBrand: row.card_brand == null ? null : String(row.card_brand),
+        cardLast4: row.card_last4 == null ? null : String(row.card_last4), premiumExpiresAt: String(row.premium_expires_at), subscription: parseSubscription(row.subscription),
+      };
     },
   },
   documents: {

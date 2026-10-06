@@ -24,6 +24,7 @@ const SupportScreens = lazy(() => import('@/ui/screens/SupportScreens/SupportScr
 const AdvisorScreen = lazy(() => import('@/ui/screens/AdvisorScreen/AdvisorScreen'));
 const AdministrationScreen = lazy(() => import('@/ui/screens/AdministrationScreen/AdministrationScreen'));
 const ProfileScreen = lazy(() => import('@/ui/screens/ProfileScreen/ProfileScreen'));
+const BillingScreen = lazy(() => import('@/ui/screens/BillingScreen/BillingScreen'));
 const ForgotPasswordScreen = lazy(() => import('@/ui/screens/UtilityScreens/UtilityScreens').then((module) => ({ default: module.ForgotPasswordScreen })));
 const LegalScreen = lazy(() => import('@/ui/screens/UtilityScreens/UtilityScreens').then((module) => ({ default: module.LegalScreen })));
 const NotFoundScreen = lazy(() => import('@/ui/screens/UtilityScreens/UtilityScreens').then((module) => ({ default: module.NotFoundScreen })));
@@ -42,6 +43,7 @@ export const router = createBrowserRouter([{ errorElement: <RouteErrorScreen />,
   { element: <RequireSession><AppShell /></RequireSession>, children: [
     { path: '/home', element: <HomeScreen /> }, { path: '/unauthorized', element: <UnauthorizedScreen /> },
     { path: '/profiles', element: <ProfileScreen /> },
+    { path: '/billing', element: <RequireRole roles={['buyer','dealer']}><BillingScreen /></RequireRole> },
     { path: '/requests', element: <RequireRole roles={['buyer']}><RequestsScreen /></RequireRole> },
     { path: '/requests/new', element: <RequireRole roles={['buyer']}><NewRequestScreen /></RequireRole> },
     { path: '/requests/:id', element: <RequireRole roles={['buyer']}><RequestDetailScreen /></RequireRole> },
