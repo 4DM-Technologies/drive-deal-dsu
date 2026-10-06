@@ -367,9 +367,7 @@ async def _persist_cars_background(
                 if not spec.get("make") or not spec.get("model") or not spec.get("year") or not spec.get("price_usd"):
                     continue
                 brand = (
-                    (await bg_session.execute(select(Brand).where(Brand.name.ilike(spec["make"]))))
-                    .scalars()
-                    .first()
+                    (await bg_session.execute(select(Brand).where(Brand.name.ilike(spec["make"])))).scalars().first()
                 )
                 if not brand or not state_row:
                     # Without a buyer-stated state, there is no reliable location for this listing - persisting

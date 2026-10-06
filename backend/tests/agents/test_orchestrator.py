@@ -294,7 +294,11 @@ async def test_web_direct_retries_the_open_web_when_every_scoped_candidate_fails
         {"url": "https://www.tesla.com/modelx", "title": "Model X | Tesla", "source_domain": "tesla.com"}
     ]
     open_candidates = [
-        {"url": "https://www.caranddriver.com/tesla/model-x", "title": "Tesla Model X review", "source_domain": "caranddriver.com"}
+        {
+            "url": "https://www.caranddriver.com/tesla/model-x",
+            "title": "Tesla Model X review",
+            "source_domain": "caranddriver.com",
+        }
     ]
     specs = CarSpecs(source_url="https://www.caranddriver.com/tesla/model-x", make="Tesla", model="Model X")
 
@@ -327,9 +331,7 @@ async def test_persist_cars_schedules_a_background_write_without_blocking_compos
     task (see _fire_and_forget/_persist_cars_background in graph.py) instead of awaiting it inline."""
     graph = main_agent(session=AsyncMock())
     generate = AsyncMock(return_value=_FakeLlmResult("some answer"))
-    specs = CarSpecs(
-        source_url="https://www.tesla.com/", make="Tesla", model="Model 3", year=2026, price_usd=42990.0
-    )
+    specs = CarSpecs(source_url="https://www.tesla.com/", make="Tesla", model="Model 3", year=2026, price_usd=42990.0)
     get_urls = AsyncMock(
         return_value=[{"url": "https://www.tesla.com/", "title": "Tesla official site", "source_domain": "tesla.com"}]
     )

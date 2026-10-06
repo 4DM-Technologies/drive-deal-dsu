@@ -272,7 +272,9 @@ async def get_urls(
         # A brand-specific research request can still use the official manufacturer page when search APIs are
         # unavailable. This never invents an arbitrary URL - just the one known official domain for that make.
         if not raw_results and preferred_domain:
-            raw_results = [{"url": f"https://www.{preferred_domain}/", "title": f"{inferred_make.title()} official site"}]
+            raw_results = [
+                {"url": f"https://www.{preferred_domain}/", "title": f"{inferred_make.title()} official site"}
+            ]
             provider = "official_fallback"
             _trace_step(trace, "official_fallback", raw_results=raw_results)
 
