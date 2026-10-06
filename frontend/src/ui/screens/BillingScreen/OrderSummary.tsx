@@ -1,4 +1,4 @@
-import { Check, Crown, ShieldCheck } from 'lucide-react';
+import { Check, ShieldCheck } from 'lucide-react';
 import type { CustomerDetails } from '@/helpers/checkout';
 import { formatMoney } from '@/helpers/currency';
 import { planCatalog, premiumName } from '@/helpers/plans';
@@ -22,7 +22,6 @@ export function OrderSummary({ subscription, billedTo, onEditDetails, compact = 
     <section className="card checkout-summary" aria-labelledby="checkout-summary-title">
       <h2 id="checkout-summary-title">Order summary</h2>
       <div className="summary-plan">
-        <span className="summary-plan-icon" aria-hidden="true"><Crown size={19} /></span>
         <div><strong>{premiumName(subscription.role)}</strong><small>1 year</small></div>
         <span className="summary-plan-price">{price}</span>
       </div>
