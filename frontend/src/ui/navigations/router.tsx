@@ -1,7 +1,7 @@
 /* eslint-disable react-refresh/only-export-components -- the data router exports route objects beside its boundary components */
 import { AlertTriangle, RefreshCw } from 'lucide-react';
-import { lazy, Suspense } from 'react';
-import { createBrowserRouter, Link, Outlet, useRouteError } from 'react-router-dom';
+import { lazy, Suspense, useEffect } from 'react';
+import { createBrowserRouter, isRouteErrorResponse, Outlet, useRouteError } from 'react-router-dom';
 import { AppShell } from '@/ui/navigations/AppShell';
 import { RequireRole, RequireSession } from '@/ui/navigations/guards';
 import { PageLoading } from '@/ui/reusables/PageLoading/PageLoading';
@@ -31,9 +31,20 @@ const LegalScreen = lazy(() => import('@/ui/screens/UtilityScreens/UtilityScreen
 const NotFoundScreen = lazy(() => import('@/ui/screens/UtilityScreens/UtilityScreens').then((module) => ({ default: module.NotFoundScreen })));
 const UnauthorizedScreen = lazy(() => import('@/ui/screens/UtilityScreens/UtilityScreens').then((module) => ({ default: module.UnauthorizedScreen })));
 
+const FALLBACK_ERROR_MESSAGE = 'Your account and saved work are safe. Refresh this page and try again.';
+
+/** The same "Name: message" line the browser console prints, so a failure on a deployed build says what actually broke. */
+function describeRouteError(error: unknown): string {
+  if (isRouteErrorResponse(error)) return [error.status, error.statusText].filter(Boolean).join(' ') || FALLBACK_ERROR_MESSAGE;
+  if (error instanceof Error && error.message) return `${error.name}: ${error.message}`;
+  if (typeof error === 'string' && error) return error;
+  return FALLBACK_ERROR_MESSAGE;
+}
+
 function RouteErrorScreen() {
-  useRouteError();
-  return <main className="route-error-page"><section className="card route-error-card" role="alert"><span className="route-error-icon"><AlertTriangle size={24} /></span><h1>Something didn’t load correctly</h1><p>Your account and saved work are safe. Refresh this page, or return to your workspace and try again.</p><div><button type="button" className="button button-primary" onClick={() => window.location.reload()}><RefreshCw size={16} /> Refresh page</button><Link className="button button-secondary" to="/home">Return home</Link></div></section></main>;
+  const error = useRouteError();
+  useEffect(() => { console.error(error); }, [error]);
+  return <main className="route-error-page"><section className="card route-error-card" role="alert"><span className="route-error-icon"><AlertTriangle size={24} /></span><h1>Something didn’t load correctly</h1><p>{describeRouteError(error)}</p><div><button type="button" className="button button-primary" onClick={() => window.location.reload()}><RefreshCw size={16} /> Refresh page</button></div></section></main>;
 }
 
 export const router = createBrowserRouter([{ errorElement: <RouteErrorScreen />, element: <Suspense fallback={<PageLoading label="Opening page" />}><Outlet /></Suspense>, children: [

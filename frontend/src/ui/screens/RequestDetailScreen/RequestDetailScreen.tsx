@@ -1,10 +1,11 @@
-import { ArrowLeft, Check, ChevronRight, Clock3, Eye, MessageCircle, MessageSquareQuote, Scale, ShieldCheck, Star, Trophy, X } from 'lucide-react';
+import { ArrowLeft, Check, ChevronRight, Clock3, Eye, MessageCircle, MessageSquareQuote, ShieldCheck, Star, Trophy, X } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { formatMoney } from '@/helpers/currency';
 import { client } from '@/services/platform/client';
 import { ConfirmDialog } from '@/ui/reusables/ConfirmDialog/ConfirmDialog';
 import { EmptyState } from '@/ui/reusables/EmptyState/EmptyState';
+import { CompareIcon } from '@/ui/reusables/Icons/CompareIcon';
 import { PageLoading } from '@/ui/reusables/PageLoading/PageLoading';
 import { StatusBadge } from '@/ui/reusables/StatusBadge/StatusBadge';
 import type { BuyerRequest, Quote } from '@/types/domain';
@@ -73,7 +74,7 @@ export default function RequestDetailScreen() {
 
   return <div className="shell page-content">
     <Link className="button button-ghost" to="/requests"><ArrowLeft size={17} /> All requests</Link>
-    <div className="page-heading request-detail-heading"><div><span className="eyebrow">Private buyer request</span><h1>{request.brand} {request.model}</h1><p>{request.yearMin}–{request.yearMax} · {request.bodyType} · {request.area} · within {request.radiusMiles} miles</p></div><div className="heading-actions"><Link className="button button-secondary" to={`/chatbot?compare=${request.id}`}><Scale size={17} /> Compare with Sera</Link><StatusBadge status={request.status === 'open' ? 'live' : request.status} /></div></div>
+    <div className="page-heading request-detail-heading"><div><span className="eyebrow">Private buyer request</span><h1>{request.brand} {request.model}</h1><p>{request.yearMin}–{request.yearMax} · {request.bodyType} · {request.area} · within {request.radiusMiles} miles</p></div><div className="heading-actions"><Link className="button button-secondary" to={`/chatbot?compare=${request.id}`}><CompareIcon size={17} /> Compare with Sera</Link><StatusBadge status={request.status === 'open' ? 'live' : request.status} /></div></div>
     {notice && <div className="inline-success" role="status"><Check size={18} />{notice}</div>}
     <section className="request-activity-strip" aria-label="Request activity"><div><Eye /><span><strong>{request.viewCount}</strong><small>verified {request.viewCount === 1 ? 'dealer has' : 'dealers have'} viewed this request</small></span></div><div><MessageSquareQuote /><span><strong>{request.quoteCount || quotes.length}</strong><small>itemized {(request.quoteCount || quotes.length) === 1 ? 'quote' : 'quotes'} received</small></span></div><p>Counts include unique verified dealerships, so repeat visits do not inflate interest.</p></section>
     <div className="detail-grid">
