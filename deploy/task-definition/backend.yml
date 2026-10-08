@@ -65,11 +65,11 @@ env:
   - key: AI_DISABLED
     default: "false"
   - key: AI_ENABLE_WEB_SEARCH
-    default: "false"
+    default: "true"
   - key: AI_MAX_INPUT_TOKENS
-    default: "12000"
+    default: "8000"
   - key: AI_MAX_OUTPUT_TOKENS
-    default: "5000"
+    default: "1800"
   - key: AI_REQUEST_TIMEOUT_SECONDS
     default: "45"
 
@@ -83,12 +83,12 @@ env:
     default: private/codex-oauth
 
   # --- Web search -----------------------------------------------------------
-  - key: GOOGLE_API_KEY
-  - key: GOOGLE_CSE_ID
   - key: WEB_SEARCH_MAX_RESULTS
     default: "5"
+  - key: WEB_SEARCH_MARKET
+    default: US
   - key: WEB_SEARCH_REQUEST_TIMEOUT_SECONDS
-    default: "20"
+    default: "8"
 
   # --- Observability --------------------------------------------------------
   - key: LANGSMITH_TRACING

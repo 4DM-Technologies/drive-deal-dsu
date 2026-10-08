@@ -1,6 +1,8 @@
 import asyncio
+import re
 from contextlib import suppress
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
+from decimal import Decimal
 from time import perf_counter
 from uuid import uuid4
 
@@ -8,21 +10,100 @@ from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.agents.requirements import build_requirement_graph
-from src.agents.serra.graph import DIRECT_REPLY_ROUTES, is_direct_reply, is_explicit_web_search, main_agent
+from src.agents.serra.graph import (
+    DIRECT_REPLY_ROUTES,
+    is_direct_reply,
+    is_explicit_image_search,
+    is_explicit_web_search,
+    main_agent,
+)
 from src.database import SessionFactory
-from src.models.marketplace import AiChatRequest, CompareRequest
-from src.repositories.schema import AiTrace, Brand, BuyerRequest, ConversationHistory, DealQuote, LlmAudit, Profile
+from src.models.marketplace import AiChatRequest, CompareRequest, RequestCreate
+from src.repositories.schema import (
+    AiTrace,
+    Brand,
+    BuyerRequest,
+    ConversationHistory,
+    DealQuote,
+    LlmAudit,
+    Profile,
+    State,
+)
 from src.services.administration_service import AdministrationService
 from src.services.billing_service import BillingService
+from src.services.marketplace_service import MarketplaceService
 from src.settings import get_settings
 from src.utils.exceptions import AppError, error_codes
 from src.utils.log_flow import log_flow
 from src.utils.serialization import model_dict
 
+_PUBLISH_CONFIRMATION_RE = re.compile(
+    r"^\s*(?:yes[, ]*)?(?:please\s+)?(?:post|publish|send)\s+(?:it|this|the\s+(?:request|post)|my\s+(?:request|post))\s*[!.]*$",
+    re.IGNORECASE,
+)
+
+
+def _is_publish_confirmation(message: str) -> bool:
+    return bool(_PUBLISH_CONFIRMATION_RE.fullmatch(message))
+
+
+def _money_value(value: object) -> Decimal | None:
+    if value is None or value == "":
+        return None
+    text = str(value).strip().lower().replace(",", "")
+    match = re.search(r"\d+(?:\.\d+)?", text)
+    if not match:
+        return None
+    amount = Decimal(match.group(0))
+    if "k" in text:
+        amount *= 1000
+    elif "m" in text:
+        amount *= 1_000_000
+    return amount
+
 
 class AiService:
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
+
+    @log_flow(layer="service")
+    async def _publish_saved_requirements(self, requirements: dict, buyer: Profile) -> dict | None:
+        """Turn a complete requirement checkpoint into a draft and publish it after explicit confirmation."""
+        required = ("brand", "buyer_area", "state", "timeline")
+        if any(not requirements.get(field) for field in required):
+            return None
+        model_name = requirements.get("model") or requirements.get("model_name")
+        if not model_name:
+            return None
+        brand = (
+            await self.session.execute(select(Brand).where(Brand.name.ilike(str(requirements["brand"])))).scalar_one_or_none()
+        )
+        state = (
+            await self.session.execute(select(State).where(State.name.ilike(str(requirements["state"])))).scalar_one_or_none()
+        )
+        if brand is None or state is None:
+            return None
+        years = [int(value) for value in re.findall(r"20\d{2}", str(requirements.get("years") or ""))]
+        year_min = years[0] if years else requirements.get("year_min")
+        year_max = years[1] if len(years) > 1 else requirements.get("year_max") or year_min
+        payload = RequestCreate(
+            brand_id=brand.id,
+            buyer_area_state_id=state.id,
+            model=str(model_name),
+            body_type=requirements.get("body_type"),
+            year_min=year_min,
+            year_max=year_max,
+            budget_max=_money_value(requirements.get("budget_max") or requirements.get("budget")),
+            buyer_area=str(requirements["buyer_area"]),
+            search_radius_miles=int(requirements.get("search_radius_miles") or 50),
+            timeline=str(requirements["timeline"]),
+            must_haves=list(requirements.get("must_haves") or []),
+            request_expire=datetime.now(UTC).replace(microsecond=0) + timedelta(days=30),
+            status="draft",
+        )
+        service = MarketplaceService(self.session)
+        draft = await service.create_request(payload, buyer)
+        return await service.publish_request(str(draft["id"]), buyer)
 
     @log_flow(layer="service")
     async def posting_gate(self, buyer: Profile) -> dict:
@@ -58,7 +139,10 @@ class AiService:
             "preferences": memory.get("preferences", {}),
             "preferences_pending": memory.get("preferences_pending", False),
         }
-        explicit_web_search = is_explicit_web_search(payload.message) and payload.agent != "compare-agent"
+        explicit_web_search = (
+            (is_explicit_web_search(payload.message) or is_explicit_image_search(payload.message))
+            and payload.agent != "compare-agent"
+        )
         if explicit_web_search:
             yield {"type": "status", "phase": "crawling", "label": "Searching trusted sources"}
         else:
@@ -82,6 +166,24 @@ class AiService:
         )
         self.session.add(trace)
         await self.session.flush()
+        if _is_publish_confirmation(payload.message):
+            published_request = memory.get("published_request") or await self._publish_saved_requirements(
+                state.get("requirements") or {}, buyer
+            )
+            if published_request is not None:
+                main_result = {
+                    "route": "requirements",
+                    "answer": "Done — your buyer request is now live for verified dealers.",
+                    "published_request": published_request,
+                }
+                yield {"type": "status", "phase": "composing", "label": "Publishing your request"}
+                yield {"type": "token", "text": main_result["answer"]}
+                yield {"type": "card", "kind": "requestPreview", "payload": published_request}
+                await self._finish_trace(trace, main_result, trace_started)
+                await self._save_checkpoint(thread_id, buyer.id, payload, main_result, {"requirements": state.get("requirements", {})})
+                await self.session.commit()
+                yield {"type": "done", "threadId": thread_id, "messagesUsed": 1, "expandedUi": False}
+                return
         main_graph = main_agent(
             self.session,
             compare=payload.agent == "compare-agent",
@@ -173,6 +275,8 @@ class AiService:
             }
         if main_result.get("sources"):
             yield {"type": "sources", "items": main_result["sources"]}
+        if main_result.get("media"):
+            yield {"type": "media", "items": main_result["media"]}
         await self._finish_trace(trace, main_result, trace_started)
         await self._save_checkpoint(thread_id, buyer.id, payload, main_result, requirement_result)
         await self.session.commit()
@@ -387,6 +491,7 @@ class AiService:
                     "questions": requirements.get("suggested_questions", []),
                     "preferences": main.get("preferences", {}),
                     "preferences_pending": main.get("preferences_pending", False),
+                    "published_request": main.get("published_request"),
                 },
                 metadata_json={
                     "title": payload.message[:72],

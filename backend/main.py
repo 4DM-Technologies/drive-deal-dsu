@@ -79,7 +79,6 @@ def log_startup_configuration() -> None:
         openai_model=settings.openai_model,
         openai_key_configured=bool(settings.openai_api_key),
         codex_token_configured=bool(settings.codex_oauth_access_token),
-        google_search_configured=bool(settings.google_api_key and settings.google_cse_id),
         aws_region=settings.aws_region,
         aws_credentials_configured=bool(settings.aws_access_key_id and settings.aws_secret_access_key),
         s3_bucket=settings.s3_bucket if settings.storage_driver == "s3" else None,

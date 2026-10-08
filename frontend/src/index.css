@@ -215,6 +215,16 @@ h1, h2, h3, .display { font-family: 'Manrope', 'DM Sans', sans-serif; letter-spa
 
 .request-card { overflow: hidden; display: grid; grid-template-columns: 190px 1fr; }
 .request-image { width: 100%; height: 100%; min-height: 190px; object-fit: cover; background: var(--surface); }
+
+.advisor-media-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; max-width: 720px; margin: 0 0 18px 44px; }
+.advisor-media-card { margin: 0; overflow: hidden; border: 1px solid var(--border); border-radius: 14px; background: var(--surface); }
+.advisor-media-card a { display: block; color: inherit; text-decoration: none; }
+.advisor-media-card img { display: block; width: 100%; aspect-ratio: 16 / 10; object-fit: cover; background: var(--surface); }
+.advisor-media-card figcaption { padding: 8px 10px; font-size: .76rem; color: var(--muted); }
+.advisor-sources { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin: 0 0 18px 44px; color: var(--muted); font-size: .78rem; }
+.advisor-sources span { font-weight: 800; color: var(--ink); }
+.advisor-sources a { color: var(--accent); text-decoration: none; }
+.advisor-sources a:hover { text-decoration: underline; }
 .request-card-body { padding: 1.25rem; display: flex; flex-direction: column; min-width: 0; }
 .request-card-top { display: flex; justify-content: space-between; align-items: flex-start; gap: .8rem; }
 .request-card h3 { margin: 0; font-size: 1.2rem; }

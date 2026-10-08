@@ -17,6 +17,8 @@ import type { AiMessage, AiThread, BuyerRequest, Quote } from '@/types/domain';
 
 type RequestDraft = Record<string, string>;
 interface CompareDraft { leader?: string; total?: string; difference?: string; requestIds?: string[]; quoteIds?: string[] }
+interface VehicleMedia { image_url: string; source_url: string; source_name?: string; alt?: string }
+interface VehicleSource { url: string; title: string }
 type CompareMode = 'requests' | 'dealers';
 type CompareSelection = { requestIds?: string[]; quoteIds?: string[] };
 
@@ -54,7 +56,7 @@ export function normalizeRequestDraft(payload: unknown): RequestDraft | null {
     : card;
   const aliases: Array<[string, string[]]> = [
     ['brand', ['brand']], ['model', ['model', 'model_name']], ['years', ['years']],
-    ['budget', ['budget', 'budget_max']], ['area', ['area', 'buyer_area']],
+    ['budget', ['budget', 'budget_max']], ['area', ['area', 'buyer_area']], ['state', ['state']],
     ['timeline', ['timeline']], ['mustHaves', ['mustHaves', 'must_haves']], ['bodyType', ['bodyType', 'body_type']],
   ];
   const draft: RequestDraft = {};
@@ -89,8 +91,12 @@ export default function AdvisorScreen() {
   const [dealerRequestId, setDealerRequestId] = useState<string | null>(null);
   const [draft, setDraft] = useState<RequestDraft | null>(null);
   const [compare, setCompare] = useState<CompareDraft | null>(null);
+  const [media, setMedia] = useState<VehicleMedia[]>([]);
+  const [sources, setSources] = useState<VehicleSource[]>([]);
   const [editing, setEditing] = useState(false);
   const [published, setPublished] = useState(false);
+  const [publishingRequest, setPublishingRequest] = useState(false);
+  const [publishError, setPublishError] = useState('');
   // Sera attaches the buyer's posting gate to each request preview; a blocked buyer sees an upgrade prompt instead of the post button.
   const [postGate, setPostGate] = useState<ReturnType<typeof postingGate>>(null);
   const postBlocked = postGate?.allowed === false;
@@ -145,6 +151,7 @@ export default function AdvisorScreen() {
     ++greetingRunRef.current;
     setStatus('');
     setDraft(null);
+    setMedia([]); setSources([]);
     setPostGate(null);
     setCompare(null);
     setThreadLoading(true);
@@ -179,7 +186,7 @@ export default function AdvisorScreen() {
   function newChat() {
     cancelActiveResponse(false);
     ++greetingRunRef.current;
-    setDraft(null); setPostGate(null); setCompare(null); setSelected([]); setSelectedQuoteIds([]); setThreadId(undefined); setPublished(false); setSidebarOpen(false); setParams({}, { replace: true });
+    setDraft(null); setMedia([]); setSources([]); setPostGate(null); setCompare(null); setSelected([]); setSelectedQuoteIds([]); setThreadId(undefined); setPublished(false); setSidebarOpen(false); setParams({}, { replace: true });
     streamGreeting();
   }
 
@@ -219,6 +226,45 @@ export default function AdvisorScreen() {
     }
   }
 
+  async function publishDraftRequest() {
+    if (!draft || publishingRequest || published || postBlocked) return;
+    setPublishingRequest(true);
+    setPublishError('');
+    try {
+      const [brands, states] = await Promise.all([client.reference.brands(), client.reference.states()]);
+      const brandName = draft.brand || '';
+      const brand = brands.find((item) => item.name.toLowerCase() === brandName.toLowerCase());
+      const area = (draft.area || '').trim();
+      const stateHint = (draft.state || area).toLowerCase();
+      const state = states.find((item) => stateHint.includes(item.name.toLowerCase()) || stateHint.includes(item.code.toLowerCase()));
+      if (!brand || !state) throw new Error('Please include a recognizable brand and city/state before publishing.');
+      const numbers = (value?: string) => value ? value.replace(/[^0-9.]/g, '') || null : null;
+      const yearValues = (draft.years || '').match(/20\d{2}/g)?.map(Number) ?? [];
+      const request = await client.requests.create({
+        brandId: brand.id,
+        buyerAreaStateId: state.id,
+        model: draft.model || 'Vehicle',
+        bodyType: draft.bodyType || null,
+        yearMin: yearValues[0] || null,
+        yearMax: yearValues[1] || yearValues[0] || null,
+        budgetMax: numbers(draft.budget) || null,
+        buyerArea: area,
+        searchRadiusMiles: 50,
+        timeline: (draft.timeline as BuyerRequest['timeline']) || 'Just exploring',
+        mustHaves: draft.mustHaves ? draft.mustHaves.split(',').map((item) => item.trim()).filter(Boolean) : [],
+        requestExpire: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+        status: 'draft',
+      });
+      const publishedRequest = await client.requests.publish(request.id);
+      setRequests((items) => [publishedRequest, ...items.filter((item) => item.id !== publishedRequest.id)]);
+      setPublished(true);
+    } catch (error) {
+      setPublishError(error instanceof Error ? error.message : 'The request could not be published.');
+    } finally {
+      setPublishingRequest(false);
+    }
+  }
+
   function handlePrompt(prompt: string) {
     if (prompt === compareOffersPrompt) {
       setCompareMode('dealers');
@@ -241,7 +287,7 @@ export default function AdvisorScreen() {
     const run = ++activeRunRef.current;
     const controller = new AbortController();
     abortControllerRef.current = controller;
-    setInput(''); setStopped(false); setCompare(null); setStreaming(true); setStatus(activity.classifying);
+    setInput(''); setStopped(false); setCompare(null); setMedia([]); setSources([]); setStreaming(true); setStatus(activity.classifying);
     const assistantId = createId();
     activeAssistantIdRef.current = assistantId;
     setActiveAssistantId(assistantId);
@@ -256,8 +302,14 @@ export default function AdvisorScreen() {
         if (controller.signal.aborted || activeRunRef.current !== run) break;
         if (event.type === 'status') setStatus(activity[event.phase]);
         if (event.type === 'token') { setStatus(''); setMessages((items) => items.map((item) => item.id === assistantId ? { ...item, body: item.body + event.text } : item)); }
-        if (event.type === 'card' && event.kind === 'requestPreview') { setDraft(normalizeRequestDraft(event.payload)); setPostGate(postingGate(event.payload)); }
+        if (event.type === 'card' && event.kind === 'requestPreview') {
+          setDraft(normalizeRequestDraft(event.payload));
+          setPostGate(postingGate(event.payload));
+          if (event.payload && typeof event.payload === 'object' && (event.payload as Record<string, unknown>).status === 'open') setPublished(true);
+        }
         if (event.type === 'card' && event.kind === 'compare') setCompare(event.payload as CompareDraft);
+        if (event.type === 'media') setMedia(event.items as VehicleMedia[]);
+        if (event.type === 'sources') setSources(event.items as VehicleSource[]);
         if (event.type === 'error') {
           setStatus('');
           setMessages((items) => items.map((item) => item.id === assistantId ? { ...item, body: item.body || `## I hit a problem\n${event.message || 'Please try sending that message again.'}` } : item));
@@ -307,7 +359,9 @@ export default function AdvisorScreen() {
             </article>;
           })}
           {stopped && <div className="inline-notice">Response stopped. Your partial answer remains in this chat.</div>}
-          {draft && <section className="ai-result-card request-preview"><div className="result-card-head"><div><span className="eyebrow">Dealer-ready draft</span><h3>Your buying request</h3></div><button className="button button-secondary button-sm" onClick={() => setEditing(!editing)}><Pencil size={14} /> {editing ? 'Done' : 'Edit'}</button></div><div className="request-preview-grid">{Object.entries(draft).map(([key, value]) => <label key={key}><span>{key === 'mustHaves' ? 'Must-haves' : key.replace(/([A-Z])/g, ' $1')}</span>{editing ? <input value={value} onChange={(event) => setDraft({ ...draft, [key]: event.target.value })} /> : <strong>{value}</strong>}</label>)}</div>{postBlocked && <UpgradePrompt reason={postGate?.reason ?? 'request_limit_reached'} role="buyer" />}<div className="result-card-actions"><p><CheckCircle2 size={16} /> Nothing is posted until you confirm.</p><button className="button button-primary" onClick={() => setPublished(true)} disabled={published || postBlocked}><FileCheck2 size={17} /> {published ? 'Request posted' : 'Post this request'}</button></div></section>}
+          {media.length > 0 && <section className="advisor-media-grid" aria-label="Vehicle images">{media.map((item) => <figure key={item.image_url} className="advisor-media-card"><a href={item.source_url} target="_blank" rel="noreferrer"><img src={item.image_url} alt={item.alt || 'Vehicle image'} loading="lazy" /><figcaption>{item.source_name || 'Source'}</figcaption></a></figure>)}</section>}
+          {sources.length > 0 && <section className="advisor-sources" aria-label="Research sources"><span>Sources</span>{sources.slice(0, 5).map((item) => <a key={item.url} href={item.url} target="_blank" rel="noreferrer">{item.title || item.url}</a>)}</section>}
+          {draft && <section className="ai-result-card request-preview"><div className="result-card-head"><div><span className="eyebrow">Dealer-ready draft</span><h3>Your buying request</h3></div><button className="button button-secondary button-sm" onClick={() => setEditing(!editing)}><Pencil size={14} /> {editing ? 'Done' : 'Edit'}</button></div><div className="request-preview-grid">{Object.entries(draft).map(([key, value]) => <label key={key}><span>{key === 'mustHaves' ? 'Must-haves' : key.replace(/([A-Z])/g, ' $1')}</span>{editing ? <input value={value} onChange={(event) => setDraft({ ...draft, [key]: event.target.value })} /> : <strong>{value}</strong>}</label>)}</div>{postBlocked && <UpgradePrompt reason={postGate?.reason ?? 'request_limit_reached'} role="buyer" />}<div className="result-card-actions"><p><CheckCircle2 size={16} /> Nothing is posted until you confirm.</p><button className="button button-primary" onClick={() => void publishDraftRequest()} disabled={published || publishingRequest || postBlocked}><FileCheck2 size={17} /> {published ? 'Request posted' : publishingRequest ? 'Publishing…' : 'Post request'}</button></div>{publishError && <p className="inline-warning" role="alert">{publishError}</p>}</section>}
           {compare && <ComparisonCard compare={compare} selected={selected} selectedQuoteIds={selectedQuoteIds} quotes={quotes} requests={requests} />}
           <div ref={endRef} />
         </div>

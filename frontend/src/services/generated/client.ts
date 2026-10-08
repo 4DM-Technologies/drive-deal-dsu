@@ -5,6 +5,7 @@ export type AiStreamEvent =
   | { type: 'token'; text: string }
   | { type: 'card'; kind: 'car' | 'compare' | 'requestPreview'; payload: unknown }
   | { type: 'sources'; items: Array<{ url: string; title: string }> }
+  | { type: 'media'; items: Array<{ image_url: string; source_url: string; source_name?: string; alt?: string }> }
   | { type: 'done'; threadId: string; messagesUsed: number; expandedUi: boolean }
   | { type: 'error'; message: string };
 

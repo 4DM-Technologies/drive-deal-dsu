@@ -121,6 +121,16 @@ class MarketplaceService:
         return await self.request_dict(row)
 
     @log_flow(layer="service")
+    async def publish_request(self, request_id: str, buyer: Profile) -> dict:
+        row = await self._request(request_id)
+        self._require_owner(row.buyer_id, buyer.id)
+        row.status = "open"
+        await self.session.commit()
+        await self.session.refresh(row)
+        logger.info("request_published", request_id=row.id, buyer_id=buyer.id)
+        return await self.request_dict(row)
+
+    @log_flow(layer="service")
     async def list_quotes(self, actor: Profile, request_id: str | None = None) -> list[dict]:
         if actor.role == "dealer":
             rows = await self.repository.quotes_for_dealer(actor.id)

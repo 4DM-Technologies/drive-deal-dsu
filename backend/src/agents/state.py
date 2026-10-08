@@ -22,6 +22,8 @@ class AgentState(TypedDict, total=False):
     suggested_questions: list[dict[str, Any]]
     comparison_rows: list[dict[str, Any]]
     answer: str
+    direct_web_answer: bool
     sources: list[dict[str, str]]
+    media: list[dict[str, str]]
     preview: bool
     step: int

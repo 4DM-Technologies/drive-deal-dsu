@@ -7,6 +7,9 @@
 # Local deployment runbook: contains a live Docker Hub token
 DEPLOY_LOCAL.md
 
+# Local agent workspace
+.agents/
+
 # Python / Backend
 __pycache__/
 *.py[cod]
