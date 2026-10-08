@@ -105,6 +105,15 @@ h1, h2, h3, .display { font-family: 'Manrope', 'DM Sans', sans-serif; letter-spa
 .stat-label { color: var(--muted); font-size: .84rem; display: flex; align-items: center; justify-content: space-between; }
 .stat-value { font-size: 2rem; font-family: 'Manrope'; font-weight: 700; letter-spacing: -.05em; font-variant-numeric: tabular-nums; }
 .stat-note { color: var(--success); font-size: .76rem; font-weight: 700; }
+/* A live number: the icon turns red and beats twice, then rests. Reduced-motion users get it static (see the global rule below). */
+.stat-icon-live { color: #e5484d; transform-origin: center; animation: stat-heartbeat 1.6s ease-in-out infinite; }
+@keyframes stat-heartbeat {
+  0%, 60%, 100% { transform: scale(1); opacity: 1; }
+  10% { transform: scale(1.28); opacity: .5; }
+  20% { transform: scale(1); opacity: 1; }
+  30% { transform: scale(1.18); opacity: .6; }
+  42% { transform: scale(1); opacity: 1; }
+}
 
 .status { display: inline-flex; align-items: center; gap: .4rem; min-height: 26px; border-radius: 999px; padding: .25rem .58rem; font-size: .72rem; font-weight: 700; white-space: nowrap; }
 .status::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
@@ -498,9 +507,8 @@ h1, h2, h3, .display { font-family: 'Manrope', 'DM Sans', sans-serif; letter-spa
   .support-help-trigger { width: 40px; padding: 0; justify-content: center; margin-left: auto; }
   .support-help-trigger span { display: none; }
   .support-reporter { width: 100%; padding: 1.15rem; }
-  .support-reporter-header { grid-template-columns: 42px 1fr; gap: .75rem; padding-right: 2.3rem; }
-  .support-reporter-icon { width: 42px; height: 42px; border-radius: 13px; }
-  .support-issue-options, .support-report-meta { grid-template-columns: 1fr; }
+  .support-reporter-header { padding-right: 2.3rem; }
+  .support-issue-options { grid-template-columns: 1fr; }
   .support-report-actions { align-items: stretch; flex-direction: column-reverse; }
   .support-report-actions .button { width: 100%; }
   .how-journey { grid-template-columns: 1fr; }
@@ -616,6 +624,9 @@ h1, h2, h3, .display { font-family: 'Manrope', 'DM Sans', sans-serif; letter-spa
 .list-toolbar { display: flex; gap: 1rem; align-items: center; justify-content: space-between; margin-bottom: 1rem; }
 .search-field { display: flex; flex: 1 1 300px; align-items: center; gap: .55rem; min-height: 44px; padding: 0 .8rem; border: 1px solid var(--border); border-radius: 11px; background: var(--raised); color: var(--muted); }
 .search-field input { width: 100%; border: 0; outline: 0; background: transparent; }
+.search-field:focus-within { border-color: rgba(20,86,184,.45); box-shadow: 0 0 0 3px rgba(20,86,184,.1); }
+.quotes-search { flex: 0 1 340px; background: var(--raised); }
+@media (max-width: 720px) { .quotes-search { flex: 1 1 100%; } }
 .filter-pills { display: flex; gap: .4rem; flex-wrap: wrap; }
 .filter-pill { border: 1px solid var(--border); background: var(--raised); border-radius: 999px; min-height: 38px; padding: .45rem .8rem; color: var(--muted); font-weight: 700; font-size: .78rem; }
 .filter-pill.active { border-color: #b8d0f0; background: var(--accent-soft); color: var(--accent); }
@@ -651,30 +662,38 @@ h1, h2, h3, .display { font-family: 'Manrope', 'DM Sans', sans-serif; letter-spa
 .modal-card h2 { font-size: 1.5rem; margin: .4rem 0 .5rem; }
 .modal-close { position: absolute; right: 1rem; top: 1rem; width: 38px; height: 38px; border: 0; border-radius: 10px; display: grid; place-items: center; background: var(--surface); }
 .support-reporter-backdrop { place-items: center end; padding: 0; }
-.support-reporter { position: relative; width: min(680px, 100%); height: 100dvh; overflow-y: auto; padding: clamp(1.35rem, 3vw, 2.4rem); background: var(--raised); box-shadow: -22px 0 70px rgba(16,35,63,.18); animation: support-panel-in 260ms var(--ease) both; }
+/* The panel is a flex column that fills the screen height: the "What happened?" box takes whatever room is left,
+   so the form fits without scrolling. On a screen too short for it, the panel scrolls instead of squashing. */
+.support-reporter { position: relative; display: flex; flex-direction: column; width: min(680px, 100%); height: 100dvh; overflow-y: auto; padding: clamp(1rem, 2.6vh, 1.75rem) clamp(1.25rem, 3vw, 2.2rem); background: var(--raised); box-shadow: -22px 0 70px rgba(16,35,63,.18); animation: support-panel-in 260ms var(--ease) both; }
 @keyframes support-panel-in { from { opacity: .3; transform: translateX(45px); } }
 .support-reporter-close { z-index: 1; }
-.support-reporter-header { display: grid; grid-template-columns: 52px 1fr; gap: 1rem; padding-right: 2.7rem; margin-bottom: 1.6rem; }
-.support-reporter-header h2, .support-report-success h2 { margin: .35rem 0 .45rem; font-size: clamp(1.75rem, 4vw, 2.35rem); }
-.support-reporter-header p, .support-report-success > p { margin: 0; color: var(--muted); line-height: 1.55; }
-.support-reporter-icon, .support-success-icon { width: 52px; height: 52px; display: grid; place-items: center; border-radius: 16px; background: var(--navy); color: white; box-shadow: 0 12px 28px rgba(16,35,63,.18); }
-.support-report-form { display: grid; gap: 1.05rem; }
+.support-reporter-header { padding-right: 2.7rem; margin-bottom: clamp(.7rem, 1.8vh, 1.2rem); }
+.support-reporter-header .eyebrow { display: block; }
+.support-reporter-header h2 { margin: .3rem 0 .4rem; font-size: clamp(1.6rem, 3.4vw, 2.1rem); }
+.support-report-success h2 { margin: .35rem 0 .45rem; font-size: clamp(1.75rem, 4vw, 2.35rem); }
+.support-reporter-header p { margin: 0; color: var(--muted); font-size: .9rem; line-height: 1.5; }
+.support-report-success > p { margin: 0; color: var(--muted); line-height: 1.55; }
+.support-success-icon { width: 52px; height: 52px; display: grid; place-items: center; border-radius: 16px; background: var(--navy); color: white; box-shadow: 0 12px 28px rgba(16,35,63,.18); }
+.support-report-form { flex: 1 0 auto; display: flex; flex-direction: column; gap: clamp(.6rem, 1.7vh, 1rem); }
 .support-report-form fieldset { min-width: 0; margin: 0; padding: 0; border: 0; }
-.support-report-form legend { margin-bottom: .7rem; font-weight: 700; }
-.support-issue-options { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: .65rem; }
-.support-issue-options label { min-height: 84px; display: flex; align-items: flex-start; gap: .7rem; padding: .85rem; border: 1px solid var(--border); border-radius: 14px; background: white; color: var(--muted); cursor: pointer; transition: 160ms var(--ease); }
+.support-report-form legend { margin-bottom: .5rem; font-size: .9rem; font-weight: 700; }
+.support-report-form .field { gap: .3rem; }
+.support-report-form .input { min-height: 42px; padding: .55rem .8rem; }
+.support-report-form .dropdown { min-width: 0; }
+.support-report-form .dropdown-trigger { min-height: 42px; }
+.support-issue-options { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: .55rem; }
+.support-issue-options label { min-height: 64px; display: flex; align-items: flex-start; gap: .65rem; padding: .6rem .8rem; border: 1px solid var(--border); border-radius: 14px; background: white; color: var(--muted); cursor: pointer; transition: 160ms var(--ease); }
 .support-issue-options label:hover { border-color: #b9cdeb; transform: translateY(-1px); }
 .support-issue-options label.selected { border-color: #9bbce9; background: var(--accent-soft); color: var(--accent); box-shadow: inset 0 0 0 1px rgba(20,86,184,.08); }
 .support-issue-options input { position: absolute; opacity: 0; pointer-events: none; }
 .support-issue-options span, .support-issue-options strong, .support-issue-options small { display: block; }
-.support-issue-options strong { color: var(--ink); font-size: .9rem; }
-.support-issue-options small { margin-top: .18rem; color: var(--muted); line-height: 1.35; }
-.support-description { min-height: 132px; resize: vertical; padding-top: .85rem; }
-.support-report-meta { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: .8rem; align-items: end; }
-.support-context { min-height: 76px; display: flex; align-items: center; gap: .7rem; padding: .8rem; border: 1px solid #cfe5d7; border-radius: 13px; background: var(--success-soft); color: var(--success); }
-.support-context span, .support-context strong, .support-context small { display: block; }
-.support-context small { margin-top: .15rem; color: var(--muted); word-break: break-word; }
-.support-report-actions { display: flex; justify-content: flex-end; gap: .65rem; padding-top: .25rem; }
+.support-issue-options strong { color: var(--ink); font-size: .88rem; }
+.support-issue-options small { margin-top: .12rem; color: var(--muted); font-size: .76rem; line-height: 1.35; }
+.support-description-field { flex: 1 1 auto; display: flex; flex-direction: column; }
+.support-report-form .support-description { flex: 1 1 auto; min-height: 72px; resize: none; padding-top: .7rem; }
+.support-report-actions { display: flex; justify-content: flex-end; gap: .65rem; }
+/* Repeated here because the phone rules higher up are overridden by the desktop ones defined after them. */
+@media (max-width: 720px) { .support-issue-options { grid-template-columns: 1fr; } }
 .support-report-success { max-width: 460px; margin: 16vh auto 0; text-align: center; }
 .support-report-success .support-success-icon { margin: 0 auto 1.2rem; background: var(--success); }
 .support-ticket-reference { margin: 1.5rem 0; padding: 1.1rem; border: 1px solid var(--border); border-radius: 16px; background: var(--surface); }
@@ -930,7 +949,7 @@ h1, h2, h3, .display { font-family: 'Manrope', 'DM Sans', sans-serif; letter-spa
 .demand-fit span, .demand-fit small { display: block; }
 .demand-fit small { color: var(--muted); }
 .dashboard-page { display: grid; gap: 1.2rem; }
-.dashboard-welcome { display: flex; align-items: end; justify-content: space-between; gap: 1.5rem; padding: clamp(1.4rem,4vw,3.2rem); border: 1px solid var(--border); border-radius: 22px; background: linear-gradient(90deg,rgba(250,249,246,.99) 0%,rgba(250,249,246,.94) 52%,rgba(250,249,246,.55) 100%),url('./assets/vehicles/drivedeal-hero.png') right 58% center/cover; box-shadow: var(--shadow-sm); }
+.dashboard-welcome { display: flex; align-items: end; justify-content: space-between; gap: 1.5rem; padding: clamp(1.4rem,4vw,3.2rem); border: 1px solid var(--border); border-radius: 22px; background: linear-gradient(90deg,rgba(250,249,246,.99) 0%,rgba(250,249,246,.9) 45%,rgba(250,249,246,.25) 100%),url('./assets/vehicles/drivedeal-hero.png') right 58% center/cover; box-shadow: var(--shadow-sm); }
 .trial-banner { display: flex; align-items: center; gap: .75rem; padding: .8rem 1rem; border: 1px solid #f0d49c; border-radius: 14px; background: linear-gradient(100deg, var(--warning-soft), #fffaf0); color: #7a4508; box-shadow: 0 6px 18px rgba(164,94,11,.08); }
 .trial-banner > svg { flex: none; color: var(--warning); }
 .trial-banner p { flex: 1; min-width: 0; margin: 0; font-size: .9rem; line-height: 1.45; }
@@ -998,11 +1017,12 @@ h1, h2, h3, .display { font-family: 'Manrope', 'DM Sans', sans-serif; letter-spa
 .quote-gallery-thumbs img { width: 72px; height: 52px; object-fit: cover; border-radius: 8px; }
 .quote-gallery-thumbs span { display: flex; align-items: center; gap: .35rem; margin-left: auto; color: var(--muted); font-size: .75rem; }
 .quote-total { font-size: 1.5rem !important; }
+.quote-contact-card { display: grid; justify-items: start; }
+.quote-contact-icon { width: 44px; height: 44px; display: grid; place-items: center; margin-bottom: 1rem; border-radius: 14px; background: var(--accent-soft); color: var(--accent); }
+.quote-contact-card h3 { margin: 0 0 .5rem; font-size: 1.15rem; line-height: 1.25; }
+.quote-contact-card p { margin: 0; font-size: .9rem; line-height: 1.6; }
+.quote-contact-card .button { margin-top: 1.25rem; }
 .dealer-note { margin: 1rem 0 0; padding: 1rem; border: 0; border-left: 3px solid var(--accent); background: var(--surface); }
-.deal-progress { display: grid; gap: .7rem; margin: 1rem 0; }
-.deal-progress > div { display: flex; gap: .7rem; align-items: center; color: var(--subtle); }
-.deal-progress > div.complete { color: var(--success); }
-.deal-progress > div span { flex: 1; }
 .document-row { display: flex; align-items: center; gap: .6rem; padding: .75rem 0; border-top: 1px solid var(--border); }
 .document-row > span { flex: 1; }
 .document-row strong, .document-row small { display: block; }
@@ -1261,6 +1281,7 @@ h1, h2, h3, .display { font-family: 'Manrope', 'DM Sans', sans-serif; letter-spa
 .dropdown-menu { position: absolute; z-index: 30; top: calc(100% + 6px); min-width: 100%; margin: 0; padding: .35rem; list-style: none; border: 1px solid var(--border); border-radius: 13px; background: white; box-shadow: 0 16px 40px rgba(16,35,63,.14); transform-origin: top; animation: dropdown-in 140ms var(--ease); }
 .dropdown-menu.align-right { right: 0; }
 .dropdown-menu.align-left { left: 0; }
+.dropdown-menu.place-up { top: auto; bottom: calc(100% + 6px); transform-origin: bottom; }
 .dropdown-menu li { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: .62rem .75rem; border-radius: 9px; color: var(--ink); font-size: .86rem; font-weight: 500; white-space: nowrap; cursor: pointer; }
 .dropdown-menu li.active { background: var(--surface); }
 .dropdown-menu li.selected { color: var(--accent); font-weight: 700; background: var(--accent-soft); }

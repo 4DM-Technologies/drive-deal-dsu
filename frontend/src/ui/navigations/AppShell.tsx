@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from 'motion/react';
-import { BriefcaseBusiness, ClipboardCheck, Eye, FileText, Gauge, Headphones, Home, LifeBuoy, LogOut, Menu, MessageCircle, PackageCheck, ScrollText, Search, ShieldCheck, Sparkles, TicketCheck, UserRound, Users, WalletCards, X } from 'lucide-react';
+import { BriefcaseBusiness, CircleQuestionMark, ClipboardCheck, Eye, FileText, Gauge, Headphones, Home, LogOut, Menu, MessageCircle, PackageCheck, ScrollText, Search, ShieldCheck, Sparkles, TicketCheck, UserRound, Users, WalletCards, X } from 'lucide-react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import { planDetailLine } from '@/helpers/plans';
@@ -82,7 +82,7 @@ export function AppShell() {
           </nav>
           <div className="topbar-actions">
             {accountSession && ['support-admin', 'admin'].includes(accountSession.role) && !isThemePreview && <label className="workspace-switcher desktop-header-action"><Eye size={16} /><span className="sr-only">View workspace</span><select aria-label="View workspace" value={workspaceView ?? 'support'} onChange={(event) => navigate(event.target.value === 'support' ? '/support' : `/home?workspaceView=${event.target.value}`)}><option value="support">Support workspace</option><option value="buyer">Buyer · read only</option><option value="dealer">Dealer · read only</option></select></label>}
-            {(session.role === 'buyer' || session.role === 'dealer') && <button className="support-help-trigger desktop-header-action" onClick={() => setSupportOpen(true)} aria-label="Open help and support"><LifeBuoy size={18} /><span>Help</span></button>}
+            {(session.role === 'buyer' || session.role === 'dealer') && <button className="support-help-trigger desktop-header-action" onClick={() => setSupportOpen(true)} aria-label="Open help and support"><CircleQuestionMark size={18} /><span>Help</span></button>}
             <ProfileMenu session={session} previewSearch={previewSearch} showAccount={showAccount} signOutDisabled={isThemePreview} onSignOut={signOut} />
             <button className="button button-ghost mobile-menu" onClick={() => setSidebarOpen(!sidebarOpen)} aria-label="Open menu"><Menu /></button>
           </div>
@@ -99,7 +99,7 @@ export function AppShell() {
               <div className="mobile-nav-account">
                 <button type="button" onClick={() => { navigate(previewPath('/profiles')); setSidebarOpen(false); }}><span className="avatar">{session.avatarInitials}</span><span><strong>{session.fullName}</strong><small>Profile</small></span></button>
                 {showAccount && <button type="button" onClick={() => { navigate('/account'); setSidebarOpen(false); }}><WalletCards size={18} /><span><strong>Account</strong><small>{subscription ? `${planLabel(subscription)} · ${planDetailLine(subscription)}` : 'Your plan and billing'}</small></span></button>}
-                {(session.role === 'buyer' || session.role === 'dealer') && <button type="button" onClick={() => { setSupportOpen(true); setSidebarOpen(false); }}><LifeBuoy size={18} /><span><strong>Help</strong><small>Contact support</small></span></button>}
+                {(session.role === 'buyer' || session.role === 'dealer') && <button type="button" onClick={() => { setSupportOpen(true); setSidebarOpen(false); }}><CircleQuestionMark size={18} /><span><strong>Help</strong><small>Contact support</small></span></button>}
                 <button type="button" className="mobile-signout" disabled={isThemePreview} onClick={signOut}><LogOut size={18} /><span><strong>Sign out</strong><small>{isThemePreview ? 'Unavailable in preview' : 'End this session'}</small></span></button>
               </div>
             </motion.nav>
