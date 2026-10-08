@@ -52,13 +52,7 @@ async def get_request(
 async def publish_request(
     request_id: str, profile: Profile = Depends(require_roles("buyer")), session: AsyncSession = Depends(get_session)
 ):
-    service = MarketplaceService(session)
-    row = await service._request(request_id)
-    service._require_owner(row.buyer_id, profile.id)
-    row.status = "open"
-    await session.commit()
-    await session.refresh(row)
-    return await service.request_dict(row)
+    return await MarketplaceService(session).publish_request(request_id, profile)
 
 
 @router.post("/requests/{request_id}/close")

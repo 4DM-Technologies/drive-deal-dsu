@@ -3,7 +3,7 @@ pipeline stage's input/output: make inference, the site-scoped and open search q
 domain filtering, LLM relevance scoring, which fetch method won each crawl, and the final extracted specs.
 
 Only exercises src/agents/tools/web_search.py directly - no orchestrator, no kb_agent, no compose. Uses the
-real DuckDuckGo/Google providers and a real LlmClient (same credential resolution as the app), so results
+the hosted Responses API web-search tool and a real LlmClient (same credential resolution as the app), so results
 reflect production behavior, not mocks.
 
 Writes the full trace plus final results as JSON (default: trace_output.json) and also prints it, same

@@ -30,12 +30,45 @@ def _safe_trace_value(value: Any, *, limit: int = 20_000) -> str:
     return scrub_secrets(str(value))[:limit]
 
 
+def _extract_url_citations(value: Any, *, _depth: int = 0, _seen: set[int] | None = None) -> list[dict[str, str]]:
+    """Extract hosted web-search URL annotations from SDK event objects without depending on SDK internals."""
+    if value is None or _depth > 5:
+        return []
+    seen = _seen or set()
+    if isinstance(value, dict | list | tuple):
+        identity = id(value)
+        if identity in seen:
+            return []
+        seen.add(identity)
+    if isinstance(value, dict):
+        if value.get("type") == "url_citation" and value.get("url"):
+            return [{"url": str(value["url"]), "title": str(value.get("title") or "Web source")}]
+        items: list[dict[str, str]] = []
+        for child in value.values():
+            items.extend(_extract_url_citations(child, _depth=_depth + 1, _seen=seen))
+        return items
+    if isinstance(value, list | tuple):
+        items = []
+        for child in value:
+            items.extend(_extract_url_citations(child, _depth=_depth + 1, _seen=seen))
+        return items
+    if hasattr(value, "model_dump"):
+        try:
+            return _extract_url_citations(value.model_dump(), _depth=_depth + 1, _seen=seen)
+        except Exception:
+            return []
+    if hasattr(value, "__dict__"):
+        return _extract_url_citations(vars(value), _depth=_depth + 1, _seen=seen)
+    return []
+
+
 @dataclass
 class LlmResult:
     text: str
     input_tokens: int = 0
     output_tokens: int = 0
     attempts: int = 1
+    sources: list[dict[str, str]] | None = None
 
 
 class LlmClient:
@@ -77,6 +110,8 @@ class LlmClient:
         prompt_version: str = "v1",
         model: str | None = None,
         max_output_tokens: int | None = None,
+        tools: list[dict[str, Any]] | None = None,
+        tool_choice: str | dict[str, Any] | None = None,
     ) -> LlmResult:
         started = perf_counter()
         client = await self._resolve_client()
@@ -88,7 +123,15 @@ class LlmClient:
             provider = "openai" if self._credential_source == "api_key" else self._credential_source
             model_name = model or self.settings.openai_model
             try:
-                result = await self._complete(client, prompt, reasoning_effort, model_name, max_output_tokens)
+                result = await self._complete(
+                    client,
+                    prompt,
+                    reasoning_effort,
+                    model_name,
+                    max_output_tokens,
+                    tools=tools,
+                    tool_choice=tool_choice,
+                )
                 status = "success"
             except Exception as exc:
                 error_message = _safe_error_value(str(exc), limit=2000)
@@ -161,6 +204,9 @@ class LlmClient:
         reasoning_effort: str | None = None,
         model: str | None = None,
         max_output_tokens: int | None = None,
+        *,
+        tools: list[dict[str, Any]] | None = None,
+        tool_choice: str | dict[str, Any] | None = None,
     ) -> LlmResult:
         """Calls the Responses API, auto-dropping a parameter a model rejects and remembering that
         for next time — the same capability-adaptation pattern used by the SIWC reference client.
@@ -177,6 +223,10 @@ class LlmClient:
             "store": False,
             "stream": True,
         }
+        if tools:
+            kwargs["tools"] = tools
+        if tool_choice is not None:
+            kwargs["tool_choice"] = tool_choice
         with _capability_lock:
             if model not in _models_without_max_output_tokens:
                 kwargs["max_output_tokens"] = max_output_tokens or self.settings.ai_max_output_tokens
@@ -189,6 +239,7 @@ class LlmClient:
                 text = ""
                 input_tokens = 0
                 output_tokens = 0
+                sources: list[dict[str, str]] = []
                 async for event in stream:
                     event_type = getattr(event, "type", "")
                     if event_type == "response.output_text.delta":
@@ -197,7 +248,10 @@ class LlmClient:
                         usage = getattr(event.response, "usage", None)
                         input_tokens = getattr(usage, "input_tokens", 0) or 0
                         output_tokens = getattr(usage, "output_tokens", 0) or 0
-                return LlmResult(text, input_tokens, output_tokens, attempt)
+                        sources.extend(_extract_url_citations(getattr(event, "response", None)))
+                    sources.extend(_extract_url_citations(event))
+                deduped = {item["url"]: item for item in sources if item.get("url")}
+                return LlmResult(text, input_tokens, output_tokens, attempt, list(deduped.values()))
             except BadRequestError as exc:
                 detail = _safe_error_value(str(exc)).lower()
                 if "max_output_tokens" in detail and "max_output_tokens" in kwargs:
