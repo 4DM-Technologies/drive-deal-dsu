@@ -20,7 +20,6 @@ from src.agents.state import AgentState
 from src.agents.tools.kb import kb_insert, kb_search
 from src.agents.tools.kb_db import update_preferences, write_car
 from src.agents.tools.web_search import (
-    _is_us_market_url,
     get_urls,
     has_official_domain,
     process_url,
@@ -799,9 +798,7 @@ def main_agent(
                 finding
                 for result in cached
                 for finding in result.get("findings", [])
-                if isinstance(finding, dict)
-                and finding.get("image_url")
-                and _is_us_market_url(str(finding.get("source_url") or ""))
+                if isinstance(finding, dict) and finding.get("image_url")
             ][:2]
             if not media:
                 try:
@@ -820,9 +817,9 @@ def main_agent(
                 "media": media,
                 "sources": sources,
                 "answer": (
-                    "Here are a couple of real US-market vehicle views from automotive sources."
+                    "Here are a couple of vehicle views from automotive sources."
                     if media
-                    else "I couldn't find reliable US-market images for that vehicle, so I won't show international images."
+                    else "I couldn't find reliable images for that vehicle yet."
                 ),
                 "direct_web_answer": True,
                 "step": step,
@@ -933,7 +930,7 @@ def main_agent(
         sources = list(resolved_sources.values())
         if not specs and not sources and not candidate_evidence:
             return {
-                "answer": "I couldn't verify reliable US-market information for that vehicle, so I won't show international results or guess at current details.",
+                "answer": "I couldn't find reliable current information for that vehicle yet. Please try the search again.",
                 "sources": [],
                 "web_results": [],
                 "direct_web_answer": True,

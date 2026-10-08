@@ -1,20 +1,8 @@
-"""Function-level flow logging for every business function in the request path.
+"""Error-boundary instrumentation for functions in the request path.
 
-Routes -> Services -> Repositories -> Agents/Tools all carry the ``@log_flow``
-decorator so a single request can be replayed from the log alone:
-
-    {"event": "api_request_started", "request_id": "...", "method": "POST", "path": "/api/v1/quotes"}
-    {"event": "function_entry",  "layer": "route",      "function": "route.create_quote",  "depth": 1}
-    {"event": "function_entry",  "layer": "service",    "function": "service.MarketplaceService.create_quote", "depth": 2}
-    {"event": "function_entry",  "layer": "repository", "function": "repository.MarketplaceRepository.add",  "depth": 3}
-    {"event": "function_exit",   "layer": "repository", "function": "...add",  "depth": 3, "duration_ms": 0.4, "outcome": "ok"}
-    {"event": "function_exit",   "layer": "service",    "function": "...create_quote", "depth": 2, "duration_ms": 3.1, "outcome": "ok"}
-    {"event": "function_exit",   "layer": "route",      "function": "...create_quote", "depth": 1, "duration_ms": 3.4, "outcome": "ok"}
-    {"event": "api_request_completed", "request_id": "...", "status_code": 201, "duration_ms": 6.2}
-
-``depth`` is a context variable incremented on entry, so nested calls are visually
-indented in the JSON stream and the exit of a failed call is immediately followed by
-the unwind of every parent - that is where you read the traceback and correct the bug.
+Routes, services, repositories, and agents carry ``@log_flow`` so unexpected
+failures retain their context. Successful request lifecycle logs are emitted by
+the API middleware; normal function calls do not emit entry/exit log lines.
 """
 
 import asyncio
@@ -33,13 +21,7 @@ from src.settings import (
     get_settings,
 )
 from src.settings import (
-    LOG_FLOW_EVENT_ENTRY as EVENT_FUNCTION_ENTRY,
-)
-from src.settings import (
     LOG_FLOW_EVENT_ERROR as EVENT_FUNCTION_ERROR,
-)
-from src.settings import (
-    LOG_FLOW_EVENT_EXIT as EVENT_FUNCTION_EXIT,
 )
 from src.settings import (
     LOG_FLOW_LOGGED_ATTRIBUTE as FLOW_LOGGED_ATTR,
@@ -153,13 +135,8 @@ def qualified_name(func: Callable[..., Any], layer: str) -> str:
 
 
 def flow_entry(func: Callable[..., Any], layer: str, depth: int, args: tuple[Any, ...], kwargs: dict[str, Any]) -> None:
-    logger.info(
-        EVENT_FUNCTION_ENTRY,
-        layer=layer,
-        function=qualified_name(func, layer),
-        depth=depth,
-        args=describe_arguments(func, args, kwargs),
-    )
+    """Compatibility hook for callers that still import it; successful entries are not logged."""
+    return None
 
 
 def flow_exit(
@@ -171,15 +148,7 @@ def flow_exit(
     outcome: str,
     **fields: Any,
 ) -> None:
-    logger.info(
-        EVENT_FUNCTION_EXIT,
-        layer=layer,
-        function=qualified_name(func, layer),
-        depth=depth,
-        duration_ms=round((time.perf_counter() - started_at) * 1000, 3),
-        outcome=outcome,
-        **fields,
-    )
+    """Reset nested-flow context without emitting a successful function log."""
     if token is not None:
         flow_depth.reset(token)
 
@@ -223,7 +192,7 @@ def flow_error(
 
 
 def flow_logging_enabled() -> bool:
-    """Reads LOG_FLOW_ENABLED from settings at import time, defaulting to enabled."""
+    """Whether error-boundary instrumentation is enabled; API lifecycle logs are independent of this flag."""
     try:
         return get_settings().log_flow_enabled
     except Exception:
@@ -236,7 +205,6 @@ def _sync_wrapper(func: Callable[P, R], layer: str) -> Callable[P, R]:
         started_at = time.perf_counter()
         depth = flow_depth.get()
         token = flow_depth.set(depth + 1)
-        flow_entry(func, layer, depth, args, kwargs)
         try:
             result = func(*args, **kwargs)
         except asyncio.CancelledError as exc:
@@ -257,7 +225,6 @@ def _async_wrapper(func: Callable[P, Any], layer: str) -> Callable[P, Any]:
         started_at = time.perf_counter()
         depth = flow_depth.get()
         token = flow_depth.set(depth + 1)
-        flow_entry(func, layer, depth, args, kwargs)
         try:
             result = await func(*args, **kwargs)
         except asyncio.CancelledError as exc:
@@ -279,7 +246,6 @@ def _async_gen_wrapper(func: Callable[P, Any], layer: str) -> Callable[P, AsyncG
         depth = flow_depth.get()
         token = flow_depth.set(depth + 1)
         emitted = 0
-        flow_entry(func, layer, depth, args, kwargs)
         try:
             async for item in func(*args, **kwargs):
                 emitted += 1
@@ -300,7 +266,7 @@ def log_flow(
     *,
     layer: str,
 ) -> Callable[P, R] | Callable[[Callable[P, R]], Callable[P, R]]:
-    """Logs ``function_entry`` / ``function_exit`` / ``function_error`` around every call.
+    """Keeps an error boundary around each decorated call without logging successful calls.
 
     Always used parameterised (``@log_flow(layer="service")``): ``layer`` is keyword-only and
     required so every call site states which layer of the request path it belongs to. Handles sync

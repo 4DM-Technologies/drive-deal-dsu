@@ -7,7 +7,6 @@ from starlette.requests import Request
 from starlette.responses import Response
 
 from src.settings import LOG_QUERY_STRING, REQUEST_CONTEXT_LOGGED_METHODS, REQUEST_CONTEXT_SKIPPED_PATHS
-from src.utils.log_flow import log_flow
 from src.utils.logger import logger
 
 
@@ -51,13 +50,10 @@ class RequestContextMiddleware(BaseHTTPMiddleware):
     """Binds the per-request context variables and emits the API flow log lines.
 
     ``api_request_started`` / ``api_request_completed`` / ``api_request_failed`` bracket the whole
-    request, so grepping one ``request_id`` yields the API entry point, then every
-    ``function_entry`` / ``function_exit`` line from the middleware, route, service, repository and
-    agent layers underneath it, then the final outcome. That is the trace you follow when a request
-    fails and you need to know which function broke it.
+    request, so grepping one ``request_id`` yields the API entry point and final outcome. Decorated
+    functions retain error-boundary logs only; AI/LLM logs remain separate and are not changed.
     """
 
-    @log_flow(layer="middleware")
     async def dispatch(self, request: Request, call_next) -> Response:
         request_id = resolve_request_id(request)
         request.state.request_id = request_id

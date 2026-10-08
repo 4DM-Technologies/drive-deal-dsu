@@ -55,11 +55,13 @@ def _status_error(status_code: int) -> httpx.HTTPStatusError:
 # --- search_vehicle_images -------------------------------------------------------------------------------------
 
 
-async def test_image_search_returns_nothing_when_no_us_source_is_found() -> None:
+async def test_image_search_accepts_sources_without_market_url_filtering() -> None:
     llm = _llm_returning(sources=[{"url": "https://www.kia.co.in/seltos", "title": "Kia India"}])
 
-    with _mock_http(lambda request: pytest.fail("a non-US source must never be fetched")):
-        assert await search_vehicle_images(llm, "Kia Seltos") == []
+    with _mock_http(lambda request: _html_page("https://cdn.example.com/seltos.jpg")):
+        images = await search_vehicle_images(llm, "Kia Seltos")
+
+    assert images[0]["source_url"] == "https://www.kia.co.in/seltos"
 
 
 async def test_image_search_returns_nothing_when_the_model_cites_no_sources() -> None:
@@ -118,7 +120,7 @@ async def test_image_search_respects_the_result_limit() -> None:
     assert len(images) == 1
 
 
-async def test_image_search_ignores_pages_that_redirect_to_a_non_us_site_or_declare_no_image() -> None:
+async def test_image_search_ignores_pages_that_declare_no_image() -> None:
     llm = _llm_returning(
         sources=[
             {"url": "https://www.redirect.com/seltos", "title": "Redirect"},
@@ -138,7 +140,9 @@ async def test_image_search_ignores_pages_that_redirect_to_a_non_us_site_or_decl
         return _html_page(None)
 
     with _mock_http(handler):
-        assert await search_vehicle_images(llm, "Kia Seltos") == []
+        images = await search_vehicle_images(llm, "Kia Seltos")
+
+    assert [image["image_url"] for image in images] == ["https://cdn.example.com/indian.jpg"]
 
 
 # --- _hosted_get_urls / get_urls -------------------------------------------------------------------------------
@@ -158,10 +162,15 @@ async def test_hosted_urls_skip_unusable_sources_and_attach_the_hosted_answer() 
 
     candidates = await _hosted_get_urls(llm, "Kia Seltos price", limit=5)
 
-    assert [candidate["source_domain"] for candidate in candidates] == ["kia.com", "edmunds.com"]
-    assert candidates[1]["title"] == "edmunds.com"
+    assert [candidate["source_domain"] for candidate in candidates] == [
+        "kia.co.in",
+        "kia.com",
+        "edmunds.com",
+    ]
+    assert candidates[2]["title"] == "edmunds.com"
     assert candidates[0]["hosted_answer"] == "The Seltos starts at $25,000."
     assert [source["url"] for source in json.loads(candidates[0]["hosted_sources"])] == [
+        "https://www.kia.co.in/seltos",
         "https://www.kia.com/us/seltos",
         "https://www.edmunds.com/kia/seltos/",
     ]
@@ -182,6 +191,7 @@ async def test_hosted_urls_fall_back_to_links_in_the_answer_text() -> None:
     assert [candidate["url"] for candidate in candidates] == [
         "https://www.kia.com/us/seltos",
         "https://www.edmunds.com/kia/seltos",
+        "https://www.kia.co.in/seltos",
     ]
 
 
@@ -304,23 +314,21 @@ async def test_static_fetch_returns_visible_text_only() -> None:
         httpx.Response(200, headers={"content-type": "application/pdf"}, content=b"%PDF"),
         httpx.Response(200, headers={"content-type": "text/html"}, text="<script>only()</script>"),
         httpx.Response(404),
-        httpx.Response(302, headers={"location": "https://www.kia.co.in/seltos"}),
+        httpx.Response(302, headers={"location": "https://www.example.com/empty"}),
     ],
-    ids=["not-text", "no-visible-content", "http-error", "redirect-to-non-us"],
+    ids=["not-text", "no-visible-content", "http-error", "redirect-to-empty"],
 )
 async def test_static_fetch_gives_up_quietly_on_unusable_pages(response: httpx.Response) -> None:
     def handler(request: httpx.Request) -> httpx.Response:
-        if request.url.host == "www.kia.co.in":
-            return httpx.Response(200, headers={"content-type": "text/html"}, text="<p>India site</p>")
         return response
 
     with _mock_http(handler):
         assert await _fetch_static_page("https://www.kia.com/us/seltos") is None
 
 
-async def test_static_fetch_never_requests_a_non_us_url() -> None:
-    with _mock_http(lambda request: pytest.fail("a non-US URL must never be fetched")):
-        assert await _fetch_static_page("https://www.kia.co.in/seltos") is None
+async def test_static_fetch_accepts_a_non_us_url_when_the_provider_returns_content() -> None:
+    with _mock_http(lambda request: httpx.Response(200, headers={"content-type": "text/html"}, text="<p>Seltos</p>")):
+        assert await _fetch_static_page("https://www.kia.co.in/seltos") == "Seltos"
 
 
 async def test_process_url_skips_pages_that_cannot_be_fetched() -> None:

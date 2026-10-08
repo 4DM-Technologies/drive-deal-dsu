@@ -3,7 +3,6 @@ from unittest.mock import AsyncMock, patch
 
 from src.agents.tools.web_search import (
     _ImageMetaParser,
-    _is_us_market_url,
     _ReadableHtmlParser,
     get_urls,
     has_official_domain,
@@ -28,14 +27,9 @@ async def test_hosted_search_is_the_only_url_provider() -> None:
     assert results[0]["source_domain"] == "kia.com"
     assert results[0]["hosted_answer"].startswith("The latest Seltos")
     call = llm.generate.call_args.kwargs
+    assert call["reasoning_effort"] == "low"
     assert call["tools"] == [{"type": "web_search", "search_context_size": "low"}]
     assert call["tool_choice"] == "required"
-
-
-def test_us_market_filter_rejects_international_domains_and_paths() -> None:
-    assert _is_us_market_url("https://www.kia.com/us/en/vehicles/seltos") is True
-    assert _is_us_market_url("https://www.kia.com/in/our-vehicles/seltos") is False
-    assert _is_us_market_url("https://www.kia.co.in/seltos") is False
 
 
 async def test_hosted_search_can_be_disabled_without_network_fallback() -> None:
