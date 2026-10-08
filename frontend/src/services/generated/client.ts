@@ -87,7 +87,10 @@ export interface DriveDealClient {
     taxRate(stateCode: string): Promise<{ stateCode: string; rate: string }>;
   };
   ai: {
-    chat(input: { message: string; threadId?: string; agent?: 'sera-agent' | 'compare-agent'; requestIds?: string[]; quoteIds?: string[]; signal?: AbortSignal }): AsyncIterable<AiStreamEvent>;
+    chat(input: { message: string; threadId?: string; agent?: 'sera-agent' | 'compare-agent'; requestIds?: string[]; quoteIds?: string[]; requestContext?: Record<string, string>; signal?: AbortSignal }): AsyncIterable<AiStreamEvent>;
+    vehicleModels(brand: string): Promise<{ models: string[]; sources: Array<{ title: string; url: string }> }>;
+    vehicleImages(query: string): Promise<Array<{ image_url: string; source_url: string; source_name?: string; alt?: string }>>;
+    saveGuidedCheckpoint(input: { threadId: string; messages: Array<{ id: string; role: 'user' | 'assistant'; body: string; guidedStep?: string | undefined; options?: string[] | undefined }>; guidedState: Record<string, unknown>; requestContext: Record<string, string> | null }): Promise<void>;
     threads(): Promise<AiThread[]>;
     thread(id: string): Promise<AiThread>;
     deleteThread(id: string): Promise<void>;

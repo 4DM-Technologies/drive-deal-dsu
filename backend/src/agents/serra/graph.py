@@ -466,7 +466,7 @@ def main_agent(
         if not context:
             return ""
         return (
-            '<conversation_context trust="internal">\n'
+            '<conversation_context trust="untrusted">\n'
             f"{json.dumps(context[-6:], ensure_ascii=False)}\n"
             "</conversation_context>\n\n"
         )
@@ -649,6 +649,12 @@ def main_agent(
         if state.get("route") == "compare" and compare:
             return configured_target("orchestrator", "compare", "compose")
         condition = "web_direct" if state.get("mode") == "web_direct" else "default"
+        if not compare and condition == "default":
+            # The local car KB contains untrusted seed data. Research categories directly on the web;
+            # answer stable advice in compose. Compare continues to use its existing configured route.
+            if state.get("mode") == "web_per_car":
+                return "web_search_agent"
+            return "compose"
         return configured_target(
             "orchestrator", condition, "web_search_agent" if condition == "web_direct" else "kb_agent"
         )
@@ -793,7 +799,7 @@ def main_agent(
         preferences = state.get("preferences") or {}
 
         if state.get("mode") == "image_search":
-            cached = await kb_search(session, state["message"], limit=2)
+            cached = await kb_search(session, state["message"], limit=2) if compare else []
             media = [
                 finding
                 for result in cached
@@ -811,7 +817,7 @@ def main_agent(
                 for item in media
                 if item.get("source_url")
             ]
-            if media and not (preview or state.get("preview")):
+            if compare and media and not (preview or state.get("preview")):
                 await kb_insert(session, state["message"], media, state["user_id"])
             return {
                 "media": media,
@@ -886,19 +892,20 @@ def main_agent(
                     except (TypeError, json.JSONDecodeError):
                         sources = []
                     if hosted_answer and not (preview or state.get("preview")):
-                        await kb_insert(
-                            session,
-                            state["message"],
-                            [
-                                {
-                                    "title": source.get("title", "Web source"),
-                                    "url": source.get("url", ""),
-                                    "content": hosted_answer,
-                                }
-                                for source in sources
-                            ],
-                            state["user_id"],
-                        )
+                        if compare:
+                            await kb_insert(
+                                session,
+                                state["message"],
+                                [
+                                    {
+                                        "title": source.get("title", "Web source"),
+                                        "url": source.get("url", ""),
+                                        "content": hosted_answer,
+                                    }
+                                    for source in sources
+                                ],
+                                state["user_id"],
+                            )
                     return {
                         "answer": hosted_answer,
                         "direct_web_answer": True,
@@ -936,7 +943,7 @@ def main_agent(
                 "direct_web_answer": True,
                 "step": step,
             }
-        if specs and not (preview or state.get("preview")):
+        if compare and specs and not (preview or state.get("preview")):
             await kb_insert(
                 session,
                 state["message"],
@@ -1025,7 +1032,8 @@ def main_agent(
     graph.add_conditional_edges("classifier", route_from_classifier, allowed_targets)
     graph.add_conditional_edges("orchestrator", route_from_orchestrator, allowed_targets)
     graph.add_conditional_edges("kb_agent", after_kb, allowed_targets)
-    graph.add_edge("web_search_agent", allowed_targets[configured_target("web_search_agent", "always", "persist_cars")])
+    web_search_target = configured_target("web_search_agent", "always", "persist_cars") if compare else "compose"
+    graph.add_edge("web_search_agent", allowed_targets[web_search_target])
     graph.add_edge("persist_cars", allowed_targets[configured_target("persist_cars", "always", "compose")])
     graph.add_edge("compose", allowed_targets[configured_target("compose", "always", "end")])
     return graph.compile()

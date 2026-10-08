@@ -145,6 +145,17 @@ async def test_image_search_ignores_pages_that_declare_no_image() -> None:
     assert [image["image_url"] for image in images] == ["https://cdn.example.com/indian.jpg"]
 
 
+async def test_image_search_finds_lazy_loaded_and_structured_vehicle_images() -> None:
+    llm = _llm_returning(sources=[{"url": "https://www.kia.com/us/sportage", "title": "Kia Sportage"}])
+    html = """<html><head><script type="application/ld+json">
+      {"@type":"Product","image":{"url":"/media/sportage.jpg"}}
+      </script></head><body><img alt="2026 Kia Sportage" data-src="/media/sportage-gallery.webp"></body></html>"""
+    with _mock_http(lambda request: httpx.Response(200, headers={"content-type": "text/html"}, text=html)):
+        images = await search_vehicle_images(llm, "Kia Sportage")
+
+    assert images[0]["image_url"] == "https://www.kia.com/media/sportage.jpg"
+
+
 # --- _hosted_get_urls / get_urls -------------------------------------------------------------------------------
 
 

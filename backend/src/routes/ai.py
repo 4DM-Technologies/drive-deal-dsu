@@ -1,12 +1,12 @@
 import json
 
-from fastapi import APIRouter, Depends, Response, status
+from fastapi import APIRouter, Depends, Query, Response, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.database import get_session
 from src.middleware.auth import require_roles
-from src.models.marketplace import AiChatRequest, CompareRequest
+from src.models.marketplace import AiChatRequest, AiGuidedCheckpoint, CompareRequest
 from src.repositories.schema import Profile
 from src.services.ai_service import AiService
 from src.utils.log_flow import log_flow
@@ -45,6 +45,30 @@ async def chat(
     )
 
 
+@router.get("/vehicle-models")
+@log_flow(layer="route")
+async def vehicle_models(
+    brand: str = Query(min_length=1, max_length=80),
+    profile: Profile = Depends(require_roles("buyer")),
+    session: AsyncSession = Depends(get_session),
+):
+    result = await AiService(session).vehicle_models(brand)
+    await session.commit()
+    return result
+
+
+@router.get("/vehicle-images")
+@log_flow(layer="route")
+async def vehicle_images(
+    query: str = Query(min_length=2, max_length=180),
+    profile: Profile = Depends(require_roles("buyer")),
+    session: AsyncSession = Depends(get_session),
+):
+    results = await AiService(session).vehicle_images(query)
+    await session.commit()
+    return {"items": results}
+
+
 @router.post("/compare")
 @log_flow(layer="route")
 async def compare(
@@ -59,6 +83,17 @@ async def compare(
 @log_flow(layer="route")
 async def threads(profile: Profile = Depends(require_roles("buyer")), session: AsyncSession = Depends(get_session)):
     return await AiService(session).list_threads(profile)
+
+
+@router.post("/threads/guided-checkpoint", status_code=status.HTTP_204_NO_CONTENT)
+@log_flow(layer="route")
+async def save_guided_checkpoint(
+    payload: AiGuidedCheckpoint,
+    profile: Profile = Depends(require_roles("buyer")),
+    session: AsyncSession = Depends(get_session),
+):
+    await AiService(session).save_guided_checkpoint(payload, profile)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.get("/threads/{thread_id}")

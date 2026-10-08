@@ -39,6 +39,12 @@ export interface BuyerRequest {
   brand: string;
   model: string;
   bodyType: string | null;
+  fuelType?: string | null;
+  transmission?: string | null;
+  trim?: string | null;
+  drivetrain?: string | null;
+  color?: string | null;
+  additionalInformation?: string | null;
   yearMin: number | null;
   yearMax: number | null;
   budgetMin: string | null;
@@ -105,6 +111,8 @@ export interface AiMessage {
   id: string;
   role: 'user' | 'assistant';
   body: string;
+  guidedStep?: string | undefined;
+  options?: string[] | undefined;
 }
 
 export interface AiThread {
@@ -113,6 +121,8 @@ export interface AiThread {
   title: string;
   updatedAt: string;
   messages: AiMessage[];
+  guidedState?: Record<string, unknown> | undefined;
+  requestContext?: Record<string, string> | null | undefined;
 }
 
 export interface DealDocument {
@@ -244,6 +254,7 @@ export interface RequestCreateInput {
   searchRadiusMiles: number;
   timeline: BuyerRequest['timeline'];
   mustHaves?: string[];
+  additionalInformation?: string | null;
   requestExpire: string;
   status?: 'draft' | 'open';
 }

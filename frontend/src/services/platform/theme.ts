@@ -5,6 +5,9 @@ import type { ActiveTheme, ThemeDefinition } from '@/types/domain';
 const clamp = (value: number) => Math.max(0, Math.min(255, Math.round(value)));
 const rgb = (values: number[]) => `rgb(${values.map(clamp).join(' ')})`;
 const mix = (values: number[], target: number, amount: number) => values.map((value) => value + (target - value) * amount);
+const ACTIVE_THEME_REFRESH_MS = 5 * 60_000;
+let lastThemeRefreshAt = 0;
+let activeThemeRefresh: Promise<ActiveTheme | null> | null = null;
 
 export function themeHex(values: number[]): string {
   return `#${values.map((value) => clamp(value).toString(16).padStart(2, '0')).join('')}`;
@@ -41,13 +44,21 @@ export function applyCachedTheme(): void {
   }
 }
 
-export async function refreshActiveTheme(): Promise<ActiveTheme | null> {
-  try {
-    const theme = await client.theme.active();
-    window.localStorage.setItem(BROWSER_STORAGE_KEYS.activeTheme, JSON.stringify(theme));
-    applyTheme(theme);
-    return theme;
-  } catch {
-    return null;
-  }
+export async function refreshActiveTheme(force = false): Promise<ActiveTheme | null> {
+  if (activeThemeRefresh) return activeThemeRefresh;
+  if (!force && Date.now() - lastThemeRefreshAt < ACTIVE_THEME_REFRESH_MS) return null;
+  lastThemeRefreshAt = Date.now();
+  activeThemeRefresh = (async () => {
+    try {
+      const theme = await client.theme.active();
+      window.localStorage.setItem(BROWSER_STORAGE_KEYS.activeTheme, JSON.stringify(theme));
+      applyTheme(theme);
+      return theme;
+    } catch {
+      return null;
+    } finally {
+      activeThemeRefresh = null;
+    }
+  })();
+  return activeThemeRefresh;
 }

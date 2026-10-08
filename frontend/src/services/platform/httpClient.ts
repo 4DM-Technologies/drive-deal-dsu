@@ -1,5 +1,5 @@
 import type { DriveDealClient, AiStreamEvent } from '@/services/generated/client';
-import type { ActiveTheme, AdministrationAuditEvent, AdminCatalog, AdminConfigBundle, AdminConfigType, AdminPromptBundle, AdminRevision, AiThread, AiTrace, BrandRef, BuyerRequest, CarCreateInput, ChatMessage, DealDocument, InventoryCar, PromptDefinition, Quote, Session, StateRef, SupportMember, Ticket, Verification, WorkflowDefinition, WorkflowPreview, WorkflowPreviewStreamEvent, PaymentReceipt } from '@/types/domain';
+import type { ActiveTheme, AdministrationAuditEvent, AdminCatalog, AdminConfigBundle, AdminConfigType, AdminPromptBundle, AdminRevision, AiMessage, AiThread, AiTrace, BrandRef, BuyerRequest, CarCreateInput, ChatMessage, DealDocument, InventoryCar, PromptDefinition, Quote, Session, StateRef, SupportMember, Ticket, Verification, WorkflowDefinition, WorkflowPreview, WorkflowPreviewStreamEvent, PaymentReceipt } from '@/types/domain';
 import driveDealHero from '@/assets/vehicles/drivedeal-hero.png';
 import { BROWSER_STORAGE_KEYS, WORKSPACE_VIEW_QUERY_PARAMETER } from '@/config/browser';
 import { environment } from '@/config/environment';
@@ -93,7 +93,9 @@ const profileToSession = (row: Record<string, unknown>): Session => ({
 
 const requestToDomain = (row: Record<string, unknown>): BuyerRequest => ({
   id: String(row.id), buyerId: String(row.buyer_id), brand: String(row.brand_name ?? 'Vehicle'), model: String(row.model),
-  bodyType: row.body_type as string | null, yearMin: row.year_min as number | null, yearMax: row.year_max as number | null,
+  bodyType: row.body_type as string | null, fuelType: row.fuel_type as string | null, transmission: row.transmission as string | null,
+  trim: row.trim as string | null, drivetrain: row.drivetrain as string | null, color: row.color as string | null,
+  additionalInformation: row.additional_information as string | null, yearMin: row.year_min as number | null, yearMax: row.year_max as number | null,
   budgetMin: row.budget_min == null ? null : String(row.budget_min), budgetMax: row.budget_max == null ? null : String(row.budget_max),
   targetOtdPrice: row.target_otd_price == null ? null : String(row.target_otd_price), area: String(row.buyer_area),
   radiusMiles: Number(row.search_radius_miles), timeline: row.timeline as BuyerRequest['timeline'], status: row.status as BuyerRequest['status'],
@@ -211,10 +213,10 @@ const bundleToDomain = <T>(row: Record<string, unknown>): AdminConfigBundle<T> =
   defaultVersion: Number(row.default_version ?? 0),
 });
 
-async function* streamAi(input: { message: string; threadId?: string; agent?: 'sera-agent' | 'compare-agent'; requestIds?: string[]; quoteIds?: string[]; signal?: AbortSignal }): AsyncIterable<AiStreamEvent> {
+async function* streamAi(input: { message: string; threadId?: string; agent?: 'sera-agent' | 'compare-agent'; requestIds?: string[]; quoteIds?: string[]; requestContext?: Record<string, string>; signal?: AbortSignal }): AsyncIterable<AiStreamEvent> {
   const response = await fetch(`${baseUrl}/ai/chat`, {
     method: 'POST', headers: { 'content-type': 'application/json', ...(token() ? { authorization: `Bearer ${token()}` } : {}) },
-    body: JSON.stringify({ message: input.message, thread_id: input.threadId, agent: input.agent ?? 'sera-agent', request_ids: input.requestIds ?? [], quote_ids: input.quoteIds ?? [] }),
+    body: JSON.stringify({ message: input.message, thread_id: input.threadId, agent: input.agent ?? 'sera-agent', request_ids: input.requestIds ?? [], quote_ids: input.quoteIds ?? [], request_context: input.requestContext ?? null }),
     ...(input.signal ? { signal: input.signal } : {}),
   });
   if (!response.ok || !response.body) throw new Error('Sera is temporarily unavailable.');
@@ -335,7 +337,7 @@ export const httpClient: DriveDealClient = {
   requests: {
     list: async () => (await request<Record<string, unknown>[]>(workspaceView() ? `/support/workspaces/${workspaceView()}/requests` : '/requests')).map(requestToDomain),
     get: async (id) => requestToDomain(await request(`/requests/${id}`)),
-    create: async (input) => requestToDomain(await request('/requests', { method: 'POST', body: JSON.stringify({ brand_id: input.brandId, buyer_area_state_id: input.buyerAreaStateId, model: input.model, body_type: input.bodyType ?? null, fuel_type: input.fuelType ?? null, year_min: input.yearMin ?? null, year_max: input.yearMax ?? null, trim: input.trim ?? null, drivetrain: input.drivetrain ?? null, transmission: input.transmission ?? null, color: input.color ?? null, budget_min: input.budgetMin ?? null, budget_max: input.budgetMax ?? null, target_otd_price: input.targetOtdPrice ?? null, buyer_area: input.buyerArea, search_radius_miles: input.searchRadiusMiles, timeline: input.timeline, must_haves: input.mustHaves ?? [], request_expire: input.requestExpire, status: input.status ?? 'open' }) })),
+    create: async (input) => requestToDomain(await request('/requests', { method: 'POST', body: JSON.stringify({ brand_id: input.brandId, buyer_area_state_id: input.buyerAreaStateId, model: input.model, body_type: input.bodyType ?? null, fuel_type: input.fuelType ?? null, year_min: input.yearMin ?? null, year_max: input.yearMax ?? null, trim: input.trim ?? null, drivetrain: input.drivetrain ?? null, transmission: input.transmission ?? null, color: input.color ?? null, budget_min: input.budgetMin ?? null, budget_max: input.budgetMax ?? null, target_otd_price: input.targetOtdPrice ?? null, buyer_area: input.buyerArea, search_radius_miles: input.searchRadiusMiles, timeline: input.timeline, must_haves: input.mustHaves ?? [], additional_information: input.additionalInformation ?? null, request_expire: input.requestExpire, status: input.status ?? 'open' }) })),
     publish: async (id) => requestToDomain(await request(`/requests/${id}/publish`, { method: 'POST' })),
     close: async (id) => requestToDomain(await request(`/requests/${id}/close`, { method: 'POST' })),
   },
@@ -427,10 +429,27 @@ export const httpClient: DriveDealClient = {
   },
   ai: {
     chat: streamAi,
+    vehicleModels: async (brand) => request<{ models: string[]; sources: Array<{ title: string; url: string }> }>(`/ai/vehicle-models?brand=${encodeURIComponent(brand)}`),
+    vehicleImages: async (query) => (await request<{ items: Array<{ image_url: string; source_url: string; source_name?: string; alt?: string }> }>(`/ai/vehicle-images?query=${encodeURIComponent(query)}`)).items,
+    saveGuidedCheckpoint: async (input) => request<void>('/ai/threads/guided-checkpoint', { method: 'POST', body: JSON.stringify({ thread_id: input.threadId, messages: input.messages.map(({ guidedStep, ...message }) => ({ ...message, guided_step: guidedStep ?? null })), guided_state: input.guidedState, request_context: input.requestContext }) }),
     threads: async () => (await request<Array<Record<string, unknown>>>('/ai/threads')).map((row): AiThread => ({ id: String(row.id), type: row.type as AiThread['type'], title: String(row.title), updatedAt: String(row.updated_at), messages: [] })),
     thread: async (id) => {
-      const row = await request<{ id: string; checkpoints: Array<{ user?: string; assistant?: string }> }>(`/ai/threads/${id}`);
-      return { id: row.id, type: 'sera', title: 'Conversation', updatedAt: new Date().toISOString(), messages: row.checkpoints.flatMap((checkpoint, index) => [{ id: `${id}-${index}-user`, role: 'user' as const, body: checkpoint.user ?? '' }, { id: `${id}-${index}-assistant`, role: 'assistant' as const, body: checkpoint.assistant ?? '' }]).filter((message) => message.body) };
+      const row = await request<{ id: string; checkpoints: Array<{ user?: string; assistant?: string; guided_messages?: Array<{ id: string; role: 'user' | 'assistant'; body: string; guided_step?: string | null; options?: string[] }>; guided_state?: Record<string, unknown>; request_context?: Record<string, string> | null }> }>(`/ai/threads/${id}`);
+      const messages: AiMessage[] = [];
+      let guidedState: Record<string, unknown> | undefined;
+      let requestContext: Record<string, string> | null = null;
+      row.checkpoints.forEach((checkpoint, index) => {
+        if (checkpoint.request_context) requestContext = checkpoint.request_context;
+        if (checkpoint.guided_messages) {
+          messages.splice(0, messages.length, ...checkpoint.guided_messages.map(({ guided_step, ...message }) => ({ ...message, guidedStep: guided_step ?? undefined })));
+          guidedState = checkpoint.guided_state;
+          requestContext = checkpoint.request_context ?? requestContext;
+        } else {
+          if (checkpoint.user) messages.push({ id: `${id}-${index}-user`, role: 'user', body: checkpoint.user });
+          if (checkpoint.assistant) messages.push({ id: `${id}-${index}-assistant`, role: 'assistant', body: checkpoint.assistant });
+        }
+      });
+      return { id: row.id, type: 'sera', title: 'Conversation', updatedAt: new Date().toISOString(), messages, guidedState, requestContext };
     },
     deleteThread: async (id) => { await request(`/ai/threads/${encodeURIComponent(id)}`, { method: 'DELETE' }); },
   },

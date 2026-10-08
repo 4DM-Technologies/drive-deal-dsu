@@ -1,14 +1,17 @@
 import asyncio
+import json
 import re
 from contextlib import suppress
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from time import perf_counter
+from urllib.parse import urlparse
 from uuid import uuid4
 
 from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.agents.llm import LlmClient
 from src.agents.requirements import build_requirement_graph
 from src.agents.serra.graph import (
     DIRECT_REPLY_ROUTES,
@@ -17,8 +20,9 @@ from src.agents.serra.graph import (
     is_explicit_web_search,
     main_agent,
 )
+from src.agents.tools.web_search import search_vehicle_images
 from src.database import SessionFactory
-from src.models.marketplace import AiChatRequest, CompareRequest, RequestCreate
+from src.models.marketplace import AiChatRequest, AiGuidedCheckpoint, CompareRequest, RequestCreate
 from src.repositories.schema import (
     AiTrace,
     Brand,
@@ -32,7 +36,7 @@ from src.repositories.schema import (
 from src.services.administration_service import AdministrationService
 from src.services.billing_service import BillingService
 from src.services.marketplace_service import MarketplaceService
-from src.settings import get_settings
+from src.settings import MAKE_DOMAIN_MAP, get_settings
 from src.utils.exceptions import AppError, error_codes
 from src.utils.log_flow import log_flow
 from src.utils.serialization import model_dict
@@ -41,6 +45,14 @@ _PUBLISH_CONFIRMATION_RE = re.compile(
     r"^\s*(?:yes[, ]*)?(?:please\s+)?(?:post|publish|send)\s+(?:it|this|the\s+(?:request|post)|my\s+(?:request|post))\s*[!.]*$",
     re.IGNORECASE,
 )
+_MODEL_SOURCE_DOMAINS = {
+    "audi": "audiusa.com",
+    "hyundai": "hyundaiusa.com",
+    "kia": "kia.com",
+    "mahindra": "mahindrausa.com",
+    "mercedes-benz": "mbusa.com",
+    "nissan": "nissanusa.com",
+}
 
 
 def _is_publish_confirmation(message: str) -> bool:
@@ -65,6 +77,68 @@ def _money_value(value: object) -> Decimal | None:
 class AiService:
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
+
+    async def vehicle_models(self, brand: str) -> dict:
+        """Return model names only when hosted web search supplies citations for a current US lineup."""
+        settings = get_settings()
+        if settings.ai_disabled or not settings.ai_enable_web_search:
+            return {"models": [], "sources": []}
+        prompt = (
+            "Search official manufacturer sources for current passenger vehicle models sold in the United States "
+            f"by {brand}. Return a JSON object with a `models` array (up to 10 names) and `sources` array "
+            "containing the official source page URLs you actually used. Do not include discontinued models, "
+            "trims, explanations, or guesses. If current lineup evidence is unavailable, return empty arrays."
+        )
+        result = await LlmClient(self.session).generate(
+            prompt,
+            "vehicle_model_options",
+            reasoning_effort="low",
+            max_output_tokens=500,
+            tools=[{"type": "web_search", "search_context_size": "low"}],
+            tool_choice="required",
+        )
+        if result.status != "success":
+            return {"models": [], "sources": []}
+        match = re.search(r"\{[\s\S]*\}", result.text)
+        if not match:
+            return {"models": [], "sources": []}
+        try:
+            payload = json.loads(match.group(0))
+        except json.JSONDecodeError:
+            return {"models": [], "sources": []}
+        if not isinstance(payload, dict) or not isinstance(payload.get("models"), list):
+            return {"models": [], "sources": []}
+        official_domain = MAKE_DOMAIN_MAP.get(brand.lower()) or _MODEL_SOURCE_DOMAINS.get(brand.lower())
+        raw_sources = result.sources or []
+        # OAuth search can omit citation annotations. Accept model-provided URLs only when they
+        # point to the configured official make domain; otherwise keep the verified empty state.
+        model_sources = payload.get("sources", [])
+        official_links = [
+            {"url": item.get("url"), "title": item.get("title") or brand}
+            for item in raw_sources if isinstance(item, dict) and item.get("url")
+        ]
+        if official_domain:
+            for url in model_sources if isinstance(model_sources, list) else []:
+                host = (urlparse(url).hostname or "").lower() if isinstance(url, str) else ""
+                if isinstance(url, str) and urlparse(url).scheme == "https" and (host == official_domain or host.endswith(f".{official_domain}")):
+                    official_links.append({"url": url, "title": brand})
+        sources = list({item["url"]: item for item in official_links if item.get("url")}.values())[:3]
+        if not sources:
+            return {"models": [], "sources": []}
+        models = list(dict.fromkeys(
+            value.strip() for value in payload["models"]
+            if isinstance(value, str) and 1 <= len(value.strip()) <= 80
+        ))[:10]
+        return {"models": models, "sources": sources}
+
+    async def vehicle_images(self, query: str, thread_id: str | None = None) -> list[dict[str, str]]:
+        """Find attributed reference images without blocking the request create/publish flow."""
+        settings = get_settings()
+        if settings.ai_disabled or not settings.ai_enable_web_search:
+            return []
+        if not re.search(r"\b(?:model\s+[a-z0-9]+|[a-z][a-z0-9-]{1,})\b", query, re.I):
+            return []
+        return await search_vehicle_images(LlmClient(self.session), query, thread_id=thread_id, limit=4)
 
     @log_flow(layer="service")
     async def _publish_saved_requirements(self, requirements: dict, buyer: Profile) -> dict | None:
@@ -138,6 +212,9 @@ class AiService:
             "requirements": memory.get("requirements", {}),
             "preferences": memory.get("preferences", {}),
             "preferences_pending": memory.get("preferences_pending", False),
+            "conversation_context": [
+                {"request_context": payload.request_context or memory.get("request_context")}
+            ] if payload.request_context or memory.get("request_context") else [],
         }
         explicit_web_search = (
             is_explicit_web_search(payload.message) or is_explicit_image_search(payload.message)
@@ -423,6 +500,50 @@ class AiService:
         return result
 
     @log_flow(layer="service")
+    async def save_guided_checkpoint(self, payload: AiGuidedCheckpoint, buyer: Profile) -> None:
+        """Persist the guided chat transcript and current picker state for reloads and chat history."""
+        latest = (
+            await self.session.execute(
+                select(ConversationHistory)
+                .where(ConversationHistory.thread_id == payload.thread_id, ConversationHistory.user_id == buyer.id)
+                .order_by(ConversationHistory.updated_at.desc())
+                .limit(1)
+            )
+        ).scalar_one_or_none()
+        messages = [message.model_dump() for message in payload.messages]
+        if latest and latest.checkpoint.get("guided_messages") == messages and latest.checkpoint.get("guided_state") == payload.guided_state and latest.checkpoint.get("request_context") == payload.request_context:
+            return
+        previous = latest.checkpoint if latest else {}
+        first_user_message = next((message["body"] for message in messages if message["role"] == "user"), "")
+        request = payload.request_context or {}
+        vehicle = " ".join(part for part in (str(request.get("brand", "")).strip(), str(request.get("model", "")).strip()) if part)
+        title = f"Buying request: {vehicle}" if vehicle else (first_user_message[:72] or "New Sera chat")
+        last_user = next((message["body"] for message in reversed(messages) if message["role"] == "user"), "")
+        last_assistant = next((message["body"] for message in reversed(messages) if message["role"] == "assistant"), "")
+        self.session.add(
+            ConversationHistory(
+                thread_id=payload.thread_id,
+                checkpoint_id=str(uuid4()),
+                parent_checkpoint_id=latest.checkpoint_id if latest else None,
+                user_id=buyer.id,
+                thread_type="sera",
+                checkpoint={
+                    "user": last_user,
+                    "assistant": last_assistant,
+                    "requirements": previous.get("requirements", {}),
+                    "preferences": previous.get("preferences", {}),
+                    "preferences_pending": previous.get("preferences_pending", False),
+                    "published_request": previous.get("published_request"),
+                    "request_context": payload.request_context or previous.get("request_context"),
+                    "guided_messages": messages,
+                    "guided_state": payload.guided_state,
+                },
+                metadata_json={"title": title, "agent": "sera-guided", "saved_at": datetime.now(UTC).isoformat()},
+            )
+        )
+        await self.session.commit()
+
+    @log_flow(layer="service")
     async def get_thread(self, thread_id: str, buyer: Profile) -> dict:
         rows = (
             (
@@ -493,6 +614,7 @@ class AiService:
                     "preferences": main.get("preferences", {}),
                     "preferences_pending": main.get("preferences_pending", False),
                     "published_request": main.get("published_request"),
+                    "request_context": payload.request_context,
                 },
                 metadata_json={
                     "title": payload.message[:72],

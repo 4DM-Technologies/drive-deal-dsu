@@ -2072,3 +2072,36 @@ button.stepper-body:hover .stepper-dot { box-shadow: 0 0 0 4px rgba(var(--accent
   .upgrade-prompt { flex-wrap: wrap; }
   .upgrade-prompt-cta { width: 100%; justify-content: center; }
 }
+
+/* Guided request building stays inside Sera's existing conversation rhythm. */
+.guided-message .message-content { width: min(720px, 100%); }
+.guided-choice-card { width: fit-content; max-width: min(100%, 720px); margin-top: .55rem; padding: .75rem; border: 1px solid var(--border); border-radius: 12px; background: #fff; }
+.guided-choice-card > p { margin: 0 0 .65rem; color: var(--muted); font-size: .82rem; line-height: 1.5; }
+.guided-choice-grid { display: flex; flex-wrap: wrap; align-items: center; gap: .45rem; }
+.guided-choice { min-height: 36px; max-width: 100%; padding: .45rem .72rem; border: 1px solid var(--border-strong); border-radius: 9px; background: white; color: var(--ink); font: inherit; font-size: .82rem; font-weight: 560; text-align: left; cursor: pointer; transition: border-color 140ms ease, background-color 140ms ease, color 140ms ease; }
+.guided-choice:hover { border-color: #6594cb; background: #f4f8fd; }
+.guided-history-options { display: flex; flex-wrap: wrap; gap: .32rem; margin-top: .65rem; }
+.guided-history-options span { padding: .28rem .55rem; border: 1px solid rgba(28, 86, 154, .12); border-radius: 999px; background: rgba(244, 248, 253, .8); color: var(--muted); font-size: .72rem; line-height: 1.3; }
+.guided-choice-primary { border-color: #1e5ca7; background: #174f91; color: #fff; }
+.guided-choice-primary:hover { border-color: #0d3f7b; background: #0d3f7b; color: #fff; }
+.guided-choice:focus-visible, .guided-back:focus-visible, .guided-type-hint button:focus-visible { outline: 3px solid rgba(42, 119, 202, .45); outline-offset: 2px; }
+.guided-image-fallback { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem .85rem; margin: .65rem 0 1rem; color: var(--muted); font-size: .82rem; }
+.guided-back, .guided-type-hint button { margin-top: .7rem; padding: .3rem .2rem; border: 0; background: transparent; color: #285e9c; font: inherit; font-size: .8rem; font-weight: 650; cursor: pointer; }
+.guided-sources { margin-top: .7rem !important; font-size: .72rem !important; }
+.guided-sources a { color: #285e9c; text-decoration: underline; text-underline-offset: 2px; }
+.guided-type-hint { padding: .6rem .1rem; color: var(--muted); font-size: .82rem; }
+.guided-type-hint button { margin: 0 0 0 .35rem; }
+.guided-image-loading { width: min(720px, 100%); margin: 0 0 .8rem 2.8rem; color: var(--muted); font-size: .78rem; }
+.guided-message + .advisor-media-grid { margin-top: .15rem; }
+.advisor-media-intro { grid-column: 1 / -1; margin: 0; color: var(--muted); font-size: .78rem; }
+.advisor-media-card img { width: 100%; height: 180px; object-fit: cover; }
+@media (max-width: 640px) {
+  .guided-choice-card { padding: .72rem; }
+  .guided-choice-grid { display: flex; }
+  .guided-choice { min-width: 0; padding-inline: .65rem; font-size: .78rem; }
+  .guided-image-loading { margin-left: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .guided-choice { transition: none; }
+  .guided-choice:hover { transform: none; }
+}
