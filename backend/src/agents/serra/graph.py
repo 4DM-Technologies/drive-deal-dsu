@@ -228,7 +228,9 @@ DOMAIN_TERMS = (
 SMALL_TALK_RE = re.compile("|".join(SMALL_TALK_PATTERNS), re.IGNORECASE)
 # The trailing `s?` lets a single term match its plural ("SUV" / "SUVs", "car" / "cars").
 DOMAIN_TERM_RE = re.compile(r"\b(" + "|".join(DOMAIN_TERMS) + r")s?\b", re.IGNORECASE)
-MODEL_TERM_RE = re.compile(r"\b(?:seltos|creta|x3|i7|civic|accord|camry|corolla|mustang|model\s+[3sxyl])\b", re.IGNORECASE)
+MODEL_TERM_RE = re.compile(
+    r"\b(?:seltos|creta|x3|i7|civic|accord|camry|corolla|mustang|model\s+[3sxyl])\b", re.IGNORECASE
+)
 
 # Attempts to override the advisor's instructions or make it adopt another persona. These are answered by the
 # main model straight away so no sub-agent, tool or planner is spent on them.
@@ -508,7 +510,8 @@ def main_agent(
                     details = {
                         "input": _trace_snapshot(state),
                         "output": _trace_snapshot(result, output=True),
-                        "llm_called": name in {"classifier", "orchestrator", "kb_agent", "web_search_agent", "compose", "small_talk"},
+                        "llm_called": name
+                        in {"classifier", "orchestrator", "kb_agent", "web_search_agent", "compose", "small_talk"},
                     }
                     span = AiTraceSpan(
                         id=span_id,
@@ -869,10 +872,16 @@ def main_agent(
                     thread_id=trace_id,
                     prompt_overrides=prompt_overrides,
                 )
-                hosted_answer = next((candidate.get("hosted_answer") for candidate in candidates if candidate.get("hosted_answer")), None)
+                hosted_answer = next(
+                    (candidate.get("hosted_answer") for candidate in candidates if candidate.get("hosted_answer")), None
+                )
                 if hosted_answer:
                     hosted_sources = next(
-                        (candidate.get("hosted_sources") for candidate in candidates if candidate.get("hosted_sources")),
+                        (
+                            candidate.get("hosted_sources")
+                            for candidate in candidates
+                            if candidate.get("hosted_sources")
+                        ),
                         "[]",
                     )
                     try:
@@ -883,7 +892,14 @@ def main_agent(
                         await kb_insert(
                             session,
                             state["message"],
-                            [{"title": source.get("title", "Web source"), "url": source.get("url", ""), "content": hosted_answer} for source in sources],
+                            [
+                                {
+                                    "title": source.get("title", "Web source"),
+                                    "url": source.get("url", ""),
+                                    "content": hosted_answer,
+                                }
+                                for source in sources
+                            ],
                             state["user_id"],
                         )
                     return {

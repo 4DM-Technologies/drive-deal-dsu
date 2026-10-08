@@ -75,12 +75,12 @@ class AiService:
         model_name = requirements.get("model") or requirements.get("model_name")
         if not model_name:
             return None
-        brand = (
-            await self.session.execute(select(Brand).where(Brand.name.ilike(str(requirements["brand"])))).scalar_one_or_none()
-        )
-        state = (
-            await self.session.execute(select(State).where(State.name.ilike(str(requirements["state"])))).scalar_one_or_none()
-        )
+        brand = await self.session.execute(
+            select(Brand).where(Brand.name.ilike(str(requirements["brand"])))
+        ).scalar_one_or_none()
+        state = await self.session.execute(
+            select(State).where(State.name.ilike(str(requirements["state"])))
+        ).scalar_one_or_none()
         if brand is None or state is None:
             return None
         years = [int(value) for value in re.findall(r"20\d{2}", str(requirements.get("years") or ""))]
@@ -140,9 +140,8 @@ class AiService:
             "preferences_pending": memory.get("preferences_pending", False),
         }
         explicit_web_search = (
-            (is_explicit_web_search(payload.message) or is_explicit_image_search(payload.message))
-            and payload.agent != "compare-agent"
-        )
+            is_explicit_web_search(payload.message) or is_explicit_image_search(payload.message)
+        ) and payload.agent != "compare-agent"
         if explicit_web_search:
             yield {"type": "status", "phase": "crawling", "label": "Searching trusted sources"}
         else:
@@ -180,7 +179,9 @@ class AiService:
                 yield {"type": "token", "text": main_result["answer"]}
                 yield {"type": "card", "kind": "requestPreview", "payload": published_request}
                 await self._finish_trace(trace, main_result, trace_started)
-                await self._save_checkpoint(thread_id, buyer.id, payload, main_result, {"requirements": state.get("requirements", {})})
+                await self._save_checkpoint(
+                    thread_id, buyer.id, payload, main_result, {"requirements": state.get("requirements", {})}
+                )
                 await self.session.commit()
                 yield {"type": "done", "threadId": thread_id, "messagesUsed": 1, "expandedUi": False}
                 return
