@@ -69,6 +69,8 @@ class LlmResult:
     output_tokens: int = 0
     attempts: int = 1
     sources: list[dict[str, str]] | None = None
+    status: str = "success"
+    error: str | None = None
 
 
 class LlmClient:
@@ -136,10 +138,10 @@ class LlmClient:
             except Exception as exc:
                 error_message = _safe_error_value(str(exc), limit=2000)
                 logger.warning("llm_provider_fallback", task_type=task_type, provider=provider, error=error_message)
-                result = LlmResult(self._fallback(prompt, task_type))
+                result = LlmResult(self._fallback(prompt, task_type), status="provider_fallback", error=error_message)
                 status = "provider_fallback"
         else:
-            result = LlmResult(self._fallback(prompt, task_type))
+            result = LlmResult(self._fallback(prompt, task_type), status="no_provider", error="no_provider")
         elapsed = int((perf_counter() - started) * 1000)
         self.session.add(
             LlmAudit(
@@ -177,6 +179,10 @@ class LlmClient:
                         "max_output_tokens": max_output_tokens or self.settings.ai_max_output_tokens,
                         "attempt_count": result.attempts,
                         "error": error_message,
+                        "result_status": result.status,
+                        "tool_requested": bool(tools),
+                        "tool_choice": tool_choice,
+                        "citation_count": len(result.sources or []),
                     },
                 )
             )
@@ -192,6 +198,9 @@ class LlmClient:
             output_tokens=result.output_tokens,
             latency_ms=elapsed,
             reasoning_effort=reasoning_effort or self.settings.openai_reasoning_effort,
+            tool_requested=bool(tools),
+            tool_choice=tool_choice,
+            citation_count=len(result.sources or []),
             prompt_version=prompt_version,
             prompt_excerpt=_safe_error_value(prompt, limit=200),
         )

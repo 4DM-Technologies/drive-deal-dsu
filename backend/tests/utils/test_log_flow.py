@@ -12,12 +12,9 @@ from src.middleware import request_context
 from src.middleware.request_context import RequestContextMiddleware, describe_request, resolve_request_id
 from src.utils import log_flow as module
 from src.utils.log_flow import (
-    EVENT_FUNCTION_ENTRY,
     EVENT_FUNCTION_ERROR,
-    EVENT_FUNCTION_EXIT,
     OUTCOME_CANCELLED,
     OUTCOME_ERROR,
-    OUTCOME_OK,
     describe_arguments,
     flow_depth,
     is_expected_error,
@@ -139,11 +136,7 @@ def test_log_flow_sync_success(records: list[dict[str, Any]]) -> None:
         return a + b
 
     assert add(1, 2) == 3
-    entry, exit_line = events(records, EVENT_FUNCTION_ENTRY)[0], events(records, EVENT_FUNCTION_EXIT)[0]
-    assert entry["args"] == {"a": "1", "b": "2"}
-    assert exit_line["outcome"] == OUTCOME_OK
-    assert exit_line["duration_ms"] >= 0
-    assert exit_line["layer"] == "service"
+    assert events(records, EVENT_FUNCTION_ERROR) == []
 
 
 def test_log_flow_sync_error_propagates(records: list[dict[str, Any]]) -> None:
@@ -203,7 +196,7 @@ def test_log_flow_is_idempotent(records: list[dict[str, Any]]) -> None:
     def once() -> None: ...
 
     once()
-    assert len(events(records, EVENT_FUNCTION_ENTRY)) == 1
+    assert records == []
 
 
 def test_log_flow_skips_dunder_methods() -> None:
@@ -243,7 +236,7 @@ async def test_log_flow_async_success(records: list[dict[str, Any]]) -> None:
         return value * 2
 
     assert await fetch(21) == 42
-    assert events(records, EVENT_FUNCTION_EXIT)[0]["outcome"] == OUTCOME_OK
+    assert events(records, EVENT_FUNCTION_ERROR) == []
 
 
 async def test_log_flow_async_error(records: list[dict[str, Any]]) -> None:
@@ -278,7 +271,8 @@ async def test_log_flow_async_generator_counts_items(records: list[dict[str, Any
             yield index
 
     assert [item async for item in stream()] == [0, 1, 2]
-    assert events(records, EVENT_FUNCTION_EXIT)[0]["items"] == 3
+    assert events(records, EVENT_FUNCTION_ERROR) == []
+    assert flow_depth.get() == 0
 
 
 async def test_log_flow_async_generator_error(records: list[dict[str, Any]]) -> None:
@@ -314,18 +308,7 @@ async def test_log_flow_tracks_nesting_depth(records: list[dict[str, Any]]) -> N
         return await service_call()
 
     assert await route_call() == "row"
-    entries = events(records, EVENT_FUNCTION_ENTRY)
-    assert [(entry["layer"], entry["depth"]) for entry in entries] == [
-        ("route", 0),
-        ("service", 1),
-        ("repository", 2),
-    ]
-    exits = events(records, EVENT_FUNCTION_EXIT)
-    assert [(exit_line["layer"], exit_line["depth"]) for exit_line in exits] == [
-        ("repository", 2),
-        ("service", 1),
-        ("route", 0),
-    ]
+    assert records == []
     assert flow_depth.get() == 0
 
 
@@ -338,7 +321,9 @@ def test_log_flow_restores_depth_after_error(records: list[dict[str, Any]]) -> N
         with pytest.raises(ValueError):
             boom()
     assert flow_depth.get() == 0
-    assert [entry["depth"] for entry in events(records, EVENT_FUNCTION_ENTRY)] == [0, 0]
+    assert len(events(records, EVENT_FUNCTION_ERROR)) == 2
+    assert [record["depth"] for record in events(records, EVENT_FUNCTION_ERROR)] == [0, 0]
+    assert flow_depth.get() == 0
 
 
 # --------------------------------------------------------------------------------- middleware
