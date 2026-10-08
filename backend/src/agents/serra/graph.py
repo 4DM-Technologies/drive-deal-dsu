@@ -798,8 +798,7 @@ def main_agent(
                 finding
                 for result in cached
                 for finding in result.get("findings", [])
-                if isinstance(finding, dict)
-                and finding.get("image_url")
+                if isinstance(finding, dict) and finding.get("image_url")
             ][:2]
             if not media:
                 try:
