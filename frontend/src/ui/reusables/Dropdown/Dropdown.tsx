@@ -20,6 +20,11 @@ export function Dropdown({ value, options, onChange, ariaLabel, align = 'right',
     return () => document.removeEventListener('mousedown', close);
   }, [open]);
 
+  // With a long list (brands, states) the highlighted row follows the keyboard instead of leaving the visible part.
+  useEffect(() => {
+    if (open) document.getElementById(`${id}-${active}`)?.scrollIntoView({ block: 'nearest' });
+  }, [open, active, id]);
+
   function toggle() {
     setActive(selectedIndex);
     setOpen((current) => !current);
@@ -33,6 +38,14 @@ export function Dropdown({ value, options, onChange, ariaLabel, align = 'right',
 
   function onKeyDown(event: KeyboardEvent<HTMLButtonElement>) {
     if (event.key === 'Escape' || event.key === 'Tab') { setOpen(false); return; }
+    // Typing a letter jumps to the next option starting with it, like a native select.
+    if (event.key.length === 1 && event.key !== ' ' && !event.ctrlKey && !event.metaKey && !event.altKey) {
+      const letter = event.key.toLowerCase();
+      const from = open ? active : selectedIndex;
+      const next = [...options.keys()].map((offset) => (from + 1 + offset) % options.length).find((index) => options[index]?.label.toLowerCase().startsWith(letter));
+      if (next !== undefined) { setOpen(true); setActive(next); }
+      return;
+    }
     if (['ArrowDown', 'ArrowUp', 'Home', 'End', 'Enter', ' '].includes(event.key)) event.preventDefault();
     if (!open) { if (event.key !== 'Home' && event.key !== 'End') toggle(); return; }
     if (event.key === 'ArrowDown') setActive((index) => Math.min(options.length - 1, index + 1));

@@ -1,6 +1,7 @@
 /* eslint-disable react-refresh/only-export-components -- response formatting helpers are exported for focused tests */
 import { ArrowUp, CheckCircle2, FileCheck2, History, Menu, MoreHorizontal, Pencil, Plus, Sparkles, Square, Trash2, Trophy, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import Markdown from 'react-markdown';
 import { Link, useSearchParams } from 'react-router-dom';
 import remarkGfm from 'remark-gfm';
@@ -108,11 +109,13 @@ export default function AdvisorScreen() {
   const activeRunRef = useRef(0);
   const activeAssistantIdRef = useRef<string | null>(null);
   const greetingRunRef = useRef(0);
+  const compareDrawerRef = useRef<HTMLElement>(null);
   const requestGroups = useMemo(() => requests.map((request) => ({ request, quotes: quotes.filter((quote) => quote.requestId === request.id) })).filter((group) => group.quotes.length >= 1), [quotes, requests]);
   const dealerGroups = useMemo(() => requestGroups.filter((group) => group.quotes.length >= 2), [requestGroups]);
   const activeDealerRequestId = dealerRequestId ?? dealerGroups[0]?.request.id ?? null;
   const activeDealerGroup = dealerGroups.find((group) => group.request.id === activeDealerRequestId);
   const canCompare = compareMode === 'requests' ? selected.length >= 2 : selectedQuoteIds.length >= 2;
+  const compareCount = compareMode === 'requests' ? selected.length : selectedQuoteIds.length;
 
   const refreshThreads = useCallback(async () => {
     try { setThreads(await client.ai.threads()); } catch { setThreads([]); } finally { setThreadsLoading(false); }
@@ -181,6 +184,15 @@ export default function AdvisorScreen() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   useEffect(() => () => { activeRunRef.current += 1; abortControllerRef.current?.abort(); }, []);
+
+  // The compare panel is a modal drawer: focus it when it opens and let Escape close it.
+  useEffect(() => {
+    if (!compareOpen) return;
+    compareDrawerRef.current?.focus();
+    const closeOnEscape = (event: KeyboardEvent) => { if (event.key === 'Escape') setCompareOpen(false); };
+    document.addEventListener('keydown', closeOnEscape);
+    return () => document.removeEventListener('keydown', closeOnEscape);
+  }, [compareOpen]);
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }, [messages, status, draft, compare]);
 
   function newChat() {
@@ -346,7 +358,7 @@ export default function AdvisorScreen() {
         <div className="advisor-privacy"><CheckCircle2 size={18} /><span><strong>You stay in control</strong><small>Sera never posts or accepts without approval.</small></span></div>
       </aside>
       <main className="advisor-chat">
-        <header className="advisor-chat-head"><button className="button button-ghost advisor-mobile-menu" onClick={() => setSidebarOpen(true)} aria-label="Open chat list"><Menu size={19} /></button><div className="serra-avatar"><SerraLogo size={40} title={null} /></div><span><strong>Sera</strong><small><i /> Online · remembers this chat</small></span></header>
+        <header className="advisor-chat-head"><button className="button button-ghost advisor-mobile-menu" onClick={() => setSidebarOpen(true)} aria-label="Open chat list"><Menu size={19} /></button><div className="serra-avatar"><SerraLogo size={40} title={null} /></div><span><strong>Sera</strong><small><i /> Online · remembers this chat</small></span><button type="button" className={`compare-toggle ${compareOpen ? 'open' : ''}`} onClick={() => setCompareOpen((value) => !value)} aria-haspopup="dialog" aria-expanded={compareOpen}><CompareIcon size={17} /><span>Compare</span>{compareCount > 0 && <b className="compare-toggle-count">{compareCount}</b>}</button></header>
         <div className="advisor-scroll" aria-live="polite">
           <div className="advisor-day">Today</div>
           {threadLoading ? <div className="advisor-loading"><SerraLoader size={56} label="Opening this chat" /></div> : messages.map((message) => {
@@ -366,13 +378,14 @@ export default function AdvisorScreen() {
           <div ref={endRef} />
         </div>
         <div className="advisor-dock">
-          {compareOpen && <section className="compare-popover" aria-label="Compare dealer offers" onKeyDown={(event) => { if (event.key === 'Enter' && event.target instanceof HTMLInputElement && canCompare) { event.preventDefault(); runComparison(); } }}>
-            <div className="compare-popover-head"><span><CompareIcon size={17} /><strong>Compare offers</strong><small>{compareMode === 'requests' ? `${selected.length} requests selected` : `${selectedQuoteIds.length} dealer offers selected`}</small></span><button type="button" className="button button-ghost button-sm" onClick={() => setCompareOpen(false)} aria-label="Close compare"><X size={16} /></button></div>
+          {compareOpen && createPortal(<div className="modal-backdrop compare-backdrop" onMouseDown={() => setCompareOpen(false)}>
+            <section ref={compareDrawerRef} tabIndex={-1} className="compare-drawer" role="dialog" aria-modal="true" aria-labelledby="compare-drawer-title" onMouseDown={(event) => event.stopPropagation()} onKeyDown={(event) => { if (event.key === 'Enter' && event.target instanceof HTMLInputElement && canCompare) { event.preventDefault(); runComparison(); } }}>
+              <button type="button" className="modal-close compare-drawer-close" onClick={() => setCompareOpen(false)} aria-label="Close compare"><X /></button>
+              <header className="compare-drawer-head"><span className="eyebrow">Ask Sera</span><h2 id="compare-drawer-title">Compare offers</h2><p>{compareMode === 'dealers' ? 'Choose at least two dealer offers from one request.' : 'Choose at least two vehicle requests to compare their best offers.'}</p></header>
             <div className="compare-mode-tabs" role="tablist" aria-label="Comparison type">
               <button type="button" role="tab" aria-selected={compareMode === 'dealers'} className={compareMode === 'dealers' ? 'active' : ''} onClick={() => setCompareMode('dealers')}>Dealers on one request</button>
               <button type="button" role="tab" aria-selected={compareMode === 'requests'} className={compareMode === 'requests' ? 'active' : ''} onClick={() => setCompareMode('requests')}>Different vehicle requests</button>
             </div>
-            <p className="compare-help">{compareMode === 'dealers' ? 'Choose at least two dealer offers from one request.' : 'Choose at least two vehicle requests to compare their best offers.'}</p>
             <div className="compare-picker-body">
               {compareMode === 'requests' ? <>
                 {requestGroups.length ? requestGroups.map(({ request, quotes: groupQuotes }) => { const best = [...groupQuotes].sort((a, b) => Number(a.finalPrice) - Number(b.finalPrice))[0]; return <label className={`compare-request-option ${selected.includes(request.id) ? 'selected' : ''}`} key={request.id}><input type="checkbox" checked={selected.includes(request.id)} onChange={() => toggleRequest(request.id)} /><span><strong>{request.brand} {request.model}</strong><small>{groupQuotes.length} dealer {groupQuotes.length === 1 ? 'offer' : 'offers'} · best {best ? formatMoney(best.finalPrice) : 'not reported'}</small></span></label>; }) : <p className="muted">Requests appear here after at least one dealer responds.</p>}
@@ -382,12 +395,12 @@ export default function AdvisorScreen() {
                   <div className="compare-offer-list">{activeDealerGroup?.quotes.map((quote) => <label className={`compare-request-option ${selectedQuoteIds.includes(quote.id) ? 'selected' : ''}`} key={quote.id}><input type="checkbox" checked={selectedQuoteIds.includes(quote.id)} onChange={() => toggleQuote(quote.id)} /><span><strong>{quote.dealerName}</strong><small>{formatMoney(quote.finalPrice)} out the door · {quote.rating}★</small></span></label>)}</div>
                 </> : <p className="muted">A request needs at least two dealer offers before you can compare dealers.</p>}
               </>}
-              <button type="button" className="button button-primary button-wide" disabled={!canCompare || streaming} onClick={runComparison}>{compareMode === 'requests' ? `Compare ${selected.length || ''} requests` : `Compare ${selectedQuoteIds.length || ''} dealer offers`}</button>
             </div>
-          </section>}
+            <div className="compare-drawer-note"><CompareIcon size={16} /><span>Sera compares price, equipment and delivery timing, and points out what each offer leaves unclear.</span></div><footer className="compare-drawer-foot"><span><strong>{compareCount}</strong> {compareMode === 'requests' ? (compareCount === 1 ? 'request' : 'requests') : (compareCount === 1 ? 'offer' : 'offers')} selected</span><button type="button" className="button button-primary" disabled={!canCompare || streaming} onClick={runComparison}>{compareMode === 'requests' ? 'Compare requests' : 'Compare dealer offers'}</button></footer>
+            </section>
+          </div>, document.body)}
           <div className="advisor-dock-bar">
             <div className="advisor-prompts advisor-followups">{!streaming && prompts.map((prompt) => <button type="button" key={prompt} onClick={() => handlePrompt(prompt)}>{prompt}</button>)}</div>
-            <button type="button" className={`compare-toggle ${compareOpen ? 'open' : ''}`} onClick={() => setCompareOpen((value) => !value)} aria-expanded={compareOpen}><CompareIcon size={16} /><span>Compare{(compareMode === 'requests' ? selected.length : selectedQuoteIds.length) ? ` (${compareMode === 'requests' ? selected.length : selectedQuoteIds.length})` : ''}</span></button>
           </div>
         <form className="advisor-composer" onSubmit={(event) => { event.preventDefault(); if (input.trim()) void send(); else runComparison(); }}><div className="composer-input"><textarea value={input} onChange={(event) => setInput(event.target.value)} rows={1} placeholder={compareOpen && canCompare ? 'Press Enter or Send to compare your selections' : 'Ask about a car, an offer, or your requirements'} onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); if (input.trim()) void send(); else runComparison(); } }} /><div className="composer-actions">{streaming && <button type="button" className="button composer-stop" onClick={() => cancelActiveResponse(true)} aria-label="Stop generating" title="Stop generating"><Square size={12} fill="currentColor" /></button>}<button className="button button-primary" disabled={streaming || (!input.trim() && !(compareOpen && canCompare))} aria-label={compareOpen && canCompare && !input.trim() ? 'Compare selected offers' : 'Send message'}><ArrowUp size={18} /></button></div></div><small>Sera can make mistakes. Review prices and availability before deciding.</small></form>
         </div>

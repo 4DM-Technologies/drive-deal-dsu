@@ -102,6 +102,11 @@ const requestToDomain = (row: Record<string, unknown>): BuyerRequest => ({
   alreadyQuoted: Boolean(row.already_quoted),
 });
 
+/** The dealer's price revisions, read from the quote's history (`amount` is the final price before each one). */
+const revisionsOf = (history: unknown): NonNullable<Quote['revisions']> =>
+  (Array.isArray(history) ? history : [])
+    .filter((entry): entry is Record<string, unknown> => typeof entry === 'object' && entry !== null && (entry as Record<string, unknown>).event === 'quote_revised')
+    .map((entry) => ({ amount: String(entry.previous_final_price ?? ''), at: String(entry.ts ?? '') }));
 const quoteToDomain = (row: Record<string, unknown>): Quote => ({
   id: String(row.id), requestId: String(row.buyer_request_id),
   brand: String(row.brand_name ?? ''), model: String(row.model ?? ''),
@@ -112,7 +117,7 @@ const quoteToDomain = (row: Record<string, unknown>): Quote => ({
   vehiclePrice: String(row.vehicle_price), docFee: String(row.doc_fee), salesTax: String(row.sales_tax), titleReg: String(row.title_reg),
   tradeInCredit: String(row.trade_in_credit), finalPrice: String(row.final_price), status: row.status as Quote['status'], dealStatus: row.deal_status as Quote['dealStatus'],
   message: String(row.message ?? ''), createdAt: String(row.created_at), expiresAt: String(row.expires_at),
-  contactAvailable: row.status === 'accepted' || row.chat_request_status === 'accepted', chatRequestStatus: row.chat_request_status as Quote['chatRequestStatus'],
+  contactAvailable: row.status === 'accepted' || row.chat_request_status === 'accepted', chatRequestStatus: row.chat_request_status as Quote['chatRequestStatus'], revisions: revisionsOf(row.deal_history),
 });
 
 const memberToDomain = (row: Record<string, unknown>): SupportMember => ({
@@ -268,6 +273,22 @@ function storeTokens(response: { access_token: string; refresh_token: string }) 
 
 const signupBody = (input: Record<string, unknown>) => ({ full_name: input.fullName, email: input.email, phone: input.phone, password: input.password, state_id: input.stateId, address: input.address ?? null, terms_accepted: input.termsAccepted, terms_version: input.termsVersion });
 
+/** Presigns, uploads to storage, then confirms one quote attachment. */
+async function uploadQuoteFile(quoteId: string, file: File, type: 'vehicle_image' | 'quote_document'): Promise<DealDocument> {
+  const presigned = await request<{ url: string; key: string; headers: Record<string, string> }>('/documents/presign', { method: 'POST', body: JSON.stringify({ filename: file.name, content_type: file.type || 'application/octet-stream', quote_id: quoteId, document_type: type, size_bytes: file.size }) });
+  let upload: Response;
+  try {
+    upload = await fetch(presigned.url, { method: 'PUT', headers: presigned.headers, body: file });
+  } catch {
+    throw new Error('The file could not be uploaded to storage. Check your connection and try again.');
+  }
+  if (!upload.ok) throw new Error(`Upload failed (${upload.status})`);
+  const documentId = createId();
+  const row = await request<Record<string, unknown>>(`/documents/${documentId}/confirm`, { method: 'POST', body: JSON.stringify({ quote_id: quoteId, document_type: type, object_key: presigned.key }) });
+  const confirmed = (await request<Record<string, unknown>[]>(`/documents/${quoteId}`)).find((item) => String(item.id) === String(row.id));
+  return { id: String(row.id), quoteId: String(row.quote_id), type: String(row.document_type), name: file.name, status: String(row.status), downloadUrl: String(confirmed?.download_url ?? ''), objectKey: presigned.key };
+}
+
 export const httpClient: DriveDealClient = {
   auth: {
     login: async (email, password) => {
@@ -346,15 +367,17 @@ export const httpClient: DriveDealClient = {
     },
   },
   documents: {
-    list: async (quoteId) => (await request<Record<string, unknown>[]>(`/documents/${quoteId}`)).map((row): DealDocument => ({ id: String(row.id), quoteId: String(row.quote_id), type: String(row.document_type), name: String(row.file_name ?? 'Attachment'), status: String(row.status), downloadUrl: String(row.download_url) })),
-    upload: async (quoteId, file, type) => {
-      const presigned = await request<{ url: string; key: string; headers: Record<string, string> }>('/documents/presign', { method: 'POST', body: JSON.stringify({ filename: file.name, content_type: file.type || 'application/octet-stream', quote_id: quoteId, document_type: type, size_bytes: file.size }) });
-      const upload = await fetch(presigned.url, { method: 'PUT', headers: presigned.headers, body: file });
-      if (!upload.ok) throw new Error(`Upload failed (${upload.status})`);
-      const documentId = createId();
-      const row = await request<Record<string, unknown>>(`/documents/${documentId}/confirm`, { method: 'POST', body: JSON.stringify({ quote_id: quoteId, document_type: type, object_key: presigned.key }) });
-      const confirmed = (await request<Record<string, unknown>[]>(`/documents/${quoteId}`)).find((item) => String(item.id) === String(row.id));
-      return { id: String(row.id), quoteId: String(row.quote_id), type: String(row.document_type), name: file.name, status: String(row.status), downloadUrl: String(confirmed?.download_url ?? '') };
+    list: async (quoteId) => (await request<Record<string, unknown>[]>(`/documents/${quoteId}`)).map((row): DealDocument => ({ id: String(row.id), quoteId: String(row.quote_id), type: String(row.document_type), name: String(row.file_name ?? 'Attachment'), status: String(row.status), downloadUrl: String(row.download_url), objectKey: String(row.document_path ?? '') })),
+    upload: (quoteId, file, type) => uploadQuoteFile(quoteId, file, type),
+    replace: async (quoteId, file, previous) => {
+      // A quote holds one document, so the old one goes first. If the new upload fails, the old one is put back.
+      if (previous) await request<void>(`/documents/${quoteId}/${previous.id}`, { method: 'DELETE' });
+      try {
+        return await uploadQuoteFile(quoteId, file, 'quote_document');
+      } catch (cause) {
+        if (previous?.objectKey) await request(`/documents/${previous.id}/confirm`, { method: 'POST', body: JSON.stringify({ quote_id: quoteId, document_type: 'quote_document', object_key: previous.objectKey }) }).catch(() => undefined);
+        throw cause;
+      }
     },
   },
   chats: {

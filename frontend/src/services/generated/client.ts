@@ -46,7 +46,7 @@ export interface DriveDealClient {
     dealerContact(id: string): Promise<{ name: string; email: string; phone: string | null }>;
   };
   payments: { create(input: PaymentInput): Promise<PaymentReceipt> };
-  documents: { list(quoteId: string): Promise<DealDocument[]>; upload(quoteId: string, file: File, type: 'vehicle_image' | 'quote_document'): Promise<DealDocument> };
+  documents: { list(quoteId: string): Promise<DealDocument[]>; upload(quoteId: string, file: File, type: 'vehicle_image' | 'quote_document'): Promise<DealDocument>; replace(quoteId: string, file: File, previous: DealDocument | null): Promise<DealDocument> };
   chats: {
     list(quoteId: string): Promise<ChatMessage[]>;
     send(quoteId: string, body: string): Promise<ChatMessage>;
