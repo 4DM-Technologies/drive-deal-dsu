@@ -1,9 +1,11 @@
 import { AnimatePresence, motion } from 'motion/react';
-import { BriefcaseBusiness, ClipboardCheck, Eye, FileText, Gauge, Headphones, Home, LifeBuoy, LogOut, Menu, MessageCircle, PackageCheck, ScrollText, Search, ShieldCheck, Sparkles, TicketCheck, UserRound, Users, WalletCards, X } from 'lucide-react';
+import { BriefcaseBusiness, CircleQuestionMark, ClipboardCheck, Eye, FileText, Gauge, Headphones, Home, LogOut, Menu, MessageCircle, PackageCheck, ScrollText, Search, ShieldCheck, TicketCheck, UserRound, Users, WalletCards, X } from 'lucide-react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useEffect, useState } from 'react';
+import type { ComponentType } from 'react';
 import { planDetailLine } from '@/helpers/plans';
 import { planLabel } from '@/helpers/subscription';
+import { SerraLogo } from '@/ui/reusables/SerraLogo/SerraLogo';
 import { SerraWidget } from '@/ui/reusables/SerraWidget/SerraWidget';
 import { Brand } from '@/ui/reusables/Brand/Brand';
 import { ProfileMenu } from '@/ui/reusables/ProfileMenu/ProfileMenu';
@@ -13,11 +15,16 @@ import type { Role } from '@/types/domain';
 import { previewQuery, useEffectiveSession } from '@/ui/navigations/previewSession';
 import { BROWSER_STORAGE_KEYS, WORKSPACE_VIEW_QUERY_PARAMETER } from '@/config/browser';
 
-const links: Record<Role, Array<{ to: string; label: string; icon: typeof Home }>> = {
+/** Sera's own mark as a nav icon. It is drawn a little larger than the line icons beside it, so its detail still reads, and kept still to keep the header light. */
+function SeraNavIcon({ size = 16 }: { size?: number }) {
+  return <SerraLogo size={size + 4} animated={false} title={null} />;
+}
+
+const links: Record<Role, Array<{ to: string; label: string; icon: ComponentType<{ size?: number }> }>> = {
   buyer: [
-    { to: '/home', label: 'Overview', icon: Home }, { to: '/requests', label: 'Requests', icon: FileText },
-    { to: '/orders', label: 'Orders', icon: PackageCheck }, { to: '/chat', label: 'Messages', icon: MessageCircle },
-    { to: '/chatbot', label: 'Ask Sera', icon: Sparkles }, { to: '/profiles', label: 'Profile', icon: UserRound },
+    { to: '/home', label: 'Overview', icon: Home }, { to: '/chatbot', label: 'Ask Sera', icon: SeraNavIcon },
+    { to: '/requests', label: 'Requests', icon: FileText }, { to: '/orders', label: 'Orders', icon: PackageCheck },
+    { to: '/chat', label: 'Messages', icon: MessageCircle }, { to: '/profiles', label: 'Profile', icon: UserRound },
   ],
   dealer: [
     { to: '/home', label: 'Overview', icon: Gauge }, { to: '/feed', label: 'Buyer feed', icon: Search },
@@ -82,7 +89,7 @@ export function AppShell() {
           </nav>
           <div className="topbar-actions">
             {accountSession && ['support-admin', 'admin'].includes(accountSession.role) && !isThemePreview && <label className="workspace-switcher desktop-header-action"><Eye size={16} /><span className="sr-only">View workspace</span><select aria-label="View workspace" value={workspaceView ?? 'support'} onChange={(event) => navigate(event.target.value === 'support' ? '/support' : `/home?workspaceView=${event.target.value}`)}><option value="support">Support workspace</option><option value="buyer">Buyer · read only</option><option value="dealer">Dealer · read only</option></select></label>}
-            {(session.role === 'buyer' || session.role === 'dealer') && <button className="support-help-trigger desktop-header-action" onClick={() => setSupportOpen(true)} aria-label="Open help and support"><LifeBuoy size={18} /><span>Help</span></button>}
+            {(session.role === 'buyer' || session.role === 'dealer') && <button className="support-help-trigger desktop-header-action" onClick={() => setSupportOpen(true)} aria-label="Open help and support"><CircleQuestionMark size={18} /><span>Help</span></button>}
             <ProfileMenu session={session} previewSearch={previewSearch} showAccount={showAccount} signOutDisabled={isThemePreview} onSignOut={signOut} />
             <button className="button button-ghost mobile-menu" onClick={() => setSidebarOpen(!sidebarOpen)} aria-label="Open menu"><Menu /></button>
           </div>
@@ -99,7 +106,7 @@ export function AppShell() {
               <div className="mobile-nav-account">
                 <button type="button" onClick={() => { navigate(previewPath('/profiles')); setSidebarOpen(false); }}><span className="avatar">{session.avatarInitials}</span><span><strong>{session.fullName}</strong><small>Profile</small></span></button>
                 {showAccount && <button type="button" onClick={() => { navigate('/account'); setSidebarOpen(false); }}><WalletCards size={18} /><span><strong>Account</strong><small>{subscription ? `${planLabel(subscription)} · ${planDetailLine(subscription)}` : 'Your plan and billing'}</small></span></button>}
-                {(session.role === 'buyer' || session.role === 'dealer') && <button type="button" onClick={() => { setSupportOpen(true); setSidebarOpen(false); }}><LifeBuoy size={18} /><span><strong>Help</strong><small>Contact support</small></span></button>}
+                {(session.role === 'buyer' || session.role === 'dealer') && <button type="button" onClick={() => { setSupportOpen(true); setSidebarOpen(false); }}><CircleQuestionMark size={18} /><span><strong>Help</strong><small>Contact support</small></span></button>}
                 <button type="button" className="mobile-signout" disabled={isThemePreview} onClick={signOut}><LogOut size={18} /><span><strong>Sign out</strong><small>{isThemePreview ? 'Unavailable in preview' : 'End this session'}</small></span></button>
               </div>
             </motion.nav>

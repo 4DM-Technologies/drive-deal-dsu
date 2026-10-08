@@ -1,4 +1,4 @@
-import { ArrowUp, CheckCheck, LockKeyhole, MessageCircle, Search, ShieldCheck, UserCheck, X } from 'lucide-react';
+import { ArrowUp, CheckCheck, LockKeyhole, MessageCircle, Phone, Search, ShieldCheck, UserCheck, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { relativeTime } from '@/helpers/dateTime';
@@ -39,6 +39,15 @@ export default function ChatScreen() {
 
   const quote = available.find((item) => item.id === effectiveId);
   const request = quote ? requestMap[quote.requestId] : undefined;
+
+  // The dealer's phone comes from the contact endpoint, which only answers once the contact gate is open.
+  const [dealerPhones, setDealerPhones] = useState<Record<string, string | null>>({});
+  const dealerPhone = quote && session?.role === 'buyer' ? dealerPhones[quote.id] ?? null : null;
+  useEffect(() => {
+    if (session?.role !== 'buyer' || !quote?.contactAvailable) return;
+    const id = quote.id;
+    void client.quotes.dealerContact(id).then((contact) => setDealerPhones((current) => ({ ...current, [id]: contact.phone }))).catch(() => undefined);
+  }, [session?.role, quote?.id, quote?.contactAvailable]);
 
   useEffect(() => {
     if (!quote?.contactAvailable) return;
@@ -85,13 +94,20 @@ export default function ChatScreen() {
   return <div className="shell page-content chat-page">
     <section className="card chat-layout chat-layout-modern" aria-label="Conversations">
       <aside className="chat-list"><div className="chat-list-head"><span><strong>Messages</strong><small>{available.length} conversations</small></span><label className="chat-search"><Search size={15} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search conversations" /></label></div>{filtered.map((item) => { const itemRequest = requestMap[item.requestId]; return <button className={`chat-item ${item.id === effectiveId ? 'active' : ''}`} key={item.id} onClick={() => chooseConversation(item.id)}><span className="chat-item-copy"><span><strong>{itemRequest?.brand} {itemRequest?.model}</strong></span><small>{isDealer ? `${itemRequest?.area ?? ''} buyer` : item.dealerName}</small><p>{item.chatRequestStatus === 'pending' ? isDealer ? 'Buyer asked to negotiate' : 'Waiting for dealer response' : 'Conversation opened'}</p></span>{item.chatRequestStatus === 'pending' && <i className="unread-dot" />}</button>; })}<p className="chat-list-note"><ShieldCheck size={15} /><span>Every conversation stays attached to one quote, so price and decisions remain clear.</span></p></aside>
-      <main className="chat-thread">{quote && <><header className="chat-thread-head"><span className="chat-thread-title"><strong>{request?.brand} {request?.model} · {isDealer ? 'Buyer' : quote.dealerName}</strong><small><i /> {quote.contactAvailable ? 'Conversation open' : 'Awaiting dealer approval'} · Quote attached</small></span><Link className="button button-secondary button-sm" to={`/quotes/${quote.id}`}>View offer</Link></header>
+      <main className="chat-thread">{quote && <><header className="chat-thread-head"><span className="chat-thread-title"><strong>{request?.brand} {request?.model} · {isDealer ? 'Buyer' : quote.dealerName}</strong><small><i /> {quote.contactAvailable ? 'Conversation open' : 'Awaiting dealer approval'} · Quote attached</small></span><span className="chat-thread-actions">{dealerPhone && <a className="chat-phone" href={`tel:${dealerPhone}`} aria-label={`Call the dealer on ${dealerPhone}`}><Phone size={15} />{formatPhone(dealerPhone)}</a>}<Link className="button button-secondary button-sm" to={`/quotes/${quote.id}`}>View offer</Link></span></header>
         {quote.contactAvailable ? <><div className="chat-scroll" aria-live="polite"><div className="chat-context"><MessageCircle size={18} /><span><strong>Conversation linked to {formatVehicle(request?.brand, request?.model)}.</strong><small>Offer changes remain visible in the quote history.</small></span></div>{thread.map((message) => <div key={message.id} className={`chat-message-row ${message.senderId === session?.id ? 'mine' : ''}`}><div className="chat-message"><strong>{message.senderId === session?.id ? 'You' : message.senderName}</strong><p>{message.body}</p><small>{relativeTime(message.createdAt)} {message.senderId === session?.id && <CheckCheck size={13} />}</small></div></div>)}<div ref={endRef} /></div><form className="chat-composer modern-composer" onSubmit={(event) => { event.preventDefault(); void send(); }}><input className="input" value={input} onChange={(event) => setInput(event.target.value)} placeholder="Write a message about this offer" aria-label="Message" /><button className="button button-primary" disabled={!input.trim()} aria-label="Send message"><ArrowUp size={18} /></button></form></>
           : <div className="chat-waiting"><div className="empty-icon"><LockKeyhole /></div><h3>{isDealer ? 'Buyer requested a negotiation' : 'Negotiation request sent'}</h3><p>{isDealer ? 'Review the buyer’s opening note. Contact details and messaging open only after you accept.' : 'The dealer can read your opening note. Contact and messages unlock only if they accept.'}</p><div className="opening-note"><span>{isDealer ? 'Buyer’s opening note' : 'Your opening note'}</span><p>“{quote.chatRequestMessage ?? 'I would like to discuss this offer before deciding.'}”</p></div>{isDealer ? <div className="chat-request-actions"><button className="button button-primary" onClick={() => void acceptRequest(quote.id)}><UserCheck size={17} /> Accept &amp; open chat</button><button className="button button-secondary" onClick={() => { const reason = window.prompt('Brief reason shown to the buyer'); if (reason?.trim()) void declineRequest(quote.id, reason.trim()); }}><X size={17} /> Decline</button></div> : <StatusBadge status="pending" />}</div>}
         {!quote.contactAvailable && <form className="chat-composer modern-composer" onSubmit={(event) => event.preventDefault()}><input className="input" disabled placeholder={isDealer ? 'Accept the request to start messaging' : 'Messaging unlocks when the dealer accepts'} aria-label="Message (locked)" /><button className="button button-primary" disabled aria-label="Send message"><ArrowUp size={18} /></button></form>}
       </>}</main>
     </section>
   </div>;
+}
+
+/** +1 (972) 555-0120 for ten or eleven-digit US numbers; anything else is shown as stored. */
+function formatPhone(phone: string) {
+  const digits = phone.replace(/\D/g, '');
+  const local = digits.length === 11 && digits.startsWith('1') ? digits.slice(1) : digits;
+  return local.length === 10 ? `+1 (${local.slice(0, 3)}) ${local.slice(3, 6)}-${local.slice(6)}` : phone;
 }
 
 function formatVehicle(brand?: string, model?: string) {

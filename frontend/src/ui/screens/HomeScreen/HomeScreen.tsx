@@ -1,4 +1,4 @@
-import { ArrowRight, Clock3, DollarSign, FileText, MessageCircle, Radio, Sparkles, Trophy } from 'lucide-react';
+import { ArrowRight, Clock3, DollarSign, FileText, MessageCircle, Radio, Sparkles, Tag, Trophy } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { PageLoading } from '@/ui/reusables/PageLoading/PageLoading';
@@ -13,10 +13,11 @@ import { TrialBanner } from '@/ui/reusables/TrialBanner/TrialBanner';
 import type { BuyerRequest, Quote } from '@/types/domain';
 import { previewQuery, useEffectiveSession } from '@/ui/navigations/previewSession';
 
-type Stat = { label: string; value: string | number; note: string; icon: LucideIcon };
+/** `live` makes the icon beat in that colour, for a number that is changing in real time. */
+type Stat = { label: string; value: string | number; note: string; icon: LucideIcon; live?: 'red' | 'blue' };
 
 function StatGrid({ items }: { items: Stat[] }) {
-  return <div className="grid grid-4">{items.map(({ label, value, note, icon: Icon }, index) => <Reveal key={label} delay={index * .05}><article className="card stat-card dashboard-stat"><div className="stat-label">{label}<Icon size={17} /></div><div className="stat-value price">{value}</div><span className="stat-note">{note}</span></article></Reveal>)}</div>;
+  return <div className="grid grid-4">{items.map(({ label, value, note, icon: Icon, live }, index) => <Reveal key={label} delay={index * .05}><article className="card stat-card dashboard-stat"><div className="stat-label">{label}<Icon size={17} className={live ? `stat-icon-live ${live}` : ''} /></div><div className="stat-value price">{value}</div><span className="stat-note">{note}</span></article></Reveal>)}</div>;
 }
 
 export default function HomeScreen() {
@@ -45,8 +46,8 @@ export default function HomeScreen() {
     const myQuotes = quotes;
     const accepted = myQuotes.filter((quote) => quote.status === 'accepted');
     const stats: Stat[] = [
-      { label: 'Live requests', value: mine.filter((item) => item.status === 'open').length, note: 'Receiving dealer offers', icon: Radio },
-      { label: 'Dealer offers', value: myQuotes.length, note: 'Across all requests', icon: MessageCircle },
+      { label: 'Live requests', value: mine.filter((item) => item.status === 'open').length, note: 'Receiving dealer offers', icon: Radio, live: 'blue' },
+      { label: 'Dealer offers', value: myQuotes.length, note: 'Across all requests', icon: Tag },
       { label: 'Open conversations', value: myQuotes.filter((item) => item.contactAvailable || item.chatRequestStatus === 'pending').length, note: 'Quote-linked and private', icon: MessageCircle },
       { label: 'Orders moving', value: accepted.length, note: 'Contact is open', icon: Trophy },
     ];
@@ -67,10 +68,10 @@ export default function HomeScreen() {
     .slice(0, 4);
   const acceptedQuotes = mine.filter((item) => item.status === 'accepted');
   const stats: Stat[] = [
-    { label: 'Matched requests', value: liveRequests.length, note: 'Open buyer demand', icon: Radio },
+    { label: 'Matched requests', value: liveRequests.length, note: 'Open buyer demand', icon: Radio, live: 'red' },
     { label: 'Active quotes', value: mine.filter((item) => ['pending', 'negotiating'].includes(item.status)).length, note: 'Across nearby buyers', icon: FileText },
-    { label: 'Deals won', value: mine.filter((item) => item.status === 'accepted').length, note: 'Accepted offers', icon: Trophy },
     { label: 'Open requests', value: liveRequests.length, note: 'Across your market', icon: Clock3 },
+    { label: 'Deals won', value: acceptedQuotes.length, note: 'Accepted offers', icon: Trophy },
   ];
   return <div className="shell page-content dashboard-page">
     <TrialBanner subscription={session.subscription ?? null} onUpgrade={() => navigate(`/billing${previewSearch}`)} />

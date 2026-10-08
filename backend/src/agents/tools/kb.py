@@ -31,7 +31,7 @@ async def kb_search(session: AsyncSession, query: str, limit: int = 6) -> list[d
 
 
 @log_flow(layer="agent")
-async def kb_insert(session: AsyncSession, query: str, findings: list[dict[str, str]], user_id: str) -> None:
+async def kb_insert(session: AsyncSession, query: str, findings: list[dict[str, Any]], user_id: str) -> None:
     key = hashlib.sha256(query.strip().lower().encode()).hexdigest()[:32]
     existing = (
         (await session.execute(select(ConversationHistory).where(ConversationHistory.thread_id == f"kb:{key}")))

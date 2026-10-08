@@ -1,15 +1,15 @@
-import { ArrowLeft, Calculator, FileUp, ImagePlus, MapPin, Send, ShieldCheck, X } from 'lucide-react';
+import { ArrowLeft, Calculator, Check, FileUp, ImagePlus, MapPin, Send, ShieldCheck, X } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { computeOtd, formatMoney } from '@/helpers/currency';
-import { gateReasonFor, subscriptionGate } from '@/helpers/subscription';
+import { gateReasonFor, planTone, subscriptionGate } from '@/helpers/subscription';
 import type { SubscriptionGate } from '@/helpers/subscription';
 import { client } from '@/services/platform/client';
 import { useDemoStore } from '@/services/platform/demoStore';
 import { PageLoading } from '@/ui/reusables/PageLoading/PageLoading';
 import { UpgradePrompt } from '@/ui/reusables/UpgradePrompt/UpgradePrompt';
 import { UsageChip } from '@/ui/reusables/UsageMeter/UsageMeter';
-import type { BuyerRequest } from '@/types/domain';
+import type { BuyerRequest, Quote } from '@/types/domain';
 
 export default function FeedDetailScreen() {
   const { requestId = '' } = useParams();
@@ -28,8 +28,12 @@ export default function FeedDetailScreen() {
   const setSession = useDemoStore((state) => state.setSession);
   const [gate, setGate] = useState<SubscriptionGate | null>(null);
   const blocked = subscription !== null && !subscription.canCreate;
+  // The API allows one quote per dealer per request and answers a second one with a server error, so
+  // look for an existing quote up front instead of letting the dealer hit that.
+  const [existingQuote, setExistingQuote] = useState<Quote | null>(null);
 
   useEffect(() => { void client.feed.get(requestId).then(setRequest).catch(() => setRequest(null)); }, [requestId]);
+  useEffect(() => { void client.quotes.list().then((rows) => setExistingQuote(rows.find((quote) => quote.requestId === requestId) ?? null)).catch(() => undefined); }, [requestId]);
   const images = useMemo(() => imageFiles.map((file) => ({ file, url: URL.createObjectURL(file) })), [imageFiles]);
   useEffect(() => () => images.forEach(({ url }) => URL.revokeObjectURL(url)), [images]);
   const tax = useMemo(() => (Number(vehiclePrice || 0) * .0625).toFixed(2), [vehiclePrice]);
@@ -39,11 +43,13 @@ export default function FeedDetailScreen() {
   if (!request) return <div className="shell page-content"><section className="card card-pad"><h1>Request not found</h1><p className="muted">This buying request may have closed or moved outside your matched area.</p><Link className="button button-primary" to="/feed">Back to buyer feed</Link></section></div>;
 
   async function submit() {
-    if (submitting) return;
+    if (submitting || existingQuote) return;
     setSubmitting(true);
     setUploadError('');
     try {
       const created = await client.quotes.create({ buyerRequestId: request!.id, vehiclePrice, docFee, salesTax: tax, titleReg, tradeInCredit: trade, message, expiresAt: new Date(Date.now() + 5 * 86_400_000).toISOString() });
+      // The quote exists from here on, so a failed upload below must not let the form send it again.
+      setExistingQuote(created);
       await Promise.all(imageFiles.map((file) => client.documents.upload(created.id, file, 'vehicle_image')));
       if (documentFile) await client.documents.upload(created.id, documentFile, 'quote_document');
       void client.auth.me().then(setSession).catch(() => undefined);
@@ -60,8 +66,9 @@ export default function FeedDetailScreen() {
   return <div className="shell page-content quote-create-page">
     <Link className="button button-ghost" to="/feed"><ArrowLeft size={17} /> Back to feed</Link>
     <div className="page-heading request-detail-heading"><div><span className="eyebrow">Buyer request · Identity protected</span><h1>{request.brand} {request.model}</h1><p>{request.yearMin}–{request.yearMax} · {request.bodyType} · {request.timeline}</p></div><div className="distance-chip"><MapPin size={16} /><span><strong>Approx. 12 miles away</strong><small>{request.area} · within {request.radiusMiles} mi</small></span></div></div>
-    {subscription && <div className="plan-strip"><UsageChip subscription={subscription} /></div>}
+    {subscription && planTone(subscription) !== 'premium' && <div className="plan-strip"><UsageChip subscription={subscription} /></div>}
     {(gate || blocked) && <UpgradePrompt reason={gate?.reason ?? (subscription ? gateReasonFor(subscription) : null)} role="dealer" limit={gate?.limit ?? subscription?.limit ?? null} subscription={subscription} reveal={gate !== null} />}
+    {existingQuote && <div className="inline-success" role="status"><Check size={18} />You have already sent a quote for this request. <Link to={`/quotes/${existingQuote.id}`}>View your quote</Link></div>}
     <div className="detail-grid"><section className="card card-pad quote-builder"><span className="eyebrow">Transparent dealer response</span><h2>Build your itemized quote</h2>
       <form className="form-grid" onSubmit={(event) => { event.preventDefault(); void submit(); }}>
         <div className="field form-span"><label htmlFor="vehicle-price">Vehicle price</label><input id="vehicle-price" name="vehiclePrice" className="input price" value={vehiclePrice} onChange={(event) => setVehiclePrice(event.target.value)} inputMode="decimal" required /></div>
@@ -73,7 +80,7 @@ export default function FeedDetailScreen() {
         <div className="field form-span"><label htmlFor="quote-document">Quote document <span className="muted">(optional · one file)</span></label><label className="upload-zone compact" htmlFor="quote-document"><FileUp /><span><strong>{documentFile ? 'Replace selected document' : 'Attach a window sticker or buyer order'}</strong><small>PDF, DOC or DOCX · up to 20 MB · downloaded securely by the buyer</small></span><input id="quote-document" type="file" accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" onChange={(event) => setDocumentFile(event.target.files?.[0] ?? null)} /></label>{documentFile && <span className="uploaded-file"><FileUp size={15} /><span><strong>{documentFile.name}</strong><small>{(documentFile.size / 1024 / 1024).toFixed(1)} MB</small></span><button type="button" onClick={() => setDocumentFile(null)} aria-label={`Remove ${documentFile.name}`}>Remove</button></span>}</div>
         <div className="field form-span"><label htmlFor="buyer-message">Message to buyer</label><textarea id="buyer-message" name="buyerMessage" className="textarea" value={message} onChange={(event) => setMessage(event.target.value)} rows={4} required /></div>
         {uploadError && <div className="inline-warning form-span" role="alert">{uploadError}</div>}
-        <div className="form-span quote-total-bar"><span><small>Out-the-door total</small><strong className="price">{formatMoney(total, true)}</strong></span><button className="button button-primary" disabled={submitting}><Send size={17} /> {submitting ? 'Uploading quote…' : 'Send itemized quote'}</button></div>
+        <div className="form-span quote-total-bar"><span><small>Out-the-door total</small><strong className="price">{formatMoney(total, true)}</strong></span><button className="button button-primary" disabled={submitting || existingQuote !== null}><Send size={17} /> {submitting ? 'Uploading quote…' : 'Send itemized quote'}</button></div>
       </form>
     </section><aside className="sticky-card grid"><section className="card card-pad"><Calculator color="var(--accent)" /><h3>The complete total competes</h3><p className="muted">Vehicle price + documentation fee + sales tax + title and registration − trade-in credit.</p><div className="spec-list single"><div className="spec"><span>Buyer timing</span><strong>{request.timeline}</strong></div><div className="spec"><span>Buyer area</span><strong>{request.area}</strong></div><div className="spec"><span>Requested features</span><strong>{request.mustHaves.join(', ') || 'Open to options'}</strong></div></div></section><section className="card card-pad privacy-note"><ShieldCheck /><div><h3>Identity remains private</h3><p>You see the approximate area only. Contact opens if the buyer accepts or you accept their negotiation request.</p></div></section></aside></div>
   </div>;

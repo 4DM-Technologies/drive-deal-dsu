@@ -87,6 +87,7 @@ export interface Quote {
   chatRequestMessage?: string;
   vehicleImages?: string[];
   documents?: Array<{ name: string; status: 'uploaded' | 'verified' }>;
+  /** One entry per price revision the dealer sent; `amount` is the final price before that revision. */
   revisions?: Array<{ amount: string; at: string }>;
 }
 
@@ -121,6 +122,8 @@ export interface DealDocument {
   name: string;
   status: string;
   downloadUrl: string;
+  /** Where the file lives in storage; needed to put a document back if a replacement upload fails. */
+  objectKey: string;
 }
 
 export interface QuoteCreateInput {

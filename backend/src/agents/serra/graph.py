@@ -19,7 +19,13 @@ from src.agents.schemas import CarSpecs, OrchestratorPlan
 from src.agents.state import AgentState
 from src.agents.tools.kb import kb_insert, kb_search
 from src.agents.tools.kb_db import update_preferences, write_car
-from src.agents.tools.web_search import get_urls, has_official_domain, process_url
+from src.agents.tools.web_search import (
+    _is_us_market_url,
+    get_urls,
+    has_official_domain,
+    process_url,
+    search_vehicle_images,
+)
 from src.database import SessionFactory
 from src.repositories.schema import AiTraceSpan, Brand, BuyerPreference, State
 from src.settings import get_settings
@@ -222,6 +228,9 @@ DOMAIN_TERMS = (
 SMALL_TALK_RE = re.compile("|".join(SMALL_TALK_PATTERNS), re.IGNORECASE)
 # The trailing `s?` lets a single term match its plural ("SUV" / "SUVs", "car" / "cars").
 DOMAIN_TERM_RE = re.compile(r"\b(" + "|".join(DOMAIN_TERMS) + r")s?\b", re.IGNORECASE)
+MODEL_TERM_RE = re.compile(
+    r"\b(?:seltos|creta|x3|i7|civic|accord|camry|corolla|mustang|model\s+[3sxyl])\b", re.IGNORECASE
+)
 
 # Attempts to override the advisor's instructions or make it adopt another persona. These are answered by the
 # main model straight away so no sub-agent, tool or planner is spent on them.
@@ -239,6 +248,15 @@ EXPLICIT_WEB_SEARCH_RE = re.compile(
     r"\b(?:search|browse|look\s+up|find\s+(?:it\s+)?online|check\s+(?:the\s+)?(?:web|internet)|latest|current)\b",
     re.IGNORECASE,
 )
+EXPLICIT_IMAGE_SEARCH_RE = re.compile(
+    r"\b(?:image|images|photo|photos|picture|pictures|gallery|exterior|interior|looks?\s+like|show\s+me)\b",
+    re.IGNORECASE,
+)
+VEHICLE_IMAGE_CONTEXT_RE = re.compile(
+    r"\b(?:car|cars|vehicle|vehicles|suv|sedan|hatchback|coupe|kia|seltos|bmw|audi|honda|toyota|ford|tesla|"
+    r"hyundai|mercedes|volkswagen|x3|i7|creta|model\s+[3sxyl])\b",
+    re.IGNORECASE,
+)
 
 
 def _is_prompt_injection(message: str) -> bool:
@@ -248,6 +266,11 @@ def _is_prompt_injection(message: str) -> bool:
 def is_explicit_web_search(message: str) -> bool:
     """True for an explicit live-research request that is also within the vehicle domain."""
     return bool(EXPLICIT_WEB_SEARCH_RE.search(message)) and _has_domain_content(message)
+
+
+def is_explicit_image_search(message: str) -> bool:
+    """True when the buyer is asking to see a real vehicle image, not generate one."""
+    return bool(EXPLICIT_IMAGE_SEARCH_RE.search(message)) and bool(VEHICLE_IMAGE_CONTEXT_RE.search(message))
 
 
 def is_direct_reply(message: str) -> bool:
@@ -267,7 +290,7 @@ def _is_small_talk(message: str) -> bool:
 
 def _has_domain_content(message: str) -> bool:
     """Guards the knowledge-base lookup: greetings and pure pleasantries have nothing to embed or retrieve."""
-    return bool(DOMAIN_TERM_RE.search(message))
+    return bool(DOMAIN_TERM_RE.search(message) or MODEL_TERM_RE.search(message))
 
 
 def _kb_results_are_relevant(message: str, kb_results: list[dict]) -> bool:
@@ -286,8 +309,18 @@ def _kb_results_are_relevant(message: str, kb_results: list[dict]) -> bool:
         if _mentioned(result.get("model")):
             return True
         for finding in result.get("findings") or []:
-            if _mentioned((finding.get("content") or {}).get("model")):
+            content = finding.get("content")
+            if isinstance(content, dict) and _mentioned(content.get("model")):
                 return True
+            if _mentioned(finding.get("title")):
+                return True
+            # Hosted-search answers are cached as text. Treat a text finding as relevant only when it repeats
+            # a meaningful vehicle term from the buyer's message; never let an unrelated cached answer block a
+            # live-search escalation.
+            if isinstance(content, str):
+                message_terms = [term for term in re.findall(r"[a-z0-9]+", message_lower) if len(term) > 3]
+                if any(term in content.lower() for term in message_terms):
+                    return True
     return False
 
 
@@ -315,7 +348,7 @@ def _trace_snapshot(value: dict | None, *, output: bool = False) -> dict:
     if not value:
         return {}
     allowed = (
-        ("route", "mode", "answer", "sources", "preferences_pending", "kb_results", "web_results", "car_specs")
+        ("route", "mode", "answer", "sources", "media", "preferences_pending", "kb_results", "web_results", "car_specs")
         if output
         else ("message", "route", "mode", "preferences", "preferences_pending", "requirements")
     )
@@ -477,7 +510,8 @@ def main_agent(
                     details = {
                         "input": _trace_snapshot(state),
                         "output": _trace_snapshot(result, output=True),
-                        "llm_called": name in {"classifier", "orchestrator", "kb_agent", "compose", "small_talk"},
+                        "llm_called": name
+                        in {"classifier", "orchestrator", "kb_agent", "web_search_agent", "compose", "small_talk"},
                     }
                     span = AiTraceSpan(
                         id=span_id,
@@ -522,6 +556,10 @@ def main_agent(
             step = log_agent_step("serra", "triage", state, small_talk=True)
             logger.info("agent_small_talk_short_circuit", thread_id=state.get("thread_id"))
             return {"route": "small_talk", "step": step}
+        if is_explicit_image_search(message):
+            step = log_agent_step("serra", "triage", state, web_search=True, image_search=True)
+            logger.info("agent_vehicle_image_search_direct", thread_id=state.get("thread_id"))
+            return {"route": "web_search", "mode": "image_search", "step": step}
         if is_explicit_web_search(message):
             # The buyer explicitly requested current online research. Skip two LLM routing calls and enter the
             # trusted-domain web pipeline directly; compose still turns the evidence into the final answer.
@@ -754,6 +792,42 @@ def main_agent(
         step = log_agent_step("serra", "web_search_agent", state, mode=state.get("mode"))
         thread_id = state.get("thread_id")
         preferences = state.get("preferences") or {}
+
+        if state.get("mode") == "image_search":
+            cached = await kb_search(session, state["message"], limit=2)
+            media = [
+                finding
+                for result in cached
+                for finding in result.get("findings", [])
+                if isinstance(finding, dict)
+                and finding.get("image_url")
+                and _is_us_market_url(str(finding.get("source_url") or ""))
+            ][:2]
+            if not media:
+                try:
+                    media = await search_vehicle_images(llm, state["message"], thread_id=thread_id, limit=2)
+                except Exception as exc:
+                    logger.warning("agent_vehicle_image_search_failed", thread_id=thread_id, error=str(exc)[:200])
+                    media = []
+            sources = [
+                {"title": item.get("source_name") or "Vehicle image source", "url": item["source_url"]}
+                for item in media
+                if item.get("source_url")
+            ]
+            if media and not (preview or state.get("preview")):
+                await kb_insert(session, state["message"], media, state["user_id"])
+            return {
+                "media": media,
+                "sources": sources,
+                "answer": (
+                    "Here are a couple of real US-market vehicle views from automotive sources."
+                    if media
+                    else "I couldn't find reliable US-market images for that vehicle, so I won't show international images."
+                ),
+                "direct_web_answer": True,
+                "step": step,
+            }
+
         specs: list[CarSpecs] = []
         resolved_sources: dict[str, dict[str, str]] = {}
         candidate_evidence: list[dict[str, str]] = []
@@ -798,6 +872,43 @@ def main_agent(
                     thread_id=trace_id,
                     prompt_overrides=prompt_overrides,
                 )
+                hosted_answer = next(
+                    (candidate.get("hosted_answer") for candidate in candidates if candidate.get("hosted_answer")), None
+                )
+                if hosted_answer:
+                    hosted_sources = next(
+                        (
+                            candidate.get("hosted_sources")
+                            for candidate in candidates
+                            if candidate.get("hosted_sources")
+                        ),
+                        "[]",
+                    )
+                    try:
+                        sources = json.loads(hosted_sources)
+                    except (TypeError, json.JSONDecodeError):
+                        sources = []
+                    if hosted_answer and not (preview or state.get("preview")):
+                        await kb_insert(
+                            session,
+                            state["message"],
+                            [
+                                {
+                                    "title": source.get("title", "Web source"),
+                                    "url": source.get("url", ""),
+                                    "content": hosted_answer,
+                                }
+                                for source in sources
+                            ],
+                            state["user_id"],
+                        )
+                    return {
+                        "answer": hosted_answer,
+                        "direct_web_answer": True,
+                        "sources": sources,
+                        "web_results": [{"content": hosted_answer, "source": source} for source in sources],
+                        "step": step,
+                    }
                 crawl_candidates = candidates[: settings.web_search_max_crawl_sites]
                 specs = await _crawl_all(crawl_candidates)
                 if not specs and crawl_candidates and has_official_domain(full_query):
@@ -820,6 +931,14 @@ def main_agent(
         for spec in specs:
             resolved_sources[spec.source_url] = {"title": spec.model or spec.source_url, "url": spec.source_url}
         sources = list(resolved_sources.values())
+        if not specs and not sources and not candidate_evidence:
+            return {
+                "answer": "I couldn't verify reliable US-market information for that vehicle, so I won't show international results or guess at current details.",
+                "sources": [],
+                "web_results": [],
+                "direct_web_answer": True,
+                "step": step,
+            }
         if specs and not (preview or state.get("preview")):
             await kb_insert(
                 session,
@@ -851,6 +970,8 @@ def main_agent(
 
     async def compose(state: AgentState) -> AgentState:
         step = log_agent_step("serra", "compose", state)
+        if state.get("media") or state.get("direct_web_answer"):
+            return {"answer": state.get("answer") or "Here are the vehicle images I found.", "step": step}
         if state.get("answer") and state.get("preferences_pending"):
             return {"step": step}  # kb_agent already produced the clarifying question as the final answer
 
