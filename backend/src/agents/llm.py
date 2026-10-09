@@ -85,15 +85,56 @@ class LlmResult:
     sources: list[dict[str, str]] | None = None
     status: str = "success"
     error: str | None = None
+    image_results: list[dict[str, str]] | None = None
+
+
+def _extract_image_results(value: Any, *, _depth: int = 0, _seen: set[int] | None = None) -> list[dict[str, str]]:
+    """Extract direct image-search results from Responses web_search_call output items."""
+    if value is None or _depth > 7:
+        return []
+    seen = _seen or set()
+    if isinstance(value, dict | list | tuple):
+        identity = id(value)
+        if identity in seen:
+            return []
+        seen.add(identity)
+    if isinstance(value, dict):
+        if value.get("type") == "image_result" and value.get("image_url"):
+            result = {
+                "image_url": str(value["image_url"]),
+                "source_url": str(value.get("source_website_url") or ""),
+                "thumbnail_url": str(value.get("thumbnail_url") or ""),
+                "caption": str(value.get("caption") or ""),
+            }
+            return [result]
+        items: list[dict[str, str]] = []
+        for child in value.values():
+            items.extend(_extract_image_results(child, _depth=_depth + 1, _seen=seen))
+        return items
+    if isinstance(value, list | tuple):
+        items = []
+        for child in value:
+            items.extend(_extract_image_results(child, _depth=_depth + 1, _seen=seen))
+        return items
+    if hasattr(value, "model_dump"):
+        try:
+            return _extract_image_results(value.model_dump(), _depth=_depth + 1, _seen=seen)
+        except Exception:
+            return []
+    if hasattr(value, "__dict__"):
+        return _extract_image_results(vars(value), _depth=_depth + 1, _seen=seen)
+    return []
 
 
 class LlmClient:
-    def __init__(self, session: AsyncSession) -> None:
+    def __init__(self, session: AsyncSession, *, timeout_seconds: float | None = None) -> None:
         self.session = session
         self.settings = get_settings()
+        self.timeout_seconds = timeout_seconds or self.settings.ai_request_timeout_seconds
         self._credential_source = "deterministic"
 
     async def _resolve_client(self) -> AsyncOpenAI | None:
+        timeout_seconds = getattr(self, "timeout_seconds", self.settings.ai_request_timeout_seconds)
         if self.settings.openai_api_key:
             self._credential_source = "api_key"
             credential = self.settings.openai_api_key
@@ -106,14 +147,14 @@ class LlmClient:
         if not credential:
             return None
         if self._credential_source == "api_key":
-            return AsyncOpenAI(api_key=credential, timeout=self.settings.ai_request_timeout_seconds)
+            return AsyncOpenAI(api_key=credential, timeout=timeout_seconds)
         # A ChatGPT-OAuth-sourced credential is only valid against ChatGPT's own backend, not the
         # public OpenAI API - different base URL, and Cloudflare blocks the SDK's default User-Agent.
         return AsyncOpenAI(
             api_key=credential,
             base_url=CODEX_DIRECT_BASE_URL,
             default_headers={"User-Agent": CODEX_DIRECT_USER_AGENT},
-            timeout=self.settings.ai_request_timeout_seconds,
+            timeout=timeout_seconds,
         )
 
     async def generate(
@@ -128,6 +169,8 @@ class LlmClient:
         max_output_tokens: int | None = None,
         tools: list[dict[str, Any]] | None = None,
         tool_choice: str | dict[str, Any] | None = None,
+        include: list[str] | None = None,
+        transient_retries: int = _TRANSIENT_RETRIES,
     ) -> LlmResult:
         started = perf_counter()
         client = await self._resolve_client()
@@ -147,6 +190,8 @@ class LlmClient:
                     max_output_tokens,
                     tools=tools,
                     tool_choice=tool_choice,
+                    include=include,
+                    transient_retries=transient_retries,
                 )
                 status = "success"
             except Exception as exc:
@@ -197,6 +242,7 @@ class LlmClient:
                         "tool_requested": bool(tools),
                         "tool_choice": tool_choice,
                         "citation_count": len(result.sources or []),
+                        "image_result_count": len(result.image_results or []),
                     },
                 )
             )
@@ -215,6 +261,7 @@ class LlmClient:
             tool_requested=bool(tools),
             tool_choice=tool_choice,
             citation_count=len(result.sources or []),
+            image_result_count=len(result.image_results or []),
             prompt_version=prompt_version,
             prompt_excerpt=_safe_error_value(prompt, limit=200),
         )
@@ -230,6 +277,8 @@ class LlmClient:
         *,
         tools: list[dict[str, Any]] | None = None,
         tool_choice: str | dict[str, Any] | None = None,
+        include: list[str] | None = None,
+        transient_retries: int = _TRANSIENT_RETRIES,
     ) -> LlmResult:
         """Calls the Responses API, auto-dropping a parameter a model rejects and remembering that
         for next time — the same capability-adaptation pattern used by the SIWC reference client.
@@ -250,6 +299,8 @@ class LlmClient:
             kwargs["tools"] = tools
         if tool_choice is not None:
             kwargs["tool_choice"] = tool_choice
+        if include:
+            kwargs["include"] = include
         with _capability_lock:
             if model not in _models_without_max_output_tokens:
                 kwargs["max_output_tokens"] = max_output_tokens or self.settings.ai_max_output_tokens
@@ -258,13 +309,14 @@ class LlmClient:
 
         transient_failures = 0
         # at most: drop max_output_tokens, drop reasoning, retry transient failures, then give up
-        for attempt in range(1, 4 + _TRANSIENT_RETRIES):
+        for attempt in range(1, 4 + transient_retries):
             try:
                 stream = await client.responses.create(**kwargs)
                 text = ""
                 input_tokens = 0
                 output_tokens = 0
                 sources: list[dict[str, str]] = []
+                image_results: list[dict[str, str]] = []
                 async for event in stream:
                     event_type = getattr(event, "type", "")
                     if event_type == "response.output_text.delta":
@@ -274,9 +326,19 @@ class LlmClient:
                         input_tokens = getattr(usage, "input_tokens", 0) or 0
                         output_tokens = getattr(usage, "output_tokens", 0) or 0
                         sources.extend(_extract_url_citations(getattr(event, "response", None)))
+                        image_results.extend(_extract_image_results(getattr(event, "response", None)))
                     sources.extend(_extract_url_citations(event))
+                    image_results.extend(_extract_image_results(event))
                 deduped = {item["url"]: item for item in sources if item.get("url")}
-                return LlmResult(text, input_tokens, output_tokens, attempt, list(deduped.values()))
+                deduped_images = {item["image_url"]: item for item in image_results if item.get("image_url")}
+                return LlmResult(
+                    text,
+                    input_tokens,
+                    output_tokens,
+                    attempt,
+                    list(deduped.values()),
+                    image_results=list(deduped_images.values()),
+                )
             except BadRequestError as exc:
                 detail = _safe_error_value(str(exc)).lower()
                 if "max_output_tokens" in detail and "max_output_tokens" in kwargs:
@@ -291,7 +353,7 @@ class LlmClient:
                     continue
                 raise RuntimeError(f"Model {model} rejected the request: {_safe_error_value(str(exc))}") from exc
             except APIError as exc:
-                if not _is_transient(exc) or transient_failures >= _TRANSIENT_RETRIES:
+                if not _is_transient(exc) or transient_failures >= transient_retries:
                     raise
                 transient_failures += 1
                 logger.warning(

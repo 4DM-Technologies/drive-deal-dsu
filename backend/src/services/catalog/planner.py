@@ -155,6 +155,7 @@ class GuidedPlanner:
             return None
         answers.model_year = match.model_year
         answers.timeline = match.timeline
+        answers.must_haves = match.must_haves
         answers.filters = GuidedFilters(**match.filters)
         self._apply_budget(answers, match.budget_min, match.budget_max, match.budget_mentioned, None)
         return await self._advance(answers)
@@ -236,7 +237,7 @@ class GuidedPlanner:
         if qid == "area":
             location = await self._parse_location(text)
             if location is None:
-                return [], "Please include a state, such as Austin, TX, so I can find dealers near you."
+                return [], "Please enter both a city and state, such as Los Angeles, CA."
             answers.buyer_area, answers.state, answers.state_id = location
             return ["__area__"], None
         if qid == "budget":
@@ -383,7 +384,19 @@ class GuidedPlanner:
             found = next((state for state in states if state[2] == code), None)
         if found is None:
             return None
-        return text.strip()[:180], found[1], found[0]
+        city = text.strip()
+        full_state_suffix = re.search(rf"(?:,\s*|\s+){re.escape(found[1])}\s*$", city, re.IGNORECASE)
+        code_suffix = re.search(r"(?:,\s*|\s)([A-Za-z]{2})\.?\s*$", city)
+        if full_state_suffix:
+            city = city[: full_state_suffix.start()].strip(" ,")
+        elif code_suffix and code_suffix.group(1).upper() == found[2]:
+            city = city[: code_suffix.start()].strip(" ,")
+        elif text.strip().casefold() == found[1].casefold():
+            # A state name by itself is not a city and state pair; don't save it as the buyer's city.
+            return None
+        if not city:
+            return None
+        return (city or text.strip())[:180], found[1], found[0]
 
     # ----------------------------------------------------------------------------------------------- sequencing
 
@@ -556,13 +569,13 @@ class GuidedPlanner:
         if qid == "must_haves":
             return "Any must-have features?"
         if qid == "area":
-            return "Where should dealers look?"
+            return "Which city and state should dealers search near?"
         return "When are you hoping to buy?"
 
     @staticmethod
     def _placeholder(qid: QuestionId) -> str:
         return {
-            "area": "City, state (for example, Austin, TX)",
+            "area": "Enter a city and state (for example, Austin, TX)…",
             "budget": "Type an amount, such as $45,000",
             "must_haves": "Add your own, separated by commas",
             "model": "Type a model",

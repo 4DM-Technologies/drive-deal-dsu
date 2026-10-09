@@ -1,4 +1,4 @@
-import { ArrowRight, Brain, Building2, Check, Globe, LockKeyhole, Mail, MapPin, Phone, Plus, Save, ShieldCheck, UserRound, WalletCards, X } from 'lucide-react';
+import { ArrowRight, Building2, Check, Globe, LockKeyhole, Mail, MapPin, Phone, Plus, Save, ShieldCheck, UserRound, WalletCards, X } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { planLabel, planStatusClass, planTone, usageSummary } from '@/helpers/subscription';
@@ -98,9 +98,12 @@ export default function ProfileScreen() {
   const roleLabel = roleLabels[session.role];
 
   return <div className="shell page-content profile-page">
-    <header className="profile-hero"><div className="profile-avatar" aria-hidden="true">{session.avatarInitials}</div><div><span className="eyebrow">Account settings</span><h1>{session.fullName}</h1><p>{roleLabel} · Manage the details connected to your Deal&amp;Drive workspace.</p></div><span className="profile-role"><ShieldCheck size={16} /> {roleLabel}</span></header>
+    <header className="profile-hero">
+      <div className="profile-identity"><div className="profile-avatar" aria-hidden="true">{session.avatarInitials}</div><div><span className="eyebrow">Account settings</span><h1>{session.fullName}</h1></div><span className="profile-role"><ShieldCheck size={15} /> {roleLabel}</span></div>
+      <p>Manage the details connected to your Deal&amp;Drive workspace.</p>
+    </header>
     <div className="profile-layout"><main className="profile-main">
-      <section className="card profile-panel"><div className="profile-section-head"><div className="profile-section-icon"><UserRound /></div><div><h2>Contact information</h2><p>Used for account security and marketplace communication.</p></div></div>
+      <section className="card profile-panel"><div className="profile-section-head"><div><span className="eyebrow">Personal details</span><h2>Contact information</h2><p>Used for account security and marketplace communication.</p></div></div>
         <form className="profile-form" onSubmit={(event) => { event.preventDefault(); void saveProfile(); }}>
           <div className="field"><label htmlFor="profile-name">Full name</label><div className="input-with-icon"><UserRound /><input id="profile-name" name="name" className="input" autoComplete="name" value={fullName} onChange={(event) => setFullName(event.target.value)} required /></div></div>
           <div className="field"><label htmlFor="profile-email">Email address</label><div className="input-with-icon"><Mail /><input id="profile-email" name="email" className="input" value={session.email} type="email" autoComplete="email" readOnly /></div><small>Contact support to change your sign-in email.</small></div>
@@ -111,7 +114,42 @@ export default function ProfileScreen() {
           <div className="profile-form-actions profile-form-wide"><span aria-live="polite">{profileSaved ? <><Check size={16} /> Changes saved</> : profileDirty ? 'You have unsaved changes' : 'Profile is up to date'}</span><button className="button button-primary" disabled={savingProfile || !profileDirty}><Save size={17} />{savingProfile ? 'Saving…' : 'Save changes'}</button></div>
         </form>
       </section>
-      {isBuyer && <section className="card profile-panel preference-editor"><div className="profile-section-head"><div><span className="eyebrow">Sera’s memory</span><h2>Vehicle preferences</h2><p>Only signals you explicitly save are used in future guidance.</p></div></div><div className="preference-chips" aria-busy={prefsLoading}>{prefsLoading ? <><span className="skeleton chip-skeleton" /><span className="skeleton chip-skeleton wide" /><span className="skeleton chip-skeleton" /></> : draft.length ? draft.map((chip) => <button key={chip} type="button" className="preference-chip" onClick={() => setDraft((items) => items.filter((item) => item !== chip))}>{chip}<X size={13} /><span className="sr-only">Remove {chip}</span></button>) : <p className="preference-empty">No saved signals yet. Add features that should influence future recommendations.</p>}</div><div className="preference-add"><label className="sr-only" htmlFor="new-preference">New vehicle preference</label><input id="new-preference" name="preference" className="input" value={newPreference} onChange={(event) => setNewPreference(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); addPreference(); } }} placeholder="e.g. third-row seating" /><button className="button button-secondary" type="button" onClick={addPreference} disabled={!newPreference.trim()}><Plus size={16} /> Add</button></div>{prefsError && <div className="inline-warning" role="alert">{prefsError}</div>}<div className="preference-footer"><span><strong>{draft.length} saved {draft.length === 1 ? 'signal' : 'signals'}</strong><small>Used only for future Sera guidance</small></span><button className="button button-primary" onClick={() => void savePreferences()} disabled={!dirty}>{prefsSaved ? <Check size={17} /> : <Save size={17} />}{prefsSaved ? 'Saved' : 'Save preferences'}</button></div></section>}
-    </main><aside className="profile-aside">{(isDealer || isBuyer) && <Link to="/account" className="card profile-side-card profile-account-card"><WalletCards /><div><span className="eyebrow">Account</span><h3>Plan &amp; billing</h3><p>{session.subscription ? usageSummary(session.subscription) : 'Your plan, usage and payment method.'}</p><span className="profile-account-foot">{session.subscription ? <span className={`status ${planStatusClass[planTone(session.subscription)]}`}>{planLabel(session.subscription)}</span> : <span />}<span className="profile-account-link">Manage <ArrowRight size={15} /></span></span></div></Link>}<section className="card profile-side-card"><LockKeyhole /><div><span className="eyebrow">Account security</span><h3>Your sign-in is protected</h3><p>Private contact details are not shared with marketplace members until the appropriate contact gate opens.</p></div></section>{isDealer && <section className="card profile-side-card"><Building2 /><div><span className="eyebrow">Verified business</span><h3>{session.dealershipName || 'Dealer account'}</h3><dl><div><dt>License</dt><dd>{session.dealerLicense || 'On file'}</dd></div><div><dt>Branch</dt><dd>{session.branchName || 'Primary location'}</dd></div></dl></div></section>}{isBuyer && <section className="card profile-side-card"><Brain /><div><span className="eyebrow">How memory works</span><h3>You stay in control</h3><p>Sera can use saved preferences to tailor advice, but it never publishes a request or reveals your identity automatically.</p></div></section>}</aside></div>
+      {isBuyer && <section className="preference-editor" aria-labelledby="preference-title">
+        <div className="preference-editor-head">
+          <div className="profile-section-head">
+            <span className="eyebrow">Sera’s memory</span>
+            <h2 id="preference-title">Vehicle preferences</h2>
+            <p>Choose what Sera should remember for future recommendations.</p>
+          </div>
+          {!prefsLoading && <span className="preference-count">{draft.length} {draft.length === 1 ? 'preference' : 'preferences'}</span>}
+        </div>
+        <div className="preference-saved" aria-busy={prefsLoading}>
+          <span className="preference-label">Saved preferences</span>
+          <div className="preference-chips">
+            {prefsLoading
+              ? <><span className="skeleton chip-skeleton" /><span className="skeleton chip-skeleton wide" /><span className="skeleton chip-skeleton" /></>
+              : draft.length
+                ? draft.map((chip) => <button key={chip} type="button" className="preference-chip" onClick={() => setDraft((items) => items.filter((item) => item !== chip))} aria-label={`Remove ${chip}`}>{chip}<X size={14} /></button>)
+                : <p className="preference-empty">No preferences saved yet. Add one below to personalize Sera’s guidance.</p>}
+          </div>
+        </div>
+        <div className="preference-add-wrap">
+          <label className="preference-label" htmlFor="new-preference">Add a preference</label>
+          <div className="preference-add">
+            <input id="new-preference" name="preference" className="input" value={newPreference} onChange={(event) => setNewPreference(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); addPreference(); } }} placeholder="Try “third-row seating” or “hybrid”" />
+            <button className="button button-secondary" type="button" onClick={addPreference} disabled={!newPreference.trim()}><Plus size={16} /> Add</button>
+          </div>
+        </div>
+        {prefsError && <div className="inline-warning" role="alert">{prefsError}</div>}
+        <div className="preference-footer">
+          <span aria-live="polite"><strong>{dirty ? 'Unsaved changes' : prefsSaved ? 'Preferences saved' : 'Up to date'}</strong><small>Only saved preferences are used by Sera.</small></span>
+          <button className="button button-primary" onClick={() => void savePreferences()} disabled={!dirty}>{prefsSaved ? <Check size={17} /> : <Save size={17} />}{prefsSaved ? 'Saved' : 'Save preferences'}</button>
+        </div>
+      </section>}
+    </main><aside className="profile-aside" aria-label="Account overview">
+      {(isDealer || isBuyer) && <Link to="/account" className="card profile-side-card profile-account-card"><span className="profile-side-icon"><WalletCards size={18} /></span><div><span className="eyebrow">Membership</span><h3>Plan &amp; billing</h3><p>{session.subscription ? usageSummary(session.subscription) : 'Manage your plan and payment details.'}</p><span className="profile-account-foot">{session.subscription ? <span className={`status ${planStatusClass[planTone(session.subscription)]}`}>{planLabel(session.subscription)}</span> : <span />}<span className="profile-account-link">Manage <ArrowRight size={15} /></span></span></div></Link>}
+      <section className="card profile-side-card profile-security-card"><span className="profile-side-icon"><LockKeyhole size={18} /></span><div><span className="eyebrow">Privacy</span><h3>Your details stay private</h3><p>Contact information is shared only when the marketplace contact gate opens.</p></div></section>
+      {isDealer && <section className="card profile-side-card"><span className="profile-side-icon"><Building2 size={18} /></span><div><span className="eyebrow">Business account</span><h3>{session.dealershipName || 'Dealer account'}</h3><dl><div><dt>License</dt><dd>{session.dealerLicense || 'On file'}</dd></div><div><dt>Branch</dt><dd>{session.branchName || 'Primary location'}</dd></div></dl></div></section>}
+    </aside></div>
   </div>;
 }

@@ -683,6 +683,13 @@ def main_agent(
         """
         step = log_agent_step("serra", "kb_agent", state, mode=state.get("mode"))
         message = state["message"]
+        if state.get("route") == "compare":
+            prior_buyer_messages = [
+                item.get("body", "")
+                for item in state.get("conversation_context", [])
+                if item.get("role") == "user" and item.get("body")
+            ][-3:]
+            message = " ".join([*prior_buyer_messages, message])
         trace_id = state.get("trace_id") or state.get("thread_id")
         hints = await match_message(session, message)
         plan = shortcut_plan(message, hints)
@@ -815,7 +822,9 @@ def main_agent(
             ][:2]
             if not media:
                 try:
-                    media = await search_vehicle_images(llm, state["message"], thread_id=thread_id, limit=2)
+                    media = await search_vehicle_images(
+                        LlmClient(session, timeout_seconds=4), state["message"], thread_id=thread_id, limit=2
+                    )
                 except Exception as exc:
                     logger.warning("agent_vehicle_image_search_failed", thread_id=thread_id, error=str(exc)[:200])
                     media = []
@@ -830,7 +839,10 @@ def main_agent(
                 "media": media,
                 "sources": sources,
                 "answer": (
-                    "Here are a couple of vehicle views from automotive sources."
+                    (
+                        f"Found {len(media)} reference photo{'' if len(media) == 1 else 's'} "
+                        f"from automotive source{'s' if len(media) != 1 else ''}."
+                    )
                     if media
                     else "I couldn't find reliable images for that vehicle yet."
                 ),
@@ -945,9 +957,8 @@ def main_agent(
         if not specs and not sources and not candidate_evidence:
             return {
                 "answer": (
-                    "Live web search isn't available right now, so I can't check current rankings, reviews or prices. "
-                    "I can still answer from Deal&Drive's vehicle catalog, such as each model's versions, drivetrains "
-                    "and fuel economy. Try asking about a brand or body style."
+                    "I can’t retrieve live reviews or current prices in this chat. I can still compare the vehicles’ "
+                    "catalog specs, or help you make a short checklist for evaluating owner reviews."
                 ),
                 "sources": [],
                 "web_results": [],
@@ -1000,8 +1011,15 @@ def main_agent(
         )
         comparison_block = f'<selected_offers trust="internal">{json.dumps(state.get("comparison_rows") or [], default=str)}</selected_offers>'
         question_block = f'<buyer_question trust="untrusted">{state["message"]}</buyer_question>'
+        comparison_guidance = (
+            "The buyer is comparing vehicles mentioned in this conversation. Compare only facts present in catalog_data "
+            "or web_research, identify the compared vehicles by name, and label unavailable facts (especially price, "
+            "availability, colors, and reliability) as not reported. Never ask the buyer to pick a saved dealer offer.\n\n"
+            if state.get("route") == "compare" and not compare
+            else ""
+        )
         prompt = (
-            f"{system_prompt}\n\n{conversation_block(state)}{question_block}\n\n"
+            f"{system_prompt}\n\n{comparison_guidance}{conversation_block(state)}{question_block}\n\n"
             f"{comparison_block}\n\n{catalog_block}\n\n{web_block}\n\n{source_block}"
         )
         result = await llm.generate(

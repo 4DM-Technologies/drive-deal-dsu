@@ -97,6 +97,7 @@ BETWEEN_RE = re.compile(
     re.IGNORECASE,
 )
 YEAR_RE = re.compile(r"\b(20[2-3]\d)\b")
+EXTERIOR_COLOR_RE = re.compile(r"\b(black|white|silver|gray|grey|red|blue|green|brown|orange|yellow|gold)\b", re.I)
 TRANSMISSION_WORDS = (
     ("Manual", re.compile(r"\b(manual|stick ?shift|stick)\b", re.I)),
     ("Automatic", re.compile(r"\b(automatic|auto)\b", re.I)),
@@ -307,6 +308,7 @@ class MatchResult:
     model_year: int | None = None
     timeline: str | None = None
     filters: dict[str, str] = field(default_factory=dict)
+    must_haves: list[str] = field(default_factory=list)
 
     @property
     def has_vehicle(self) -> bool:
@@ -456,6 +458,7 @@ def match_text(text: str, index: CatalogIndex) -> MatchResult:
     result.model_year = years[0] if years else None
     lowered = text.lower()
     result.timeline = next((timeline for timeline in TIMELINES if timeline.lower() in lowered), None)
+    result.must_haves = list(dict.fromkeys(f"Exterior color: {match.group(1).title()}" for match in EXTERIOR_COLOR_RE.finditer(text)))
     for column, patterns in (
         ("transmission", TRANSMISSION_WORDS),
         ("fuel_type", FUEL_WORDS),

@@ -68,7 +68,7 @@ async def vehicle_images(
 ):
     results = await AiService(session).vehicle_images(query)
     await session.commit()
-    return {"items": results}
+    return results
 
 
 @router.post("/compare")

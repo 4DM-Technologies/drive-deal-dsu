@@ -3,7 +3,7 @@ import re
 from contextlib import suppress
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
-from time import perf_counter
+from time import monotonic, perf_counter
 from uuid import uuid4
 
 from sqlalchemy import delete, func, select
@@ -48,6 +48,7 @@ _PUBLISH_CONFIRMATION_RE = re.compile(
     r"^\s*(?:yes[, ]*)?(?:please\s+)?(?:post|publish|send)\s+(?:it|this|the\s+(?:request|post)|my\s+(?:request|post))\s*[!.]*$",
     re.IGNORECASE,
 )
+_VEHICLE_IMAGE_CACHE: dict[str, tuple[float, dict[str, object]]] = {}
 
 
 def _is_publish_confirmation(message: str) -> bool:
@@ -73,14 +74,37 @@ class AiService:
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
 
-    async def vehicle_images(self, query: str, thread_id: str | None = None) -> list[dict[str, str]]:
-        """Find attributed reference images without blocking the request create/publish flow."""
+    async def vehicle_images(self, query: str, thread_id: str | None = None) -> dict[str, object]:
+        """Find attributed reference images and distinguish a clean miss from a provider outage."""
         settings = get_settings()
         if settings.ai_disabled or not settings.ai_enable_web_search:
-            return []
+            return {"items": [], "status": "unavailable"}
         if not re.search(r"\b(?:model\s+[a-z0-9]+|[a-z][a-z0-9-]{1,})\b", query, re.I):
-            return []
-        return await search_vehicle_images(LlmClient(self.session), query, thread_id=thread_id, limit=4)
+            return {"items": [], "status": "not_found"}
+        cache_key = " ".join(query.casefold().split())
+        cached = _VEHICLE_IMAGE_CACHE.get(cache_key)
+        if cached and cached[0] > monotonic():
+            return {"items": list(cached[1]["items"]), "status": cached[1]["status"]}
+        if cached:
+            _VEHICLE_IMAGE_CACHE.pop(cache_key, None)
+        outcome: dict[str, str] = {}
+        items = await search_vehicle_images(
+            LlmClient(self.session, timeout_seconds=4), query, thread_id=thread_id, limit=4, outcome=outcome
+        )
+        status = outcome.get("status", "not_found")
+        result: dict[str, object] = {"items": items, "status": status}
+        # Image references are public and query-specific. Cache verified hits only: clean misses and
+        # provider outages stay eligible for an explicit retry against the live provider.
+        if status == "found":
+            _VEHICLE_IMAGE_CACHE[cache_key] = (monotonic() + 6 * 60 * 60, result)
+        if len(_VEHICLE_IMAGE_CACHE) > 400:
+            now = monotonic()
+            for key, (expires_at, _) in list(_VEHICLE_IMAGE_CACHE.items()):
+                if expires_at <= now:
+                    _VEHICLE_IMAGE_CACHE.pop(key, None)
+            while len(_VEHICLE_IMAGE_CACHE) > 400:
+                _VEHICLE_IMAGE_CACHE.pop(next(iter(_VEHICLE_IMAGE_CACHE)))
+        return {"items": list(items), "status": status}
 
     @log_flow(layer="service")
     async def _publish_saved_requirements(self, requirements: dict, buyer: Profile) -> dict | None:
@@ -146,6 +170,10 @@ class AiService:
         memory = await self._latest_memory(thread_id, buyer.id)
         trace_id = str(uuid4())
         trace_started = perf_counter()
+        conversation_context = list(memory.get("conversation_context", []))
+        request_context = payload.request_context or memory.get("request_context")
+        if request_context:
+            conversation_context.append({"request_context": request_context})
         state = {
             "user_id": buyer.id,
             "thread_id": thread_id,
@@ -154,9 +182,7 @@ class AiService:
             "requirements": memory.get("requirements", {}),
             "preferences": memory.get("preferences", {}),
             "preferences_pending": memory.get("preferences_pending", False),
-            "conversation_context": [{"request_context": payload.request_context or memory.get("request_context")}]
-            if payload.request_context or memory.get("request_context")
-            else [],
+            "conversation_context": conversation_context,
         }
         explicit_web_search = (
             get_settings().ai_enable_web_search
@@ -205,7 +231,7 @@ class AiService:
                 yield {"type": "card", "kind": "requestPreview", "payload": published_request}
                 await self._finish_trace(trace, main_result, trace_started)
                 await self._save_checkpoint(
-                    thread_id, buyer.id, payload, main_result, {"requirements": state.get("requirements", {})}
+                    thread_id, buyer.id, payload, main_result, {"requirements": state.get("requirements", {})}, memory
                 )
                 await self.session.commit()
                 yield {"type": "done", "threadId": thread_id, "messagesUsed": 1, "expandedUi": False}
@@ -215,7 +241,7 @@ class AiService:
         guided_step: GuidedStep | None = None
         if payload.agent != "compare-agent" and not explicit_web_search:
             match = await match_message(self.session, payload.message)
-            if match.opens_card:
+            if match.opens_card and not match.has_question:
                 guided_step = await GuidedPlanner(self.session).from_match(match)
                 reply = await self._guided_reply(match, guided_step) if match.card_only else None
                 if reply is not None:
@@ -224,7 +250,7 @@ class AiService:
                     if guided_step is not None:
                         yield {"type": "card", "kind": "question", "payload": guided_step.model_dump()}
                     await self._finish_trace(trace, main_result, trace_started)
-                    await self._save_checkpoint(thread_id, buyer.id, payload, main_result, {})
+                    await self._save_checkpoint(thread_id, buyer.id, payload, main_result, {}, memory)
                     await self.session.commit()
                     yield {"type": "done", "threadId": thread_id, "messagesUsed": 1, "expandedUi": False}
                     return
@@ -324,7 +350,7 @@ class AiService:
         if main_result.get("media"):
             yield {"type": "media", "items": main_result["media"]}
         await self._finish_trace(trace, main_result, trace_started)
-        await self._save_checkpoint(thread_id, buyer.id, payload, main_result, requirement_result)
+        await self._save_checkpoint(thread_id, buyer.id, payload, main_result, requirement_result, memory)
         await self.session.commit()
         yield {"type": "done", "threadId": thread_id, "messagesUsed": 1, "expandedUi": False}
 
@@ -576,20 +602,45 @@ class AiService:
 
     @log_flow(layer="service")
     async def _latest_memory(self, thread_id: str, user_id: str) -> dict:
-        row = (
+        rows = (
             await self.session.execute(
                 select(ConversationHistory)
                 .where(ConversationHistory.thread_id == thread_id, ConversationHistory.user_id == user_id)
                 .order_by(ConversationHistory.created_at.desc())
-                .limit(1)
+                .limit(8)
             )
-        ).scalar_one_or_none()
-        return row.checkpoint if row else {}
+        ).scalars().all()
+        if not rows:
+            return {}
+        latest = rows[0].checkpoint
+        context: list[dict[str, str]] = []
+        for row in reversed(rows):
+            checkpoint = row.checkpoint
+            guided_messages = checkpoint.get("guided_messages")
+            if isinstance(guided_messages, list):
+                for message in guided_messages:
+                    if isinstance(message, dict) and message.get("role") in {"user", "assistant"} and message.get("body"):
+                        context.append({"role": message["role"], "body": str(message["body"])[:2000]})
+            else:
+                for role, key in (("user", "user"), ("assistant", "assistant")):
+                    body = checkpoint.get(key)
+                    if body:
+                        context.append({"role": role, "body": str(body)[:2000]})
+        deduped: list[dict[str, str]] = []
+        seen: set[tuple[str, str]] = set()
+        for message in context:
+            key = (message["role"], message["body"])
+            if key not in seen:
+                deduped.append(message)
+                seen.add(key)
+        return {**latest, "conversation_context": deduped[-12:]}
 
     @log_flow(layer="service")
     async def _save_checkpoint(
-        self, thread_id: str, user_id: str, payload: AiChatRequest, main: dict, requirements: dict
+        self, thread_id: str, user_id: str, payload: AiChatRequest, main: dict, requirements: dict,
+        memory: dict | None = None,
     ) -> None:
+        memory = memory or {}
         self.session.add(
             ConversationHistory(
                 thread_id=thread_id,
@@ -599,12 +650,12 @@ class AiService:
                 checkpoint={
                     "user": payload.message,
                     "assistant": main.get("answer"),
-                    "requirements": requirements.get("requirements", {}),
+                    "requirements": requirements.get("requirements") or memory.get("requirements", {}),
                     "questions": requirements.get("suggested_questions", []),
-                    "preferences": main.get("preferences", {}),
-                    "preferences_pending": main.get("preferences_pending", False),
-                    "published_request": main.get("published_request"),
-                    "request_context": payload.request_context,
+                    "preferences": main.get("preferences") or memory.get("preferences", {}),
+                    "preferences_pending": main.get("preferences_pending", memory.get("preferences_pending", False)),
+                    "published_request": main.get("published_request") or memory.get("published_request"),
+                    "request_context": payload.request_context or memory.get("request_context"),
                 },
                 metadata_json={
                     "title": payload.message[:72],

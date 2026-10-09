@@ -9,6 +9,7 @@ import asyncio
 import json
 import re
 from html.parser import HTMLParser
+from time import monotonic
 from urllib.parse import urljoin, urlparse
 
 import httpx
@@ -29,6 +30,41 @@ from src.utils.logger import logger
 # so the hosted search result stays grounded in manufacturer and established automotive sources.
 _EXCLUDED_REFERENCE_DOMAINS = ("wikipedia.org", "wikiwand.com")
 EXTRACTION_SCHEMA = CarSpecs.model_json_schema()
+_IMAGE_QUERY_STOPWORDS = {
+    "find", "show", "me", "image", "images", "photo", "photos", "picture", "pictures", "vehicle", "car",
+    "of", "the", "for", "in", "with", "please", "reference", "search", "again", "model", "year", "color", "black",
+    "white", "red", "blue", "gray", "grey", "silver", "automatic", "manual", "hybrid", "electric",
+    "gasoline", "gas", "sedan", "suv", "hatchback", "coupe", "trim", "gallery", "exterior", "interior",
+}
+_VEHICLE_MAKES = tuple(MAKE_DOMAIN_MAP) + (
+    "mercedes-benz", "land rover", "volkswagen", "hyundai", "kia", "nissan", "mazda", "subaru", "jeep",
+    "dodge", "ram", "lexus", "acura", "infiniti", "genesis", "volvo", "porsche", "rivian", "lucid",
+    "buick", "gmc", "cadillac", "lincoln", "chrysler", "mitsubishi",
+)
+_VEHICLE_IMAGE_CACHE: dict[str, tuple[float, list[dict[str, str]]]] = {}
+
+
+def _vehicle_image_terms(query: str) -> list[str]:
+    """Extract make and model identity while ignoring years, colors, and request wording."""
+    lowered = query.lower()
+    for make in sorted(set(_VEHICLE_MAKES), key=len, reverse=True):
+        match = re.search(rf"\b{re.escape(make)}\b", lowered)
+        if not match:
+            continue
+        make_terms = re.findall(r"[a-z0-9]+", make)
+        model_terms = [
+            term for term in re.findall(r"[a-z0-9]+", lowered[match.end():])
+            if (len(term) > 1 or term.isdigit())
+            and term not in _IMAGE_QUERY_STOPWORDS
+            and not re.fullmatch(r"(?:19|20)\d{2}", term)
+        ]
+        return make_terms + model_terms[:2] if model_terms else []
+    return [
+        term for term in re.findall(r"[a-z0-9]+", lowered)
+        if (len(term) > 1 or term.isdigit())
+        and term not in _IMAGE_QUERY_STOPWORDS
+        and not re.fullmatch(r"(?:19|20)\d{2}", term)
+    ][-2:]
 
 
 def _is_excluded_domain(domain: str) -> bool:
@@ -146,40 +182,111 @@ async def search_vehicle_images(
     thread_id: str | None = None,
     limit: int = 2,
     market: str = "US",
+    outcome: dict[str, str] | None = None,
 ) -> list[dict[str, str]]:
-    """Use hosted web search to find source pages, then read their declared preview images.
+    """Search for direct vehicle image results, retaining source pages for attribution and verification.
 
-    This deliberately avoids scraped image search and browser crawling. The returned image URL is always
-    paired with the source page so the UI can show attribution and the buyer can verify the source.
+    Responses web search can return image results and supporting text in one call. If a provider omits image
+    results, source-page metadata is used as a same-call fallback; no extra search provider is queried.
     """
-    prompt = (
-        "Find official or reputable automotive source pages that show the requested vehicle. "
-        "Prefer the manufacturer's gallery, then established automotive publications. "
-        f"Market hint: {market}. Return a small number of relevant source pages for this request: {query}"
-    )
-    result = await llm.generate(
-        prompt,
-        "vehicle_image_search",
-        thread_id,
-        # Hosted web search is not compatible with GPT-5-family minimal reasoning.
-        reasoning_effort="low",
-        max_output_tokens=1000,
-        tools=[{"type": "web_search", "search_context_size": "low"}],
-        tool_choice="required",
-    )
-    # A couple of source pages are enough for the gallery. Keep this bounded so an image request cannot fan out
-    # into a slow crawl of every citation returned by search.
-    sources = list(result.sources or [])[: max(limit * 2, limit)]
-    query_terms = [term.lower() for term in re.findall(r"[a-z0-9]+", query.lower()) if len(term) > 2]
-    # A manufacturer-only query has no useful vehicle identity; searching it tends to return logos.
-    if len(query_terms) < 2:
+    query_terms = _vehicle_image_terms(query)
+    if not query_terms:
+        if outcome is not None:
+            outcome["status"] = "not_found"
         return []
+    years = re.findall(r"\b(?:19|20)\d{2}\b", query)
+    cache_key = " ".join([*years, *query_terms]).casefold()
+    cached = _VEHICLE_IMAGE_CACHE.get(cache_key)
+    if cached and cached[0] > monotonic():
+        if outcome is not None:
+            outcome["status"] = "found"
+        return list(cached[1][:limit])
+    if cached:
+        _VEHICLE_IMAGE_CACHE.pop(cache_key, None)
+
+    prompt = (
+        "Find real photographs of the exact requested production vehicle, not generated images, logos, diagrams, "
+        "or unrelated trims. Prefer the manufacturer's gallery or official dealer media library, then reputable "
+        "automotive publications. Return image results with their source page and caption. "
+        f"Market hint: {market}. Vehicle: {query}"
+    )
+    provider_unavailable = False
+    try:
+        result = await llm.generate(
+            prompt,
+            "vehicle_image_search",
+            thread_id,
+            # Hosted web search is not compatible with GPT-5-family minimal reasoning.
+            reasoning_effort="low",
+            max_output_tokens=1000,
+            tools=[{
+                "type": "web_search",
+                "search_context_size": "low",
+                "search_content_types": ["image", "text"],
+                "image_settings": {"max_results": min(max(limit, 1), 4), "caption": True},
+            }],
+            tool_choice="required",
+            include=["web_search_call.results"],
+            transient_retries=0,
+        )
+        provider_unavailable = getattr(result, "status", "success") not in ("success", None)
+    except Exception as exc:
+        logger.warning("vehicle_image_hosted_search_failed", query=query, error=str(exc)[:200])
+        result = None
+        provider_unavailable = True
+    # Use direct image-result URLs first. Every image keeps a click-through source for attribution.
+    direct_results = list(getattr(result, "image_results", None) or [])
+    matched_images: list[dict[str, str]] = []
+    for image in direct_results:
+        image_url = str(image.get("image_url") or "").strip()
+        source_url = str(image.get("source_url") or "").strip()
+        caption = str(image.get("caption") or "").strip()
+        identity_text = f"{caption} {source_url}".casefold()
+        image_path = urlparse(image_url).path.casefold()
+        if (
+            not image_url.startswith("https://")
+            or not source_url.startswith("https://")
+            or _is_excluded_domain(urlparse(source_url).hostname or "")
+            or not all(term.casefold() in identity_text for term in query_terms[-2:])
+            or re.search(r"(?:logo|brand[-_]?mark|wordmark|favicon|icon|sprite)", image_path)
+            or image_path.endswith(".svg")
+        ):
+            continue
+        host = (urlparse(source_url).hostname or "Vehicle source").removeprefix("www.")
+        matched_images.append({
+            "image_url": image_url,
+            "thumbnail_url": str(image.get("thumbnail_url") or ""),
+            "source_url": source_url,
+            "source_name": host,
+            "alt": caption or f"{query} vehicle photo",
+        })
+        if len(matched_images) >= limit:
+            break
+    if matched_images:
+        if outcome is not None:
+            outcome["status"] = "found"
+        _VEHICLE_IMAGE_CACHE[cache_key] = (monotonic() + 6 * 60 * 60, matched_images)
+        if len(_VEHICLE_IMAGE_CACHE) > 400:
+            now = monotonic()
+            for key, (expires_at, _) in list(_VEHICLE_IMAGE_CACHE.items()):
+                if expires_at <= now:
+                    _VEHICLE_IMAGE_CACHE.pop(key, None)
+            while len(_VEHICLE_IMAGE_CACHE) > 400:
+                _VEHICLE_IMAGE_CACHE.pop(next(iter(_VEHICLE_IMAGE_CACHE)))
+        return matched_images
+
+    # If the API returns citations but no direct image results, inspect only those pages from this same call.
+    sources = list(getattr(result, "sources", None) or [])[: max(limit * 2, limit)]
     sources = [
         source
         for source in sources
-        if any(term in f"{source.get('title', '')} {source.get('url', '')}".lower() for term in query_terms[1:])
+        if all(term in f"{source.get('title', '')} {source.get('url', '')}".lower() for term in query_terms[-2:])
     ]
     if not sources:
+        # Do not fan out to Wikimedia when hosted search is unavailable or has no attributable
+        # source pages. This avoids a known 403 in the deployed environment and keeps the miss fast.
+        if outcome is not None:
+            outcome["status"] = "unavailable" if provider_unavailable else "not_found"
         return []
 
     settings = get_settings()
@@ -205,6 +312,7 @@ async def search_vehicle_images(
                 ):
                     return {
                         "image_url": image_url,
+                        "thumbnail_url": image_url,
                         "source_url": source["url"],
                         "source_name": source.get("title") or "Vehicle source",
                         "alt": f"{query} vehicle image",
@@ -218,7 +326,15 @@ async def search_vehicle_images(
     for item in results:
         if item and item["image_url"] not in unique:
             unique[item["image_url"]] = item
-    return list(unique.values())[:limit]
+    images = list(unique.values())[:limit]
+    if images:
+        if outcome is not None:
+            outcome["status"] = "found"
+        _VEHICLE_IMAGE_CACHE[cache_key] = (monotonic() + 6 * 60 * 60, images)
+        return images
+    if outcome is not None:
+        outcome["status"] = "unavailable" if provider_unavailable else "not_found"
+    return []
 
 
 async def _hosted_get_urls(

@@ -36,15 +36,25 @@ export function useGuidedCard({ onTranscript, onDraft, onUnresolved }: GuidedCar
     setRedoCount(redoRef.current.length);
   }, []);
 
+  const close = useCallback(() => {
+    requestRef.current += 1;
+    setAnswers(null);
+    setQuestion(null);
+    setBusy(false);
+    setError('');
+    resetStacks();
+  }, [resetStacks]);
+
   const apply = useCallback((result: GuidedStepResult) => {
     setAnswers(result.answers);
     setQuestion(result.question);
-    if (result.message) onTranscript([{ role: 'assistant', body: result.message }]);
+    // Keep field validation next to the active question instead of repeating it in the chat transcript.
+    setError(result.message ?? '');
     if (!result.question && result.draft) {
       onDraft(result.draft);
       setAnswers(null);
     }
-  }, [onDraft, onTranscript]);
+  }, [onDraft]);
 
   const call = useCallback(async (base: GuidedAnswers, action: GuidedActionInput) => {
     const run = ++requestRef.current;
@@ -86,6 +96,7 @@ export function useGuidedCard({ onTranscript, onDraft, onUnresolved }: GuidedCar
     const result = await call(answers, action);
     if (!result) return;
     if (result.unresolved) {
+      close();
       onUnresolved(given.text ?? given.label);
       return;
     }
@@ -94,7 +105,7 @@ export function useGuidedCard({ onTranscript, onDraft, onUnresolved }: GuidedCar
     setRedoCount(redoRef.current.length);
     onTranscript([{ role: 'assistant', body: asked.title }, { role: 'user', body: given.skipped ? 'Skipped' : given.label }]);
     apply(result);
-  }, [answers, apply, call, onTranscript, onUnresolved, question]);
+  }, [answers, apply, call, close, onTranscript, onUnresolved, question]);
 
   const answer = useCallback((values: string[], labels: string[]) => {
     if (question) void give({ questionId: question.id, skipped: false, values, label: labels.join(', ') });
@@ -126,15 +137,6 @@ export function useGuidedCard({ onTranscript, onDraft, onUnresolved }: GuidedCar
     redoRef.current = redoRef.current.slice(0, -1);
     await give(next, true);
   }, [give]);
-
-  const close = useCallback(() => {
-    requestRef.current += 1;
-    setAnswers(null);
-    setQuestion(null);
-    setBusy(false);
-    setError('');
-    resetStacks();
-  }, [resetStacks]);
 
   return {
     answers,

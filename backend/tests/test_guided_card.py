@@ -92,6 +92,22 @@ async def test_a_named_model_walks_to_a_complete_draft(catalog) -> None:
     assert "budgetMax" not in draft  # budget is never asked unless the buyer mentions money
 
 
+async def test_location_requires_a_city_and_state_and_returns_a_clear_retry_message(catalog) -> None:
+    current = await start(catalog, "I want a BMW M3")
+    current = await answer(catalog, current, text="competition sedan")
+    current = await step(catalog, current.answers, type="skip", question_id="must_haves")
+    assert current.question.id == "area"
+
+    state_only = await answer(catalog, current, text="New York")
+    assert state_only.question.id == "area"
+    assert state_only.message == "Please enter both a city and state, such as Los Angeles, CA."
+
+    valid_location = await answer(catalog, current, text="Los Angeles, CA")
+    assert valid_location.answers.buyer_area == "Los Angeles"
+    assert valid_location.answers.state == "California"
+    assert valid_location.question.id == "timeline"
+
+
 async def test_a_brand_starts_with_body_styles_and_budget_is_only_added_when_money_comes_up(catalog) -> None:
     current = await start(catalog, "I want a BMW")
     assert current.question.id == "body_style"
@@ -112,6 +128,13 @@ async def test_an_amount_in_the_opening_message_fills_the_budget_without_a_quest
     # "manual" left one version and the catalog has one year for it, so both are filled in automatically.
     assert current.question.id == "must_haves"
     assert current.question.index == 1 and current.question.total == 3
+
+
+async def test_opening_request_keeps_exterior_color_and_transmission(catalog) -> None:
+    current = await start(catalog, "I want a black BMW M3 with automatic transmission")
+
+    assert current.answers.filters.transmission == "Automatic"
+    assert current.answers.must_haves == ["Exterior color: Black"]
 
 
 async def test_back_undoes_the_last_answer_and_questions_go_to_sera(catalog) -> None:

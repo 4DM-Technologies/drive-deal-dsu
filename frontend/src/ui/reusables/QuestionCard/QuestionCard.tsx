@@ -6,6 +6,7 @@ import './QuestionCard.css';
 export interface QuestionCardProps {
   question: GuidedQuestion;
   busy?: boolean;
+  error?: string;
   canGoBack: boolean;
   canGoForward: boolean;
   /** Chosen option values, with their labels for the chat transcript. */
@@ -18,10 +19,10 @@ export interface QuestionCardProps {
 }
 
 /**
- * Sera's guided question card: one question at a time with numbered options, a free-text "Something else" row,
+ * Sera's guided question card: one question at a time with compact numbered options, a free-text "Something else" row,
  * Skip, a pager and a close button. Keys 1-9 pick an option, arrows move, Enter chooses and Escape closes.
  */
-export function QuestionCard({ question, busy = false, canGoBack, canGoForward, onAnswer, onOther, onSkip, onBack, onForward, onClose }: QuestionCardProps) {
+export function QuestionCard({ question, busy = false, error = '', canGoBack, canGoForward, onAnswer, onOther, onSkip, onBack, onForward, onClose }: QuestionCardProps) {
   const titleId = useId();
   const cardRef = useRef<HTMLElement>(null);
   const [highlight, setHighlight] = useState(0);
@@ -102,12 +103,13 @@ export function QuestionCard({ question, busy = false, canGoBack, canGoForward, 
             disabled={busy}
             aria-pressed={question.multiSelect ? isSelected : undefined}
           >
-            <span className="question-option-key" aria-hidden="true">{question.multiSelect && isSelected ? <Check size={14} /> : index < 9 ? index + 1 : '•'}</span>
+            <span className="question-option-key" aria-hidden="true">{question.multiSelect && isSelected ? <Check size={14} /> : index + 1}</span>
             <span className="question-option-text"><strong>{option.label}</strong>{option.description && <small>{option.description}</small>}</span>
           </button>
         </li>;
       })}
     </ul>}
+    {error && <p className="question-card-alert" role="alert" aria-live="polite">{error}</p>}
     <footer className="question-card-foot">
       {question.allowOther && <form className="question-other" onSubmit={(event) => { event.preventDefault(); submitOther(); }}>
         <span className="question-option-key" aria-hidden="true"><Pencil size={14} /></span>

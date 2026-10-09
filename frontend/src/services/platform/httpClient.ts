@@ -474,7 +474,7 @@ export const httpClient: DriveDealClient = {
   ai: {
     chat: streamAi,
     guidedNext: async (answers, action) => guidedStepToDomain(await request<Record<string, unknown>>('/ai/guided/next', { method: 'POST', body: JSON.stringify({ answers, action: guidedActionToBody(action) }) })),
-    vehicleImages: async (query) => (await request<{ items: Array<{ image_url: string; source_url: string; source_name?: string; alt?: string }> }>(`/ai/vehicle-images?query=${encodeURIComponent(query)}`)).items,
+    vehicleImages: async (query) => request<{ items: Array<{ image_url: string; source_url: string; source_name?: string; alt?: string }>; status: 'found' | 'not_found' | 'unavailable' }>(`/ai/vehicle-images?query=${encodeURIComponent(query)}`),
     saveGuidedCheckpoint: async (input) => request<void>('/ai/threads/guided-checkpoint', { method: 'POST', body: JSON.stringify({ thread_id: input.threadId, messages: input.messages.map(({ guidedStep, ...message }) => ({ ...message, guided_step: guidedStep ?? null })), guided_state: input.guidedState, request_context: input.requestContext }) }),
     threads: async () => (await request<Array<Record<string, unknown>>>('/ai/threads')).map((row): AiThread => ({ id: String(row.id), type: row.type as AiThread['type'], title: String(row.title), updatedAt: String(row.updated_at), messages: [] })),
     thread: async (id) => {

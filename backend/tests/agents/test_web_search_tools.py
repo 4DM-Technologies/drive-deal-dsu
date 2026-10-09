@@ -21,6 +21,7 @@ from src.agents.tools.web_search import (
     _parse_json_object,
     _retry,
     _trace_step,
+    _vehicle_image_terms,
     get_urls,
     process_url,
     search_vehicle_images,
@@ -38,8 +39,22 @@ def _mock_http(handler: Callable[[httpx.Request], httpx.Response]):
     return patch.object(web_search.httpx, "AsyncClient", side_effect=factory)
 
 
-def _llm_returning(text: str = "", sources: list[dict[str, str]] | None = None) -> SimpleNamespace:
-    return SimpleNamespace(generate=AsyncMock(return_value=SimpleNamespace(text=text, sources=sources)))
+def _llm_returning(
+    text: str = "",
+    sources: list[dict[str, str]] | None = None,
+    status: str = "success",
+    image_results: list[dict[str, str]] | None = None,
+) -> SimpleNamespace:
+    return SimpleNamespace(generate=AsyncMock(return_value=SimpleNamespace(
+        text=text, sources=sources, status=status, image_results=image_results
+    )))
+
+
+@pytest.fixture(autouse=True)
+def clear_vehicle_image_cache():
+    web_search._VEHICLE_IMAGE_CACHE.clear()
+    yield
+    web_search._VEHICLE_IMAGE_CACHE.clear()
 
 
 def _html_page(image: str | None) -> httpx.Response:
@@ -64,17 +79,64 @@ async def test_image_search_accepts_sources_without_market_url_filtering() -> No
     assert images[0]["source_url"] == "https://www.kia.co.in/seltos"
 
 
+def test_vehicle_image_terms_keep_make_model_and_drop_request_details() -> None:
+    assert _vehicle_image_terms("show me photos of a 2026 Kia K4 in black with automatic") == ["kia", "k4"]
+    assert _vehicle_image_terms("2026 Tesla Model 3 images") == ["tesla", "3"]
+
+
+async def test_image_search_uses_direct_image_results_and_caches_verified_vehicle_identity() -> None:
+    llm = _llm_returning(image_results=[{
+        "image_url": "https://media.audi.com/a3.jpg",
+        "thumbnail_url": "https://media.audi.com/a3-thumb.jpg",
+        "source_url": "https://www.audiusa.com/en/models/a3/a3/2026/overview/",
+        "caption": "2026 Audi A3 sedan exterior",
+    }])
+    outcome: dict[str, str] = {}
+
+    images = await search_vehicle_images(llm, "get me the image of Audi A3", outcome=outcome)
+    repeated = await search_vehicle_images(llm, "Audi A3 image", outcome={})
+
+    assert images[0]["image_url"] == "https://media.audi.com/a3.jpg"
+    assert images[0]["thumbnail_url"] == "https://media.audi.com/a3-thumb.jpg"
+    assert images[0]["source_url"].startswith("https://www.audiusa.com/")
+    assert outcome["status"] == "found"
+    assert repeated == images
+    assert llm.generate.await_count == 1
+    assert llm.generate.call_args.kwargs["include"] == ["web_search_call.results"]
+    assert llm.generate.call_args.kwargs["tools"][0]["search_content_types"] == ["image", "text"]
+
+
 async def test_image_search_returns_nothing_when_the_model_cites_no_sources() -> None:
     assert await search_vehicle_images(_llm_returning(sources=None), "Kia Seltos") == []
+
+
+async def test_image_search_does_not_call_commons_when_the_hosted_provider_falls_back() -> None:
+    outcome: dict[str, str] = {}
+    images = await search_vehicle_images(
+        _llm_returning(sources=None, status="provider_fallback"), "2024 Kia Soul", outcome=outcome
+    )
+
+    assert images == []
+    assert outcome["status"] == "unavailable"
+
+
+async def test_image_search_marks_a_provider_outage_when_fallback_has_no_images() -> None:
+    outcome: dict[str, str] = {}
+    images = await search_vehicle_images(
+        _llm_returning(sources=None, status="provider_fallback"), "Kia Soul", outcome=outcome
+    )
+
+    assert images == []
+    assert outcome["status"] == "unavailable"
 
 
 async def test_image_search_resolves_relative_images_and_drops_unreachable_or_duplicate_sources() -> None:
     llm = _llm_returning(
         sources=[
             {"url": "https://www.kia.com/us/seltos", "title": "Kia Seltos"},
-            {"url": "https://cdn-test.example.com/seltos", "title": ""},
-            {"url": "https://www.broken.com/seltos", "title": "Broken"},
-            {"url": "https://www.repeat.com/seltos", "title": "Repeat"},
+            {"url": "https://cdn-test.example.com/kia/seltos", "title": ""},
+            {"url": "https://www.broken.com/seltos", "title": "Kia Seltos broken"},
+            {"url": "https://www.repeat.com/seltos", "title": "Kia Seltos repeat"},
             {"url": "https://www.kia.com/in/seltos", "title": "Kia India"},
         ]
     )
@@ -106,8 +168,8 @@ async def test_image_search_resolves_relative_images_and_drops_unreachable_or_du
 async def test_image_search_respects_the_result_limit() -> None:
     llm = _llm_returning(
         sources=[
-            {"url": "https://www.one.com/seltos", "title": "One"},
-            {"url": "https://www.two.com/seltos", "title": "Two"},
+            {"url": "https://www.one.com/kia/seltos", "title": "One"},
+            {"url": "https://www.two.com/kia/seltos", "title": "Two"},
         ]
     )
 
@@ -123,9 +185,9 @@ async def test_image_search_respects_the_result_limit() -> None:
 async def test_image_search_ignores_pages_that_declare_no_image() -> None:
     llm = _llm_returning(
         sources=[
-            {"url": "https://www.redirect.com/seltos", "title": "Redirect"},
-            {"url": "https://www.plain.com/seltos", "title": "Plain"},
-            {"url": "https://www.odd.com/seltos", "title": "Odd"},
+            {"url": "https://www.redirect.com/kia/seltos", "title": "Kia Seltos redirect"},
+            {"url": "https://www.plain.com/kia/seltos", "title": "Kia Seltos plain"},
+            {"url": "https://www.odd.com/kia/seltos", "title": "Kia Seltos odd"},
         ]
     )
 

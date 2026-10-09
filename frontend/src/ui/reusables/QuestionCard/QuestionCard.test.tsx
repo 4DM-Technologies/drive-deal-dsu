@@ -48,6 +48,18 @@ describe('QuestionCard', () => {
     expect(screen.getByText('Automatic · AWD')).toBeTruthy();
   });
 
+  it('keeps option markers consistent after the first nine keyboard shortcuts', () => {
+    const options = Array.from({ length: 11 }, (_, index) => ({ value: `option-${index + 1}`, label: `Option ${index + 1}` }));
+    renderCard({ question: { ...question, options } });
+    expect(screen.getByText('10')).toBeTruthy();
+    expect(screen.getByText('11')).toBeTruthy();
+  });
+
+  it('shows planner validation beside the active question', () => {
+    renderCard({ error: 'Please enter both a city and state, such as Los Angeles, CA.' });
+    expect(screen.getByRole('alert').textContent).toContain('both a city and state');
+  });
+
   it('answers with a number key or a click', () => {
     const props = renderCard();
     fireEvent.keyDown(screen.getByRole('heading', { name: 'Which M3?' }).closest('section')!, { key: '2' });

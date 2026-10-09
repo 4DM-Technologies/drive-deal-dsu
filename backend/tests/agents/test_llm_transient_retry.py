@@ -72,6 +72,15 @@ async def test_transient_errors_give_up_after_retry_budget() -> None:
     assert responses.calls == llm_module._TRANSIENT_RETRIES + 1
 
 
+async def test_image_search_can_skip_provider_retries() -> None:
+    responses = _FakeResponses([_stream_error()])
+
+    with pytest.raises(APIError):
+        await _client()._complete(_openai(responses), "prompt", transient_retries=0)
+
+    assert responses.calls == 1
+
+
 async def test_rate_limit_is_not_retried() -> None:
     rate_limited = RateLimitError("slow down", response=httpx.Response(429, request=_REQUEST), body=None)
     responses = _FakeResponses([rate_limited])
