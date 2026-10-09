@@ -175,7 +175,8 @@ async def search_vehicle_images(
     if len(query_terms) < 2:
         return []
     sources = [
-        source for source in sources
+        source
+        for source in sources
         if any(term in f"{source.get('title', '')} {source.get('url', '')}".lower() for term in query_terms[1:])
     ]
     if not sources:

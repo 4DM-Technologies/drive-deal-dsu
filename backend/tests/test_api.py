@@ -301,7 +301,10 @@ def test_complete_request_quote_chat_and_deal_flow() -> None:
 
         accepted = client.post(f"/api/v1/quotes/{quote_id}/accept", headers=buyer)
         assert accepted.status_code == 200 and accepted.json()["deal_status"] == "paperwork_going_on"
-        assert client.get(f"/api/v1/feed/requests/{accepted.json()['buyer_request_id']}", headers=dealer).status_code == 200
+        assert (
+            client.get(f"/api/v1/feed/requests/{accepted.json()['buyer_request_id']}", headers=dealer).status_code
+            == 200
+        )
         assert (
             client.patch(
                 f"/api/v1/deals/{quote_id}/status", headers=dealer, json={"status": "funds_arrived"}

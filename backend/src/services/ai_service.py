@@ -115,20 +115,26 @@ class AiService:
         model_sources = payload.get("sources", [])
         official_links = [
             {"url": item.get("url"), "title": item.get("title") or brand}
-            for item in raw_sources if isinstance(item, dict) and item.get("url")
+            for item in raw_sources
+            if isinstance(item, dict) and item.get("url")
         ]
         if official_domain:
             for url in model_sources if isinstance(model_sources, list) else []:
                 host = (urlparse(url).hostname or "").lower() if isinstance(url, str) else ""
-                if isinstance(url, str) and urlparse(url).scheme == "https" and (host == official_domain or host.endswith(f".{official_domain}")):
+                if (
+                    isinstance(url, str)
+                    and urlparse(url).scheme == "https"
+                    and (host == official_domain or host.endswith(f".{official_domain}"))
+                ):
                     official_links.append({"url": url, "title": brand})
         sources = list({item["url"]: item for item in official_links if item.get("url")}.values())[:3]
         if not sources:
             return {"models": [], "sources": []}
-        models = list(dict.fromkeys(
-            value.strip() for value in payload["models"]
-            if isinstance(value, str) and 1 <= len(value.strip()) <= 80
-        ))[:10]
+        models = list(
+            dict.fromkeys(
+                value.strip() for value in payload["models"] if isinstance(value, str) and 1 <= len(value.strip()) <= 80
+            )
+        )[:10]
         return {"models": models, "sources": sources}
 
     async def vehicle_images(self, query: str, thread_id: str | None = None) -> list[dict[str, str]]:
@@ -212,9 +218,9 @@ class AiService:
             "requirements": memory.get("requirements", {}),
             "preferences": memory.get("preferences", {}),
             "preferences_pending": memory.get("preferences_pending", False),
-            "conversation_context": [
-                {"request_context": payload.request_context or memory.get("request_context")}
-            ] if payload.request_context or memory.get("request_context") else [],
+            "conversation_context": [{"request_context": payload.request_context or memory.get("request_context")}]
+            if payload.request_context or memory.get("request_context")
+            else [],
         }
         explicit_web_search = (
             is_explicit_web_search(payload.message) or is_explicit_image_search(payload.message)
@@ -511,12 +517,19 @@ class AiService:
             )
         ).scalar_one_or_none()
         messages = [message.model_dump() for message in payload.messages]
-        if latest and latest.checkpoint.get("guided_messages") == messages and latest.checkpoint.get("guided_state") == payload.guided_state and latest.checkpoint.get("request_context") == payload.request_context:
+        if (
+            latest
+            and latest.checkpoint.get("guided_messages") == messages
+            and latest.checkpoint.get("guided_state") == payload.guided_state
+            and latest.checkpoint.get("request_context") == payload.request_context
+        ):
             return
         previous = latest.checkpoint if latest else {}
         first_user_message = next((message["body"] for message in messages if message["role"] == "user"), "")
         request = payload.request_context or {}
-        vehicle = " ".join(part for part in (str(request.get("brand", "")).strip(), str(request.get("model", "")).strip()) if part)
+        vehicle = " ".join(
+            part for part in (str(request.get("brand", "")).strip(), str(request.get("model", "")).strip()) if part
+        )
         title = f"Buying request: {vehicle}" if vehicle else (first_user_message[:72] or "New Sera chat")
         last_user = next((message["body"] for message in reversed(messages) if message["role"] == "user"), "")
         last_assistant = next((message["body"] for message in reversed(messages) if message["role"] == "assistant"), "")

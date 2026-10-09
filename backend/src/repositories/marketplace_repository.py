@@ -96,10 +96,12 @@ class MarketplaceRepository:
     @log_flow(layer="repository")
     async def dealer_has_quote_for_request(self, dealer_id: str, request_id: str) -> bool:
         result = await self.session.execute(
-            select(DealQuote.id).where(
+            select(DealQuote.id)
+            .where(
                 DealQuote.dealer_id == dealer_id,
                 DealQuote.buyer_request_id == request_id,
-            ).limit(1)
+            )
+            .limit(1)
         )
         return result.scalar_one_or_none() is not None
 
