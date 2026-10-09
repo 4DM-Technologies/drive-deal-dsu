@@ -328,8 +328,13 @@ async def test_web_direct_retries_the_open_web_when_every_scoped_candidate_fails
 
 async def test_persist_cars_schedules_a_background_write_without_blocking_compose() -> None:
     """The streamed answer must not wait on the DB write - persist_cars schedules it as a fire-and-forget
-    task (see _fire_and_forget/_persist_cars_background in graph.py) instead of awaiting it inline."""
-    graph = main_agent(session=AsyncMock())
+    task (see _fire_and_forget/_persist_cars_background in graph.py) instead of awaiting it inline.
+
+    Only the compare-agent graph (`compare=True`) still routes web_search_agent through persist_cars; the
+    default buyer-advisor graph now goes straight to compose (see `web_search_target` in `main_agent`),
+    since the local KB is no longer written to outside of compare. `compare=True` here reaches the same
+    persist_cars/_persist_cars_background code this test is about, which is otherwise unexercised."""
+    graph = main_agent(session=AsyncMock(), compare=True)
     generate = AsyncMock(return_value=_FakeLlmResult("some answer"))
     specs = CarSpecs(source_url="https://www.tesla.com/", make="Tesla", model="Model 3", year=2026, price_usd=42990.0)
     get_urls = AsyncMock(

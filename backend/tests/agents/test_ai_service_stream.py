@@ -22,7 +22,9 @@ def _graph(result: dict, started: list[str], name: str, delay: float = 0.0):
 
 
 def _payload(message: str) -> SimpleNamespace:
-    return SimpleNamespace(thread_id="t1", agent="sera", message=message, request_ids=[], quote_ids=[])
+    return SimpleNamespace(
+        thread_id="t1", agent="sera", message=message, request_ids=[], quote_ids=[], request_context=None
+    )
 
 
 async def _drain(message: str, main_result: dict, main_delay: float = 0.0):
@@ -127,6 +129,7 @@ async def test_compare_chat_passes_selected_offers_to_the_agent_and_card() -> No
         message="Compare these selected dealer offers.",
         request_ids=[],
         quote_ids=["q1", "q2"],
+        request_context=None,
     )
     requirements_builder = MagicMock()
     session = AsyncMock()
