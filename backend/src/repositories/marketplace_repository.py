@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import func, select, union_all
+from sqlalchemy import func, select, union_all, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.repositories.schema import BuyerRequest, BuyerRequestView, Car, DealChat, DealDocument, DealQuote
@@ -126,6 +126,19 @@ class MarketplaceRepository:
     @log_flow(layer="repository")
     async def quote_by_id(self, quote_id: str) -> DealQuote | None:
         return await self.session.get(DealQuote, quote_id)
+
+    @log_flow(layer="repository")
+    async def mark_quotes_read_by_buyer(self, quote_ids: list[str]) -> None:
+        if not quote_ids:
+            return
+        await self.session.execute(
+            update(DealQuote)
+            .where(DealQuote.id.in_(quote_ids), DealQuote.read_by_buyer.is_(False))
+            # Opening a quote is not a change to it, so its updated_at must not move.
+            .values(read_by_buyer=True, updated_at=DealQuote.updated_at)
+            .execution_options(synchronize_session=False)
+        )
+        await self.session.commit()
 
     @log_flow(layer="repository")
     async def chat_messages(self, quote_id: str) -> list[DealChat]:

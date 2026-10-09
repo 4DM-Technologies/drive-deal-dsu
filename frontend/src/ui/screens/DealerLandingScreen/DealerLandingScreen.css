@@ -24,7 +24,7 @@
 .dl-header:not(.is-scrolled) .button-secondary { background: rgba(255, 255, 255, .1); border-color: rgba(255, 255, 255, .24); color: #fff; backdrop-filter: blur(8px); }
 .dl-header:not(.is-scrolled) .button-secondary:hover { background: rgba(255, 255, 255, .2); border-color: rgba(255, 255, 255, .45); }
 .dl-header .button-secondary.dl-switch { gap: .45rem; }
-#dl-how, #dl-features, #dl-platform, #dl-start, #dl-faq { scroll-margin-top: 76px; }
+#dl-how, #dl-features, #dl-start, #dl-faq { scroll-margin-top: 76px; }
 
 /* ---------- Shared pieces ---------- */
 .dl-eyebrow { display: inline-flex; align-items: center; gap: .55rem; padding: .42rem .9rem .42rem .75rem; border: 1px solid var(--dl-glass-line); border-radius: 999px; background: var(--dl-glass); color: #cfe2ff; font-size: .74rem; font-weight: 700; letter-spacing: .13em; text-transform: uppercase; backdrop-filter: blur(10px); }
@@ -210,64 +210,10 @@
 .dl-offer-step.is-free small { color: #a6f0c4; }
 .dl-offer-arrow { display: grid; place-items: center; color: var(--dl-sky); }
 
-/* ---------- Platform / interactive quote (navy band) ---------- */
-.dl-platform { overflow: clip; background: radial-gradient(70% 60% at 88% 8%, rgba(46, 118, 232, .38), transparent 62%), radial-gradient(48% 52% at 4% 96%, rgba(244, 163, 78, .15), transparent 62%), linear-gradient(160deg, #081833, #0f2a50 58%, #0a2040); color: #fff; }
-.dl-platform::before { content: ''; position: absolute; inset: 0; background-image: linear-gradient(rgba(255, 255, 255, .045) 1px, transparent 1px), linear-gradient(90deg, rgba(255, 255, 255, .045) 1px, transparent 1px); background-size: 64px 64px; -webkit-mask-image: radial-gradient(70% 70% at 70% 40%, #000, transparent 78%); mask-image: radial-gradient(70% 70% at 70% 40%, #000, transparent 78%); pointer-events: none; }
+/* ---------- Glow orbs (closing banner) ---------- */
 .dl-orb { position: absolute; border-radius: 50%; filter: blur(70px); pointer-events: none; animation: dl-drift 16s ease-in-out infinite alternate; }
-.dl-orb-a { width: 420px; height: 420px; top: -120px; right: 4%; background: rgba(46, 118, 232, .4); }
-.dl-orb-b { width: 340px; height: 340px; bottom: -140px; left: 8%; background: rgba(244, 163, 78, .16); animation-delay: -6s; }
 .dl-orb-c { width: 380px; height: 380px; top: -160px; right: -60px; background: rgba(91, 155, 255, .35); }
 @keyframes dl-drift { from { transform: translate3d(0, 0, 0) scale(1); } to { transform: translate3d(-40px, 30px, 0) scale(1.15); } }
-.dl-platform-grid { position: relative; display: grid; grid-template-columns: minmax(0, .9fr) minmax(0, 1.1fr); gap: clamp(2rem, 5vw, 5.5rem); align-items: center; }
-.dl-platform .eyebrow { color: var(--dl-sky); }
-.dl-platform h2 { margin: .6rem 0 1.1rem; font-size: clamp(2.1rem, 4vw, 3.6rem); line-height: 1.05; color: #fff; text-wrap: balance; }
-.dl-platform-lead { margin: 0 0 1.8rem; color: rgba(226, 236, 252, .8); font-size: 1.08rem; line-height: 1.7; text-wrap: pretty; }
-.dl-checks { list-style: none; margin: 0 0 2rem; padding: 0; display: grid; gap: .95rem; }
-.dl-checks li { display: flex; gap: .85rem; align-items: flex-start; color: rgba(236, 243, 255, .92); line-height: 1.55; }
-.dl-checks li span { flex: none; width: 24px; height: 24px; margin-top: .05rem; border-radius: 50%; display: grid; place-items: center; background: rgba(91, 155, 255, .22); color: var(--dl-sky); border: 1px solid rgba(141, 187, 255, .4); }
-.dl-platform-cta { min-height: 52px; padding-inline: 1.5rem; font-size: .95rem; }
-.dl-platform-demo { position: relative; }
-
-.dl-window { border-radius: 26px; background: var(--raised); color: var(--ink); border: 1px solid rgba(255, 255, 255, .5); box-shadow: 0 50px 110px rgba(2, 10, 25, .55), 0 0 0 1px rgba(141, 187, 255, .16); overflow: hidden; }
-.dl-window-bar { display: flex; align-items: center; gap: .4rem; padding: .85rem 1.15rem; border-bottom: 1px solid var(--border); background: var(--surface); }
-.dl-window-bar i { width: 10px; height: 10px; border-radius: 50%; background: #d7d2c8; }
-.dl-window-bar i:nth-child(1) { background: #f08a82; }
-.dl-window-bar i:nth-child(2) { background: #f2c470; }
-.dl-window-bar i:nth-child(3) { background: #8fd1a0; }
-.dl-window-bar span { margin-left: .75rem; color: var(--muted); font-size: .78rem; font-weight: 700; }
-.dl-window-body { padding: 1.35rem 1.4rem 1.2rem; display: grid; gap: 1.25rem; }
-.dl-window-car { display: flex; align-items: center; gap: .85rem; }
-.dl-window-car-icon { flex: none; width: 44px; height: 44px; border-radius: 13px; display: grid; place-items: center; background: var(--navy); color: #fff; }
-.dl-window-car strong { display: block; font-family: 'Manrope', sans-serif; font-size: 1.05rem; letter-spacing: -.02em; }
-.dl-window-car small { color: var(--muted); font-size: .8rem; }
-.dl-field-label { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: .75rem; }
-.dl-field-label label { font-size: .82rem; font-weight: 700; }
-.dl-field-label strong { font-family: 'Manrope', sans-serif; font-size: 1.55rem; letter-spacing: -.04em; font-variant-numeric: tabular-nums; }
-.dl-range { -webkit-appearance: none; appearance: none; display: block; width: 100%; height: 8px; border-radius: 99px; outline-offset: 6px; cursor: pointer; background: linear-gradient(90deg, var(--accent) var(--fill, 50%), #dfe5ef var(--fill, 50%)); }
-.dl-range::-webkit-slider-thumb { -webkit-appearance: none; width: 28px; height: 28px; border-radius: 50%; background: #fff; border: 4px solid var(--accent); box-shadow: 0 6px 16px rgba(20, 86, 184, .45); cursor: grab; transition: transform 160ms var(--dl-ease); }
-.dl-range:active::-webkit-slider-thumb { transform: scale(1.12); cursor: grabbing; }
-.dl-range::-moz-range-thumb { width: 20px; height: 20px; border-radius: 50%; background: #fff; border: 4px solid var(--accent); box-shadow: 0 6px 16px rgba(20, 86, 184, .45); cursor: grab; }
-.dl-range::-moz-range-track { height: 8px; border-radius: 99px; background: transparent; }
-.dl-range-wrap { position: relative; }
-.dl-floor-tick { position: absolute; top: 50%; width: 2px; height: 20px; margin: -10px 0 0 -1px; border-radius: 2px; background: var(--navy); opacity: .55; pointer-events: none; }
-.dl-range-marks { position: relative; display: flex; justify-content: space-between; margin-top: .65rem; padding-bottom: 1.35rem; color: var(--subtle); font-size: .74rem; font-weight: 600; font-variant-numeric: tabular-nums; }
-.dl-floor { position: absolute; top: 1.3rem; transform: translateX(-50%); color: var(--accent-deep); font-weight: 800; white-space: nowrap; }
-.dl-breakdown { display: grid; gap: .1rem; padding: .35rem 1rem .5rem; border-radius: 16px; background: var(--surface); border: 1px solid var(--border); font-size: .9rem; font-variant-numeric: tabular-nums; }
-.dl-breakdown > div { display: flex; justify-content: space-between; gap: 1rem; padding: .55rem 0; color: var(--muted); border-bottom: 1px dashed var(--border-strong); }
-.dl-breakdown b { color: var(--ink); font-weight: 700; }
-.dl-breakdown .dl-breakdown-total { margin-top: .2rem; padding: .85rem 0 .3rem; border: 0; color: var(--ink); font-weight: 700; }
-.dl-breakdown .dl-breakdown-total b { font-family: 'Manrope', sans-serif; font-size: 1.5rem; letter-spacing: -.04em; color: var(--accent-deep); }
-.dl-odds-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: .55rem; font-size: .82rem; font-weight: 700; }
-.dl-odds-head strong { font-family: 'Manrope', sans-serif; font-size: 1.3rem; letter-spacing: -.03em; font-variant-numeric: tabular-nums; }
-.dl-odds-track { height: 10px; border-radius: 99px; background: #e6ecf6; overflow: hidden; }
-.dl-odds-track i { display: block; height: 100%; border-radius: inherit; background: var(--success); transition: background 300ms ease; }
-.dl-odds-track i.is-mid { background: #d99a2b; }
-.dl-odds-track i.is-low { background: var(--danger); }
-.dl-odds-status { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: .85rem; }
-.dl-odds-status span { display: inline-flex; align-items: center; gap: .35rem; padding: .32rem .7rem; border-radius: 999px; font-size: .76rem; font-weight: 700; }
-.dl-odds-status .is-good { background: var(--success-soft); color: var(--success); }
-.dl-odds-status .is-warn { background: var(--warning-soft); color: var(--warning); }
-.dl-demo-note { margin: 0; color: var(--subtle); font-size: .76rem; line-height: 1.55; }
 
 /* ---------- Old way vs Deal&Drive ---------- */
 .dl-versus { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); gap: 1.25rem; align-items: stretch; }
@@ -325,7 +271,6 @@
 /* ---------- Responsive ---------- */
 @media (max-width: 1100px) {
   .dl-hero-copy { max-width: 760px; }
-  .dl-platform-grid { grid-template-columns: minmax(0, 1fr); }
   .dl-member { grid-template-columns: minmax(0, 1fr); }
   .dl-bento { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .dl-b-wide, .dl-b-full { grid-column: span 2; }
@@ -362,7 +307,6 @@
   .dl-offer { grid-template-columns: minmax(0, 1fr); }
   .dl-offer-arrow { justify-self: center; transform: rotate(90deg); }
   .dl-mc-facts { gap: .6rem; }
-  .dl-window-body { padding: 1.15rem 1.1rem 1rem; }
   .dl-step-ghost { font-size: 4rem; }
   .dl-final-actions .button { flex: 1 1 100%; }
 }

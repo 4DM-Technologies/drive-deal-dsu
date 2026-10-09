@@ -126,7 +126,7 @@ const quoteToDomain = (row: Record<string, unknown>): Quote => ({
   vehiclePrice: String(row.vehicle_price), docFee: String(row.doc_fee), salesTax: String(row.sales_tax), titleReg: String(row.title_reg),
   tradeInCredit: String(row.trade_in_credit), finalPrice: String(row.final_price), status: row.status as Quote['status'], dealStatus: row.deal_status as Quote['dealStatus'],
   message: String(row.message ?? ''), createdAt: String(row.created_at), expiresAt: String(row.expires_at),
-  contactAvailable: row.status === 'accepted' || row.chat_request_status === 'accepted', chatRequestStatus: row.chat_request_status as Quote['chatRequestStatus'], revisions: revisionsOf(row.deal_history),
+  contactAvailable: row.status === 'accepted' || row.chat_request_status === 'accepted', chatRequestStatus: row.chat_request_status as Quote['chatRequestStatus'], revisions: revisionsOf(row.deal_history), buyerViewed: Boolean(row.buyer_viewed),
 });
 
 const memberToDomain = (row: Record<string, unknown>): SupportMember => ({

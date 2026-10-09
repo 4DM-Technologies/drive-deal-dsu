@@ -6119,6 +6119,13 @@ components:
           format: uuid
         status:
           $ref: '#/components/schemas/QuoteStatus'
+        buyer_viewed:
+          type: boolean
+          description: |-
+            Whether the buyer has seen this quote as it stands now, for the dealer's Quotes table. It becomes
+            true when the buyer opens the request's offers (`GET /requests/{request_id}/quotes`) or the quote
+            itself, and goes back to false when the dealer revises the quote. A quote the buyer accepted or
+            declined is always true. The unfiltered list the buyer's dashboards use does not count as a view.
         price:
           $ref: '#/components/schemas/DecimalString'
         discount:

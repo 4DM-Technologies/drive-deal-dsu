@@ -53,7 +53,35 @@ class MarketplaceService:
             "year_max": request.year_max if request else None,
             "body_type": request.body_type if request else None,
             "buyer_area": request.buyer_area if request else None,
+            "buyer_viewed": self._buyer_viewed(row),
         }
+
+    @staticmethod
+    def _buyer_viewed(row: DealQuote) -> bool:
+        """Whether the buyer has seen the quote as it stands now.
+
+        ``read_by_buyer`` is set when the buyer opens it and cleared when the dealer revises it. Accepting or
+        declining a quote is definitive proof the buyer saw it, which also covers quotes decided before views
+        were tracked.
+        """
+        return row.read_by_buyer or row.status in {"accepted", "declined"}
+
+    @log_flow(layer="service")
+    async def get_quote(self, quote_id: str, actor: Profile) -> dict:
+        row = await self._quote(quote_id)
+        self._require_party(row, actor)
+        data = await self.quote_dict(row)
+        await self._mark_read_by_buyer([row], actor)
+        return data
+
+    @log_flow(layer="service")
+    async def _mark_read_by_buyer(self, rows: list[DealQuote], actor: Profile) -> None:
+        """A buyer opening their quotes is what "viewed by the buyer" means; nobody else's reads count."""
+        if actor.role != "buyer":
+            return
+        await self.repository.mark_quotes_read_by_buyer(
+            [row.id for row in rows if row.buyer_id == actor.id and not row.read_by_buyer]
+        )
 
     @log_flow(layer="service")
     async def _brand_map(self, brand_ids: set[str]) -> dict[str, Brand]:
@@ -168,9 +196,15 @@ class MarketplaceService:
                 "year_max": request.year_max if request else None,
                 "body_type": request.body_type if request else None,
                 "buyer_area": request.buyer_area if request else None,
+                "buyer_viewed": self._buyer_viewed(row),
             }
 
-        return [to_dict(row) for row in rows]
+        result = [to_dict(row) for row in rows]
+        # Only a buyer opening one request's offers counts as viewing them; the unfiltered list also feeds
+        # dashboards and counters. The response shows each quote as it was before this view.
+        if request_id:
+            await self._mark_read_by_buyer(rows, actor)
+        return result
 
     @log_flow(layer="service")
     async def list_workspace_quotes(self) -> list[dict]:
@@ -200,6 +234,8 @@ class MarketplaceService:
         previous = f"{quote.final_price:.2f}"
         for key, value in payload.model_dump(exclude_none=True).items():
             setattr(quote, key, value)
+        # The buyer has not seen the revised offer yet.
+        quote.read_by_buyer = False
         await self.session.flush()
         quote.deal_history = [
             *quote.deal_history,

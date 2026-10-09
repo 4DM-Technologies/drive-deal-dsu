@@ -1,4 +1,4 @@
-import { ArrowRight, Clock3, DollarSign, FileText, MessageCircle, Radio, Sparkles, Tag, Trophy } from 'lucide-react';
+import { ArrowRight, Clock3, DollarSign, FileText, MessageCircle, Radio, Tag, Trophy } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { PageLoading } from '@/ui/reusables/PageLoading/PageLoading';
@@ -6,6 +6,7 @@ import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { formatMoney } from '@/helpers/currency';
 import { relativeTime } from '@/helpers/dateTime';
 import { client } from '@/services/platform/client';
+import { SerraIcon } from '@/ui/reusables/Icons/SerraIcon';
 import { SerraLogo } from '@/ui/reusables/SerraLogo/SerraLogo';
 import { Reveal } from '@/ui/reusables/Reveal/Reveal';
 import { StatusBadge } from '@/ui/reusables/StatusBadge/StatusBadge';
@@ -52,7 +53,7 @@ export default function HomeScreen() {
       { label: 'Orders moving', value: accepted.length, note: 'Contact is open', icon: Trophy },
     ];
     return <div className="shell page-content dashboard-page">
-      <Reveal><div className="dashboard-welcome"><div><span className="eyebrow">Buyer workspace · Updated now</span><h1>Good afternoon, {session.fullName.split(' ')[0]}.</h1><p>Your requests are working in the background. Here’s what changed and what deserves your attention.</p></div><div className="dashboard-actions"><Link className="button button-secondary" to={`/chatbot${previewSearch}`}><Sparkles size={17} /> Ask Sera</Link><Link className="button button-primary" to="/requests/new"><FileText size={17} /> Start a request</Link></div></div></Reveal>
+      <Reveal><div className="dashboard-welcome"><div><span className="eyebrow">Buyer workspace · Updated now</span><h1>Good afternoon, {session.fullName.split(' ')[0]}.</h1><p>Your requests are working in the background. Here’s what changed and what deserves your attention.</p></div><div className="dashboard-actions"><Link className="button button-secondary" to={`/chatbot${previewSearch}`}><SerraIcon className="ask-sera-icon" size={17} /> Ask Sera</Link><Link className="button button-primary" to="/requests/new"><FileText size={17} /> Start a request</Link></div></div></Reveal>
       <StatGrid items={stats} />
       <div className="grid dashboard-main-grid">
         <Reveal><section className="card card-pad activity-card"><div className="section-head"><div><span className="eyebrow">Live activity</span><h2>Your requests</h2></div><Link to="/requests">View all <ArrowRight size={15} /></Link></div>{mine.slice(0, 4).map((request) => <Link key={request.id} to={`/requests/${request.id}`} className="dashboard-request-row"><span><strong>{request.brand} {request.model}</strong><small>{myQuotes.filter((quote) => quote.requestId === request.id).length} offers · {relativeTime(request.createdAt)}</small></span><StatusBadge status={request.status === 'open' ? 'live' : request.status} /></Link>)}</section></Reveal>

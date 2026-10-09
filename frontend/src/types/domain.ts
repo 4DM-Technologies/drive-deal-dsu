@@ -91,6 +91,8 @@ export interface Quote {
   contactAvailable: boolean;
   chatRequestStatus: 'none' | 'pending' | 'accepted' | 'declined';
   chatRequestMessage?: string;
+  /** Whether the buyer has opened this quote as it stands now; a dealer's revision makes it unseen again. */
+  buyerViewed: boolean;
   vehicleImages?: string[];
   documents?: Array<{ name: string; status: 'uploaded' | 'verified' }>;
   /** One entry per price revision the dealer sent; `amount` is the final price before that revision. */

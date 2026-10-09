@@ -2,7 +2,8 @@ import { Check, ChevronDown } from 'lucide-react';
 import { useEffect, useId, useRef, useState } from 'react';
 import type { KeyboardEvent } from 'react';
 
-interface DropdownOption { value: string; label: string }
+/** `hint` is a short note shown on the right of the option in the open menu only, such as a result count. */
+interface DropdownOption { value: string; label: string; hint?: string }
 /** `placement="up"` opens the menu above the trigger, for fields near the bottom of a panel; `"auto"` does so only when the menu would not fit below. `id` lets a `<label htmlFor>` point at the trigger. */
 interface DropdownProps { value: string; options: DropdownOption[]; onChange: (value: string) => void; ariaLabel: string; align?: 'left' | 'right'; placement?: 'down' | 'up' | 'auto'; id?: string }
 
@@ -72,7 +73,7 @@ export function Dropdown({ value, options, onChange, ariaLabel, align = 'right',
       <span>{options[selectedIndex]?.label}</span><ChevronDown size={16} />
     </button>
     {open && <ul className={`dropdown-menu align-${align} ${openUp ? 'place-up' : ''}`} id={`${id}-list`} role="listbox" aria-label={ariaLabel}>
-      {options.map((option, index) => <li key={option.value} id={`${id}-${index}`} role="option" aria-selected={option.value === value} className={`${option.value === value ? 'selected' : ''} ${index === active ? 'active' : ''}`} onMouseEnter={() => setActive(index)} onMouseDown={(event) => event.preventDefault()} onClick={() => choose(index)}><span>{option.label}</span>{option.value === value && <Check size={15} />}</li>)}
+      {options.map((option, index) => <li key={option.value} id={`${id}-${index}`} role="option" aria-selected={option.value === value} className={`${option.value === value ? 'selected' : ''} ${index === active ? 'active' : ''}`} onMouseEnter={() => setActive(index)} onMouseDown={(event) => event.preventDefault()} onClick={() => choose(index)}><span>{option.label}</span>{option.hint && <small className="dropdown-hint">{option.hint}</small>}{option.value === value && <Check size={15} />}</li>)}
     </ul>}
   </div>;
 }

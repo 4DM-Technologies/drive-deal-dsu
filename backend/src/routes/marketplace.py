@@ -117,10 +117,7 @@ async def create_quote(
 async def quote_detail(
     quote_id: str, profile: Profile = Depends(get_current_profile), session: AsyncSession = Depends(get_session)
 ):
-    service = MarketplaceService(session)
-    row = await service._quote(quote_id)
-    service._require_party(row, profile)
-    return await service.quote_dict(row)
+    return await MarketplaceService(session).get_quote(quote_id, profile)
 
 
 @router.patch("/quotes/{quote_id}/revise")
