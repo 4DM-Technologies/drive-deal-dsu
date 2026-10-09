@@ -119,6 +119,43 @@ export interface AiMessage {
   options?: string[] | undefined;
 }
 
+/** One option on the guided question card. */
+export interface GuidedOption {
+  value: string;
+  label: string;
+  description?: string | null;
+}
+
+/** A guided question as the planner returns it (POST /ai/guided/next). */
+export interface GuidedQuestion {
+  id: string;
+  title: string;
+  options: GuidedOption[];
+  allowOther: boolean;
+  otherPlaceholder: string;
+  multiSelect: boolean;
+  skippable: boolean;
+  index: number;
+  total: number;
+}
+
+/** The planner's answers so far. Opaque to the screen: it is only stored and sent back on the next call. */
+export type GuidedAnswers = Record<string, unknown>;
+
+export interface GuidedStepResult {
+  answers: GuidedAnswers;
+  question: GuidedQuestion | null;
+  draft: Record<string, string> | null;
+  message: string | null;
+  unresolved: boolean;
+}
+
+export type GuidedActionInput =
+  | { type: 'resume' }
+  | { type: 'back' }
+  | { type: 'skip'; questionId: string }
+  | { type: 'answer'; questionId: string; values?: string[]; text?: string };
+
 export interface AiThread {
   id: string;
   type: 'sera' | 'compare';

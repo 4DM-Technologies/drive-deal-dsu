@@ -3634,6 +3634,78 @@ paths:
           $ref: '#/components/responses/validation_error'
         '429':
           $ref: '#/components/responses/rate_limited'
+  /ai/guided/next:
+    post:
+      summary: Next question of the guided question card
+      description: |-
+        **Buyer-only.** Deterministic, no LLM call. The client sends back the planner's `answers` from the previous
+        step plus one action, and receives the next question (numbered options, free-text allowed, skippable,
+        "index of total") or, once every question is answered, the finished request `draft` for the review card.
+        Every value in `answers` is re-validated against the vehicle catalog on each call. Budget is only asked when
+        the buyer mentions money. `unresolved: true` means typed text was a question for Sera, not an answer.
+      operationId: aiGuidedNext
+      tags:
+      - AI
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                answers:
+                  type: object
+                  description: Opaque planner state from the previous response. Start with {"entry":"button"} or {"entry":"explore"}.
+                  additionalProperties: true
+                action:
+                  type: object
+                  required: [type]
+                  properties:
+                    type: {type: string, enum: [resume, answer, skip, back]}
+                    question_id: {type: string}
+                    values: {type: array, items: {type: string}, maxItems: 12}
+                    text: {type: string, maxLength: 500}
+            examples:
+              start:
+                value: {answers: {entry: button}, action: {type: resume}}
+      responses:
+        '200':
+          description: The next question, or the finished draft
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  answers: {type: object, additionalProperties: true}
+                  question:
+                    type: object
+                    nullable: true
+                    properties:
+                      id: {type: string}
+                      title: {type: string}
+                      options:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            value: {type: string}
+                            label: {type: string}
+                            description: {type: string, nullable: true}
+                      allow_other: {type: boolean}
+                      other_placeholder: {type: string}
+                      multi_select: {type: boolean}
+                      skippable: {type: boolean}
+                      index: {type: integer}
+                      total: {type: integer}
+                  draft: {type: object, nullable: true, additionalProperties: {type: string}}
+                  message: {type: string, nullable: true}
+                  unresolved: {type: boolean}
+        '401':
+          $ref: '#/components/responses/unauthorized'
+        '403':
+          $ref: '#/components/responses/forbidden'
+        '422':
+          $ref: '#/components/responses/validation_error'
   /ai/request-preview:
     post:
       summary: Preview an AI-drafted request

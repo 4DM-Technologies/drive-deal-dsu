@@ -1,8 +1,7 @@
-"""kb_agent's four tools. Each is scoped to exactly one job (least privilege, by design):
+"""Narrow write tool used by persist_cars: it can only ever insert or update rows in the cars table.
 
-- describe_schema / query_data: read-only, derived from Base.metadata, never issue a write.
-- update_preferences: write access, but only ever to buyer_preference.must_have_features for one profile_id.
-- write_car: write access, but only ever to the cars table.
+kb_agent no longer uses this module. It reads the vehicle catalog through src/agents/tools/catalog_tools.py, which
+can only reach catalog_makes, catalog_models and catalog_variants.
 """
 
 from typing import Any
@@ -10,58 +9,8 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.database import Base
-from src.repositories.schema import BuyerPreference, Car
+from src.repositories.schema import Car
 from src.utils.log_flow import log_flow
-
-
-@log_flow(layer="agent")
-def describe_schema() -> dict[str, list[str]]:
-    """Read-only. Introspects Base.metadata so there is no hardcoded table list to maintain."""
-    return {name: [column.name for column in table.columns] for name, table in Base.metadata.tables.items()}
-
-
-@log_flow(layer="agent")
-async def query_data(
-    session: AsyncSession, table: str, filters: dict[str, Any] | None = None, limit: int = 20
-) -> list[dict[str, Any]]:
-    """Read-only, parameterized SELECT against any mapped table. Never writes: the only statement it can ever
-    build is a `select()`. Column names in `filters` are validated against the table's real columns before use,
-    and values are always bound parameters via SQLAlchemy Core - never string-interpolated SQL."""
-    tables = Base.metadata.tables
-    if table not in tables:
-        raise ValueError(f"Unknown table: {table}")
-    core_table = tables[table]
-    statement = select(core_table)
-    for column, value in (filters or {}).items():
-        if column not in core_table.columns:
-            raise ValueError(f"Unknown column '{column}' on table '{table}'")
-        statement = statement.where(core_table.c[column] == value)
-    statement = statement.limit(max(1, min(limit, 100)))
-    rows = (await session.execute(statement)).mappings().all()
-    return [dict(row) for row in rows]
-
-
-@log_flow(layer="agent")
-async def update_preferences(session: AsyncSession, profile_id: str, features: list[str]) -> dict[str, Any]:
-    """Write access, but intentionally narrower than PUT /profiles/me/preferences: this tool can only ever set
-    must_have_features for the given profile_id. It never reads or writes budget_min, brand_id, or any other
-    column on that row, and never touches any other table."""
-    row = await session.get(BuyerPreference, profile_id)
-    if row is None:
-        row = BuyerPreference(
-            profile_id=profile_id,
-            must_have_features=list(features),
-            source="advisor",
-            created_by=profile_id,
-            updated_by=profile_id,
-        )
-        session.add(row)
-    else:
-        row.must_have_features = list(features)
-        row.updated_by = profile_id
-    await session.flush()
-    return {"profile_id": profile_id, "must_have_features": list(row.must_have_features)}
 
 
 @log_flow(layer="agent")

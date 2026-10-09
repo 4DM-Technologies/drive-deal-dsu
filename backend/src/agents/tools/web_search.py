@@ -163,7 +163,7 @@ async def search_vehicle_images(
         thread_id,
         # Hosted web search is not compatible with GPT-5-family minimal reasoning.
         reasoning_effort="low",
-        max_output_tokens=350,
+        max_output_tokens=1000,
         tools=[{"type": "web_search", "search_context_size": "low"}],
         tool_choice="required",
     )
@@ -241,7 +241,8 @@ async def _hosted_get_urls(
         thread_id,
         # Hosted web search is not compatible with GPT-5-family minimal reasoning.
         reasoning_effort="low",
-        max_output_tokens=500,
+        # Citations are attached to the answer text; a tight cap truncates it before most URLs land.
+        max_output_tokens=1500,
         tools=[{"type": "web_search", "search_context_size": "low"}],
         tool_choice="required",
     )

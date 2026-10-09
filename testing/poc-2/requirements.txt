@@ -1,0 +1,7 @@
+crawl4ai==0.9.4
+openai==1.82.1
+pydantic==2.11.5
+pydantic-settings==2.9.1
+httpx==0.28.1
+python-dotenv==1.0.1
+ddgs==9.0.2

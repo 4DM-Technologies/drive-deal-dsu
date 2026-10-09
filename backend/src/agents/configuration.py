@@ -73,7 +73,7 @@ NODE_CATALOG: tuple[dict[str, Any], ...] = (
         "id": "kb_agent",
         "type": "tool",
         "label": "Deal&Drive knowledge",
-        "description": "Retrieves marketplace knowledge and preferences.",
+        "description": "Answers from the vehicle catalog with four read-only tools.",
     },
     {
         "id": "web_search_agent",
@@ -118,7 +118,7 @@ PROMPT_CATALOG: tuple[dict[str, str], ...] = (
         "key": "kb_agent",
         "file": "kb_agent.md",
         "label": "Knowledge agent",
-        "description": "Retrieval and preference extraction guidance.",
+        "description": "Chooses catalog tools and arguments for each question.",
     },
     {
         "key": "web_search_agent",

@@ -1,0 +1,1882 @@
+VEHICLE CATALOG TEST - model year 2025
+Brands: 20 | Models: 451 | Configurations: 578 | NHTSA category matched: 553/578 | Time: 241s
+Sources: fueleconomy.gov (EPA) specs, NHTSA vPIC categories
+====================================================================================================
+
+### Acura  (12 models, 14 configurations)
+
+  [Car (Sedan/Coupe/Hatchback)]
+    - Integra  |  Auto (AV-S7), 4 cyl, 1.5 L, Turbo
+        class: Large Cars | NHTSA: Passenger Car | engine: 4 cyl, 1.5 L SIDI | trans: Automatic (AV-S7) | drive: Front-Wheel Drive
+        fuel: Premium | MPG: 30 city / 37 hwy / 33 combined | epa_id: 47938
+    - Integra  |  Man 6-spd, 4 cyl, 2.0 L, Turbo
+        class: Large Cars | NHTSA: Passenger Car | engine: 4 cyl, 2.0 L SIDI | trans: Manual 6-spd | drive: Front-Wheel Drive
+        fuel: Premium | MPG: 21 city / 28 hwy / 24 combined | epa_id: 48189
+    - Integra A-Spec  |  Auto (AV-S7), 4 cyl, 1.5 L, Turbo
+        class: Large Cars | NHTSA: Passenger Car | engine: 4 cyl, 1.5 L SIDI | trans: Automatic (AV-S7) | drive: Front-Wheel Drive
+        fuel: Premium | MPG: 29 city / 36 hwy / 32 combined | epa_id: 47939
+    - Integra A-Spec  |  Man 6-spd, 4 cyl, 1.5 L, Turbo
+        class: Large Cars | NHTSA: Passenger Car | engine: 4 cyl, 1.5 L SIDI | trans: Manual 6-spd | drive: Front-Wheel Drive
+        fuel: Premium | MPG: 26 city / 36 hwy / 30 combined | epa_id: 47940
+    - TLX AWD A-SPEC  |  Auto (S10), 4 cyl, 2.0 L, Turbo
+        class: Compact Cars | NHTSA: Passenger Car | engine: 4 cyl, 2.0 L SIDI | trans: Automatic (S10) | drive: All-Wheel Drive
+        fuel: Premium | MPG: 21 city / 29 hwy / 24 combined | epa_id: 48161
+    - TLX FWD  |  Auto (S10), 4 cyl, 2.0 L, Turbo
+        class: Compact Cars | NHTSA: Passenger Car | engine: 4 cyl, 2.0 L SIDI | trans: Automatic (S10) | drive: Front-Wheel Drive
+        fuel: Premium | MPG: 22 city / 31 hwy / 25 combined | epa_id: 48160
+    - TLX Type-S  |  Auto (S10), 6 cyl, 3.0 L, Turbo
+        class: Compact Cars | NHTSA: Passenger Car | engine: 6 cyl, 3.0 L SIDI | trans: Automatic (S10) | drive: All-Wheel Drive
+        fuel: Premium | MPG: 19 city / 25 hwy / 21 combined | epa_id: 48162
+
+  [SUV]
+    - MDX AWD  |  Auto (S10), 6 cyl, 3.5 L
+        class: Small Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: 6 cyl, 3.5 L SIDI | trans: Automatic (S10) | drive: All-Wheel Drive
+        fuel: Premium | MPG: 19 city / 25 hwy / 21 combined | epa_id: 48070
+    - MDX AWD Type-S  |  Auto (S10), 6 cyl, 3.0 L, Turbo
+        class: Standard Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: 6 cyl, 3.0 L SIDI | trans: Automatic (S10) | drive: All-Wheel Drive
+        fuel: Premium | MPG: 17 city / 21 hwy / 19 combined | epa_id: 48113
+    - MDX FWD  |  Auto (S10), 6 cyl, 3.5 L
+        class: Small Sport Utility Vehicle 2WD | NHTSA: SUV / MPV | engine: 6 cyl, 3.5 L SIDI | trans: Automatic (S10) | drive: Front-Wheel Drive
+        fuel: Premium | MPG: 19 city / 26 hwy / 22 combined | epa_id: 48055
+    - RDX AWD  |  Auto (S10), 4 cyl, 2.0 L, Turbo
+        class: Small Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: 4 cyl, 2.0 L SIDI | trans: Automatic (S10) | drive: All-Wheel Drive
+        fuel: Premium | MPG: 21 city / 27 hwy / 23 combined | epa_id: 48526
+    - RDX AWD A-SPEC  |  Auto (S10), 4 cyl, 2.0 L, Turbo
+        class: Small Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: 4 cyl, 2.0 L SIDI | trans: Automatic (S10) | drive: All-Wheel Drive
+        fuel: Premium | MPG: 21 city / 26 hwy / 23 combined | epa_id: 48527
+
+  [Wagon]
+    - ADX AWD  |  Auto (AV-S7), 4 cyl, 1.5 L, Turbo
+        class: Small Station Wagons | NHTSA: SUV / MPV | engine: 4 cyl, 1.5 L SIDI | trans: Automatic (AV-S7) | drive: All-Wheel Drive
+        fuel: Premium | MPG: 25 city / 30 hwy / 27 combined | epa_id: 49044
+    - ADX FWD  |  Auto (AV-S7), 4 cyl, 1.5 L, Turbo
+        class: Small Station Wagons | NHTSA: SUV / MPV | engine: 4 cyl, 1.5 L SIDI | trans: Automatic (AV-S7) | drive: Front-Wheel Drive
+        fuel: Premium | MPG: 26 city / 31 hwy / 28 combined | epa_id: 49045
+
+### Alfa Romeo  (5 models, 5 configurations)
+
+  [Car (Sedan/Coupe/Hatchback)]
+    - Giulia  |  Auto 8-spd, 4 cyl, 2.0 L, Turbo
+        class: Midsize Cars | NHTSA: no match | engine: 4 cyl, 2.0 L SIDI | trans: Automatic 8-spd | drive: Rear-Wheel Drive
+        fuel: Premium | MPG: 24 city / 33 hwy / 27 combined | epa_id: 48003
+    - Giulia AWD  |  Auto 8-spd, 4 cyl, 2.0 L, Turbo
+        class: Midsize Cars | NHTSA: no match | engine: 4 cyl, 2.0 L SIDI | trans: Automatic 8-spd | drive: All-Wheel Drive
+        fuel: Premium | MPG: 23 city / 31 hwy / 26 combined | epa_id: 48004
+
+  [SUV]
+    - Stelvio AWD  |  Auto 8-spd, 4 cyl, 2.0 L, Turbo
+        class: Small Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: 4 cyl, 2.0 L SIDI | trans: Automatic 8-spd | drive: All-Wheel Drive
+        fuel: Premium | MPG: 22 city / 28 hwy / 24 combined | epa_id: 48071
+    - Tonale AWD  |  Auto 9-spd, 4 cyl, 2.0 L, Turbo
+        class: Small Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: 4 cyl, 2.0 L SIDI | trans: Automatic 9-spd | drive: All-Wheel Drive
+        fuel: Regular | MPG: 21 city / 29 hwy / 24 combined | epa_id: 48915
+    - Tonale eAWD  |  Auto 6-spd, 4 cyl, 1.3 L, Turbo
+        class: Small Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: 4 cyl, 1.3 L SIDI; PHEV | trans: Automatic 6-spd | drive: All-Wheel Drive
+        fuel: Regular Gas and Electricity | MPG: 29 city / 29 hwy / 29 combined | EV range: 360 mi | epa_id: 48652
+
+### Aston Martin  (4 models, 4 configurations)
+
+  [Car (Sedan/Coupe/Hatchback)]
+    - DB12 V8  |  Auto 8-spd, 8 cyl, 4.0 L, Turbo
+        class: Minicompact Cars | NHTSA: Passenger Car | engine: 8 cyl, 4.0 L SIDI | trans: Automatic 8-spd | drive: Rear-Wheel Drive
+        fuel: Premium | MPG: 15 city / 22 hwy / 17 combined | epa_id: 47926
+
+  [SUV]
+    - DBX 707  |  Auto 9-spd, 8 cyl, 4.0 L, Turbo
+        class: Standard Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: 8 cyl, 4.0 L SIDI | trans: Automatic 9-spd | drive: 4-Wheel Drive
+        fuel: Premium | MPG: 15 city / 20 hwy / 17 combined | epa_id: 47965
+
+  [Sports / Two-Seater]
+    - Vanquish  |  Auto 8-spd, 12 cyl, 5.2 L, Turbo
+        class: Two Seaters | NHTSA: Passenger Car | engine: 12 cyl, 5.2 L | trans: Automatic 8-spd | drive: Rear-Wheel Drive
+        fuel: Premium | MPG: 13 city / 21 hwy / 16 combined | epa_id: 48801
+    - Vantage  |  Auto 8-spd, 8 cyl, 4.0 L, Turbo
+        class: Two Seaters | NHTSA: Passenger Car | engine: 8 cyl, 4.0 L SIDI | trans: Automatic 8-spd | drive: Rear-Wheel Drive
+        fuel: Premium | MPG: 15 city / 22 hwy / 18 combined | epa_id: 47925
+
+### Audi  (60 models, 64 configurations)
+
+  [Car (Sedan/Coupe/Hatchback)]
+    - A3 quattro  |  Auto (AM-S7), 4 cyl, 2.0 L, Turbo
+        class: Subcompact Cars | NHTSA: Passenger Car | engine: 4 cyl, 2.0 L SIDI | trans: Automatic (AM-S7) | drive: All-Wheel Drive
+        fuel: Premium | MPG: 24 city / 34 hwy / 28 combined | epa_id: 47969
+    - A4 S line quattro  |  Auto (AM-S7), 4 cyl, 2.0 L, Turbo
+        class: Compact Cars | NHTSA: Passenger Car | engine: 4 cyl, 2.0 L SIDI; Mild Hybrid | trans: Automatic (AM-S7) | drive: All-Wheel Drive
+        fuel: Premium | MPG: 23 city / 32 hwy / 26 combined | epa_id: 47974
+    - A4 quattro  |  Auto (AM-S7), 4 cyl, 2.0 L, Turbo
+        class: Compact Cars | NHTSA: Passenger Car | engine: 4 cyl, 2.0 L SIDI; Mild Hybrid | trans: Automatic (AM-S7) | drive: All-Wheel Drive
+        fuel: Premium | MPG: 26 city / 36 hwy / 29 combined | epa_id: 47975
+    - A5 Sportback S line quattro  |  Auto (AM-S7), 4 cyl, 2.0 L, Turbo
+        class: Midsize Cars | NHTSA: Passenger Car | engine: 4 cyl, 2.0 L SIDI; Mild Hybrid | trans: Automatic (AM-S7) | drive: All-Wheel Drive
+        fuel: Premium | MPG: 23 city / 32 hwy / 26 combined | epa_id: 48008
+    - A5 Sportback quattro  |  Auto (AM-S7), 4 cyl, 2.0 L, Turbo
+        class: Midsize Cars | NHTSA: Passenger Car | engine: 4 cyl, 2.0 L SIDI; Mild Hybrid | trans: Automatic (AM-S7) | drive: All-Wheel Drive
+        fuel: Premium | MPG: 26 city / 36 hwy / 29 combined | epa_id: 48010
+    - A5 quattro  |  Auto (AM-S7), 4 cyl, 2.0 L, Turbo
+        class: Midsize Cars | NHTSA: Passenger Car | engine: 4 cyl, 2.0 L SIDI | trans: Automatic (AM-S7) | drive: All-Wheel Drive
+        fuel: Premium | MPG: 22 city / 31 hwy / 26 combined | epa_id: 49040
+    - A6 quattro  |  Auto (AM-S7), 4 cyl, 2.0 L, Turbo
+        class: Midsize Cars | NHTSA: Passenger Car | engine: 4 cyl, 2.0 L SIDI; Mild Hybrid | trans: Automatic (AM-S7) | drive: All-Wheel Drive
+        fuel: Premium | MPG: 24 city / 31 hwy / 26 combined | epa_id: 48009
+    - A6 quattro  |  Auto (AM-S7), 6 cyl, 3.0 L, Turbo
+        class: Midsize Cars | NHTSA: Passenger Car | engine: 6 cyl, 3.0 L SIDI; Mild Hybrid | trans: Automatic (AM-S7) | drive: All-Wheel Drive
+        fuel: Premium | MPG: 22 city / 30 hwy / 25 combined | epa_id: 48012
+    - A7 quattro  |  Auto (AM-S7), 6 cyl, 3.0 L, Turbo
+        class: Midsize Cars | NHTSA: Passenger Car | engine: 6 cyl, 3.0 L SIDI; Mild Hybrid | trans: Automatic (AM-S7) | drive: All-Wheel Drive
+        fuel: Premium | MPG: 22 city / 30 hwy / 25 combined | epa_id: 48011
+    - A8 quattro  |  Auto (S8), 6 cyl, 3.0 L, Turbo
+        class: Large Cars | NHTSA: no match | engine: 6 cyl, 3.0 L SIDI; Mild Hybrid | trans: Automatic (S8) | drive: All-Wheel Drive
+        fuel: Premium | MPG: 20 city / 26 hwy / 22 combined | epa_id: 48036
+    - RS 3  |  Auto (AM-S7), 5 cyl, 2.5 L, Turbo
+        class: Subcompact Cars | NHTSA: Passenger Car | engine: 5 cyl, 2.5 L SIDI | trans: Automatic (AM-S7) | drive: All-Wheel Drive
+        fuel: Premium | MPG: 20 city / 29 hwy / 23 combined | epa_id: 49136
+    - RS 5 Sportback  |  Auto (S8), 6 cyl, 2.9 L, Turbo
+        class: Midsize Cars | NHTSA: Passenger Car | engine: 6 cyl, 2.9 L SIDI | trans: Automatic (S8) | drive: All-Wheel Drive
+        fuel: Premium | MPG: 18 city / 25 hwy / 20 combined | epa_id: 48006
+    - RS 7  |  Auto (S8), 8 cyl, 4.0 L, Turbo
+        class: Midsize Cars | NHTSA: Passenger Car | engine: 8 cyl, 4.0 L SIDI; Mild Hybrid | trans: Automatic (S8) | drive: All-Wheel Drive
+        fuel: Premium | MPG: 14 city / 21 hwy / 17 combined | epa_id: 48007
+    - RS e-tron GT Performance  |  Auto (A1)
+        class: Subcompact Cars | NHTSA: Passenger Car | engine: - cyl, - L | trans: Automatic (A1) | drive: All-Wheel Drive
+        fuel: Electricity | MPG: 85 city / 82 hwy / 84 combined | EV range: 278 mi | epa_id: 48993
+    - S e-tron GT (20 inch wheels)  |  Auto (A1)
+        class: Subcompact Cars | NHTSA: Passenger Car | engine: - cyl, - L | trans: Automatic (A1) | drive: All-Wheel Drive
+        fuel: Electricity | MPG: 91 city / 88 hwy / 90 combined | EV range: 300 mi | epa_id: 48688
+    - S e-tron GT (21 inch wheels)  |  Auto (A1)
+        class: Subcompact Cars | NHTSA: Passenger Car | engine: - cyl, - L | trans: Automatic (A1) | drive: All-Wheel Drive
+        fuel: Electricity | MPG: 89 city / 85 hwy / 88 combined | EV range: 294 mi | epa_id: 48689
+    - S3  |  Auto (AM-S7), 4 cyl, 2.0 L, Turbo
+        class: Subcompact Cars | NHTSA: Passenger Car | engine: 4 cyl, 2.0 L SIDI | trans: Automatic (AM-S7) | drive: All-Wheel Drive
+        fuel: Premium | MPG: 23 city / 31 hwy / 26 combined | epa_id: 48150
+    - S4  |  Auto (S8), 6 cyl, 3.0 L, Turbo
+        class: Compact Cars | NHTSA: Passenger Car | engine: 6 cyl, 3.0 L SIDI | trans: Automatic (S8) | drive: All-Wheel Drive
+        fuel: Premium | MPG: 20 city / 29 hwy / 24 combined | epa_id: 47973
+    - S5  |  Auto (AM-S7), 6 cyl, 3.0 L, Turbo
+        class: Midsize Cars | NHTSA: Passenger Car | engine: 6 cyl, 3.0 L SIDI | trans: Automatic (AM-S7) | drive: All-Wheel Drive
+        fuel: Premium | MPG: 19 city / 28 hwy / 22 combined | epa_id: 49041
+    - S5 Sportback  |  Auto (S8), 6 cyl, 3.0 L, Turbo
+        class: Midsize Cars | NHTSA: Passenger Car | engine: 6 cyl, 3.0 L SIDI | trans: Automatic (S8) | drive: All-Wheel Drive
+        fuel: Premium | MPG: 20 city / 29 hwy / 23 combined | epa_id: 48005
+    - S6  |  Auto (S8), 6 cyl, 2.9 L
+        class: Midsize Cars | NHTSA: Passenger Car | engine: 6 cyl, 2.9 L SIDI; Mild Hybrid | trans: Automatic (S8) | drive: All-Wheel Drive
+        fuel: Premium | MPG: 19 city / 27 hwy / 22 combined | epa_id: 48173
+    - S7  |  Auto (S8), 6 cyl, 2.9 L
+        class: Midsize Cars | NHTSA: Passenger Car | engine: 6 cyl, 2.9 L SIDI; Mild Hybrid | trans: Automatic (S8) | drive: All-Wheel Drive
+        fuel: Premium | MPG: 19 city / 27 hwy / 22 combined | epa_id: 48174
+    - S8  |  Auto (S8), 8 cyl, 4.0 L, Turbo
+        class: Large Cars | NHTSA: Passenger Car | engine: 8 cyl, 4.0 L SIDI; Mild Hybrid | trans: Automatic (S8) | drive: All-Wheel Drive
+        fuel: Premium | MPG: 15 city / 24 hwy / 18 combined | epa_id: 48037
+
+  [SUV]
+    - Q3  |  Auto (S8), 4 cyl, 2.0 L, Turbo
+        class: Small Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: 4 cyl, 2.0 L SIDI | trans: Automatic (S8) | drive: All-Wheel Drive
+        fuel: Premium | MPG: 22 city / 29 hwy / 25 combined | epa_id: 48260
+    - Q3 S-Line quattro  |  Auto (S8), 4 cyl, 2.0 L, Turbo
+        class: Small Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: 4 cyl, 2.0 L SIDI | trans: Automatic (S8) | drive: All-Wheel Drive
+        fuel: Premium | MPG: 20 city / 28 hwy / 23 combined | epa_id: 48528
+    - Q4 45 e-tron  |  Auto (A1)
+        class: Standard Sport Utility Vehicle 2WD | NHTSA: SUV / MPV | engine: - cyl, - L | trans: Automatic (A1) | drive: Rear-Wheel Drive
+        fuel: Electricity | MPG: 125 city / 104 hwy / 115 combined | EV range: 288 mi | epa_id: 48296
+    - Q4 55 e-tron quattro  |  Auto (A1)
+        class: Standard Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: - cyl, - L | trans: Automatic (A1) | drive: All-Wheel Drive
+        fuel: Electricity | MPG: 107 city / 92 hwy / 100 combined | EV range: 258 mi | epa_id: 48681
+    - Q4 Sportback 55 e-tron quattro  |  Auto (A1)
+        class: Standard Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: - cyl, - L | trans: Automatic (A1) | drive: All-Wheel Drive
+        fuel: Electricity | MPG: 107 city / 92 hwy / 100 combined | EV range: 258 mi | epa_id: 48682
+    - Q5 Plug-In Hybrid quattro  |  Auto (AM-S7), 4 cyl, 2.0 L, Turbo
+        class: Small Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: 4 cyl, 2.0 L SIDI; PHEV | trans: Automatic (AM-S7) | drive: All-Wheel Drive
+        fuel: Premium and Electricity | MPG: 25 city / 27 hwy / 26 combined | EV range: 390 mi | epa_id: 48653
+    - Q5 S line quattro  |  Auto (AM-S7), 4 cyl, 2.0 L, Turbo
+        class: Small Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: 4 cyl, 2.0 L SIDI; Mild Hybrid | trans: Automatic (AM-S7) | drive: All-Wheel Drive
+        fuel: Premium | MPG: 23 city / 28 hwy / 25 combined | epa_id: 48074
+    - Q5 Sportback S line quattro  |  Auto (AM-S7), 4 cyl, 2.0 L, Turbo
+        class: Small Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: 4 cyl, 2.0 L SIDI; Mild Hybrid | trans: Automatic (AM-S7) | drive: All-Wheel Drive
+        fuel: Premium | MPG: 23 city / 28 hwy / 25 combined | epa_id: 48075
+    - Q5 Sportback TFSI quattro  |  Auto (AM-S7), 4 cyl, 2.0 L, Turbo
+        class: Small Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: 4 cyl, 2.0 L SIDI | trans: Automatic (AM-S7) | drive: All-Wheel Drive
+        fuel: Premium | MPG: 22 city / 30 hwy / 25 combined | epa_id: 49052
+    - Q5 TFSI quattro  |  Auto (AM-S7), 4 cyl, 2.0 L, Turbo
+        class: Small Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: 4 cyl, 2.0 L SIDI | trans: Automatic (AM-S7) | drive: All-Wheel Drive
+        fuel: Premium | MPG: 22 city / 30 hwy / 25 combined | epa_id: 49051
+    - Q5 quattro  |  Auto (AM-S7), 4 cyl, 2.0 L, Turbo
+        class: Small Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: 4 cyl, 2.0 L SIDI; Mild Hybrid | trans: Automatic (AM-S7) | drive: All-Wheel Drive
+        fuel: Premium | MPG: 23 city / 29 hwy / 26 combined | epa_id: 48076
+    - Q6 Sportback e-tron quattro (19 inch wheels)  |  Auto (A1)
+        class: Standard Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: - cyl, - L | trans: Automatic (A1) | drive: All-Wheel Drive
+        fuel: Electricity | MPG: 109 city / 97 hwy / 103 combined | EV range: 319 mi | epa_id: 48686
+    - Q6 Sportback e-tron quattro (20 inch wheels)  |  Auto (A1)
+        class: Standard Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: - cyl, - L | trans: Automatic (A1) | drive: All-Wheel Drive
+        fuel: Electricity | MPG: 104 city / 92 hwy / 98 combined | EV range: 305 mi | epa_id: 48687
+    - Q6 e-tron (19 inch wheels)  |  Auto (A1)
+        class: Standard Sport Utility Vehicle 2WD | NHTSA: SUV / MPV | engine: - cyl, - L | trans: Automatic (A1) | drive: Rear-Wheel Drive
+        fuel: Electricity | MPG: 106 city / 93 hwy / 100 combined | EV range: 310 mi | epa_id: 48683
+    - Q6 e-tron (20 inch wheels)  |  Auto (A1)
+        class: Standard Sport Utility Vehicle 2WD | NHTSA: SUV / MPV | engine: - cyl, - L | trans: Automatic (A1) | drive: Rear-Wheel Drive
+        fuel: Electricity | MPG: 103 city / 88 hwy / 96 combined | EV range: 298 mi | epa_id: 48684
+    - Q6 e-tron quattro (19 inch wheels)  |  Auto (A1)
+        class: Standard Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: - cyl, - L | trans: Automatic (A1) | drive: All-Wheel Drive
+        fuel: Electricity | MPG: 105 city / 93 hwy / 99 combined | EV range: 307 mi | epa_id: 48297
+    - Q6 e-tron quattro (20 inch wheels)  |  Auto (A1)
+        class: Standard Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: - cyl, - L | trans: Automatic (A1) | drive: All-Wheel Drive
+        fuel: Electricity | MPG: 102 city / 89 hwy / 95 combined | EV range: 295 mi | epa_id: 48298
+    - Q6 e-tron ultra  |  Auto (A1)
+        class: Standard Sport Utility Vehicle 2WD | NHTSA: SUV / MPV | engine: - cyl, - L | trans: Automatic (A1) | drive: Rear-Wheel Drive
+        fuel: Electricity | MPG: 112 city / 96 hwy / 104 combined | EV range: 321 mi | epa_id: 48685
+    - Q7  |  Auto (S8), 4 cyl, 2.0 L, Turbo
+        class: Standard Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: 4 cyl, 2.0 L SIDI | trans: Automatic (S8) | drive: All-Wheel Drive
+        fuel: Premium | MPG: 20 city / 26 hwy / 22 combined | epa_id: 47804
+    - Q7  |  Auto (S8), 6 cyl, 3.0 L, Turbo
+        class: Standard Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: 6 cyl, 3.0 L SIDI; Mild Hybrid | trans: Automatic (S8) | drive: All-Wheel Drive
+        fuel: Premium | MPG: 18 city / 23 hwy / 20 combined | epa_id: 47805
+    - Q8 Sportback e-tron quattro (20 inch wheels)  |  Auto (A1)
+        class: Standard Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: - cyl, - L | trans: Automatic (A1) | drive: All-Wheel Drive
+        fuel: Electricity | MPG: 77 city / 80 hwy / 78 combined | EV range: 272 mi | epa_id: 48301
+    - Q8 Sportback e-tron quattro (21 inch wheels)  |  Auto (A1)
+        class: Standard Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: - cyl, - L | trans: Automatic (A1) | drive: All-Wheel Drive
+        fuel: Electricity | MPG: 73 city / 75 hwy / 74 combined | EV range: 254 mi | epa_id: 48302
+    - Q8 e-tron quattro (20 inch wheels)  |  Auto (A1)
+        class: Standard Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: - cyl, - L | trans: Automatic (A1) | drive: All-Wheel Drive
+        fuel: Electricity | MPG: 77 city / 80 hwy / 78 combined | EV range: 272 mi | epa_id: 48299
+    - Q8 e-tron quattro (21 inch wheels)  |  Auto (A1)
+        class: Standard Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: - cyl, - L | trans: Automatic (A1) | drive: All-Wheel Drive
+        fuel: Electricity | MPG: 73 city / 75 hwy / 74 combined | EV range: 254 mi | epa_id: 48300
+    - Q8 quattro  |  Auto (S8), 6 cyl, 3.0 L, Turbo
+        class: Standard Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: 6 cyl, 3.0 L SIDI; Mild Hybrid | trans: Automatic (S8) | drive: All-Wheel Drive
+        fuel: Premium | MPG: 17 city / 23 hwy / 19 combined | epa_id: 48286
+    - RS Q8 Performance  |  Auto (S8), 8 cyl, 4.0 L, Turbo
+        class: Standard Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: 8 cyl, 4.0 L SIDI; Mild Hybrid | trans: Automatic (S8) | drive: All-Wheel Drive
+        fuel: Premium | MPG: 14 city / 20 hwy / 16 combined | epa_id: 48115
+    - SQ5  |  Auto (AM-S7), 6 cyl, 3.0 L, Turbo
+        class: Small Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: 6 cyl, 3.0 L SIDI | trans: Automatic (AM-S7) | drive: All-Wheel Drive
+        fuel: Premium | MPG: 19 city / 26 hwy / 22 combined | epa_id: 49049
+    - SQ5  |  Auto (S8), 6 cyl, 3.0 L, Turbo
+        class: Small Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: 6 cyl, 3.0 L SIDI | trans: Automatic (S8) | drive: All-Wheel Drive
+        fuel: Premium | MPG: 19 city / 24 hwy / 21 combined | epa_id: 48072
+    - SQ5 Sportback  |  Auto (AM-S7), 6 cyl, 3.0 L, Turbo
+        class: Small Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: 6 cyl, 3.0 L SIDI | trans: Automatic (AM-S7) | drive: All-Wheel Drive
+        fuel: Premium | MPG: 19 city / 26 hwy / 22 combined | epa_id: 49050
+    - SQ5 Sportback  |  Auto (S8), 6 cyl, 3.0 L, Turbo
+        class: Small Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: 6 cyl, 3.0 L SIDI | trans: Automatic (S8) | drive: All-Wheel Drive
+        fuel: Premium | MPG: 19 city / 24 hwy / 21 combined | epa_id: 48073
+    - SQ6 Sportback e-tron  |  Auto (A1)
+        class: Standard Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: - cyl, - L | trans: Automatic (A1) | drive: All-Wheel Drive
+        fuel: Electricity | MPG: 97 city / 85 hwy / 91 combined | EV range: 283 mi | epa_id: 48690
+    - SQ6 e-tron  |  Auto (A1)
+        class: Standard Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: - cyl, - L | trans: Automatic (A1) | drive: All-Wheel Drive
+        fuel: Electricity | MPG: 96 city / 82 hwy / 89 combined | EV range: 275 mi | epa_id: 48303
+    - SQ7  |  Auto (S8), 8 cyl, 4.0 L, Turbo
+        class: Standard Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: 8 cyl, 4.0 L SIDI | trans: Automatic (S8) | drive: All-Wheel Drive
+        fuel: Premium | MPG: 15 city / 21 hwy / 17 combined | epa_id: 47806
+    - SQ8  |  Auto (S8), 8 cyl, 4.0 L, Turbo
+        class: Standard Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: 8 cyl, 4.0 L SIDI | trans: Automatic (S8) | drive: All-Wheel Drive
+        fuel: Premium | MPG: 15 city / 21 hwy / 17 combined | epa_id: 48114
+    - SQ8 Sportback e-tron (20 inch wheels)  |  Auto (A1)
+        class: Standard Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: - cyl, - L | trans: Automatic (A1) | drive: All-Wheel Drive
+        fuel: Electricity | MPG: 68 city / 72 hwy / 70 combined | EV range: 242 mi | epa_id: 48306
+    - SQ8 Sportback e-tron (21/22 inch wheels)  |  Auto (A1)
+        class: Standard Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: - cyl, - L | trans: Automatic (A1) | drive: All-Wheel Drive
+        fuel: Electricity | MPG: 59 city / 60 hwy / 60 combined | EV range: 208 mi | epa_id: 48307
+    - SQ8 e-tron (20 inch wheels)  |  Auto (A1)
+        class: Standard Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: - cyl, - L | trans: Automatic (A1) | drive: All-Wheel Drive
+        fuel: Electricity | MPG: 68 city / 72 hwy / 70 combined | EV range: 242 mi | epa_id: 48304
+    - SQ8 e-tron (21/22 inch wheels)  |  Auto (A1)
+        class: Standard Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: - cyl, - L | trans: Automatic (A1) | drive: All-Wheel Drive
+        fuel: Electricity | MPG: 59 city / 60 hwy / 60 combined | EV range: 208 mi | epa_id: 48305
+
+  [Wagon]
+    - A4 allroad quattro  |  Auto (AM-S7), 4 cyl, 2.0 L, Turbo
+        class: Small Station Wagons | NHTSA: SUV / MPV | engine: 4 cyl, 2.0 L SIDI; Mild Hybrid | trans: Automatic (AM-S7) | drive: All-Wheel Drive
+        fuel: Premium | MPG: 23 city / 30 hwy / 26 combined | epa_id: 48048
+    - A6 Allroad quattro  |  Auto (AM-S7), 6 cyl, 3.0 L, Turbo
+        class: Midsize Station Wagons | NHTSA: Passenger Car | engine: 6 cyl, 3.0 L SIDI; Mild Hybrid | trans: Automatic (AM-S7) | drive: All-Wheel Drive
+        fuel: Premium | MPG: 22 city / 30 hwy / 25 combined | epa_id: 48052
+    - RS 6 Avant  |  Auto (S8), 8 cyl, 4.0 L, Turbo
+        class: Midsize Station Wagons | NHTSA: Passenger Car | engine: 8 cyl, 4.0 L SIDI; Mild Hybrid | trans: Automatic (S8) | drive: All-Wheel Drive
+        fuel: Premium | MPG: 14 city / 21 hwy / 17 combined | epa_id: 48051
+
+### Bentley  (9 models, 9 configurations)
+
+  [Car (Sedan/Coupe/Hatchback)]
+    - Continental GT  |  Auto (AM-S8), 8 cyl, 4.0 L, Turbo
+        class: Subcompact Cars | NHTSA: Passenger Car | engine: 8 cyl, 4.0 L SIDI; PHEV | trans: Automatic (AM-S8) | drive: All-Wheel Drive
+        fuel: Premium and Electricity | MPG: 17 city / 22 hwy / 19 combined | EV range: 440 mi | epa_id: 48998
+    - Continental GT Speed  |  Auto (AM-S8), 8 cyl, 4.0 L, Turbo
+        class: Subcompact Cars | NHTSA: Passenger Car | engine: 8 cyl, 4.0 L SIDI; PHEV | trans: Automatic (AM-S8) | drive: All-Wheel Drive
+        fuel: Premium and Electricity | MPG: 17 city / 22 hwy / 19 combined | EV range: 440 mi | epa_id: 48999
+    - Continental GTC  |  Auto (AM-S8), 8 cyl, 4.0 L, Turbo
+        class: Minicompact Cars | NHTSA: Passenger Car | engine: 8 cyl, 4.0 L SIDI; PHEV | trans: Automatic (AM-S8) | drive: All-Wheel Drive
+        fuel: Premium and Electricity | MPG: 17 city / 22 hwy / 19 combined | EV range: 440 mi | epa_id: 49000
+    - Continental GTC Speed  |  Auto (AM-S8), 8 cyl, 4.0 L, Turbo
+        class: Minicompact Cars | NHTSA: Passenger Car | engine: 8 cyl, 4.0 L SIDI; PHEV | trans: Automatic (AM-S8) | drive: All-Wheel Drive
+        fuel: Premium and Electricity | MPG: 17 city / 22 hwy / 19 combined | EV range: 440 mi | epa_id: 49001
+    - Flying Spur  |  Auto (AM-S8), 8 cyl, 4.0 L, Turbo
+        class: Midsize Cars | NHTSA: Passenger Car | engine: 8 cyl, 4.0 L SIDI; PHEV | trans: Automatic (AM-S8) | drive: All-Wheel Drive
+        fuel: Premium and Electricity | MPG: 17 city / 22 hwy / 19 combined | EV range: 440 mi | epa_id: 49002
+    - Flying Spur Speed  |  Auto (AM-S8), 8 cyl, 4.0 L, Turbo
+        class: Midsize Cars | NHTSA: Passenger Car | engine: 8 cyl, 4.0 L SIDI; PHEV | trans: Automatic (AM-S8) | drive: All-Wheel Drive
+        fuel: Premium and Electricity | MPG: 17 city / 22 hwy / 19 combined | EV range: 440 mi | epa_id: 49003
+
+  [SUV]
+    - Bentayga  |  Auto (S8), 8 cyl, 4.0 L, Turbo
+        class: Standard Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: 8 cyl, 4.0 L SIDI | trans: Automatic (S8) | drive: All-Wheel Drive
+        fuel: Premium | MPG: 14 city / 21 hwy / 16 combined | epa_id: 48554
+    - Bentayga EWB  |  Auto (S8), 8 cyl, 4.0 L, Turbo
+        class: Standard Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: 8 cyl, 4.0 L SIDI | trans: Automatic (S8) | drive: All-Wheel Drive
+        fuel: Premium | MPG: 14 city / 21 hwy / 16 combined | epa_id: 48555
+    - Bentayga Hybrid  |  Auto (S8), 6 cyl, 3.0 L, Turbo
+        class: Standard Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: 6 cyl, 3.0 L SIDI; PHEV | trans: Automatic (S8) | drive: All-Wheel Drive
+        fuel: Premium and Electricity | MPG: 19 city / 23 hwy / 21 combined | EV range: 440 mi | epa_id: 48654
+
+### BMW  (112 models, 114 configurations)
+
+  [Car (Sedan/Coupe/Hatchback)]
+    - 228 xDrive Gran Coupe  |  Auto (AM-S7), 4 cyl, 2.0 L, Turbo
+        class: Compact Cars | NHTSA: no match | engine: 4 cyl, 2.0 L SIDI & PFI | trans: Automatic (AM-S7) | drive: All-Wheel Drive
+        fuel: Premium | MPG: 26 city / 38 hwy / 30 combined | epa_id: 48841
+    - 230i Coupe  |  Auto (S8), 4 cyl, 2.0 L, Turbo
+        class: Subcompact Cars | NHTSA: Passenger Car | engine: 4 cyl, 2.0 L SIDI | trans: Automatic (S8) | drive: Rear-Wheel Drive
+        fuel: Premium | MPG: 26 city / 35 hwy / 30 combined | epa_id: 48151
+    - 230i xDrive Coupe  |  Auto (S8), 4 cyl, 2.0 L, Turbo
+        class: Subcompact Cars | NHTSA: Passenger Car | engine: 4 cyl, 2.0 L SIDI | trans: Automatic (S8) | drive: All-Wheel Drive
+        fuel: Premium | MPG: 25 city / 33 hwy / 28 combined | epa_id: 48152
+    - 330i Sedan  |  Auto (S8), 4 cyl, 2.0 L, Turbo
+        class: Compact Cars | NHTSA: Passenger Car | engine: 4 cyl, 2.0 L SIDI & PFI; Mild Hybrid | trans: Automatic (S8) | drive: Rear-Wheel Drive
+        fuel: Premium | MPG: 28 city / 35 hwy / 31 combined | epa_id: 48163
+    - 330i xDrive Sedan  |  Auto (S8), 4 cyl, 2.0 L, Turbo
+        class: Compact Cars | NHTSA: Passenger Car | engine: 4 cyl, 2.0 L SIDI & PFI; Mild Hybrid | trans: Automatic (S8) | drive: All-Wheel Drive
+        fuel: Premium | MPG: 26 city / 34 hwy / 29 combined | epa_id: 48164
+    - 430i Convertible  |  Auto (S8), 4 cyl, 2.0 L, Turbo
+        class: Subcompact Cars | NHTSA: Passenger Car | engine: 4 cyl, 2.0 L SIDI & PFI; Mild Hybrid | trans: Automatic (S8) | drive: Rear-Wheel Drive
+        fuel: Premium | MPG: 27 city / 35 hwy / 30 combined | epa_id: 47767
+    - 430i Coupe  |  Auto (S8), 4 cyl, 2.0 L, Turbo
+        class: Subcompact Cars | NHTSA: Passenger Car | engine: 4 cyl, 2.0 L SIDI & PFI; Mild Hybrid | trans: Automatic (S8) | drive: Rear-Wheel Drive
+        fuel: Premium | MPG: 28 city / 36 hwy / 31 combined | epa_id: 47765
+    - 430i Gran Coupe  |  Auto (S8), 4 cyl, 2.0 L, Turbo
+        class: Compact Cars | NHTSA: Passenger Car | engine: 4 cyl, 2.0 L SIDI & PFI; Mild Hybrid | trans: Automatic (S8) | drive: Rear-Wheel Drive
+        fuel: Premium | MPG: 27 city / 35 hwy / 30 combined | epa_id: 48167
+    - 430i xDrive Convertible  |  Auto (S8), 4 cyl, 2.0 L, Turbo
+        class: Subcompact Cars | NHTSA: Passenger Car | engine: 4 cyl, 2.0 L SIDI & PFI; Mild Hybrid | trans: Automatic (S8) | drive: All-Wheel Drive
+        fuel: Premium | MPG: 24 city / 33 hwy / 28 combined | epa_id: 47768
+    - 430i xDrive Coupe  |  Auto (S8), 4 cyl, 2.0 L, Turbo
+        class: Subcompact Cars | NHTSA: Passenger Car | engine: 4 cyl, 2.0 L SIDI & PFI; Mild Hybrid | trans: Automatic (S8) | drive: All-Wheel Drive
+        fuel: Premium | MPG: 27 city / 34 hwy / 30 combined | epa_id: 47766
+    - 430i xDrive Gran Coupe  |  Auto (S8), 4 cyl, 2.0 L, Turbo
+        class: Compact Cars | NHTSA: Passenger Car | engine: 4 cyl, 2.0 L SIDI & PFI; Mild Hybrid | trans: Automatic (S8) | drive: All-Wheel Drive
+        fuel: Premium | MPG: 25 city / 34 hwy / 29 combined | epa_id: 48168
+    - 530i Sedan  |  Auto (S8), 4 cyl, 2.0 L, Turbo
+        class: Midsize Cars | NHTSA: Passenger Car | engine: 4 cyl, 2.0 L SIDI & PFI; Mild Hybrid | trans: Automatic (S8) | drive: Rear-Wheel Drive
+        fuel: Premium | MPG: 28 city / 35 hwy / 31 combined | epa_id: 48175
+    - 530i xDrive Sedan  |  Auto (S8), 4 cyl, 2.0 L, Turbo
+        class: Midsize Cars | NHTSA: Passenger Car | engine: 4 cyl, 2.0 L SIDI & PFI; Mild Hybrid | trans: Automatic (S8) | drive: All-Wheel Drive
+        fuel: Premium | MPG: 27 city / 35 hwy / 30 combined | epa_id: 48176
+    - 540i xDrive Sedan  |  Auto (S8), 6 cyl, 3.0 L, Turbo
+        class: Midsize Cars | NHTSA: Passenger Car | engine: 6 cyl, 3.0 L SIDI & PFI; Mild Hybrid | trans: Automatic (S8) | drive: All-Wheel Drive
+        fuel: Premium | MPG: 26 city / 33 hwy / 28 combined | epa_id: 48177
+    - 550e xDrive Sedan  |  Auto (S8), 6 cyl, 3.0 L, Turbo
+        class: Midsize Cars | NHTSA: Passenger Car | engine: 6 cyl, 3.0 L SIDI; PHEV | trans: Automatic (S8) | drive: All-Wheel Drive
+        fuel: Premium and Electricity | MPG: 23 city / 26 hwy / 24 combined | EV range: 420 mi | epa_id: 49005
+    - 740i Sedan  |  Auto (S8), 6 cyl, 3.0 L, Turbo
+        class: Large Cars | NHTSA: Passenger Car | engine: 6 cyl, 3.0 L SIDI & PFI; Mild Hybrid | trans: Automatic (S8) | drive: Rear-Wheel Drive
+        fuel: Premium | MPG: 25 city / 31 hwy / 28 combined | epa_id: 48190
+    - 740i xDrive Sedan  |  Auto (S8), 6 cyl, 3.0 L, Turbo
+        class: Large Cars | NHTSA: Passenger Car | engine: 6 cyl, 3.0 L SIDI & PFI; Mild Hybrid | trans: Automatic (S8) | drive: All-Wheel Drive
+        fuel: Premium | MPG: 24 city / 31 hwy / 27 combined | epa_id: 48191
+    - 750e xDrive Sedan  |  Auto (S8), 6 cyl, 3.0 L, Turbo
+        class: Large Cars | NHTSA: Passenger Car | engine: 6 cyl, 3.0 L SIDI; PHEV | trans: Automatic (S8) | drive: All-Wheel Drive
+        fuel: Premium and Electricity | MPG: 24 city / 27 hwy / 25 combined | EV range: 470 mi | epa_id: 49008
+    - 760i xDrive Sedan  |  Auto (S8), 8 cyl, 4.4 L, Turbo
+        class: Large Cars | NHTSA: Passenger Car | engine: 8 cyl, 4.4 L SIDI; Mild Hybrid | trans: Automatic (S8) | drive: All-Wheel Drive
+        fuel: Premium | MPG: 18 city / 25 hwy / 20 combined | epa_id: 48192
+    - 840i Convertible  |  Auto (S8), 6 cyl, 3.0 L, Turbo
+        class: Subcompact Cars | NHTSA: Passenger Car | engine: 6 cyl, 3.0 L SIDI | trans: Automatic (S8) | drive: Rear-Wheel Drive
+        fuel: Premium | MPG: 21 city / 29 hwy / 24 combined | epa_id: 47698
+    - 840i Coupe  |  Auto (S8), 6 cyl, 3.0 L, Turbo
+        class: Subcompact Cars | NHTSA: Passenger Car | engine: 6 cyl, 3.0 L SIDI | trans: Automatic (S8) | drive: Rear-Wheel Drive
+        fuel: Premium | MPG: 21 city / 29 hwy / 24 combined | epa_id: 47696
+    - 840i Gran Coupe  |  Auto (S8), 6 cyl, 3.0 L, Turbo
+        class: Midsize Cars | NHTSA: Passenger Car | engine: 6 cyl, 3.0 L SIDI | trans: Automatic (S8) | drive: Rear-Wheel Drive
+        fuel: Premium | MPG: 21 city / 29 hwy / 24 combined | epa_id: 47712
+    - 840i xDrive Convertible  |  Auto (S8), 6 cyl, 3.0 L, Turbo
+        class: Subcompact Cars | NHTSA: Passenger Car | engine: 6 cyl, 3.0 L SIDI | trans: Automatic (S8) | drive: All-Wheel Drive
+        fuel: Premium | MPG: 21 city / 29 hwy / 24 combined | epa_id: 47699
+    - 840i xDrive Coupe  |  Auto (S8), 6 cyl, 3.0 L, Turbo
+        class: Subcompact Cars | NHTSA: Passenger Car | engine: 6 cyl, 3.0 L SIDI | trans: Automatic (S8) | drive: All-Wheel Drive
+        fuel: Premium | MPG: 21 city / 29 hwy / 24 combined | epa_id: 47697
+    - 840i xDrive Gran Coupe  |  Auto (S8), 6 cyl, 3.0 L, Turbo
+        class: Midsize Cars | NHTSA: Passenger Car | engine: 6 cyl, 3.0 L SIDI | trans: Automatic (S8) | drive: All-Wheel Drive
+        fuel: Premium | MPG: 21 city / 29 hwy / 24 combined | epa_id: 47713
+    - Alpina B8 Gran Coupe  |  Auto (S8), 8 cyl, 4.4 L, Turbo
+        class: Midsize Cars | NHTSA: Passenger Car | engine: 8 cyl, 4.4 L SIDI | trans: Automatic (S8) | drive: All-Wheel Drive
+        fuel: Premium | MPG: 17 city / 24 hwy / 19 combined | epa_id: 47715
+    - M2 Coupe  |  Auto (S8), 6 cyl, 3.0 L, Turbo
+        class: Subcompact Cars | NHTSA: Passenger Car | engine: 6 cyl, 3.0 L SIDI | trans: Automatic (S8) | drive: Rear-Wheel Drive
+        fuel: Premium | MPG: 16 city / 23 hwy / 19 combined | epa_id: 47970
+    - M2 Coupe  |  Man 6-spd, 6 cyl, 3.0 L, Turbo
+        class: Subcompact Cars | NHTSA: Passenger Car | engine: 6 cyl, 3.0 L SIDI | trans: Manual 6-spd | drive: Rear-Wheel Drive
+        fuel: Premium | MPG: 16 city / 23 hwy / 19 combined | epa_id: 48155
+    - M235 xDrive Gran Coupe  |  Auto (AM-S7), 4 cyl, 2.0 L, Turbo
+        class: Compact Cars | NHTSA: Passenger Car | engine: 4 cyl, 2.0 L SIDI & PFI | trans: Automatic (AM-S7) | drive: All-Wheel Drive
+        fuel: Premium | MPG: 24 city / 33 hwy / 27 combined | epa_id: 48842
+    - M240i Coupe  |  Auto (S8), 6 cyl, 3.0 L, Turbo
+        class: Subcompact Cars | NHTSA: Passenger Car | engine: 6 cyl, 3.0 L SIDI | trans: Automatic (S8) | drive: Rear-Wheel Drive
+        fuel: Premium | MPG: 23 city / 32 hwy / 26 combined | epa_id: 48153
+    - M240i xDrive Coupe  |  Auto (S8), 6 cyl, 3.0 L, Turbo
+        class: Subcompact Cars | NHTSA: Passenger Car | engine: 6 cyl, 3.0 L SIDI | trans: Automatic (S8) | drive: All-Wheel Drive
+        fuel: Premium | MPG: 23 city / 32 hwy / 26 combined | epa_id: 48154
+    - M3 Competition M xDrive Sedan  |  Auto (S8), 6 cyl, 3.0 L, Turbo
+        class: Compact Cars | NHTSA: Passenger Car | engine: 6 cyl, 3.0 L SIDI | trans: Automatic (S8) | drive: All-Wheel Drive
+        fuel: Premium | MPG: 16 city / 23 hwy / 18 combined | epa_id: 47978
+    - M3 Competition Sedan  |  Auto (S8), 6 cyl, 3.0 L, Turbo
+        class: Compact Cars | NHTSA: Passenger Car | engine: 6 cyl, 3.0 L SIDI | trans: Automatic (S8) | drive: Rear-Wheel Drive
+        fuel: Premium | MPG: 16 city / 23 hwy / 19 combined | epa_id: 47977
+    - M3 Sedan  |  Man 6-spd, 6 cyl, 3.0 L, Turbo
+        class: Compact Cars | NHTSA: Passenger Car | engine: 6 cyl, 3.0 L SIDI | trans: Manual 6-spd | drive: Rear-Wheel Drive
+        fuel: Premium | MPG: 16 city / 23 hwy / 19 combined | epa_id: 47976
+    - M340i Sedan  |  Auto (S8), 4 cyl, 3.0 L, Turbo
+        class: Compact Cars | NHTSA: Passenger Car | engine: 4 cyl, 3.0 L SIDI & PFI; Mild Hybrid | trans: Automatic (S8) | drive: Rear-Wheel Drive
+        fuel: Premium | MPG: 27 city / 33 hwy / 29 combined | epa_id: 48165
+    - M340i xDrive Sedan  |  Auto (S8), 4 cyl, 3.0 L, Turbo
+        class: Compact Cars | NHTSA: Passenger Car | engine: 4 cyl, 3.0 L SIDI & PFI; Mild Hybrid | trans: Automatic (S8) | drive: All-Wheel Drive
+        fuel: Premium | MPG: 26 city / 33 hwy / 29 combined | epa_id: 48166
+    - M4 CS Coupe  |  Auto (S8), 6 cyl, 3.0 L, Turbo
+        class: Subcompact Cars | NHTSA: Passenger Car | engine: 6 cyl, 3.0 L SIDI | trans: Automatic (S8) | drive: All-Wheel Drive
+        fuel: Premium | MPG: 16 city / 23 hwy / 18 combined | epa_id: 47971
+    - M4 Competition Coupe  |  Auto (S8), 6 cyl, 3.0 L, Turbo
+        class: Subcompact Cars | NHTSA: Passenger Car | engine: 6 cyl, 3.0 L SIDI | trans: Automatic (S8) | drive: Rear-Wheel Drive
+        fuel: Premium | MPG: 16 city / 23 hwy / 19 combined | epa_id: 47774
+    - M4 Competition M xDrive Convertible  |  Auto (S8), 6 cyl, 3.0 L, Turbo
+        class: Subcompact Cars | NHTSA: Passenger Car | engine: 6 cyl, 3.0 L SIDI | trans: Automatic (S8) | drive: All-Wheel Drive
+        fuel: Premium | MPG: 16 city / 22 hwy / 18 combined | epa_id: 47776
+    - M4 Competition M xDrive Coupe  |  Auto (S8), 6 cyl, 3.0 L, Turbo
+        class: Subcompact Cars | NHTSA: Passenger Car | engine: 6 cyl, 3.0 L SIDI | trans: Automatic (S8) | drive: All-Wheel Drive
+        fuel: Premium | MPG: 16 city / 23 hwy / 18 combined | epa_id: 47775
+    - M4 Coupe  |  Man 6-spd, 6 cyl, 3.0 L, Turbo
+        class: Subcompact Cars | NHTSA: Passenger Car | engine: 6 cyl, 3.0 L SIDI | trans: Manual 6-spd | drive: Rear-Wheel Drive
+        fuel: Premium | MPG: 16 city / 23 hwy / 19 combined | epa_id: 47773
+    - M440i Convertible  |  Auto (S8), 4 cyl, 3.0 L, Turbo
+        class: Subcompact Cars | NHTSA: Passenger Car | engine: 4 cyl, 3.0 L SIDI & PFI; Mild Hybrid | trans: Automatic (S8) | drive: Rear-Wheel Drive
+        fuel: Premium | MPG: 27 city / 33 hwy / 29 combined | epa_id: 47771
+    - M440i Coupe  |  Auto (S8), 4 cyl, 3.0 L, Turbo
+        class: Subcompact Cars | NHTSA: Passenger Car | engine: 4 cyl, 3.0 L SIDI & PFI; Mild Hybrid | trans: Automatic (S8) | drive: Rear-Wheel Drive
+        fuel: Premium | MPG: 27 city / 34 hwy / 30 combined | epa_id: 47769
+    - M440i Gran Coupe  |  Auto (S8), 4 cyl, 3.0 L, Turbo
+        class: Compact Cars | NHTSA: Passenger Car | engine: 4 cyl, 3.0 L SIDI & PFI; Mild Hybrid | trans: Automatic (S8) | drive: Rear-Wheel Drive
+        fuel: Premium | MPG: 26 city / 32 hwy / 28 combined | epa_id: 48169
+    - M440i xDrive Convertible  |  Auto (S8), 4 cyl, 3.0 L, Turbo
+        class: Subcompact Cars | NHTSA: Passenger Car | engine: 4 cyl, 3.0 L SIDI & PFI; Mild Hybrid | trans: Automatic (S8) | drive: All-Wheel Drive
+        fuel: Premium | MPG: 25 city / 32 hwy / 28 combined | epa_id: 47772
+    - M440i xDrive Coupe  |  Auto (S8), 4 cyl, 3.0 L, Turbo
+        class: Subcompact Cars | NHTSA: Passenger Car | engine: 4 cyl, 3.0 L SIDI & PFI; Mild Hybrid | trans: Automatic (S8) | drive: All-Wheel Drive
+        fuel: Premium | MPG: 26 city / 33 hwy / 29 combined | epa_id: 47770
+    - M440i xDrive Gran Coupe  |  Auto (S8), 4 cyl, 3.0 L, Turbo
+        class: Compact Cars | NHTSA: Passenger Car | engine: 4 cyl, 3.0 L SIDI & PFI; Mild Hybrid | trans: Automatic (S8) | drive: All-Wheel Drive
+        fuel: Premium | MPG: 25 city / 31 hwy / 27 combined | epa_id: 48170
+    - M5 Sedan  |  Auto (S8), 8 cyl, 4.4 L, Turbo
+        class: Midsize Cars | NHTSA: Passenger Car | engine: 8 cyl, 4.4 L SIDI; PHEV | trans: Automatic (S8) | drive: All-Wheel Drive
+        fuel: Premium and Electricity | MPG: 12 city / 17 hwy / 14 combined | EV range: 270 mi | epa_id: 49006
+    - M8 Competition Convertible  |  Auto (S8), 8 cyl, 4.4 L, Turbo
+        class: Subcompact Cars | NHTSA: Passenger Car | engine: 8 cyl, 4.4 L SIDI | trans: Automatic (S8) | drive: All-Wheel Drive
+        fuel: Premium | MPG: 15 city / 22 hwy / 17 combined | epa_id: 47703
+    - M8 Competition Coupe  |  Auto (S8), 8 cyl, 4.4 L, Turbo
+        class: Subcompact Cars | NHTSA: Passenger Car | engine: 8 cyl, 4.4 L SIDI | trans: Automatic (S8) | drive: All-Wheel Drive
+        fuel: Premium | MPG: 15 city / 22 hwy / 17 combined | epa_id: 47702
+    - M8 Competition Gran Coupe  |  Auto (S8), 8 cyl, 4.4 L, Turbo
+        class: Midsize Cars | NHTSA: Passenger Car | engine: 8 cyl, 4.4 L SIDI | trans: Automatic (S8) | drive: All-Wheel Drive
+        fuel: Premium | MPG: 15 city / 22 hwy / 17 combined | epa_id: 47716
+    - M850i xDrive Convertible  |  Auto (S8), 8 cyl, 4.4 L, Turbo
+        class: Subcompact Cars | NHTSA: Passenger Car | engine: 8 cyl, 4.4 L SIDI | trans: Automatic (S8) | drive: All-Wheel Drive
+        fuel: Premium | MPG: 17 city / 24 hwy / 19 combined | epa_id: 47701
+    - M850i xDrive Coupe  |  Auto (S8), 8 cyl, 4.4 L, Turbo
+        class: Subcompact Cars | NHTSA: Passenger Car | engine: 8 cyl, 4.4 L SIDI | trans: Automatic (S8) | drive: All-Wheel Drive
+        fuel: Premium | MPG: 17 city / 24 hwy / 19 combined | epa_id: 47700
+    - M850i xDrive Gran Coupe  |  Auto (S8), 8 cyl, 4.4 L, Turbo
+        class: Midsize Cars | NHTSA: Passenger Car | engine: 8 cyl, 4.4 L SIDI | trans: Automatic (S8) | drive: All-Wheel Drive
+        fuel: Premium | MPG: 17 city / 24 hwy / 19 combined | epa_id: 47714
+    - i4 M50 Gran Coupe (19 inch wheels)  |  Auto (A1)
+        class: Compact Cars | NHTSA: Passenger Car | engine: - cyl, - L | trans: Automatic (A1) | drive: All-Wheel Drive
+        fuel: Electricity | MPG: 93 city / 96 hwy / 94 combined | EV range: 267 mi | epa_id: 48312
+    - i4 M50 Gran Coupe (20 inch wheels)  |  Auto (A1)
+        class: Compact Cars | NHTSA: Passenger Car | engine: - cyl, - L | trans: Automatic (A1) | drive: All-Wheel Drive
+        fuel: Electricity | MPG: 80 city / 80 hwy / 80 combined | EV range: 227 mi | epa_id: 48313
+    - i4 eDrive35 Gran Coupe (18 inch Wheels)  |  Auto (A1)
+        class: Compact Cars | NHTSA: Passenger Car | engine: - cyl, - L | trans: Automatic (A1) | drive: Rear-Wheel Drive
+        fuel: Electricity | MPG: 117 city / 114 hwy / 116 combined | EV range: 266 mi | epa_id: 48308
+    - i4 eDrive35 Gran Coupe (19 inch Wheels)  |  Auto (A1)
+        class: Compact Cars | NHTSA: Passenger Car | engine: - cyl, - L | trans: Automatic (A1) | drive: Rear-Wheel Drive
+        fuel: Electricity | MPG: 108 city / 104 hwy / 106 combined | EV range: 244 mi | epa_id: 48309
+    - i4 eDrive40 Gran Coupe (18 inch wheels)  |  Auto (A1)
+        class: Compact Cars | NHTSA: Passenger Car | engine: - cyl, - L | trans: Automatic (A1) | drive: Rear-Wheel Drive
+        fuel: Electricity | MPG: 113 city / 111 hwy / 112 combined | EV range: 318 mi | epa_id: 48310
+    - i4 eDrive40 Gran Coupe (19 inch Wheels)  |  Auto (A1)
+        class: Compact Cars | NHTSA: Passenger Car | engine: - cyl, - L | trans: Automatic (A1) | drive: Rear-Wheel Drive
+        fuel: Electricity | MPG: 106 city / 103 hwy / 104 combined | EV range: 295 mi | epa_id: 48311
+    - i4 xDrive40 Gran Coupe (18 inch Wheels)  |  Auto (A1)
+        class: Compact Cars | NHTSA: Passenger Car | engine: - cyl, - L | trans: Automatic (A1) | drive: All-Wheel Drive
+        fuel: Electricity | MPG: 99 city / 103 hwy / 101 combined | EV range: 287 mi | epa_id: 48314
+    - i4 xDrive40 Gran Coupe (19 inch Wheels)  |  Auto (A1)
+        class: Compact Cars | NHTSA: Passenger Car | engine: - cyl, - L | trans: Automatic (A1) | drive: All-Wheel Drive
+        fuel: Electricity | MPG: 93 city / 95 hwy / 94 combined | EV range: 268 mi | epa_id: 48315
+    - i5 M60 xDrive Sedan (19 inch Wheels)  |  Auto (A1)
+        class: Compact Cars | NHTSA: Passenger Car | engine: - cyl, - L | trans: Automatic (A1) | drive: All-Wheel Drive
+        fuel: Electricity | MPG: 89 city / 91 hwy / 90 combined | EV range: 253 mi | epa_id: 48319
+    - i5 M60 xDrive Sedan (20 inch Wheels)  |  Auto (A1)
+        class: Compact Cars | NHTSA: Passenger Car | engine: - cyl, - L | trans: Automatic (A1) | drive: All-Wheel Drive
+        fuel: Electricity | MPG: 88 city / 88 hwy / 88 combined | EV range: 250 mi | epa_id: 48320
+    - i5 M60 xDrive Sedan (21 inch Wheels)  |  Auto (A1)
+        class: Compact Cars | NHTSA: Passenger Car | engine: - cyl, - L | trans: Automatic (A1) | drive: All-Wheel Drive
+        fuel: Electricity | MPG: 83 city / 85 hwy / 84 combined | EV range: 239 mi | epa_id: 48321
+    - i5 eDrive40 Sedan (19 inch Wheels)  |  Auto (A1)
+        class: Compact Cars | NHTSA: Passenger Car | engine: - cyl, - L | trans: Automatic (A1) | drive: Rear-Wheel Drive
+        fuel: Electricity | MPG: 104 city / 105 hwy / 105 combined | EV range: 295 mi | epa_id: 48316
+    - i5 eDrive40 Sedan (20 inch Wheels)  |  Auto (A1)
+        class: Compact Cars | NHTSA: Passenger Car | engine: - cyl, - L | trans: Automatic (A1) | drive: Rear-Wheel Drive
+        fuel: Electricity | MPG: 99 city / 98 hwy / 99 combined | EV range: 278 mi | epa_id: 48317
+    - i5 eDrive40 Sedan (21 inch Wheels)  |  Auto (A1)
+        class: Compact Cars | NHTSA: Passenger Car | engine: - cyl, - L | trans: Automatic (A1) | drive: Rear-Wheel Drive
+        fuel: Electricity | MPG: 97 city / 94 hwy / 96 combined | EV range: 271 mi | epa_id: 48318
+    - i5 xDrive40 Sedan (19 inch Wheels)  |  Auto (A1)
+        class: Compact Cars | NHTSA: Passenger Car | engine: - cyl, - L | trans: Automatic (A1) | drive: All-Wheel Drive
+        fuel: Electricity | MPG: 92 city / 95 hwy / 93 combined | EV range: 266 mi | epa_id: 48322
+    - i5 xDrive40 Sedan (20 inch Wheels)  |  Auto (A1)
+        class: Compact Cars | NHTSA: Passenger Car | engine: - cyl, - L | trans: Automatic (A1) | drive: All-Wheel Drive
+        fuel: Electricity | MPG: 92 city / 94 hwy / 93 combined | EV range: 262 mi | epa_id: 48323
+    - i5 xDrive40 Sedan (21 inch Wheels)  |  Auto (A1)
+        class: Compact Cars | NHTSA: Passenger Car | engine: - cyl, - L | trans: Automatic (A1) | drive: All-Wheel Drive
+        fuel: Electricity | MPG: 86 city / 87 hwy / 87 combined | EV range: 248 mi | epa_id: 48324
+    - i7 M70 xDrive Sedan (20 inch Wheels)  |  Auto (A1)
+        class: Large Cars | NHTSA: Passenger Car | engine: - cyl, - L | trans: Automatic (A1) | drive: All-Wheel Drive
+        fuel: Electricity | MPG: 72 city / 79 hwy / 75 combined | EV range: 268 mi | epa_id: 48328
+    - i7 M70 xDrive Sedan (21 inch Wheels)  |  Auto (A1)
+        class: Large Cars | NHTSA: Passenger Car | engine: - cyl, - L | trans: Automatic (A1) | drive: All-Wheel Drive
+        fuel: Electricity | MPG: 77 city / 83 hwy / 79 combined | EV range: 285 mi | epa_id: 48329
+    - i7 eDrive50 Sedan (19 inch Wheels)  |  Auto (A1)
+        class: Large Cars | NHTSA: Passenger Car | engine: - cyl, - L | trans: Automatic (A1) | drive: Rear-Wheel Drive
+        fuel: Electricity | MPG: 85 city / 93 hwy / 88 combined | EV range: 314 mi | epa_id: 48325
+    - i7 eDrive50 Sedan (20 inch Wheels)  |  Auto (A1)
+        class: Large Cars | NHTSA: Passenger Car | engine: - cyl, - L | trans: Automatic (A1) | drive: Rear-Wheel Drive
+        fuel: Electricity | MPG: 82 city / 88 hwy / 85 combined | EV range: 301 mi | epa_id: 48326
+    - i7 eDrive50 Sedan (21 inch Wheels)  |  Auto (A1)
+        class: Large Cars | NHTSA: Passenger Car | engine: - cyl, - L | trans: Automatic (A1) | drive: Rear-Wheel Drive
+        fuel: Electricity | MPG: 84 city / 90 hwy / 87 combined | EV range: 307 mi | epa_id: 48327
+    - i7 xDrive60 Sedan (19 inch wheels)  |  Auto (A1)
+        class: Large Cars | NHTSA: Passenger Car | engine: - cyl, - L | trans: Automatic (A1) | drive: All-Wheel Drive
+        fuel: Electricity | MPG: 85 city / 91 hwy / 88 combined | EV range: 311 mi | epa_id: 48330
+    - i7 xDrive60 Sedan (20 inch wheels)  |  Auto (A1)
+        class: Large Cars | NHTSA: Passenger Car | engine: - cyl, - L | trans: Automatic (A1) | drive: All-Wheel Drive
+        fuel: Electricity | MPG: 81 city / 85 hwy / 83 combined | EV range: 296 mi | epa_id: 48331
+    - i7 xDrive60 Sedan (21inch wheels)  |  Auto (A1)
+        class: Large Cars | NHTSA: Passenger Car | engine: - cyl, - L | trans: Automatic (A1) | drive: All-Wheel Drive
+        fuel: Electricity | MPG: 85 city / 89 hwy / 87 combined | EV range: 308 mi | epa_id: 48332
+
+  [SUV]
+    - Alpina XB7  |  Auto (S8), 8 cyl, 4.4 L, Turbo
+        class: Standard Sport Utility Vehicle 4WD | NHTSA: no match | engine: 8 cyl, 4.4 L SIDI; Mild Hybrid | trans: Automatic (S8) | drive: All-Wheel Drive
+        fuel: Premium | MPG: 16 city / 20 hwy / 17 combined | epa_id: 47750
+    - X1 M35i  |  Auto (AM-S7), 4 cyl, 2.0 L, Turbo
+        class: Small Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: 4 cyl, 2.0 L SIDI & PFI | trans: Automatic (AM-S7) | drive: All-Wheel Drive
+        fuel: Premium | MPG: 23 city / 31 hwy / 26 combined | epa_id: 48262
+    - X1 xDrive28i  |  Auto (AM-S7), 4 cyl, 2.0 L, Turbo
+        class: Small Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: 4 cyl, 2.0 L SIDI & PFI | trans: Automatic (AM-S7) | drive: All-Wheel Drive
+        fuel: Premium | MPG: 24 city / 33 hwy / 28 combined | epa_id: 48261
+    - X2 M35i  |  Auto (AM-S7), 4 cyl, 2.0 L, Turbo
+        class: Small Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: 4 cyl, 2.0 L SIDI & PFI | trans: Automatic (AM-S7) | drive: All-Wheel Drive
+        fuel: Premium | MPG: 23 city / 32 hwy / 26 combined | epa_id: 48264
+    - X2 xDrive28i  |  Auto (AM-S7), 4 cyl, 2.0 L, Turbo
+        class: Small Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: 4 cyl, 2.0 L SIDI & PFI | trans: Automatic (AM-S7) | drive: All-Wheel Drive
+        fuel: Premium | MPG: 24 city / 33 hwy / 28 combined | epa_id: 48263
+    - X3 M50i xDrive  |  Auto (S8), 4 cyl, 3.0 L, Turbo
+        class: Small Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: 4 cyl, 3.0 L SIDI & PFI; Mild Hybrid | trans: Automatic (S8) | drive: All-Wheel Drive
+        fuel: Premium | MPG: 25 city / 30 hwy / 27 combined | epa_id: 48078
+    - X3 xDrive30i  |  Auto (S8), 4 cyl, 2.0 L, Turbo
+        class: Small Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: 4 cyl, 2.0 L SIDI & PFI; Mild Hybrid | trans: Automatic (S8) | drive: All-Wheel Drive
+        fuel: Premium | MPG: 27 city / 33 hwy / 29 combined | epa_id: 48077
+    - X4 M  |  Auto (S8), 6 cyl, 3.0 L, Turbo
+        class: Small Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: 6 cyl, 3.0 L SIDI | trans: Automatic (S8) | drive: All-Wheel Drive
+        fuel: Premium | MPG: 15 city / 20 hwy / 17 combined | epa_id: 48081
+    - X4 M Competition  |  Auto (S8), 6 cyl, 3.0 L, Turbo
+        class: Small Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: 6 cyl, 3.0 L SIDI | trans: Automatic (S8) | drive: All-Wheel Drive
+        fuel: Premium | MPG: 15 city / 20 hwy / 17 combined | epa_id: 48082
+    - X4 M40i  |  Auto (S8), 6 cyl, 3.0 L, Turbo
+        class: Small Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: 6 cyl, 3.0 L SIDI; Mild Hybrid | trans: Automatic (S8) | drive: All-Wheel Drive
+        fuel: Premium | MPG: 22 city / 26 hwy / 23 combined | epa_id: 48080
+    - X4 xDrive30i  |  Auto (S8), 4 cyl, 2.0 L, Turbo
+        class: Small Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: 4 cyl, 2.0 L SIDI | trans: Automatic (S8) | drive: All-Wheel Drive
+        fuel: Premium | MPG: 21 city / 27 hwy / 24 combined | epa_id: 48079
+    - X5 M Competition  |  Auto (S8), 8 cyl, 4.4 L, Turbo
+        class: Standard Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: 8 cyl, 4.4 L SIDI; Mild Hybrid | trans: Automatic (S8) | drive: All-Wheel Drive
+        fuel: Premium | MPG: 13 city / 18 hwy / 15 combined | epa_id: 47745
+    - X5 M60i xDrive  |  Auto (S8), 8 cyl, 4.4 L, Turbo
+        class: Standard Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: 8 cyl, 4.4 L SIDI; Mild Hybrid | trans: Automatic (S8) | drive: All-Wheel Drive
+        fuel: Premium | MPG: 17 city / 22 hwy / 19 combined | epa_id: 47744
+    - X5 sDrive40i  |  Auto (S8), 6 cyl, 3.0 L, Turbo
+        class: Standard Sport Utility Vehicle 2WD | NHTSA: SUV / MPV | engine: 6 cyl, 3.0 L SIDI & PFI; Mild Hybrid | trans: Automatic (S8) | drive: Rear-Wheel Drive
+        fuel: Premium | MPG: 23 city / 27 hwy / 25 combined | epa_id: 47742
+    - X5 xDrive40i  |  Auto (S8), 6 cyl, 3.0 L, Turbo
+        class: Standard Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: 6 cyl, 3.0 L SIDI & PFI; Mild Hybrid | trans: Automatic (S8) | drive: All-Wheel Drive
+        fuel: Premium | MPG: 23 city / 27 hwy / 25 combined | epa_id: 47743
+    - X5 xDrive50e  |  Auto (S8), 6 cyl, 3.0 L, Turbo
+        class: Standard Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: 6 cyl, 3.0 L SIDI; PHEV | trans: Automatic (S8) | drive: All-Wheel Drive
+        fuel: Premium and Electricity | MPG: 22 city / 23 hwy / 22 combined | EV range: 440 mi | epa_id: 49009
+    - X6 M Competition  |  Auto (S8), 8 cyl, 4.4 L, Turbo
+        class: Standard Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: 8 cyl, 4.4 L SIDI; Mild Hybrid | trans: Automatic (S8) | drive: All-Wheel Drive
+        fuel: Premium | MPG: 13 city / 18 hwy / 15 combined | epa_id: 47748
+    - X6 M60i xDrive  |  Auto (S8), 8 cyl, 4.4 L, Turbo
+        class: Standard Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: 8 cyl, 4.4 L SIDI; Mild Hybrid | trans: Automatic (S8) | drive: All-Wheel Drive
+        fuel: Premium | MPG: 17 city / 22 hwy / 19 combined | epa_id: 47747
+    - X6 xDrive40i  |  Auto (S8), 6 cyl, 3.0 L, Turbo
+        class: Standard Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: 6 cyl, 3.0 L SIDI & PFI; Mild Hybrid | trans: Automatic (S8) | drive: All-Wheel Drive
+        fuel: Premium | MPG: 23 city / 26 hwy / 24 combined | epa_id: 47746
+    - X7 M60i xDrive  |  Auto (S8), 8 cyl, 4.4 L, Turbo
+        class: Standard Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: 8 cyl, 4.4 L SIDI; Mild Hybrid | trans: Automatic (S8) | drive: All-Wheel Drive
+        fuel: Premium | MPG: 16 city / 20 hwy / 18 combined | epa_id: 47749
+    - X7 xDrive40i  |  Auto (S8), 6 cyl, 3.0 L, Turbo
+        class: Standard Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: 6 cyl, 3.0 L SIDI & PFI; Mild Hybrid | trans: Automatic (S8) | drive: All-Wheel Drive
+        fuel: Premium | MPG: 20 city / 24 hwy / 22 combined | epa_id: 47807
+    - XM  |  Auto (S8), 8 cyl, 4.4 L, Turbo
+        class: Standard Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: 8 cyl, 4.4 L SIDI; PHEV | trans: Automatic (S8) | drive: All-Wheel Drive
+        fuel: Premium and Electricity | MPG: 12 city / 17 hwy / 14 combined | EV range: 300 mi | epa_id: 48655
+    - XM Label  |  Auto (S8), 8 cyl, 4.4 L, Turbo
+        class: Standard Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: 8 cyl, 4.4 L SIDI; PHEV | trans: Automatic (S8) | drive: All-Wheel Drive
+        fuel: Premium and Electricity | MPG: 12 city / 17 hwy / 14 combined | EV range: 300 mi | epa_id: 49010
+    - iX M60 (21 inch Wheels)  |  Auto (A1)
+        class: Standard Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: - cyl, - L | trans: Automatic (A1) | drive: All-Wheel Drive
+        fuel: Electricity | MPG: 75 city / 77 hwy / 76 combined | EV range: 284 mi | epa_id: 48333
+    - iX M60 (22 inch Wheels)  |  Auto (A1)
+        class: Standard Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: - cyl, - L | trans: Automatic (A1) | drive: All-Wheel Drive
+        fuel: Electricity | MPG: 75 city / 79 hwy / 77 combined | EV range: 285 mi | epa_id: 48334
+    - iX xDrive40 (20 inch Wheels)  |  Auto (A1)
+        class: Standard Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: - cyl, - L | trans: Automatic (A1) | drive: All-Wheel Drive
+        fuel: Electricity | MPG: 87 city / 85 hwy / 86 combined | EV range: 217 mi | epa_id: 48335
+    - iX xDrive40 (21 inch Wheels)  |  Auto (A1)
+        class: Standard Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: - cyl, - L | trans: Automatic (A1) | drive: All-Wheel Drive
+        fuel: Electricity | MPG: 84 city / 81 hwy / 83 combined | EV range: 211 mi | epa_id: 48336
+    - iX xDrive40 (22 inch Wheels)  |  Auto (A1)
+        class: Standard Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: - cyl, - L | trans: Automatic (A1) | drive: All-Wheel Drive
+        fuel: Electricity | MPG: 89 city / 85 hwy / 87 combined | EV range: 219 mi | epa_id: 48337
+    - iX xDrive50 (20 inch wheels)  |  Auto (A1)
+        class: Standard Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: - cyl, - L | trans: Automatic (A1) | drive: All-Wheel Drive
+        fuel: Electricity | MPG: 82 city / 84 hwy / 83 combined | EV range: 309 mi | epa_id: 48338
+    - iX xDrive50 (21 inch wheels)  |  Auto (A1)
+        class: Standard Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: - cyl, - L | trans: Automatic (A1) | drive: All-Wheel Drive
+        fuel: Electricity | MPG: 82 city / 81 hwy / 81 combined | EV range: 303 mi | epa_id: 48339
+    - iX xDrive50 (22 inch wheels)  |  Auto (A1)
+        class: Standard Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: - cyl, - L | trans: Automatic (A1) | drive: All-Wheel Drive
+        fuel: Electricity | MPG: 82 city / 81 hwy / 81 combined | EV range: 302 mi | epa_id: 48340
+
+  [Sports / Two-Seater]
+    - Z4 M40i  |  Auto (S8), 6 cyl, 3.0 L, Turbo
+        class: Two Seaters | NHTSA: Passenger Car | engine: 6 cyl, 3.0 L SIDI | trans: Automatic (S8) | drive: Rear-Wheel Drive
+        fuel: Premium | MPG: 23 city / 29 hwy / 25 combined | epa_id: 47763
+    - Z4 M40i  |  Man 6-spd, 6 cyl, 3.0 L, Turbo
+        class: Two Seaters | NHTSA: Passenger Car | engine: 6 cyl, 3.0 L SIDI | trans: Manual 6-spd | drive: Rear-Wheel Drive
+        fuel: Premium | MPG: 19 city / 26 hwy / 22 combined | epa_id: 47764
+    - Z4 sDrive30i  |  Auto (S8), 4 cyl, 2.0 L, Turbo
+        class: Two Seaters | NHTSA: Passenger Car | engine: 4 cyl, 2.0 L SIDI | trans: Automatic (S8) | drive: Rear-Wheel Drive
+        fuel: Premium | MPG: 25 city / 33 hwy / 28 combined | epa_id: 47695
+
+  [Wagon]
+    - M5 Touring  |  Auto (S8), 8 cyl, 4.4 L, Turbo
+        class: Midsize Station Wagons | NHTSA: Passenger Car | engine: 8 cyl, 4.4 L SIDI; PHEV | trans: Automatic (S8) | drive: All-Wheel Drive
+        fuel: Premium and Electricity | MPG: 11 city / 17 hwy / 13 combined | EV range: 270 mi | epa_id: 49007
+
+### Bugatti  (1 models, 1 configurations)
+
+  [Sports / Two-Seater]
+    - Mistral  |  Auto (AM-S7), 16 cyl, 8.0 L, Turbo
+        class: Two Seaters | NHTSA: Passenger Car | engine: 16 cyl, 8.0 L SIDI | trans: Automatic (AM-S7) | drive: All-Wheel Drive
+        fuel: Premium | MPG: 8 city / 12 hwy / 9 combined | epa_id: 48578
+
+### Bugatti Rimac  (2 models, 2 configurations)
+
+  [Sports / Two-Seater]
+    - Nevera  |  Auto (A1)
+        class: Two Seaters | NHTSA: no match | engine: - cyl, - L | trans: Automatic (A1) | drive: 4-Wheel Drive
+        fuel: Electricity | MPG: 52 city / 54 hwy / 53 combined | EV range: 204 mi | epa_id: 48341
+    - Nevera R  |  Auto (A1)
+        class: Two Seaters | NHTSA: no match | engine: - cyl, - L | trans: Automatic (A1) | drive: 4-Wheel Drive
+        fuel: Electricity | MPG: 50 city / 51 hwy / 51 combined | EV range: 174 mi | epa_id: 49150
+
+### Buick  (6 models, 8 configurations)
+
+  [SUV]
+    - Enclave AWD  |  Auto 8-spd, 4 cyl, 2.5 L, Turbo
+        class: Standard Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: 4 cyl, 2.5 L SIDI | trans: Automatic 8-spd | drive: All-Wheel Drive
+        fuel: Regular | MPG: 19 city / 24 hwy / 21 combined | epa_id: 48116
+    - Enclave FWD  |  Auto 8-spd, 4 cyl, 2.5 L, Turbo
+        class: Standard Sport Utility Vehicle 2WD | NHTSA: SUV / MPV | engine: 4 cyl, 2.5 L SIDI | trans: Automatic 8-spd | drive: Front-Wheel Drive
+        fuel: Regular | MPG: 20 city / 27 hwy / 23 combined | epa_id: 48109
+    - Encore GX AWD  |  Auto 9-spd, 3 cyl, 1.3 L, Turbo
+        class: Small Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: 3 cyl, 1.3 L SIDI | trans: Automatic 9-spd | drive: All-Wheel Drive
+        fuel: Regular | MPG: 26 city / 28 hwy / 27 combined | epa_id: 47791
+    - Encore GX FWD  |  Auto (variable gear ratios), 3 cyl, 1.2 L, Turbo
+        class: Small Sport Utility Vehicle 2WD | NHTSA: SUV / MPV | engine: 3 cyl, 1.2 L SIDI; FFV | trans: Automatic (variable gear ratios) | drive: Front-Wheel Drive
+        fuel: Gasoline or E85 | MPG: 30 city / 31 hwy / 30 combined | epa_id: 47786
+    - Encore GX FWD  |  Auto (variable gear ratios), 3 cyl, 1.3 L, Turbo
+        class: Small Sport Utility Vehicle 2WD | NHTSA: SUV / MPV | engine: 3 cyl, 1.3 L SIDI | trans: Automatic (variable gear ratios) | drive: Front-Wheel Drive
+        fuel: Regular | MPG: 29 city / 31 hwy / 30 combined | epa_id: 47785
+    - Envision AWD  |  Auto (S9), 4 cyl, 2.0 L, Turbo
+        class: Small Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: 4 cyl, 2.0 L SIDI | trans: Automatic (S9) | drive: All-Wheel Drive
+        fuel: Regular | MPG: 22 city / 28 hwy / 24 combined | epa_id: 48083
+
+  [Wagon]
+    - Envista  |  Auto 6-spd, 3 cyl, 1.2 L, Turbo, SIDI
+        class: Small Station Wagons | NHTSA: SUV / MPV | engine: 3 cyl, 1.2 L SIDI | trans: Automatic 6-spd | drive: Front-Wheel Drive
+        fuel: Regular | MPG: 28 city / 32 hwy / 30 combined | epa_id: 47780
+    - Envista  |  Auto 6-spd, 3 cyl, 1.2 L, Turbo, SIDI; FFV
+        class: Small Station Wagons | NHTSA: SUV / MPV | engine: 3 cyl, 1.2 L SIDI; FFV | trans: Automatic 6-spd | drive: Front-Wheel Drive
+        fuel: Gasoline or E85 | MPG: 28 city / 32 hwy / 30 combined | epa_id: 47941
+
+### Cadillac  (21 models, 33 configurations)
+
+  [Car (Sedan/Coupe/Hatchback)]
+    - CT4  |  Auto (S10), 4 cyl, 2.7 L, Turbo
+        class: Compact Cars | NHTSA: Passenger Car | engine: 4 cyl, 2.7 L SIDI | trans: Automatic (S10) | drive: Rear-Wheel Drive
+        fuel: Premium | MPG: 21 city / 31 hwy / 25 combined | epa_id: 47981
+    - CT4  |  Auto (S8), 4 cyl, 2.0 L, Turbo
+        class: Compact Cars | NHTSA: Passenger Car | engine: 4 cyl, 2.0 L SIDI | trans: Automatic (S8) | drive: Rear-Wheel Drive
+        fuel: Premium | MPG: 22 city / 32 hwy / 26 combined | epa_id: 47979
+    - CT4 AWD  |  Auto (S10), 4 cyl, 2.7 L, Turbo
+        class: Compact Cars | NHTSA: Passenger Car | engine: 4 cyl, 2.7 L SIDI | trans: Automatic (S10) | drive: All-Wheel Drive
+        fuel: Premium | MPG: 21 city / 29 hwy / 24 combined | epa_id: 47983
+    - CT4 AWD  |  Auto (S8), 4 cyl, 2.0 L, Turbo
+        class: Compact Cars | NHTSA: Passenger Car | engine: 4 cyl, 2.0 L SIDI | trans: Automatic (S8) | drive: All-Wheel Drive
+        fuel: Premium | MPG: 21 city / 31 hwy / 25 combined | epa_id: 47980
+    - CT4 V  |  Auto (S10), 4 cyl, 2.7 L, Turbo
+        class: Compact Cars | NHTSA: Passenger Car | engine: 4 cyl, 2.7 L SIDI | trans: Automatic (S10) | drive: Rear-Wheel Drive
+        fuel: Premium | MPG: 20 city / 29 hwy / 23 combined | epa_id: 47982
+    - CT4 V  |  Auto (S10), 6 cyl, 3.6 L, Turbo
+        class: Compact Cars | NHTSA: Passenger Car | engine: 6 cyl, 3.6 L SIDI | trans: Automatic (S10) | drive: Rear-Wheel Drive
+        fuel: Premium | MPG: 16 city / 24 hwy / 19 combined | epa_id: 47985
+    - CT4 V  |  Man 6-spd, 6 cyl, 3.6 L, Turbo
+        class: Compact Cars | NHTSA: Passenger Car | engine: 6 cyl, 3.6 L SIDI | trans: Manual 6-spd | drive: Rear-Wheel Drive
+        fuel: Premium | MPG: 15 city / 23 hwy / 18 combined | epa_id: 47986
+    - CT4 V AWD  |  Auto (S10), 4 cyl, 2.7 L, Turbo
+        class: Compact Cars | NHTSA: Passenger Car | engine: 4 cyl, 2.7 L SIDI | trans: Automatic (S10) | drive: All-Wheel Drive
+        fuel: Premium | MPG: 20 city / 28 hwy / 23 combined | epa_id: 47984
+    - CT5  |  Auto (S10), 4 cyl, 2.0 L, Turbo
+        class: Midsize Cars | NHTSA: Passenger Car | engine: 4 cyl, 2.0 L SIDI | trans: Automatic (S10) | drive: Rear-Wheel Drive
+        fuel: Premium | MPG: 23 city / 32 hwy / 26 combined | epa_id: 47934
+    - CT5  |  Auto (S10), 6 cyl, 3.0 L, Turbo
+        class: Midsize Cars | NHTSA: Passenger Car | engine: 6 cyl, 3.0 L SIDI | trans: Automatic (S10) | drive: Rear-Wheel Drive
+        fuel: Premium | MPG: 19 city / 28 hwy / 22 combined | epa_id: 47931
+    - CT5 AWD  |  Auto (S10), 4 cyl, 2.0 L, Turbo
+        class: Midsize Cars | NHTSA: Passenger Car | engine: 4 cyl, 2.0 L SIDI | trans: Automatic (S10) | drive: All-Wheel Drive
+        fuel: Premium | MPG: 21 city / 30 hwy / 25 combined | epa_id: 47935
+    - CT5 AWD  |  Auto (S10), 6 cyl, 3.0 L, Turbo
+        class: Midsize Cars | NHTSA: Passenger Car | engine: 6 cyl, 3.0 L SIDI | trans: Automatic (S10) | drive: All-Wheel Drive
+        fuel: Premium | MPG: 18 city / 26 hwy / 21 combined | epa_id: 47933
+    - CT5 V  |  Auto (S10), 6 cyl, 3.0 L, Turbo
+        class: Midsize Cars | NHTSA: Passenger Car | engine: 6 cyl, 3.0 L SIDI | trans: Automatic (S10) | drive: Rear-Wheel Drive
+        fuel: Premium | MPG: 18 city / 27 hwy / 21 combined | epa_id: 47930
+    - CT5 V  |  Auto (S10), 8 cyl, 6.2 L, Sup Charg
+        class: Midsize Cars | NHTSA: Passenger Car | engine: 8 cyl, 6.2 L SIDI | trans: Automatic (S10) | drive: Rear-Wheel Drive
+        fuel: Premium | MPG: 13 city / 20 hwy / 15 combined | epa_id: 48013
+    - CT5 V  |  Man 6-spd, 8 cyl, 6.2 L, Sup Charg
+        class: Midsize Cars | NHTSA: Passenger Car | engine: 8 cyl, 6.2 L SIDI | trans: Manual 6-spd | drive: Rear-Wheel Drive
+        fuel: Premium | MPG: 13 city / 20 hwy / 15 combined | epa_id: 48014
+    - CT5 V AWD  |  Auto (S10), 6 cyl, 3.0 L, Turbo
+        class: Midsize Cars | NHTSA: Passenger Car | engine: 6 cyl, 3.0 L SIDI | trans: Automatic (S10) | drive: All-Wheel Drive
+        fuel: Premium | MPG: 17 city / 26 hwy / 20 combined | epa_id: 47932
+
+  [SUV]
+    - Escalade 2WD  |  Auto 10-spd, 8 cyl, 6.2 L
+        class: Standard Sport Utility Vehicle 2WD | NHTSA: SUV / MPV | engine: 8 cyl, 6.2 L SIDI | trans: Automatic 10-spd | drive: Rear-Wheel Drive
+        fuel: Premium | MPG: 15 city / 19 hwy / 17 combined | epa_id: 48620
+    - Escalade 4WD  |  Auto 10-spd, 8 cyl, 6.2 L
+        class: Standard Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: 8 cyl, 6.2 L SIDI | trans: Automatic 10-spd | drive: 4-Wheel Drive
+        fuel: Premium | MPG: 14 city / 18 hwy / 16 combined | epa_id: 48629
+    - Escalade V AWD  |  Auto (S10), 8 cyl, 6.2 L, Sup Charg
+        class: Standard Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: 8 cyl, 6.2 L SIDI | trans: Automatic (S10) | drive: 4-Wheel Drive
+        fuel: Premium | MPG: 11 city / 17 hwy / 13 combined | epa_id: 48556
+    - LYRIQ  |  Auto (A1)
+        class: Small Sport Utility Vehicle 2WD | NHTSA: SUV / MPV | engine: - cyl, - L | trans: Automatic (A1) | drive: Rear-Wheel Drive
+        fuel: Electricity | MPG: 100 city / 83 hwy / 92 combined | EV range: 326 mi | epa_id: 48691
+    - LYRIQ AWD (11 kW Charger)  |  Auto (A1)
+        class: Small Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: - cyl, - L | trans: Automatic (A1) | drive: All-Wheel Drive
+        fuel: Electricity | MPG: 98 city / 80 hwy / 89 combined | EV range: 319 mi | epa_id: 48692
+    - LYRIQ AWD (19 kW Charger)  |  Auto (A1)
+        class: Small Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: - cyl, - L | trans: Automatic (A1) | drive: All-Wheel Drive
+        fuel: Electricity | MPG: 93 city / 77 hwy / 86 combined | EV range: 303 mi | epa_id: 48693
+    - XT4 AWD  |  Auto (S9), 4 cyl, 2.0 L, Turbo
+        class: Small Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: 4 cyl, 2.0 L SIDI | trans: Automatic (S9) | drive: All-Wheel Drive
+        fuel: Premium | MPG: 23 city / 28 hwy / 25 combined | epa_id: 48088
+    - XT4 FWD  |  Auto (S9), 4 cyl, 2.0 L, Turbo
+        class: Small Sport Utility Vehicle 2WD | NHTSA: SUV / MPV | engine: 4 cyl, 2.0 L SIDI | trans: Automatic (S9) | drive: Front-Wheel Drive
+        fuel: Premium | MPG: 24 city / 29 hwy / 26 combined | epa_id: 48056
+    - XT5 AWD  |  Auto (S9), 4 cyl, 2.0 L, Turbo
+        class: Small Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: 4 cyl, 2.0 L SIDI | trans: Automatic (S9) | drive: All-Wheel Drive
+        fuel: Premium | MPG: 21 city / 27 hwy / 23 combined | epa_id: 48084
+    - XT5 AWD  |  Auto (S9), 6 cyl, 3.6 L
+        class: Small Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: 6 cyl, 3.6 L SIDI | trans: Automatic (S9) | drive: All-Wheel Drive
+        fuel: Regular | MPG: 18 city / 26 hwy / 21 combined | epa_id: 48086
+    - XT5 FWD  |  Auto (S9), 4 cyl, 2.0 L, Turbo
+        class: Small Sport Utility Vehicle 2WD | NHTSA: SUV / MPV | engine: 4 cyl, 2.0 L SIDI | trans: Automatic (S9) | drive: Front-Wheel Drive
+        fuel: Premium | MPG: 22 city / 29 hwy / 24 combined | epa_id: 48057
+    - XT5 FWD  |  Auto (S9), 6 cyl, 3.6 L
+        class: Small Sport Utility Vehicle 2WD | NHTSA: SUV / MPV | engine: 6 cyl, 3.6 L SIDI | trans: Automatic (S9) | drive: Front-Wheel Drive
+        fuel: Regular | MPG: 19 city / 26 hwy / 21 combined | epa_id: 48059
+    - XT6 AWD  |  Auto (S9), 4 cyl, 2.0 L, Turbo
+        class: Small Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: 4 cyl, 2.0 L SIDI | trans: Automatic (S9) | drive: All-Wheel Drive
+        fuel: Premium | MPG: 21 city / 26 hwy / 23 combined | epa_id: 48085
+    - XT6 AWD  |  Auto (S9), 6 cyl, 3.6 L
+        class: Small Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: 6 cyl, 3.6 L SIDI | trans: Automatic (S9) | drive: All-Wheel Drive
+        fuel: Regular | MPG: 18 city / 25 hwy / 20 combined | epa_id: 48087
+    - XT6 FWD  |  Auto (S9), 4 cyl, 2.0 L, Turbo
+        class: Small Sport Utility Vehicle 2WD | NHTSA: SUV / MPV | engine: 4 cyl, 2.0 L SIDI | trans: Automatic (S9) | drive: Front-Wheel Drive
+        fuel: Premium | MPG: 21 city / 27 hwy / 23 combined | epa_id: 48058
+    - XT6 FWD  |  Auto (S9), 6 cyl, 3.6 L
+        class: Small Sport Utility Vehicle 2WD | NHTSA: SUV / MPV | engine: 6 cyl, 3.6 L SIDI | trans: Automatic (S9) | drive: Front-Wheel Drive
+        fuel: Regular | MPG: 19 city / 26 hwy / 21 combined | epa_id: 48060
+
+  [Wagon]
+    - CELESTIQ  |  Auto (A1)
+        class: Small Station Wagons | NHTSA: Passenger Car | engine: - cyl, - L | trans: Automatic (A1) | drive: All-Wheel Drive
+        fuel: Electricity | MPG: 84 city / 77 hwy / 81 combined | EV range: 303 mi | epa_id: 49067
+
+### Chevrolet  (44 models, 78 configurations)
+
+  [Car (Sedan/Coupe/Hatchback)]
+    - Malibu  |  Auto (variable gear ratios), 4 cyl, 1.5 L, Turbo
+        class: Midsize Cars | NHTSA: Passenger Car | engine: 4 cyl, 1.5 L SIDI | trans: Automatic (variable gear ratios) | drive: Front-Wheel Drive
+        fuel: Regular | MPG: 28 city / 36 hwy / 31 combined | epa_id: 48015
+
+  [Pickup Truck]
+    - Colorado 2WD  |  Auto 8-spd, 4 cyl, 2.7 L, Turbo
+        class: Standard Pickup Trucks 2WD | NHTSA: Truck | engine: 4 cyl, 2.7 L SIDI | trans: Automatic 8-spd | drive: Rear-Wheel Drive
+        fuel: Regular | MPG: 19 city / 23 hwy / 20 combined | epa_id: 48882
+    - Colorado 4WD  |  Auto 8-spd, 4 cyl, 2.7 L, Turbo
+        class: Standard Pickup Trucks 4WD | NHTSA: Truck | engine: 4 cyl, 2.7 L SIDI | trans: Automatic 8-spd | drive: 4-Wheel Drive
+        fuel: Regular | MPG: 17 city / 21 hwy / 19 combined | epa_id: 48888
+    - Colorado Mud Terrain Tires 4WD  |  Auto 8-spd, 4 cyl, 2.7 L, Turbo
+        class: Standard Pickup Trucks 4WD | NHTSA: Truck | engine: 4 cyl, 2.7 L SIDI | trans: Automatic 8-spd | drive: 4-Wheel Drive
+        fuel: Regular | MPG: 17 city / 20 hwy / 18 combined | epa_id: 48889
+    - Colorado ZR2 4WD  |  Auto 8-spd, 4 cyl, 2.7 L, Turbo
+        class: Standard Pickup Trucks 4WD | NHTSA: Truck | engine: 4 cyl, 2.7 L SIDI | trans: Automatic 8-spd | drive: 4-Wheel Drive
+        fuel: Regular | MPG: 17 city / 17 hwy / 17 combined | epa_id: 48890
+    - Colorado ZR2 Bison 4WD  |  Auto 8-spd, 4 cyl, 2.7 L, Turbo
+        class: Standard Pickup Trucks 4WD | NHTSA: Truck | engine: 4 cyl, 2.7 L SIDI | trans: Automatic 8-spd | drive: 4-Wheel Drive
+        fuel: Regular | MPG: 16 city / 16 hwy / 16 combined | epa_id: 48891
+    - Silverado 2WD  |  Auto 10-spd, 6 cyl, 3.0 L, Diesel, Turbo
+        class: Standard Pickup Trucks 2WD | NHTSA: Truck | engine: 6 cyl, 3.0 L | trans: Automatic 10-spd | drive: Rear-Wheel Drive
+        fuel: Diesel | MPG: 23 city / 29 hwy / 26 combined | epa_id: 48199
+    - Silverado 2WD  |  Auto 10-spd, 8 cyl, 5.3 L, SIDI
+        class: Standard Pickup Trucks 2WD | NHTSA: Truck | engine: 8 cyl, 5.3 L SIDI | trans: Automatic 10-spd | drive: Rear-Wheel Drive
+        fuel: Regular | MPG: 16 city / 21 hwy / 18 combined | epa_id: 48203
+    - Silverado 2WD  |  Auto 10-spd, 8 cyl, 5.3 L, SIDI; with Sport Mode
+        class: Standard Pickup Trucks 2WD | NHTSA: Truck | engine: 8 cyl, 5.3 L SIDI; with Sport Mode | trans: Automatic 10-spd | drive: Rear-Wheel Drive
+        fuel: Regular | MPG: 16 city / 21 hwy / 18 combined | epa_id: 48202
+    - Silverado 2WD  |  Auto 8-spd, 4 cyl, 2.7 L, Turbo, SIDI
+        class: Standard Pickup Trucks 2WD | NHTSA: Truck | engine: 4 cyl, 2.7 L SIDI | trans: Automatic 8-spd | drive: Rear-Wheel Drive
+        fuel: Regular | MPG: 18 city / 21 hwy / 19 combined | epa_id: 48201
+    - Silverado 2WD  |  Auto 8-spd, 4 cyl, 2.7 L, Turbo, SIDI; with Sport Mode
+        class: Standard Pickup Trucks 2WD | NHTSA: Truck | engine: 4 cyl, 2.7 L SIDI; with Sport Mode | trans: Automatic 8-spd | drive: Rear-Wheel Drive
+        fuel: Regular | MPG: 17 city / 21 hwy / 19 combined | epa_id: 48200
+    - Silverado 4WD  |  Auto 10-spd, 6 cyl, 3.0 L, Diesel, Turbo
+        class: Standard Pickup Trucks 4WD | NHTSA: Truck | engine: 6 cyl, 3.0 L | trans: Automatic 10-spd | drive: 4-Wheel Drive
+        fuel: Diesel | MPG: 22 city / 25 hwy / 23 combined | epa_id: 48210
+    - Silverado 4WD  |  Auto 10-spd, 6 cyl, 3.0 L, Diesel, Turbo, with Sport Mode
+        class: Standard Pickup Trucks 4WD | NHTSA: Truck | engine: 6 cyl, 3.0 L with Sport Mode | trans: Automatic 10-spd | drive: 4-Wheel Drive
+        fuel: Diesel | MPG: 22 city / 26 hwy / 24 combined | epa_id: 48209
+    - Silverado 4WD  |  Auto 10-spd, 8 cyl, 5.3 L, SIDI
+        class: Standard Pickup Trucks 4WD | NHTSA: Truck | engine: 8 cyl, 5.3 L SIDI | trans: Automatic 10-spd | drive: 4-Wheel Drive
+        fuel: Regular | MPG: 15 city / 19 hwy / 16 combined | epa_id: 48223
+    - Silverado 4WD  |  Auto 10-spd, 8 cyl, 5.3 L, SIDI
+        class: Standard Pickup Trucks 4WD | NHTSA: Truck | engine: 8 cyl, 5.3 L SIDI | trans: Automatic 10-spd | drive: 4-Wheel Drive
+        fuel: Regular | MPG: 16 city / 19 hwy / 17 combined | epa_id: 48227
+    - Silverado 4WD  |  Auto 10-spd, 8 cyl, 5.3 L, SIDI; FFV
+        class: Standard Pickup Trucks 4WD | NHTSA: Truck | engine: 8 cyl, 5.3 L SIDI; FFV | trans: Automatic 10-spd | drive: 4-Wheel Drive
+        fuel: Gasoline or E85 | MPG: 15 city / 19 hwy / 17 combined | epa_id: 48218
+    - Silverado 4WD  |  Auto 10-spd, 8 cyl, 5.3 L, SIDI; with Sport Mode
+        class: Standard Pickup Trucks 4WD | NHTSA: Truck | engine: 8 cyl, 5.3 L SIDI; with Sport Mode | trans: Automatic 10-spd | drive: 4-Wheel Drive
+        fuel: Regular | MPG: 16 city / 19 hwy / 17 combined | epa_id: 48225
+    - Silverado 4WD  |  Auto 10-spd, 8 cyl, 6.2 L, SIDI
+        class: Standard Pickup Trucks 4WD | NHTSA: Truck | engine: 8 cyl, 6.2 L SIDI | trans: Automatic 10-spd | drive: 4-Wheel Drive
+        fuel: Premium | MPG: 15 city / 20 hwy / 17 combined | epa_id: 48220
+    - Silverado 4WD  |  Auto 8-spd, 4 cyl, 2.7 L, Turbo, SIDI
+        class: Standard Pickup Trucks 4WD | NHTSA: Truck | engine: 4 cyl, 2.7 L SIDI | trans: Automatic 8-spd | drive: 4-Wheel Drive
+        fuel: Regular | MPG: 17 city / 20 hwy / 18 combined | epa_id: 48215
+    - Silverado 4WD  |  Auto 8-spd, 4 cyl, 2.7 L, Turbo, SIDI; with Sport Mode
+        class: Standard Pickup Trucks 4WD | NHTSA: Truck | engine: 4 cyl, 2.7 L SIDI; with Sport Mode | trans: Automatic 8-spd | drive: 4-Wheel Drive
+        fuel: Regular | MPG: 17 city / 20 hwy / 18 combined | epa_id: 48214
+    - Silverado 4WD ZR2  |  Auto 10-spd, 6 cyl, 3.0 L, Diesel, Turbo
+        class: Standard Pickup Trucks 4WD | NHTSA: Truck | engine: 6 cyl, 3.0 L | trans: Automatic 10-spd | drive: 4-Wheel Drive
+        fuel: Diesel | MPG: 20 city / 23 hwy / 21 combined | epa_id: 48213
+    - Silverado 4WD ZR2  |  Auto 10-spd, 8 cyl, 6.2 L
+        class: Standard Pickup Trucks 4WD | NHTSA: Truck | engine: 8 cyl, 6.2 L SIDI | trans: Automatic 10-spd | drive: 4-Wheel Drive
+        fuel: Premium | MPG: 14 city / 17 hwy / 15 combined | epa_id: 48222
+    - Silverado EV (11 kW Charger)  |  Auto (A1)
+        class: Standard Pickup Trucks 4WD | NHTSA: Truck | engine: - cyl, - L | trans: Automatic (A1) | drive: 4-Wheel Drive
+        fuel: Electricity | MPG: 74 city / 61 hwy / 68 combined | EV range: 408 mi | epa_id: 48700
+    - Silverado EV (19 kW Charger)  |  Auto (A1)
+        class: Standard Pickup Trucks 4WD | NHTSA: Truck | engine: - cyl, - L | trans: Automatic (A1) | drive: 4-Wheel Drive
+        fuel: Electricity | MPG: 70 city / 59 hwy / 64 combined | EV range: 390 mi | epa_id: 48701
+    - Silverado EV 2WT  |  Auto (A1)
+        class: Standard Pickup Trucks 4WD | NHTSA: Truck | engine: - cyl, - L | trans: Automatic (A1) | drive: 4-Wheel Drive
+        fuel: Electricity | MPG: 73 city / 60 hwy / 66 combined | EV range: 282 mi | epa_id: 49071
+    - Silverado EV 5WT (11 kW Charger)  |  Auto (A1)
+        class: Standard Pickup Trucks 4WD | NHTSA: Truck | engine: - cyl, - L | trans: Automatic (A1) | drive: 4-Wheel Drive
+        fuel: Electricity | MPG: 77 city / 63 hwy / 70 combined | EV range: 422 mi | epa_id: 48699
+    - Silverado EV 5WT (19 kW Charger)  |  Auto (A1)
+        class: Standard Pickup Trucks 4WD | NHTSA: Truck | engine: - cyl, - L | trans: Automatic (A1) | drive: 4-Wheel Drive
+        fuel: Electricity | MPG: 77 city / 63 hwy / 70 combined | EV range: 422 mi | epa_id: 48702
+    - Silverado EV 8WT  |  Auto (A1)
+        class: Standard Pickup Trucks 4WD | NHTSA: Truck | engine: - cyl, - L | trans: Automatic (A1) | drive: 4-Wheel Drive
+        fuel: Electricity | MPG: 74 city / 61 hwy / 68 combined | EV range: 492 mi | epa_id: 48698
+    - Silverado Mud Terrain Tires 4WD  |  Auto 10-spd, 6 cyl, 3.0 L, Diesel, Turbo
+        class: Standard Pickup Trucks 4WD | NHTSA: Truck | engine: 6 cyl, 3.0 L | trans: Automatic 10-spd | drive: 4-Wheel Drive
+        fuel: Diesel | MPG: 21 city / 24 hwy / 22 combined | epa_id: 48212
+    - Silverado Mud Terrain Tires 4WD  |  Auto 10-spd, 6 cyl, 3.0 L, Diesel, Turbo, with Sport Mode
+        class: Standard Pickup Trucks 4WD | NHTSA: Truck | engine: 6 cyl, 3.0 L with Sport Mode | trans: Automatic 10-spd | drive: 4-Wheel Drive
+        fuel: Diesel | MPG: 21 city / 24 hwy / 23 combined | epa_id: 48211
+    - Silverado Mud Terrain Tires 4WD  |  Auto 10-spd, 8 cyl, 5.3 L, SIDI
+        class: Standard Pickup Trucks 4WD | NHTSA: Truck | engine: 8 cyl, 5.3 L SIDI | trans: Automatic 10-spd | drive: 4-Wheel Drive
+        fuel: Regular | MPG: 15 city / 18 hwy / 16 combined | epa_id: 48228
+    - Silverado Mud Terrain Tires 4WD  |  Auto 10-spd, 8 cyl, 5.3 L, SIDI; FFV
+        class: Standard Pickup Trucks 4WD | NHTSA: Truck | engine: 8 cyl, 5.3 L SIDI; FFV | trans: Automatic 10-spd | drive: 4-Wheel Drive
+        fuel: Gasoline or E85 | MPG: 15 city / 19 hwy / 17 combined | epa_id: 48219
+    - Silverado Mud Terrain Tires 4WD  |  Auto 10-spd, 8 cyl, 5.3 L, SIDI; Municipal
+        class: Standard Pickup Trucks 4WD | NHTSA: Truck | engine: 8 cyl, 5.3 L SIDI; Municipal | trans: Automatic 10-spd | drive: 4-Wheel Drive
+        fuel: Regular | MPG: 15 city / 19 hwy / 16 combined | epa_id: 48224
+    - Silverado Mud Terrain Tires 4WD  |  Auto 10-spd, 8 cyl, 5.3 L, SIDI; with Sport Mode
+        class: Standard Pickup Trucks 4WD | NHTSA: Truck | engine: 8 cyl, 5.3 L SIDI; with Sport Mode | trans: Automatic 10-spd | drive: 4-Wheel Drive
+        fuel: Regular | MPG: 15 city / 18 hwy / 16 combined | epa_id: 48226
+    - Silverado Mud Terrain Tires 4WD  |  Auto 10-spd, 8 cyl, 6.2 L, SIDI
+        class: Standard Pickup Trucks 4WD | NHTSA: Truck | engine: 8 cyl, 6.2 L SIDI | trans: Automatic 10-spd | drive: 4-Wheel Drive
+        fuel: Premium | MPG: 14 city / 17 hwy / 15 combined | epa_id: 48221
+    - Silverado Mud Terrain Tires 4WD  |  Auto 8-spd, 4 cyl, 2.7 L, Turbo, SIDI
+        class: Standard Pickup Trucks 4WD | NHTSA: Truck | engine: 4 cyl, 2.7 L SIDI | trans: Automatic 8-spd | drive: 4-Wheel Drive
+        fuel: Regular | MPG: 16 city / 17 hwy / 16 combined | epa_id: 48217
+    - Silverado Mud Terrain Tires 4WD  |  Auto 8-spd, 4 cyl, 2.7 L, Turbo, SIDI; with Sport Mode
+        class: Standard Pickup Trucks 4WD | NHTSA: Truck | engine: 4 cyl, 2.7 L SIDI; with Sport Mode | trans: Automatic 8-spd | drive: 4-Wheel Drive
+        fuel: Regular | MPG: 16 city / 17 hwy / 16 combined | epa_id: 48216
+
+  [SUV]
+    - Blazer AWD  |  Auto 9-spd, 4 cyl, 2.0 L, Turbo
+        class: Small Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: 4 cyl, 2.0 L SIDI | trans: Automatic 9-spd | drive: All-Wheel Drive
+        fuel: Regular | MPG: 22 city / 27 hwy / 24 combined | epa_id: 48090
+    - Blazer AWD  |  Auto 9-spd, 6 cyl, 3.6 L
+        class: Small Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: 6 cyl, 3.6 L SIDI | trans: Automatic 9-spd | drive: All-Wheel Drive
+        fuel: Regular | MPG: 18 city / 26 hwy / 21 combined | epa_id: 48091
+    - Blazer EV AWD  |  Auto (A1)
+        class: Small Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: - cyl, - L | trans: Automatic (A1) | drive: All-Wheel Drive
+        fuel: Electricity | MPG: 102 city / 87 hwy / 95 combined | EV range: 283 mi | epa_id: 48342
+    - Blazer EV AWD SS  |  Auto (A1)
+        class: Small Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: - cyl, - L | trans: Automatic (A1) | drive: All-Wheel Drive
+        fuel: Electricity | MPG: 92 city / 77 hwy / 85 combined | EV range: 303 mi | epa_id: 49068
+    - Blazer EV FWD  |  Auto (A1)
+        class: Small Sport Utility Vehicle 2WD | NHTSA: SUV / MPV | engine: - cyl, - L | trans: Automatic (A1) | drive: Front-Wheel Drive
+        fuel: Electricity | MPG: 114 city / 95 hwy / 104 combined | EV range: 312 mi | epa_id: 49069
+    - Blazer EV FWD 22 inch tire  |  Auto (A1)
+        class: Small Sport Utility Vehicle 2WD | NHTSA: SUV / MPV | engine: - cyl, - L | trans: Automatic (A1) | drive: Front-Wheel Drive
+        fuel: Electricity | MPG: 103 city / 86 hwy / 95 combined | EV range: 283 mi | epa_id: 49070
+    - Blazer EV RWD  |  Auto (A1)
+        class: Small Sport Utility Vehicle 2WD | NHTSA: SUV / MPV | engine: - cyl, - L | trans: Automatic (A1) | drive: Rear-Wheel Drive
+        fuel: Electricity | MPG: 106 city / 85 hwy / 95 combined | EV range: 334 mi | epa_id: 48694
+    - Blazer FWD  |  Auto 9-spd, 4 cyl, 2.0 L, Turbo
+        class: Small Sport Utility Vehicle 2WD | NHTSA: SUV / MPV | engine: 4 cyl, 2.0 L SIDI | trans: Automatic 9-spd | drive: Front-Wheel Drive
+        fuel: Regular | MPG: 22 city / 29 hwy / 25 combined | epa_id: 48062
+    - Blazer FWD  |  Auto 9-spd, 6 cyl, 3.6 L
+        class: Small Sport Utility Vehicle 2WD | NHTSA: SUV / MPV | engine: 6 cyl, 3.6 L SIDI | trans: Automatic 9-spd | drive: Front-Wheel Drive
+        fuel: Regular | MPG: 19 city / 26 hwy / 22 combined | epa_id: 48063
+    - Equinox AWD  |  Auto 8-spd, 4 cyl, 1.5 L, Turbo
+        class: Small Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: 4 cyl, 1.5 L SIDI | trans: Automatic 8-spd | drive: All-Wheel Drive
+        fuel: Regular | MPG: 24 city / 29 hwy / 26 combined | epa_id: 48089
+    - Equinox EV AWD (11 kW Charger)  |  Auto (A1)
+        class: Small Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: - cyl, - L | trans: Automatic (A1) | drive: All-Wheel Drive
+        fuel: Electricity | MPG: 112 city / 95 hwy / 103 combined | EV range: 307 mi | epa_id: 48695
+    - Equinox EV AWD (19 kW Charger)  |  Auto (A1)
+        class: Small Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: - cyl, - L | trans: Automatic (A1) | drive: All-Wheel Drive
+        fuel: Electricity | MPG: 103 city / 88 hwy / 96 combined | EV range: 307 mi | epa_id: 48696
+    - Equinox EV FWD  |  Auto (A1)
+        class: Small Sport Utility Vehicle 2WD | NHTSA: SUV / MPV | engine: - cyl, - L | trans: Automatic (A1) | drive: Front-Wheel Drive
+        fuel: Electricity | MPG: 117 city / 100 hwy / 109 combined | EV range: 319 mi | epa_id: 48697
+    - Equinox FWD  |  Auto (variable gear ratios), 4 cyl, 1.5 L, Turbo
+        class: Small Sport Utility Vehicle 2WD | NHTSA: SUV / MPV | engine: 4 cyl, 1.5 L SIDI | trans: Automatic (variable gear ratios) | drive: Front-Wheel Drive
+        fuel: Regular | MPG: 26 city / 28 hwy / 27 combined | epa_id: 48061
+    - Suburban 2WD  |  Auto 10-spd, 6 cyl, 3.0 L, Diesel, Turbo
+        class: Standard Sport Utility Vehicle 2WD | NHTSA: SUV / MPV | engine: 6 cyl, 3.0 L | trans: Automatic 10-spd | drive: Rear-Wheel Drive
+        fuel: Diesel | MPG: 21 city / 26 hwy / 23 combined | epa_id: 48942
+    - Suburban 2WD  |  Auto 10-spd, 8 cyl, 5.3 L
+        class: Standard Sport Utility Vehicle 2WD | NHTSA: SUV / MPV | engine: 8 cyl, 5.3 L SIDI | trans: Automatic 10-spd | drive: Rear-Wheel Drive
+        fuel: Regular | MPG: 15 city / 20 hwy / 17 combined | epa_id: 48624
+    - Suburban 2WD  |  Auto 10-spd, 8 cyl, 6.2 L
+        class: Standard Sport Utility Vehicle 2WD | NHTSA: SUV / MPV | engine: 8 cyl, 6.2 L SIDI | trans: Automatic 10-spd | drive: Rear-Wheel Drive
+        fuel: Premium | MPG: 15 city / 19 hwy / 16 combined | epa_id: 48622
+    - Suburban 4WD  |  Auto 10-spd, 6 cyl, 3.0 L, Diesel, Turbo
+        class: Standard Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: 6 cyl, 3.0 L | trans: Automatic 10-spd | drive: 4-Wheel Drive
+        fuel: Diesel | MPG: 20 city / 26 hwy / 22 combined | epa_id: 48954
+    - Suburban 4WD  |  Auto 10-spd, 8 cyl, 5.3 L
+        class: Standard Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: 8 cyl, 5.3 L SIDI | trans: Automatic 10-spd | drive: 4-Wheel Drive
+        fuel: Regular | MPG: 14 city / 19 hwy / 16 combined | epa_id: 48633
+    - Suburban 4WD  |  Auto 10-spd, 8 cyl, 6.2 L
+        class: Standard Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: 8 cyl, 6.2 L SIDI | trans: Automatic 10-spd | drive: 4-Wheel Drive
+        fuel: Premium | MPG: 14 city / 18 hwy / 16 combined | epa_id: 48631
+    - Tahoe 2WD  |  Auto 10-spd, 6 cyl, 3.0 L, Diesel, Turbo
+        class: Standard Sport Utility Vehicle 2WD | NHTSA: SUV / MPV | engine: 6 cyl, 3.0 L | trans: Automatic 10-spd | drive: Rear-Wheel Drive
+        fuel: Diesel | MPG: 22 city / 26 hwy / 24 combined | epa_id: 49061
+    - Tahoe 2WD  |  Auto 10-spd, 8 cyl, 5.3 L
+        class: Standard Sport Utility Vehicle 2WD | NHTSA: SUV / MPV | engine: 8 cyl, 5.3 L SIDI | trans: Automatic 10-spd | drive: Rear-Wheel Drive
+        fuel: Regular | MPG: 15 city / 20 hwy / 17 combined | epa_id: 48623
+    - Tahoe 2WD  |  Auto 10-spd, 8 cyl, 6.2 L
+        class: Standard Sport Utility Vehicle 2WD | NHTSA: SUV / MPV | engine: 8 cyl, 6.2 L SIDI | trans: Automatic 10-spd | drive: Rear-Wheel Drive
+        fuel: Premium | MPG: 15 city / 20 hwy / 17 combined | epa_id: 48621
+    - Tahoe 4WD  |  Auto 10-spd, 6 cyl, 3.0 L, Diesel, Turbo
+        class: Standard Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: 6 cyl, 3.0 L | trans: Automatic 10-spd | drive: 4-Wheel Drive
+        fuel: Diesel | MPG: 20 city / 26 hwy / 22 combined | epa_id: 48955
+    - Tahoe 4WD  |  Auto 10-spd, 8 cyl, 5.3 L, SIDI
+        class: Standard Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: 8 cyl, 5.3 L SIDI | trans: Automatic 10-spd | drive: 4-Wheel Drive
+        fuel: Regular | MPG: 15 city / 19 hwy / 17 combined | epa_id: 48632
+    - Tahoe 4WD  |  Auto 10-spd, 8 cyl, 5.3 L, SIDI
+        class: Standard Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: 8 cyl, 5.3 L SIDI | trans: Automatic 10-spd | drive: 4-Wheel Drive
+        fuel: Regular | MPG: 14 city / 18 hwy / 16 combined | epa_id: 48953
+    - Tahoe 4WD  |  Auto 10-spd, 8 cyl, 6.2 L, SIDI
+        class: Standard Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: 8 cyl, 6.2 L SIDI | trans: Automatic 10-spd | drive: 4-Wheel Drive
+        fuel: Premium | MPG: 14 city / 18 hwy / 16 combined | epa_id: 48630
+    - Trailblazer AWD  |  Auto 9-spd, 3 cyl, 1.3 L, Turbo
+        class: Small Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: 3 cyl, 1.3 L SIDI | trans: Automatic 9-spd | drive: All-Wheel Drive
+        fuel: Regular | MPG: 26 city / 29 hwy / 27 combined | epa_id: 47792
+    - Trailblazer FWD  |  Auto (variable gear ratios), 3 cyl, 1.2 L, Turbo
+        class: Small Sport Utility Vehicle 2WD | NHTSA: SUV / MPV | engine: 3 cyl, 1.2 L SIDI; FFV | trans: Automatic (variable gear ratios) | drive: Front-Wheel Drive
+        fuel: Gasoline or E85 | MPG: 30 city / 31 hwy / 30 combined | epa_id: 47788
+    - Trailblazer FWD  |  Auto (variable gear ratios), 3 cyl, 1.3 L, Turbo
+        class: Small Sport Utility Vehicle 2WD | NHTSA: SUV / MPV | engine: 3 cyl, 1.3 L SIDI | trans: Automatic (variable gear ratios) | drive: Front-Wheel Drive
+        fuel: Regular | MPG: 29 city / 33 hwy / 31 combined | epa_id: 47787
+    - Traverse AWD  |  Auto 8-spd, 4 cyl, 2.5 L, Turbo
+        class: Standard Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: 4 cyl, 2.5 L SIDI | trans: Automatic 8-spd | drive: All-Wheel Drive
+        fuel: Regular | MPG: 19 city / 24 hwy / 21 combined | epa_id: 48117
+    - Traverse FWD  |  Auto 8-spd, 4 cyl, 2.5 L, Turbo
+        class: Standard Sport Utility Vehicle 2WD | NHTSA: SUV / MPV | engine: 4 cyl, 2.5 L SIDI | trans: Automatic 8-spd | drive: Front-Wheel Drive
+        fuel: Regular | MPG: 20 city / 27 hwy / 23 combined | epa_id: 48110
+
+  [Special Purpose (Van/Truck)]
+    - Silverado Cab Chassis 2WD  |  Auto 10-spd, 8 cyl, 5.3 L
+        class: Special Purpose Vehicle 2WD | NHTSA: Truck | engine: 8 cyl, 5.3 L SIDI | trans: Automatic 10-spd | drive: Rear-Wheel Drive
+        fuel: Regular | MPG: 15 city / 18 hwy / 16 combined | epa_id: 48248
+    - Silverado Cab Chassis 4WD  |  Auto 10-spd, 8 cyl, 5.3 L
+        class: Special Purpose Vehicle 4WD | NHTSA: Truck | engine: 8 cyl, 5.3 L SIDI | trans: Automatic 10-spd | drive: 4-Wheel Drive
+        fuel: Regular | MPG: 14 city / 16 hwy / 15 combined | epa_id: 48249
+
+  [Sports / Two-Seater]
+    - Corvette  |  Auto (S8), 8 cyl, 6.2 L
+        class: Two Seaters | NHTSA: Passenger Car | engine: 8 cyl, 6.2 L SIDI | trans: Automatic (S8) | drive: Rear-Wheel Drive
+        fuel: Premium | MPG: 16 city / 25 hwy / 19 combined | epa_id: 48477
+    - Corvette E-Ray  |  Auto (S8), 8 cyl, 6.2 L
+        class: Two Seaters | NHTSA: Passenger Car | engine: 8 cyl, 6.2 L SIDI; Hybrid | trans: Automatic (S8) | drive: All-Wheel Drive
+        fuel: Premium | MPG: 16 city / 24 hwy / 19 combined | epa_id: 48478
+    - Corvette Z06  |  Auto (S8), 8 cyl, 5.5 L
+        class: Two Seaters | NHTSA: Passenger Car | engine: 8 cyl, 5.5 L SIDI | trans: Automatic (S8) | drive: Rear-Wheel Drive
+        fuel: Premium | MPG: 12 city / 20 hwy / 14 combined | epa_id: 48479
+    - Corvette Z06 Carbon Aero  |  Auto (S8), 8 cyl, 5.5 L
+        class: Two Seaters | NHTSA: Passenger Car | engine: 8 cyl, 5.5 L SIDI | trans: Automatic (S8) | drive: Rear-Wheel Drive
+        fuel: Premium | MPG: 12 city / 19 hwy / 14 combined | epa_id: 48480
+    - Corvette ZR1  |  Auto (S8), 8 cyl, 5.5 L, Turbo
+        class: Two Seaters | NHTSA: Passenger Car | engine: 8 cyl, 5.5 L SIDI | trans: Automatic (S8) | drive: Rear-Wheel Drive
+        fuel: Premium | MPG: 12 city / 18 hwy / 14 combined | epa_id: 49031
+
+  [Wagon]
+    - Trax  |  Auto 6-spd, 3 cyl, 1.2 L, Turbo, SIDI
+        class: Small Station Wagons | NHTSA: SUV / MPV | engine: 3 cyl, 1.2 L SIDI | trans: Automatic 6-spd | drive: Front-Wheel Drive
+        fuel: Regular | MPG: 28 city / 31 hwy / 29 combined | epa_id: 47781
+    - Trax  |  Auto 6-spd, 3 cyl, 1.2 L, Turbo, SIDI; FFV
+        class: Small Station Wagons | NHTSA: SUV / MPV | engine: 3 cyl, 1.2 L SIDI; FFV | trans: Automatic 6-spd | drive: Front-Wheel Drive
+        fuel: Gasoline or E85 | MPG: 28 city / 32 hwy / 30 combined | epa_id: 47721
+
+### Chrysler  (4 models, 4 configurations)
+
+  [Minivan]
+    - Pacifica  |  Auto 9-spd, 6 cyl, 3.6 L
+        class: Minivan - 2WD | NHTSA: SUV / MPV | engine: 6 cyl, 3.6 L | trans: Automatic 9-spd | drive: Front-Wheel Drive
+        fuel: Regular | MPG: 19 city / 28 hwy / 22 combined | epa_id: 48252
+    - Pacifica AWD  |  Auto 9-spd, 6 cyl, 3.6 L
+        class: Minivan - 4WD | NHTSA: SUV / MPV | engine: 6 cyl, 3.6 L | trans: Automatic 9-spd | drive: All-Wheel Drive
+        fuel: Regular | MPG: 17 city / 25 hwy / 20 combined | epa_id: 48255
+    - Pacifica Hybrid  |  Auto (variable gear ratios), 6 cyl, 3.6 L
+        class: Minivan - 2WD | NHTSA: SUV / MPV | engine: 6 cyl, 3.6 L PHEV | trans: Automatic (variable gear ratios) | drive: Front-Wheel Drive
+        fuel: Regular Gas and Electricity | MPG: 29 city / 30 hwy / 30 combined | EV range: 520 mi | epa_id: 48656
+    - Voyager  |  Auto 9-spd, 6 cyl, 3.6 L
+        class: Minivan - 2WD | NHTSA: SUV / MPV | engine: 6 cyl, 3.6 L | trans: Automatic 9-spd | drive: Front-Wheel Drive
+        fuel: Regular | MPG: 19 city / 28 hwy / 22 combined | epa_id: 48253
+
+### Dodge  (12 models, 14 configurations)
+
+  [Car (Sedan/Coupe/Hatchback)]
+    - Charger Daytona R/T AWD 245/55ZR18  |  Auto (A1)
+        class: Large Cars | NHTSA: Passenger Car | engine: - cyl, - L | trans: Automatic (A1) | drive: All-Wheel Drive
+        fuel: Electricity | MPG: 92 city / 81 hwy / 87 combined | EV range: 274 mi | epa_id: 49072
+    - Charger Daytona R/T AWD 255/45R20  |  Auto (A1)
+        class: Large Cars | NHTSA: Passenger Car | engine: - cyl, - L | trans: Automatic (A1) | drive: All-Wheel Drive
+        fuel: Electricity | MPG: 104 city / 91 hwy / 98 combined | EV range: 308 mi | epa_id: 48994
+    - Charger Daytona R/T AWD 275/40R20  |  Auto (A1)
+        class: Large Cars | NHTSA: Passenger Car | engine: - cyl, - L | trans: Automatic (A1) | drive: All-Wheel Drive
+        fuel: Electricity | MPG: 90 city / 79 hwy / 85 combined | EV range: 268 mi | epa_id: 49073
+    - Charger Daytona R/T AWD 305/35ZR20  |  Auto (A1)
+        class: Large Cars | NHTSA: Passenger Car | engine: - cyl, - L | trans: Automatic (A1) | drive: All-Wheel Drive
+        fuel: Electricity | MPG: 94 city / 82 hwy / 88 combined | EV range: 279 mi | epa_id: 49074
+    - Charger Daytona Scat Pack AWD 305/35ZR20  |  Auto (A1)
+        class: Large Cars | NHTSA: Passenger Car | engine: - cyl, - L | trans: Automatic (A1) | drive: All-Wheel Drive
+        fuel: Electricity | MPG: 94 city / 82 hwy / 88 combined | EV range: 279 mi | epa_id: 49075
+    - Charger Daytona Scat Pack AWD 325/35ZR20 Rear  |  Auto (A1)
+        class: Large Cars | NHTSA: Passenger Car | engine: - cyl, - L | trans: Automatic (A1) | drive: All-Wheel Drive
+        fuel: Electricity | MPG: 74 city / 66 hwy / 70 combined | EV range: 216 mi | epa_id: 49076
+    - Charger Daytona Scat Pack AWD 325/35ZR20 Rear A/S  |  Auto (A1)
+        class: Large Cars | NHTSA: Passenger Car | engine: - cyl, - L | trans: Automatic (A1) | drive: All-Wheel Drive
+        fuel: Electricity | MPG: 82 city / 73 hwy / 78 combined | EV range: 241 mi | epa_id: 48995
+
+  [SUV]
+    - Durango AWD  |  Auto 8-spd, 6 cyl, 3.6 L
+        class: Standard Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: 6 cyl, 3.6 L | trans: Automatic 8-spd | drive: All-Wheel Drive
+        fuel: Regular | MPG: 17 city / 24 hwy / 20 combined | epa_id: 48287
+    - Durango AWD  |  Auto 8-spd, 8 cyl, 5.7 L
+        class: Standard Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: 8 cyl, 5.7 L | trans: Automatic 8-spd | drive: All-Wheel Drive
+        fuel: Midgrade | MPG: 14 city / 22 hwy / 17 combined | epa_id: 48288
+    - Durango RWD  |  Auto 8-spd, 6 cyl, 3.6 L
+        class: Standard Sport Utility Vehicle 2WD | NHTSA: SUV / MPV | engine: 6 cyl, 3.6 L | trans: Automatic 8-spd | drive: Rear-Wheel Drive
+        fuel: Regular | MPG: 18 city / 25 hwy / 20 combined | epa_id: 48279
+    - Durango RWD  |  Auto 8-spd, 8 cyl, 5.7 L
+        class: Standard Sport Utility Vehicle 2WD | NHTSA: SUV / MPV | engine: 8 cyl, 5.7 L | trans: Automatic 8-spd | drive: Rear-Wheel Drive
+        fuel: Midgrade | MPG: 14 city / 22 hwy / 17 combined | epa_id: 48280
+    - Durango SRT AWD  |  Auto 8-spd, 8 cyl, 6.2 L, Sup Charg
+        class: Standard Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: 8 cyl, 6.2 L | trans: Automatic 8-spd | drive: All-Wheel Drive
+        fuel: Premium | MPG: 12 city / 17 hwy / 13 combined | epa_id: 48289
+    - Hornet AWD  |  Auto 9-spd, 4 cyl, 2.0 L, Turbo
+        class: Small Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: 4 cyl, 2.0 L SIDI | trans: Automatic 9-spd | drive: All-Wheel Drive
+        fuel: Regular | MPG: 21 city / 29 hwy / 24 combined | epa_id: 47955
+    - Hornet PHEV AWD  |  Auto 6-spd, 4 cyl, 1.3 L, Turbo
+        class: Small Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: 4 cyl, 1.3 L SIDI; PHEV | trans: Automatic 6-spd | drive: All-Wheel Drive
+        fuel: Regular Gas and Electricity | MPG: 29 city / 29 hwy / 29 combined | EV range: 360 mi | epa_id: 48657
+
+### Ferrari  (9 models, 9 configurations)
+
+  [Car (Sedan/Coupe/Hatchback)]
+    - Roma Spider  |  Auto (AM8), 8 cyl, 3.9 L, Turbo
+        class: Minicompact Cars | NHTSA: Passenger Car | engine: 8 cyl, 3.9 L SIDI | trans: Automatic (AM8) | drive: Rear-Wheel Drive
+        fuel: Premium | MPG: 17 city / 22 hwy / 19 combined | epa_id: 48588
+
+  [SUV]
+    - Purosangue  |  Auto (AM8), 12 cyl, 6.5 L
+        class: Standard Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: 12 cyl, 6.5 L SIDI | trans: Automatic (AM8) | drive: All-Wheel Drive
+        fuel: Premium | MPG: 11 city / 15 hwy / 12 combined | epa_id: 48634
+
+  [Sports / Two-Seater]
+    - 296 GTB  |  Auto (AM-S8), 6 cyl, 2.9 L, Turbo
+        class: Two Seaters | NHTSA: Passenger Car | engine: 6 cyl, 2.9 L SIDI; PHEV | trans: Automatic (AM-S8) | drive: Rear-Wheel Drive
+        fuel: Premium and Electricity | MPG: 16 city / 22 hwy / 18 combined | EV range: 350 mi | epa_id: 48658
+    - 296 GTS  |  Auto (AM-S8), 6 cyl, 2.9 L, Turbo
+        class: Two Seaters | NHTSA: Passenger Car | engine: 6 cyl, 2.9 L SIDI; PHEV | trans: Automatic (AM-S8) | drive: Rear-Wheel Drive
+        fuel: Premium and Electricity | MPG: 15 city / 21 hwy / 18 combined | EV range: 330 mi | epa_id: 48659
+    - Daytona SP3  |  Auto (AM7), 12 cyl, 6.5 L
+        class: Two Seaters | NHTSA: Passenger Car | engine: 12 cyl, 6.5 L SIDI | trans: Automatic (AM7) | drive: Rear-Wheel Drive
+        fuel: Premium | MPG: 12 city / 16 hwy / 13 combined | epa_id: 48580
+    - F167 ABA  |  Auto (AM8), 12 cyl, 6.5 L
+        class: Two Seaters | NHTSA: no match | engine: 12 cyl, 6.5 L SIDI | trans: Automatic (AM8) | drive: Rear-Wheel Drive
+        fuel: Premium | MPG: 12 city / 19 hwy / 14 combined | epa_id: 48579
+    - SF90 Spider  |  Auto (AM8), 8 cyl, 3.9 L, Turbo
+        class: Two Seaters | NHTSA: Passenger Car | engine: 8 cyl, 3.9 L SIDI; PHEV | trans: Automatic (AM8) | drive: All-Wheel Drive
+        fuel: Premium and Electricity | MPG: 16 city / 19 hwy / 17 combined | EV range: 330 mi | epa_id: 48660
+    - SF90 XX Spider  |  Auto (AM8), 8 cyl, 3.9 L, Turbo
+        class: Two Seaters | NHTSA: Passenger Car | engine: 8 cyl, 3.9 L SIDI; PHEV | trans: Automatic (AM8) | drive: All-Wheel Drive
+        fuel: Premium and Electricity | MPG: 16 city / 19 hwy / 17 combined | EV range: 330 mi | epa_id: 48661
+    - SF90 XX Stradale  |  Auto (AM8), 8 cyl, 3.9 L, Turbo
+        class: Two Seaters | NHTSA: Passenger Car | engine: 8 cyl, 3.9 L SIDI; PHEV | trans: Automatic (AM8) | drive: All-Wheel Drive
+        fuel: Premium and Electricity | MPG: 16 city / 19 hwy / 17 combined | EV range: 330 mi | epa_id: 48662
+
+### Fiat  (2 models, 2 configurations)
+
+  [Car (Sedan/Coupe/Hatchback)]
+    - 500e  |  Auto (A1)
+        class: Minicompact Cars | NHTSA: Passenger Car | engine: - cyl, - L | trans: Automatic (A1) | drive: Front-Wheel Drive
+        fuel: Electricity | MPG: 127 city / 104 hwy / 116 combined | EV range: 149 mi | epa_id: 48703
+    - 500e All Season  |  Auto (A1)
+        class: Minicompact Cars | NHTSA: Passenger Car | engine: - cyl, - L | trans: Automatic (A1) | drive: Front-Wheel Drive
+        fuel: Electricity | MPG: 121 city / 100 hwy / 110 combined | EV range: 141 mi | epa_id: 48704
+
+### Ford  (44 models, 64 configurations)
+
+  [Car (Sedan/Coupe/Hatchback)]
+    - Mustang  |  Auto (S10), 8 cyl, 5.0 L
+        class: Subcompact Cars | NHTSA: Passenger Car | engine: 8 cyl, 5.0 L | trans: Automatic (S10) | drive: Rear-Wheel Drive
+        fuel: Regular | MPG: 16 city / 24 hwy / 19 combined | epa_id: 48825
+    - Mustang  |  Auto 10-spd, 4 cyl, 2.3 L, Turbo
+        class: Subcompact Cars | NHTSA: Passenger Car | engine: 4 cyl, 2.3 L SIDI & PFI | trans: Automatic 10-spd | drive: Rear-Wheel Drive
+        fuel: Regular | MPG: 22 city / 33 hwy / 26 combined | epa_id: 48826
+    - Mustang  |  Man 6-spd, 8 cyl, 5.0 L
+        class: Subcompact Cars | NHTSA: Passenger Car | engine: 8 cyl, 5.0 L | trans: Manual 6-spd | drive: Rear-Wheel Drive
+        fuel: Regular | MPG: 15 city / 23 hwy / 18 combined | epa_id: 48827
+    - Mustang Dark Horse  |  Auto (S10), 8 cyl, 5.0 L
+        class: Subcompact Cars | NHTSA: Passenger Car | engine: 8 cyl, 5.0 L | trans: Automatic (S10) | drive: Rear-Wheel Drive
+        fuel: Regular | MPG: 14 city / 22 hwy / 17 combined | epa_id: 48823
+    - Mustang Dark Horse  |  Man 6-spd, 8 cyl, 5.0 L
+        class: Subcompact Cars | NHTSA: Passenger Car | engine: 8 cyl, 5.0 L | trans: Manual 6-spd | drive: Rear-Wheel Drive
+        fuel: Regular | MPG: 14 city / 22 hwy / 17 combined | epa_id: 48824
+    - Mustang GTD  |  Auto (AM-S8), 8 cyl, 5.2 L, Sup Charg
+        class: Subcompact Cars | NHTSA: Passenger Car | engine: 8 cyl, 5.2 L | trans: Automatic (AM-S8) | drive: Rear-Wheel Drive
+        fuel: Regular | MPG: 10 city / 17 hwy / 12 combined | epa_id: 48828
+
+  [Pickup Truck]
+    - F-150 Lightning 4WD ER1  |  Auto (A1)
+        class: Standard Pickup Trucks 4WD | NHTSA: Truck | engine: - cyl, - L | trans: Automatic (A1) | drive: All-Wheel Drive
+        fuel: Electricity | MPG: 78 city / 63 hwy / 70 combined | EV range: 320 mi | epa_id: 48705
+    - F-150 Lightning 4WD ER2  |  Auto (A1)
+        class: Standard Pickup Trucks 4WD | NHTSA: Truck | engine: - cyl, - L | trans: Automatic (A1) | drive: 4-Wheel Drive
+        fuel: Electricity | MPG: 79 city / 65 hwy / 72 combined | EV range: 300 mi | epa_id: 49077
+    - F-150 Lightning 4WD PRO ER1  |  Auto (A1)
+        class: Standard Pickup Trucks 4WD | NHTSA: Truck | engine: - cyl, - L | trans: Automatic (A1) | drive: All-Wheel Drive
+        fuel: Electricity | MPG: 78 city / 63 hwy / 70 combined | EV range: 320 mi | epa_id: 48706
+    - F-150 Lightning 4WD SR  |  Auto (A1)
+        class: Standard Pickup Trucks 4WD | NHTSA: Truck | engine: - cyl, - L | trans: Automatic (A1) | drive: All-Wheel Drive
+        fuel: Electricity | MPG: 76 city / 61 hwy / 68 combined | EV range: 240 mi | epa_id: 48707
+    - F-150 Lightning Platinum 4WD  |  Auto (A1)
+        class: Standard Pickup Trucks 4WD | NHTSA: Truck | engine: - cyl, - L | trans: Automatic (A1) | drive: All-Wheel Drive
+        fuel: Electricity | MPG: 73 city / 60 hwy / 66 combined | EV range: 300 mi | epa_id: 48708
+    - F150 Pickup 2WD  |  Auto (S10), 6 cyl, 2.7 L, Turbo
+        class: Standard Pickup Trucks 2WD | NHTSA: no match | engine: 6 cyl, 2.7 L SIDI & PFI | trans: Automatic (S10) | drive: Rear-Wheel Drive
+        fuel: Regular | MPG: 19 city / 25 hwy / 21 combined | epa_id: 48885
+    - F150 Pickup 2WD  |  Auto (S10), 6 cyl, 3.5 L, Turbo
+        class: Standard Pickup Trucks 2WD | NHTSA: no match | engine: 6 cyl, 3.5 L SIDI & PFI | trans: Automatic (S10) | drive: Rear-Wheel Drive
+        fuel: Regular | MPG: 17 city / 25 hwy / 20 combined | epa_id: 48884
+    - F150 Pickup 2WD  |  Auto (S10), 8 cyl, 5.0 L
+        class: Standard Pickup Trucks 2WD | NHTSA: no match | engine: 8 cyl, 5.0 L SIDI & PFI | trans: Automatic (S10) | drive: Rear-Wheel Drive
+        fuel: Regular | MPG: 16 city / 24 hwy / 19 combined | epa_id: 48886
+    - F150 Pickup 4WD  |  Auto (S10), 6 cyl, 2.7 L, Turbo
+        class: Standard Pickup Trucks 4WD | NHTSA: no match | engine: 6 cyl, 2.7 L SIDI & PFI | trans: Automatic (S10) | drive: Part-time 4-Wheel Drive
+        fuel: Regular | MPG: 18 city / 23 hwy / 20 combined | epa_id: 49143
+    - F150 Pickup 4WD  |  Auto (S10), 6 cyl, 3.5 L, Turbo
+        class: Standard Pickup Trucks 4WD | NHTSA: no match | engine: 6 cyl, 3.5 L SIDI & PFI | trans: Automatic (S10) | drive: Part-time 4-Wheel Drive
+        fuel: Regular | MPG: 16 city / 24 hwy / 19 combined | epa_id: 48895
+    - F150 Pickup 4WD  |  Auto (S10), 8 cyl, 5.0 L
+        class: Standard Pickup Trucks 4WD | NHTSA: no match | engine: 8 cyl, 5.0 L SIDI & PFI | trans: Automatic (S10) | drive: Part-time 4-Wheel Drive
+        fuel: Regular | MPG: 16 city / 24 hwy / 19 combined | epa_id: 48896
+    - F150 Pickup 4WD HEV  |  Auto (S10), 6 cyl, 3.5 L, Turbo
+        class: Standard Pickup Trucks 4WD | NHTSA: no match | engine: 6 cyl, 3.5 L SIDI; Hybrid | trans: Automatic (S10) | drive: Part-time 4-Wheel Drive
+        fuel: Regular | MPG: 22 city / 24 hwy / 23 combined | epa_id: 48897
+    - F150 Pickup Tremor 4WD  |  Auto (S10), 6 cyl, 3.5 L, Turbo
+        class: Standard Pickup Trucks 4WD | NHTSA: no match | engine: 6 cyl, 3.5 L SIDI & PFI | trans: Automatic (S10) | drive: Part-time 4-Wheel Drive
+        fuel: Regular | MPG: 16 city / 21 hwy / 18 combined | epa_id: 48893
+    - F150 Pickup Tremor 4WD  |  Auto (S10), 8 cyl, 5.0 L
+        class: Standard Pickup Trucks 4WD | NHTSA: no match | engine: 8 cyl, 5.0 L SIDI & PFI | trans: Automatic (S10) | drive: Part-time 4-Wheel Drive
+        fuel: Regular | MPG: 15 city / 20 hwy / 17 combined | epa_id: 48894
+    - F150 RAPTOR 4WD  |  Auto (S10), 6 cyl, 3.5 L, Turbo
+        class: Standard Pickup Trucks 4WD | NHTSA: no match | engine: 6 cyl, 3.5 L SIDI & PFI | trans: Automatic (S10) | drive: Part-time 4-Wheel Drive
+        fuel: Regular | MPG: 14 city / 18 hwy / 16 combined | epa_id: 48898
+    - F150 RAPTOR R 4WD  |  Auto (S10), 8 cyl, 5.2 L, Sup Charg
+        class: Standard Pickup Trucks 4WD | NHTSA: no match | engine: 8 cyl, 5.2 L | trans: Automatic (S10) | drive: Part-time 4-Wheel Drive
+        fuel: Premium | MPG: 10 city / 15 hwy / 12 combined | epa_id: 49144
+    - Maverick AWD  |  Auto 8-spd, 4 cyl, 2.0 L, Turbo
+        class: Small Pickup Trucks 4WD | NHTSA: Truck | engine: 4 cyl, 2.0 L SIDI & PFI | trans: Automatic 8-spd | drive: Part-time 4-Wheel Drive
+        fuel: Regular | MPG: 22 city / 30 hwy / 25 combined | epa_id: 48874
+    - Maverick HEV AWD  |  Auto (variable gear ratios), 4 cyl, 2.5 L
+        class: Small Pickup Trucks 4WD | NHTSA: Truck | engine: 4 cyl, 2.5 L Hybrid | trans: Automatic (variable gear ratios) | drive: Part-time 4-Wheel Drive
+        fuel: Regular | MPG: 40 city / 34 hwy / 37 combined | epa_id: 48873
+    - Maverick HEV FWD  |  Auto (variable gear ratios), 4 cyl, 2.5 L
+        class: Small Pickup Trucks 2WD | NHTSA: Truck | engine: 4 cyl, 2.5 L Hybrid | trans: Automatic (variable gear ratios) | drive: Front-Wheel Drive
+        fuel: Regular | MPG: 42 city / 35 hwy / 38 combined | epa_id: 48869
+    - Maverick Lobo AWD  |  Auto (S8), 4 cyl, 2.0 L, Turbo
+        class: Small Pickup Trucks 4WD | NHTSA: Truck | engine: 4 cyl, 2.0 L SIDI & PFI | trans: Automatic (S8) | drive: 4-Wheel Drive
+        fuel: Regular | MPG: 21 city / 30 hwy / 24 combined | epa_id: 48875
+    - Maverick Tremor AWD  |  Auto (S8), 4 cyl, 2.0 L, Turbo
+        class: Small Pickup Trucks 4WD | NHTSA: Truck | engine: 4 cyl, 2.0 L SIDI & PFI | trans: Automatic (S8) | drive: 4-Wheel Drive
+        fuel: Regular | MPG: 21 city / 27 hwy / 23 combined | epa_id: 48876
+    - Ranger 2WD  |  Auto (S10), 4 cyl, 2.3 L, Turbo
+        class: Standard Pickup Trucks 2WD | NHTSA: Truck | engine: 4 cyl, 2.3 L SIDI & PFI | trans: Automatic (S10) | drive: Rear-Wheel Drive
+        fuel: Regular | MPG: 21 city / 26 hwy / 23 combined | epa_id: 48883
+    - Ranger 4WD  |  Auto (S10), 4 cyl, 2.3 L, Turbo
+        class: Standard Pickup Trucks 4WD | NHTSA: Truck | engine: 4 cyl, 2.3 L SIDI & PFI | trans: Automatic (S10) | drive: Part-time 4-Wheel Drive
+        fuel: Regular | MPG: 19 city / 26 hwy / 22 combined | epa_id: 49046
+    - Ranger 4WD  |  Auto (S10), 6 cyl, 2.7 L, Turbo
+        class: Standard Pickup Trucks 4WD | NHTSA: Truck | engine: 6 cyl, 2.7 L SIDI & PFI | trans: Automatic (S10) | drive: Part-time 4-Wheel Drive
+        fuel: Regular | MPG: 19 city / 23 hwy / 20 combined | epa_id: 49142
+    - Ranger RAPTOR 4WD  |  Auto (S10), 6 cyl, 3.0 L, Turbo
+        class: Standard Pickup Trucks 4WD | NHTSA: Truck | engine: 6 cyl, 3.0 L SIDI | trans: Automatic (S10) | drive: Part-time 4-Wheel Drive
+        fuel: Regular | MPG: 16 city / 18 hwy / 17 combined | epa_id: 48892
+
+  [SUV]
+    - Bronco 4WD  |  Auto (S10), 4 cyl, 2.3 L, Turbo, SIDI & PFI
+        class: Small Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: 4 cyl, 2.3 L SIDI & PFI | trans: Automatic (S10) | drive: Part-time 4-Wheel Drive
+        fuel: Regular | MPG: 18 city / 22 hwy / 20 combined | epa_id: 49053
+    - Bronco 4WD  |  Auto (S10), 6 cyl, 2.7 L, Turbo, SIDI & PFI
+        class: Small Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: 6 cyl, 2.7 L SIDI & PFI | trans: Automatic (S10) | drive: Part-time 4-Wheel Drive
+        fuel: Regular | MPG: 17 city / 18 hwy / 18 combined | epa_id: 49054
+    - Bronco 4WD  |  Auto (S10), 6 cyl, 2.7 L, Turbo, SIDI & PFI
+        class: Small Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: 6 cyl, 2.7 L SIDI & PFI | trans: Automatic (S10) | drive: Part-time 4-Wheel Drive
+        fuel: Regular | MPG: 17 city / 18 hwy / 18 combined | epa_id: 49058
+    - Bronco 4WD  |  Man 7-spd, 4 cyl, 2.3 L, Turbo, SIDI & PFI
+        class: Small Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: 4 cyl, 2.3 L SIDI & PFI | trans: Manual 7-spd | drive: Part-time 4-Wheel Drive
+        fuel: Regular | MPG: 18 city / 21 hwy / 19 combined | epa_id: 49055
+    - Bronco Badlands 4WD  |  Auto (S10), 4 cyl, 2.3 L, Turbo
+        class: Small Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: 4 cyl, 2.3 L SIDI & PFI | trans: Automatic (S10) | drive: Part-time 4-Wheel Drive
+        fuel: Regular | MPG: 17 city / 19 hwy / 18 combined | epa_id: 49056
+    - Bronco Badlands 4WD  |  Man 7-spd, 4 cyl, 2.3 L, Turbo
+        class: Small Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: 4 cyl, 2.3 L SIDI & PFI | trans: Manual 7-spd | drive: Part-time 4-Wheel Drive
+        fuel: Regular | MPG: 17 city / 18 hwy / 17 combined | epa_id: 49148
+    - Bronco Outer Banks 4WD  |  Auto (S10), 6 cyl, 2.7 L, Turbo
+        class: Standard Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: 6 cyl, 2.7 L SIDI & PFI | trans: Automatic (S10) | drive: Part-time 4-Wheel Drive
+        fuel: Regular | MPG: 19 city / 21 hwy / 20 combined | epa_id: 48958
+    - Bronco Raptor 4WD  |  Auto (S10), 6 cyl, 3.0 L, Turbo
+        class: Standard Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: 6 cyl, 3.0 L SIDI | trans: Automatic (S10) | drive: Part-time 4-Wheel Drive
+        fuel: Regular | MPG: 15 city / 16 hwy / 15 combined | epa_id: 48957
+    - Bronco Sasquatch 4WD  |  Auto (S10), 4 cyl, 2.3 L, Turbo
+        class: Small Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: 4 cyl, 2.3 L SIDI & PFI | trans: Automatic (S10) | drive: Part-time 4-Wheel Drive
+        fuel: Regular | MPG: 17 city / 19 hwy / 18 combined | epa_id: 49146
+    - Bronco Sasquatch 4WD  |  Man 7-spd, 4 cyl, 2.3 L, Turbo
+        class: Small Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: 4 cyl, 2.3 L SIDI & PFI | trans: Manual 7-spd | drive: Part-time 4-Wheel Drive
+        fuel: Regular | MPG: 17 city / 19 hwy / 18 combined | epa_id: 49147
+    - Bronco Sport 4WD  |  Auto (S8), 4 cyl, 2.0 L, Turbo
+        class: Small Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: 4 cyl, 2.0 L SIDI & PFI | trans: Automatic (S8) | drive: 4-Wheel Drive
+        fuel: Regular | MPG: 21 city / 27 hwy / 23 combined | epa_id: 48917
+    - Bronco Sport 4WD  |  Auto 8-spd, 3 cyl, 1.5 L, Turbo
+        class: Small Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: 3 cyl, 1.5 L SIDI & PFI | trans: Automatic 8-spd | drive: Part-time 4-Wheel Drive
+        fuel: Regular | MPG: 25 city / 30 hwy / 27 combined | epa_id: 48916
+    - Bronco Sport Sasquatch 4WD  |  Auto 8-spd, 3 cyl, 1.5 L, Turbo
+        class: Small Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: 3 cyl, 1.5 L SIDI & PFI | trans: Automatic 8-spd | drive: 4-Wheel Drive
+        fuel: Regular | MPG: 23 city / 26 hwy / 24 combined | epa_id: 49057
+    - Escape AWD  |  Auto 8-spd, 3 cyl, 1.5 L, Turbo
+        class: Small Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: 3 cyl, 1.5 L SIDI & PFI | trans: Automatic 8-spd | drive: All-Wheel Drive
+        fuel: Regular | MPG: 26 city / 32 hwy / 28 combined | epa_id: 48608
+    - Escape AWD  |  Auto 8-spd, 4 cyl, 2.0 L, Turbo
+        class: Small Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: 4 cyl, 2.0 L SIDI & PFI | trans: Automatic 8-spd | drive: All-Wheel Drive
+        fuel: Regular | MPG: 23 city / 31 hwy / 26 combined | epa_id: 48607
+    - Escape AWD HEV  |  Auto (variable gear ratios), 4 cyl, 2.5 L
+        class: Small Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: 4 cyl, 2.5 L Hybrid | trans: Automatic (variable gear ratios) | drive: Part-time 4-Wheel Drive
+        fuel: Regular | MPG: 42 city / 36 hwy / 39 combined | epa_id: 48609
+    - Escape FWD  |  Auto 8-spd, 3 cyl, 1.5 L, Turbo
+        class: Small Sport Utility Vehicle 2WD | NHTSA: SUV / MPV | engine: 3 cyl, 1.5 L SIDI & PFI | trans: Automatic 8-spd | drive: Front-Wheel Drive
+        fuel: Regular | MPG: 27 city / 34 hwy / 30 combined | epa_id: 48602
+    - Escape FWD HEV  |  Auto (variable gear ratios), 4 cyl, 2.5 L
+        class: Small Sport Utility Vehicle 2WD | NHTSA: SUV / MPV | engine: 4 cyl, 2.5 L Hybrid | trans: Automatic (variable gear ratios) | drive: Front-Wheel Drive
+        fuel: Regular | MPG: 42 city / 36 hwy / 39 combined | epa_id: 48601
+    - Escape FWD PHEV  |  Auto (variable gear ratios), 4 cyl, 2.5 L
+        class: Small Sport Utility Vehicle 2WD | NHTSA: SUV / MPV | engine: 4 cyl, 2.5 L PHEV | trans: Automatic (variable gear ratios) | drive: Front-Wheel Drive
+        fuel: Regular Gas and Electricity | MPG: 42 city / 37 hwy / 40 combined | EV range: 560 mi | epa_id: 48663
+    - Expedition 2WD  |  Auto (S10), 6 cyl, 3.5 L, Turbo
+        class: Standard Sport Utility Vehicle 2WD | NHTSA: SUV / MPV | engine: 6 cyl, 3.5 L SIDI & PFI | trans: Automatic (S10) | drive: Rear-Wheel Drive
+        fuel: Regular | MPG: 16 city / 24 hwy / 19 combined | epa_id: 48943
+    - Expedition 4WD  |  Auto (S10), 6 cyl, 3.5 L, Turbo
+        class: Standard Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: 6 cyl, 3.5 L SIDI & PFI | trans: Automatic (S10) | drive: Part-time 4-Wheel Drive
+        fuel: Regular | MPG: 15 city / 22 hwy / 18 combined | epa_id: 48956
+    - Explorer AWD  |  Auto (S10), 6 cyl, 3.0 L, Turbo
+        class: Standard Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: 6 cyl, 3.0 L SIDI | trans: Automatic (S10) | drive: Part-time 4-Wheel Drive
+        fuel: Regular | MPG: 18 city / 25 hwy / 20 combined | epa_id: 48118
+    - Explorer AWD  |  Auto 10-spd, 4 cyl, 2.3 L, Turbo
+        class: Standard Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: 4 cyl, 2.3 L SIDI & PFI | trans: Automatic 10-spd | drive: Part-time 4-Wheel Drive
+        fuel: Regular | MPG: 20 city / 27 hwy / 23 combined | epa_id: 48120
+    - Explorer AWD  |  Auto 10-spd, 6 cyl, 3.0 L, Turbo
+        class: Standard Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: 6 cyl, 3.0 L SIDI | trans: Automatic 10-spd | drive: Part-time 4-Wheel Drive
+        fuel: Regular | MPG: 18 city / 25 hwy / 21 combined | epa_id: 48119
+    - Explorer RWD  |  Auto (S10), 6 cyl, 3.0 L, Turbo
+        class: Standard Sport Utility Vehicle 2WD | NHTSA: SUV / MPV | engine: 6 cyl, 3.0 L SIDI | trans: Automatic (S10) | drive: Rear-Wheel Drive
+        fuel: Regular | MPG: 18 city / 25 hwy / 21 combined | epa_id: 48281
+    - Explorer RWD  |  Auto 10-spd, 4 cyl, 2.3 L, Turbo
+        class: Standard Sport Utility Vehicle 2WD | NHTSA: SUV / MPV | engine: 4 cyl, 2.3 L SIDI & PFI | trans: Automatic 10-spd | drive: Rear-Wheel Drive
+        fuel: Regular | MPG: 20 city / 29 hwy / 24 combined | epa_id: 48283
+    - Explorer RWD  |  Auto 10-spd, 6 cyl, 3.0 L, Turbo
+        class: Standard Sport Utility Vehicle 2WD | NHTSA: SUV / MPV | engine: 6 cyl, 3.0 L SIDI | trans: Automatic 10-spd | drive: Rear-Wheel Drive
+        fuel: Regular | MPG: 18 city / 25 hwy / 21 combined | epa_id: 48282
+    - Mustang Mach-E AWD  |  Auto (A1)
+        class: Small Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: - cyl, - L | trans: Automatic (A1) | drive: All-Wheel Drive
+        fuel: Electricity | MPG: 104 city / 96 hwy / 100 combined | EV range: 240 mi | epa_id: 49078
+    - Mustang Mach-E AWD Extended  |  Auto (A1)
+        class: Small Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: - cyl, - L | trans: Automatic (A1) | drive: All-Wheel Drive
+        fuel: Electricity | MPG: 110 city / 98 hwy / 104 combined | EV range: 300 mi | epa_id: 49079
+    - Mustang Mach-E GT  |  Auto (A1)
+        class: Small Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: - cyl, - L | trans: Automatic (A1) | drive: All-Wheel Drive
+        fuel: Electricity | MPG: 95 city / 85 hwy / 90 combined | EV range: 280 mi | epa_id: 49080
+    - Mustang Mach-E RWD  |  Auto (A1)
+        class: Small Sport Utility Vehicle 2WD | NHTSA: SUV / MPV | engine: - cyl, - L | trans: Automatic (A1) | drive: Rear-Wheel Drive
+        fuel: Electricity | MPG: 111 city / 103 hwy / 107 combined | EV range: 260 mi | epa_id: 49082
+    - Mustang Mach-E RWD Extended  |  Auto (A1)
+        class: Small Sport Utility Vehicle 2WD | NHTSA: SUV / MPV | engine: - cyl, - L | trans: Automatic (A1) | drive: Rear-Wheel Drive
+        fuel: Electricity | MPG: 115 city / 104 hwy / 110 combined | EV range: 320 mi | epa_id: 49083
+    - Mustang Mach-E Rally  |  Auto (A1)
+        class: Small Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: - cyl, - L | trans: Automatic (A1) | drive: All-Wheel Drive
+        fuel: Electricity | MPG: 90 city / 81 hwy / 86 combined | EV range: 265 mi | epa_id: 49081
+
+### Genesis  (14 models, 20 configurations)
+
+  [Car (Sedan/Coupe/Hatchback)]
+    - Electrified G80  |  Auto (A1)
+        class: Midsize Cars | NHTSA: no match | engine: - cyl, - L | trans: Automatic (A1) | drive: All-Wheel Drive
+        fuel: Electricity | MPG: 105 city / 89 hwy / 97 combined | EV range: 282 mi | epa_id: 48351
+    - G70 AWD  |  Auto (S8), 4 cyl, 2.5 L, Turbo
+        class: Compact Cars | NHTSA: Passenger Car | engine: 4 cyl, 2.5 L SIDI & PFI | trans: Automatic (S8) | drive: All-Wheel Drive
+        fuel: Premium | MPG: 20 city / 28 hwy / 23 combined | epa_id: 47706
+    - G70 AWD  |  Auto (S8), 6 cyl, 3.3 L, Turbo
+        class: Compact Cars | NHTSA: Passenger Car | engine: 6 cyl, 3.3 L SIDI | trans: Automatic (S8) | drive: All-Wheel Drive
+        fuel: Premium | MPG: 17 city / 23 hwy / 19 combined | epa_id: 47704
+    - G70 RWD  |  Auto (S8), 4 cyl, 2.5 L, Turbo
+        class: Compact Cars | NHTSA: Passenger Car | engine: 4 cyl, 2.5 L SIDI & PFI | trans: Automatic (S8) | drive: Rear-Wheel Drive
+        fuel: Premium | MPG: 21 city / 29 hwy / 24 combined | epa_id: 47707
+    - G70 RWD  |  Auto (S8), 6 cyl, 3.3 L, Turbo
+        class: Compact Cars | NHTSA: Passenger Car | engine: 6 cyl, 3.3 L SIDI | trans: Automatic (S8) | drive: Rear-Wheel Drive
+        fuel: Premium | MPG: 17 city / 25 hwy / 20 combined | epa_id: 47705
+    - G80 AWD  |  Auto (S8), 4 cyl, 2.5 L, Turbo
+        class: Large Cars | NHTSA: Passenger Car | engine: 4 cyl, 2.5 L SIDI & PFI | trans: Automatic (S8) | drive: All-Wheel Drive
+        fuel: Premium | MPG: 20 city / 29 hwy / 24 combined | epa_id: 48038
+    - G80 AWD  |  Auto (S8), 6 cyl, 3.5 L, Turbo
+        class: Large Cars | NHTSA: Passenger Car | engine: 6 cyl, 3.5 L SIDI & PFI | trans: Automatic (S8) | drive: All-Wheel Drive
+        fuel: Premium | MPG: 16 city / 24 hwy / 19 combined | epa_id: 48039
+    - G90 AWD  |  Auto (S8), 6 cyl, 3.5 L, Turbo
+        class: Large Cars | NHTSA: Passenger Car | engine: 6 cyl, 3.5 L SIDI & PFI | trans: Automatic (S8) | drive: All-Wheel Drive
+        fuel: Premium | MPG: 18 city / 26 hwy / 21 combined | epa_id: 48040
+    - G90 MHEV  |  Auto (S8), 6 cyl, 3.5 L, Turbo, Sup Charg
+        class: Large Cars | NHTSA: Passenger Car | engine: 6 cyl, 3.5 L SIDI & PFI; Mild Hybrid | trans: Automatic (S8) | drive: All-Wheel Drive
+        fuel: Premium | MPG: 17 city / 24 hwy / 20 combined | epa_id: 48041
+
+  [SUV]
+    - Electrified GV70  |  Auto (A1)
+        class: Small Sport Utility Vehicle 4WD | NHTSA: no match | engine: - cyl, - L | trans: Automatic (A1) | drive: All-Wheel Drive
+        fuel: Electricity | MPG: 98 city / 83 hwy / 91 combined | EV range: 236 mi | epa_id: 48353
+    - GV60 AWD (19 inch Wheels)  |  Auto (A1)
+        class: Small Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: - cyl, - L | trans: Automatic (A1) | drive: All-Wheel Drive
+        fuel: Electricity | MPG: 110 city / 90 hwy / 100 combined | EV range: 264 mi | epa_id: 48356
+    - GV60 AWD Advanced (20 inch Wheels)  |  Auto (A1)
+        class: Small Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: - cyl, - L | trans: Automatic (A1) | drive: All-Wheel Drive
+        fuel: Electricity | MPG: 103 city / 86 hwy / 95 combined | EV range: 248 mi | epa_id: 48354
+    - GV60 AWD Performance  |  Auto (A1)
+        class: Small Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: - cyl, - L | trans: Automatic (A1) | drive: All-Wheel Drive
+        fuel: Electricity | MPG: 97 city / 82 hwy / 90 combined | EV range: 235 mi | epa_id: 48355
+    - GV60 RWD  |  Auto (A1)
+        class: Small Sport Utility Vehicle 2WD | NHTSA: SUV / MPV | engine: - cyl, - L | trans: Automatic (A1) | drive: Rear-Wheel Drive
+        fuel: Electricity | MPG: 125 city / 99 hwy / 112 combined | EV range: 294 mi | epa_id: 48352
+    - GV70 AWD  |  Auto (S8), 4 cyl, 2.5 L, Turbo, SIDI & PFI
+        class: Small Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: 4 cyl, 2.5 L SIDI & PFI | trans: Automatic (S8) | drive: All-Wheel Drive
+        fuel: Premium | MPG: 22 city / 28 hwy / 24 combined | epa_id: 47731
+    - GV70 AWD  |  Auto (S8), 4 cyl, 2.5 L, Turbo, with Sport Mode
+        class: Small Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: 4 cyl, 2.5 L with Sport Mode | trans: Automatic (S8) | drive: All-Wheel Drive
+        fuel: Premium | MPG: 19 city / 26 hwy / 22 combined | epa_id: 47730
+    - GV70 AWD  |  Auto (S8), 6 cyl, 3.5 L, Turbo, SIDI & PFI
+        class: Small Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: 6 cyl, 3.5 L SIDI & PFI | trans: Automatic (S8) | drive: All-Wheel Drive
+        fuel: Premium | MPG: 18 city / 24 hwy / 20 combined | epa_id: 47732
+    - GV80 AWD  |  Auto (S8), 4 cyl, 2.5 L, Turbo
+        class: Standard Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: 4 cyl, 2.5 L SIDI & PFI | trans: Automatic (S8) | drive: All-Wheel Drive
+        fuel: Premium | MPG: 19 city / 24 hwy / 21 combined | epa_id: 47751
+    - GV80 AWD  |  Auto (S8), 6 cyl, 3.5 L, Turbo
+        class: Standard Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: 6 cyl, 3.5 L SIDI & PFI | trans: Automatic (S8) | drive: All-Wheel Drive
+        fuel: Premium | MPG: 16 city / 22 hwy / 19 combined | epa_id: 47752
+    - GV80 MHEV  |  Auto (S8), 6 cyl, 3.5 L, Turbo, Sup Charg
+        class: Standard Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: 6 cyl, 3.5 L SIDI & PFI; Mild Hybrid | trans: Automatic (S8) | drive: All-Wheel Drive
+        fuel: Premium | MPG: 18 city / 22 hwy / 20 combined | epa_id: 48121
+
+### GMC  (27 models, 53 configurations)
+
+  [Pickup Truck]
+    - Canyon 2WD  |  Auto 8-spd, 4 cyl, 2.7 L, Turbo
+        class: Standard Pickup Trucks 2WD | NHTSA: Truck | engine: 4 cyl, 2.7 L SIDI | trans: Automatic 8-spd | drive: Rear-Wheel Drive
+        fuel: Regular | MPG: 19 city / 23 hwy / 20 combined | epa_id: 48887
+    - Canyon 4WD  |  Auto 8-spd, 4 cyl, 2.7 L, Turbo
+        class: Standard Pickup Trucks 4WD | NHTSA: Truck | engine: 4 cyl, 2.7 L SIDI | trans: Automatic 8-spd | drive: 4-Wheel Drive
+        fuel: Regular | MPG: 17 city / 21 hwy / 19 combined | epa_id: 48899
+    - Canyon AT4X 4WD  |  Auto 8-spd, 4 cyl, 2.7 L, Turbo
+        class: Standard Pickup Trucks 4WD | NHTSA: Truck | engine: 4 cyl, 2.7 L SIDI | trans: Automatic 8-spd | drive: 4-Wheel Drive
+        fuel: Regular | MPG: 17 city / 17 hwy / 17 combined | epa_id: 48900
+    - Canyon AT4X AEV 4WD  |  Auto 8-spd, 4 cyl, 2.7 L, Turbo
+        class: Standard Pickup Trucks 4WD | NHTSA: Truck | engine: 4 cyl, 2.7 L SIDI | trans: Automatic 8-spd | drive: 4-Wheel Drive
+        fuel: Regular | MPG: 16 city / 16 hwy / 16 combined | epa_id: 48901
+    - Hummer EV Pickup 2X  |  Auto (A1)
+        class: Standard Pickup Trucks 4WD | NHTSA: no match | engine: - cyl, - L | trans: Automatic (A1) | drive: All-Wheel Drive
+        fuel: Electricity | MPG: 59 city / 47 hwy / 53 combined | EV range: 318 mi | epa_id: 48343
+    - Hummer EV Pickup 3X  |  Auto (A1)
+        class: Standard Pickup Trucks 4WD | NHTSA: no match | engine: - cyl, - L | trans: Automatic (A1) | drive: All-Wheel Drive
+        fuel: Electricity | MPG: 58 city / 46 hwy / 52 combined | EV range: 312 mi | epa_id: 48344
+    - Hummer EV Pickup MT Tires 2X  |  Auto (A1)
+        class: Standard Pickup Trucks 4WD | NHTSA: no match | engine: - cyl, - L | trans: Automatic (A1) | drive: All-Wheel Drive
+        fuel: Electricity | MPG: 52 city / 42 hwy / 47 combined | EV range: 282 mi | epa_id: 48345
+    - Hummer EV Pickup MT Tires 3X  |  Auto (A1)
+        class: Standard Pickup Trucks 4WD | NHTSA: no match | engine: - cyl, - L | trans: Automatic (A1) | drive: All-Wheel Drive
+        fuel: Electricity | MPG: 53 city / 43 hwy / 48 combined | EV range: 289 mi | epa_id: 48346
+    - Sierra 2WD  |  Auto 10-spd, 6 cyl, 3.0 L, Diesel, Turbo
+        class: Standard Pickup Trucks 2WD | NHTSA: Truck | engine: 6 cyl, 3.0 L | trans: Automatic 10-spd | drive: Rear-Wheel Drive
+        fuel: Diesel | MPG: 23 city / 29 hwy / 26 combined | epa_id: 48204
+    - Sierra 2WD  |  Auto 10-spd, 8 cyl, 5.3 L, SIDI
+        class: Standard Pickup Trucks 2WD | NHTSA: Truck | engine: 8 cyl, 5.3 L SIDI | trans: Automatic 10-spd | drive: Rear-Wheel Drive
+        fuel: Regular | MPG: 16 city / 20 hwy / 17 combined | epa_id: 48208
+    - Sierra 2WD  |  Auto 10-spd, 8 cyl, 5.3 L, SIDI; with Sport Mode
+        class: Standard Pickup Trucks 2WD | NHTSA: Truck | engine: 8 cyl, 5.3 L SIDI; with Sport Mode | trans: Automatic 10-spd | drive: Rear-Wheel Drive
+        fuel: Regular | MPG: 16 city / 21 hwy / 18 combined | epa_id: 48207
+    - Sierra 2WD  |  Auto 8-spd, 4 cyl, 2.7 L, Turbo, SIDI
+        class: Standard Pickup Trucks 2WD | NHTSA: Truck | engine: 4 cyl, 2.7 L SIDI | trans: Automatic 8-spd | drive: Rear-Wheel Drive
+        fuel: Regular | MPG: 18 city / 21 hwy / 19 combined | epa_id: 48205
+    - Sierra 2WD  |  Auto 8-spd, 4 cyl, 2.7 L, Turbo, SIDI; with Sport Mode
+        class: Standard Pickup Trucks 2WD | NHTSA: Truck | engine: 4 cyl, 2.7 L SIDI; with Sport Mode | trans: Automatic 8-spd | drive: Rear-Wheel Drive
+        fuel: Regular | MPG: 17 city / 21 hwy / 19 combined | epa_id: 48206
+    - Sierra 4WD  |  Auto 10-spd, 6 cyl, 3.0 L, Diesel, Turbo, with Sport Mode
+        class: Standard Pickup Trucks 4WD | NHTSA: Truck | engine: 6 cyl, 3.0 L with Sport Mode | trans: Automatic 10-spd | drive: 4-Wheel Drive
+        fuel: Diesel | MPG: 22 city / 26 hwy / 24 combined | epa_id: 48229
+    - Sierra 4WD  |  Auto 10-spd, 8 cyl, 5.3 L, SIDI
+        class: Standard Pickup Trucks 4WD | NHTSA: Truck | engine: 8 cyl, 5.3 L SIDI | trans: Automatic 10-spd | drive: 4-Wheel Drive
+        fuel: Regular | MPG: 15 city / 19 hwy / 17 combined | epa_id: 48244
+    - Sierra 4WD  |  Auto 10-spd, 8 cyl, 5.3 L, SIDI; FFV
+        class: Standard Pickup Trucks 4WD | NHTSA: Truck | engine: 8 cyl, 5.3 L SIDI; FFV | trans: Automatic 10-spd | drive: 4-Wheel Drive
+        fuel: Gasoline or E85 | MPG: 15 city / 19 hwy / 17 combined | epa_id: 48235
+    - Sierra 4WD  |  Auto 10-spd, 8 cyl, 5.3 L, SIDI; Municipal
+        class: Standard Pickup Trucks 4WD | NHTSA: Truck | engine: 8 cyl, 5.3 L SIDI; Municipal | trans: Automatic 10-spd | drive: 4-Wheel Drive
+        fuel: Regular | MPG: 15 city / 19 hwy / 16 combined | epa_id: 48240
+    - Sierra 4WD  |  Auto 10-spd, 8 cyl, 5.3 L, SIDI; with Sport Mode
+        class: Standard Pickup Trucks 4WD | NHTSA: Truck | engine: 8 cyl, 5.3 L SIDI; with Sport Mode | trans: Automatic 10-spd | drive: 4-Wheel Drive
+        fuel: Regular | MPG: 15 city / 19 hwy / 17 combined | epa_id: 48242
+    - Sierra 4WD  |  Auto 10-spd, 8 cyl, 6.2 L, SIDI
+        class: Standard Pickup Trucks 4WD | NHTSA: Truck | engine: 8 cyl, 6.2 L SIDI | trans: Automatic 10-spd | drive: 4-Wheel Drive
+        fuel: Premium | MPG: 15 city / 19 hwy / 16 combined | epa_id: 48237
+    - Sierra 4WD  |  Auto 8-spd, 4 cyl, 2.7 L, Turbo, SIDI
+        class: Standard Pickup Trucks 4WD | NHTSA: Truck | engine: 4 cyl, 2.7 L SIDI | trans: Automatic 8-spd | drive: 4-Wheel Drive
+        fuel: Regular | MPG: 17 city / 19 hwy / 18 combined | epa_id: 48233
+    - Sierra 4WD  |  Auto 8-spd, 4 cyl, 2.7 L, Turbo, SIDI; With Sport Mode
+        class: Standard Pickup Trucks 4WD | NHTSA: Truck | engine: 4 cyl, 2.7 L SIDI; With Sport Mode | trans: Automatic 8-spd | drive: 4-Wheel Drive
+        fuel: Regular | MPG: 17 city / 18 hwy / 17 combined | epa_id: 48232
+    - Sierra 4WD AT4X  |  Auto 10-spd, 6 cyl, 3.0 L, Diesel, Turbo
+        class: Standard Pickup Trucks 4WD | NHTSA: Truck | engine: 6 cyl, 3.0 L | trans: Automatic 10-spd | drive: 4-Wheel Drive
+        fuel: Diesel | MPG: 19 city / 20 hwy / 19 combined | epa_id: 48231
+    - Sierra 4WD AT4X  |  Auto 10-spd, 8 cyl, 6.2 L
+        class: Standard Pickup Trucks 4WD | NHTSA: Truck | engine: 8 cyl, 6.2 L SIDI | trans: Automatic 10-spd | drive: 4-Wheel Drive
+        fuel: Premium | MPG: 14 city / 16 hwy / 15 combined | epa_id: 48239
+    - Sierra EV  |  Auto (A1)
+        class: Standard Pickup Trucks 4WD | NHTSA: Truck | engine: - cyl, - L | trans: Automatic (A1) | drive: 4-Wheel Drive
+        fuel: Electricity | MPG: 70 city / 59 hwy / 64 combined | EV range: 390 mi | epa_id: 48709
+    - Sierra Mud Terrain Tires 4WD  |  Auto 10-spd, 6 cyl, 3.0 L, Diesel, Turbo, with Sport Mode
+        class: Standard Pickup Trucks 4WD | NHTSA: Truck | engine: 6 cyl, 3.0 L with Sport Mode | trans: Automatic 10-spd | drive: 4-Wheel Drive
+        fuel: Diesel | MPG: 21 city / 24 hwy / 23 combined | epa_id: 48230
+    - Sierra Mud Terrain Tires 4WD  |  Auto 10-spd, 8 cyl, 5.3 L, SIDI
+        class: Standard Pickup Trucks 4WD | NHTSA: Truck | engine: 8 cyl, 5.3 L SIDI | trans: Automatic 10-spd | drive: 4-Wheel Drive
+        fuel: Regular | MPG: 15 city / 18 hwy / 16 combined | epa_id: 48245
+    - Sierra Mud Terrain Tires 4WD  |  Auto 10-spd, 8 cyl, 5.3 L, SIDI; FFV
+        class: Standard Pickup Trucks 4WD | NHTSA: Truck | engine: 8 cyl, 5.3 L SIDI; FFV | trans: Automatic 10-spd | drive: 4-Wheel Drive
+        fuel: Gasoline or E85 | MPG: 15 city / 19 hwy / 17 combined | epa_id: 48236
+    - Sierra Mud Terrain Tires 4WD  |  Auto 10-spd, 8 cyl, 5.3 L, SIDI; Municipal
+        class: Standard Pickup Trucks 4WD | NHTSA: Truck | engine: 8 cyl, 5.3 L SIDI; Municipal | trans: Automatic 10-spd | drive: 4-Wheel Drive
+        fuel: Regular | MPG: 15 city / 19 hwy / 16 combined | epa_id: 48241
+    - Sierra Mud Terrain Tires 4WD  |  Auto 10-spd, 8 cyl, 5.3 L, SIDI; with Sport Mode
+        class: Standard Pickup Trucks 4WD | NHTSA: Truck | engine: 8 cyl, 5.3 L SIDI; with Sport Mode | trans: Automatic 10-spd | drive: 4-Wheel Drive
+        fuel: Regular | MPG: 15 city / 18 hwy / 16 combined | epa_id: 48243
+    - Sierra Mud Terrain Tires 4WD  |  Auto 10-spd, 8 cyl, 6.2 L, SIDI
+        class: Standard Pickup Trucks 4WD | NHTSA: Truck | engine: 8 cyl, 6.2 L SIDI | trans: Automatic 10-spd | drive: 4-Wheel Drive
+        fuel: Premium | MPG: 14 city / 17 hwy / 15 combined | epa_id: 48238
+    - Sierra Mud Terrain Tires 4WD  |  Auto 8-spd, 4 cyl, 2.7 L, Turbo, SIDI
+        class: Standard Pickup Trucks 4WD | NHTSA: Truck | engine: 4 cyl, 2.7 L SIDI | trans: Automatic 8-spd | drive: 4-Wheel Drive
+        fuel: Regular | MPG: 16 city / 17 hwy / 16 combined | epa_id: 48234
+
+  [SUV]
+    - Acadia AWD  |  Auto 8-spd, 4 cyl, 2.5 L, Turbo
+        class: Standard Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: 4 cyl, 2.5 L SIDI | trans: Automatic 8-spd | drive: All-Wheel Drive
+        fuel: Regular | MPG: 19 city / 24 hwy / 21 combined | epa_id: 48122
+    - Acadia FWD  |  Auto 8-spd, 4 cyl, 2.5 L, Turbo
+        class: Standard Sport Utility Vehicle 2WD | NHTSA: SUV / MPV | engine: 4 cyl, 2.5 L SIDI | trans: Automatic 8-spd | drive: Front-Wheel Drive
+        fuel: Regular | MPG: 20 city / 27 hwy / 23 combined | epa_id: 48111
+    - Hummer EV SUV 2X  |  Auto (A1)
+        class: Standard Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: - cyl, - L | trans: Automatic (A1) | drive: All-Wheel Drive
+        fuel: Electricity | MPG: 59 city / 46 hwy / 53 combined | EV range: 315 mi | epa_id: 48347
+    - Hummer EV SUV 3X  |  Auto (A1)
+        class: Standard Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: - cyl, - L | trans: Automatic (A1) | drive: All-Wheel Drive
+        fuel: Electricity | MPG: 58 city / 46 hwy / 52 combined | EV range: 312 mi | epa_id: 48348
+    - Hummer EV SUV MT Tires 2X  |  Auto (A1)
+        class: Standard Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: - cyl, - L | trans: Automatic (A1) | drive: All-Wheel Drive
+        fuel: Electricity | MPG: 52 city / 42 hwy / 47 combined | EV range: 282 mi | epa_id: 48349
+    - Hummer EV SUV MT Tires 3X  |  Auto (A1)
+        class: Standard Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: - cyl, - L | trans: Automatic (A1) | drive: All-Wheel Drive
+        fuel: Electricity | MPG: 53 city / 43 hwy / 48 combined | EV range: 289 mi | epa_id: 48350
+    - Terrain AWD  |  Auto 8-spd, 4 cyl, 1.5 L, Turbo
+        class: Small Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: 4 cyl, 1.5 L SIDI | trans: Automatic 8-spd | drive: All-Wheel Drive
+        fuel: Regular | MPG: 24 city / 28 hwy / 25 combined | epa_id: 48610
+    - Terrain FWD  |  Auto (variable gear ratios), 4 cyl, 1.5 L, Turbo
+        class: Small Sport Utility Vehicle 2WD | NHTSA: SUV / MPV | engine: 4 cyl, 1.5 L SIDI | trans: Automatic (variable gear ratios) | drive: Front-Wheel Drive
+        fuel: Regular | MPG: 26 city / 28 hwy / 27 combined | epa_id: 48603
+    - Yukon 2WD  |  Auto 10-spd, 6 cyl, 3.0 L, Diesel, Turbo
+        class: Standard Sport Utility Vehicle 2WD | NHTSA: SUV / MPV | engine: 6 cyl, 3.0 L | trans: Automatic 10-spd | drive: Rear-Wheel Drive
+        fuel: Diesel | MPG: 21 city / 26 hwy / 23 combined | epa_id: 48945
+    - Yukon 2WD  |  Auto 10-spd, 8 cyl, 5.3 L
+        class: Standard Sport Utility Vehicle 2WD | NHTSA: SUV / MPV | engine: 8 cyl, 5.3 L SIDI | trans: Automatic 10-spd | drive: Rear-Wheel Drive
+        fuel: Regular | MPG: 15 city / 20 hwy / 17 combined | epa_id: 48627
+    - Yukon 2WD  |  Auto 10-spd, 8 cyl, 6.2 L
+        class: Standard Sport Utility Vehicle 2WD | NHTSA: SUV / MPV | engine: 8 cyl, 6.2 L SIDI | trans: Automatic 10-spd | drive: Rear-Wheel Drive
+        fuel: Premium | MPG: 15 city / 20 hwy / 17 combined | epa_id: 48625
+    - Yukon 4WD  |  Auto 10-spd, 6 cyl, 3.0 L, Diesel, Turbo
+        class: Standard Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: 6 cyl, 3.0 L | trans: Automatic 10-spd | drive: 4-Wheel Drive
+        fuel: Diesel | MPG: 20 city / 26 hwy / 22 combined | epa_id: 48960
+    - Yukon 4WD  |  Auto 10-spd, 8 cyl, 5.3 L
+        class: Standard Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: 8 cyl, 5.3 L SIDI | trans: Automatic 10-spd | drive: 4-Wheel Drive
+        fuel: Regular | MPG: 15 city / 19 hwy / 17 combined | epa_id: 48637
+    - Yukon 4WD  |  Auto 10-spd, 8 cyl, 6.2 L
+        class: Standard Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: 8 cyl, 6.2 L SIDI | trans: Automatic 10-spd | drive: 4-Wheel Drive
+        fuel: Premium | MPG: 14 city / 18 hwy / 16 combined | epa_id: 48635
+    - Yukon XL 2WD  |  Auto 10-spd, 6 cyl, 3.0 L, Diesel, Turbo
+        class: Standard Sport Utility Vehicle 2WD | NHTSA: SUV / MPV | engine: 6 cyl, 3.0 L | trans: Automatic 10-spd | drive: Rear-Wheel Drive
+        fuel: Diesel | MPG: 21 city / 26 hwy / 23 combined | epa_id: 48944
+    - Yukon XL 2WD  |  Auto 10-spd, 8 cyl, 5.3 L
+        class: Standard Sport Utility Vehicle 2WD | NHTSA: SUV / MPV | engine: 8 cyl, 5.3 L SIDI | trans: Automatic 10-spd | drive: Rear-Wheel Drive
+        fuel: Regular | MPG: 15 city / 20 hwy / 17 combined | epa_id: 48628
+    - Yukon XL 2WD  |  Auto 10-spd, 8 cyl, 6.2 L
+        class: Standard Sport Utility Vehicle 2WD | NHTSA: SUV / MPV | engine: 8 cyl, 6.2 L SIDI | trans: Automatic 10-spd | drive: Rear-Wheel Drive
+        fuel: Premium | MPG: 15 city / 19 hwy / 16 combined | epa_id: 48626
+    - Yukon XL 4WD  |  Auto 10-spd, 6 cyl, 3.0 L, Diesel, Turbo
+        class: Standard Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: 6 cyl, 3.0 L | trans: Automatic 10-spd | drive: 4-Wheel Drive
+        fuel: Diesel | MPG: 20 city / 26 hwy / 22 combined | epa_id: 48959
+    - Yukon XL 4WD  |  Auto 10-spd, 8 cyl, 5.3 L
+        class: Standard Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: 8 cyl, 5.3 L SIDI | trans: Automatic 10-spd | drive: 4-Wheel Drive
+        fuel: Regular | MPG: 14 city / 19 hwy / 16 combined | epa_id: 48638
+    - Yukon XL 4WD  |  Auto 10-spd, 8 cyl, 6.2 L
+        class: Standard Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: 8 cyl, 6.2 L SIDI | trans: Automatic 10-spd | drive: 4-Wheel Drive
+        fuel: Premium | MPG: 14 city / 18 hwy / 16 combined | epa_id: 48636
+
+  [Special Purpose (Van/Truck)]
+    - Sierra Cab Chassis 2WD  |  Auto 10-spd, 8 cyl, 5.3 L
+        class: Special Purpose Vehicle 2WD | NHTSA: Truck | engine: 8 cyl, 5.3 L SIDI | trans: Automatic 10-spd | drive: Rear-Wheel Drive
+        fuel: Regular | MPG: 15 city / 18 hwy / 16 combined | epa_id: 48250
+    - Sierra Cab Chassis 4WD  |  Auto 10-spd, 8 cyl, 5.3 L
+        class: Special Purpose Vehicle 4WD | NHTSA: Truck | engine: 8 cyl, 5.3 L SIDI | trans: Automatic 10-spd | drive: 4-Wheel Drive
+        fuel: Regular | MPG: 14 city / 16 hwy / 15 combined | epa_id: 48251
+
+### Honda  (21 models, 28 configurations)
+
+  [Car (Sedan/Coupe/Hatchback)]
+    - Accord  |  Auto (variable gear ratios), 4 cyl, 1.5 L, Turbo
+        class: Large Cars | NHTSA: Passenger Car | engine: 4 cyl, 1.5 L SIDI | trans: Automatic (variable gear ratios) | drive: Front-Wheel Drive
+        fuel: Regular | MPG: 29 city / 37 hwy / 32 combined | epa_id: 48504
+    - Accord Hybrid  |  Auto (variable gear ratios), 4 cyl, 2.0 L
+        class: Large Cars | NHTSA: Passenger Car | engine: 4 cyl, 2.0 L SIDI; Hybrid | trans: Automatic (variable gear ratios) | drive: Front-Wheel Drive
+        fuel: Regular | MPG: 51 city / 44 hwy / 48 combined | epa_id: 48505
+    - Accord Hybrid Sport/Touring  |  Auto (variable gear ratios), 4 cyl, 2.0 L
+        class: Midsize Cars | NHTSA: Passenger Car | engine: 4 cyl, 2.0 L SIDI; Hybrid | trans: Automatic (variable gear ratios) | drive: Front-Wheel Drive
+        fuel: Regular | MPG: 46 city / 41 hwy / 44 combined | epa_id: 48497
+    - Civic 4Dr  |  Auto (AV-S7), 4 cyl, 2.0 L, SIDI
+        class: Midsize Cars | NHTSA: Passenger Car | engine: 4 cyl, 2.0 L SIDI | trans: Automatic (AV-S7) | drive: Front-Wheel Drive
+        fuel: Regular | MPG: 31 city / 39 hwy / 34 combined | epa_id: 48017
+    - Civic 4Dr  |  Auto (variable gear ratios), 4 cyl, 2.0 L, SIDI
+        class: Midsize Cars | NHTSA: Passenger Car | engine: 4 cyl, 2.0 L SIDI | trans: Automatic (variable gear ratios) | drive: Front-Wheel Drive
+        fuel: Regular | MPG: 32 city / 41 hwy / 36 combined | epa_id: 48016
+    - Civic 4Dr  |  Auto (variable gear ratios), 4 cyl, 2.0 L, SIDI; Hybrid
+        class: Midsize Cars | NHTSA: Passenger Car | engine: 4 cyl, 2.0 L SIDI; Hybrid | trans: Automatic (variable gear ratios) | drive: Front-Wheel Drive
+        fuel: Regular | MPG: 50 city / 47 hwy / 49 combined | epa_id: 48018
+    - Civic 4Dr  |  Man 6-spd, 4 cyl, 1.5 L, Turbo, SIDI
+        class: Midsize Cars | NHTSA: Passenger Car | engine: 4 cyl, 1.5 L SIDI | trans: Manual 6-spd | drive: Front-Wheel Drive
+        fuel: Premium | MPG: 27 city / 37 hwy / 31 combined | epa_id: 48178
+    - Civic 5Dr  |  Auto (AV-S7), 4 cyl, 2.0 L
+        class: Large Cars | NHTSA: Passenger Car | engine: 4 cyl, 2.0 L SIDI | trans: Automatic (AV-S7) | drive: Front-Wheel Drive
+        fuel: Regular | MPG: 30 city / 38 hwy / 34 combined | epa_id: 48502
+    - Civic 5Dr  |  Auto (variable gear ratios), 4 cyl, 2.0 L
+        class: Large Cars | NHTSA: Passenger Car | engine: 4 cyl, 2.0 L SIDI; Hybrid | trans: Automatic (variable gear ratios) | drive: Front-Wheel Drive
+        fuel: Regular | MPG: 50 city / 45 hwy / 48 combined | epa_id: 48503
+    - Civic 5Dr  |  Man 6-spd, 4 cyl, 2.0 L, Turbo
+        class: Large Cars | NHTSA: Passenger Car | engine: 4 cyl, 2.0 L SIDI | trans: Manual 6-spd | drive: Front-Wheel Drive
+        fuel: Premium | MPG: 22 city / 28 hwy / 24 combined | epa_id: 48042
+
+  [Minivan]
+    - Odyssey  |  Auto (S10), 6 cyl, 3.5 L
+        class: Minivan - 2WD | NHTSA: SUV / MPV | engine: 6 cyl, 3.5 L SIDI | trans: Automatic (S10) | drive: Front-Wheel Drive
+        fuel: Regular | MPG: 19 city / 28 hwy / 22 combined | epa_id: 48254
+
+  [Pickup Truck]
+    - Ridgeline AWD  |  Auto (S9), 6 cyl, 3.5 L
+        class: Standard Pickup Trucks 4WD | NHTSA: Truck | engine: 6 cyl, 3.5 L SIDI | trans: Automatic (S9) | drive: All-Wheel Drive
+        fuel: Regular | MPG: 18 city / 24 hwy / 21 combined | epa_id: 48246
+    - Ridgeline AWD TrailSport  |  Auto (S9), 6 cyl, 3.5 L
+        class: Standard Pickup Trucks 4WD | NHTSA: Truck | engine: 6 cyl, 3.5 L SIDI | trans: Automatic (S9) | drive: All-Wheel Drive
+        fuel: Regular | MPG: 18 city / 23 hwy / 20 combined | epa_id: 48247
+
+  [SUV]
+    - CR-V AWD  |  Auto (variable gear ratios), 4 cyl, 1.5 L, Turbo
+        class: Small Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: 4 cyl, 1.5 L SIDI | trans: Automatic (variable gear ratios) | drive: All-Wheel Drive
+        fuel: Regular | MPG: 26 city / 31 hwy / 28 combined | epa_id: 47956
+    - CR-V AWD  |  Auto (variable gear ratios), 4 cyl, 2.0 L
+        class: Small Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: 4 cyl, 2.0 L SIDI; Hybrid | trans: Automatic (variable gear ratios) | drive: All-Wheel Drive
+        fuel: Regular | MPG: 40 city / 34 hwy / 37 combined | epa_id: 47957
+    - CR-V FWD  |  Auto (variable gear ratios), 4 cyl, 1.5 L, Turbo
+        class: Small Sport Utility Vehicle 2WD | NHTSA: SUV / MPV | engine: 4 cyl, 1.5 L SIDI | trans: Automatic (variable gear ratios) | drive: Front-Wheel Drive
+        fuel: Regular | MPG: 28 city / 34 hwy / 30 combined | epa_id: 47949
+    - CR-V FWD  |  Auto (variable gear ratios), 4 cyl, 2.0 L
+        class: Small Sport Utility Vehicle 2WD | NHTSA: SUV / MPV | engine: 4 cyl, 2.0 L SIDI; Hybrid | trans: Automatic (variable gear ratios) | drive: Front-Wheel Drive
+        fuel: Regular | MPG: 43 city / 36 hwy / 40 combined | epa_id: 47950
+    - CR-V e-FCEV  |  Auto (A1)
+        class: Small Sport Utility Vehicle 2WD | NHTSA: SUV / MPV | engine: - cyl, - L | trans: Automatic (A1) | drive: Front-Wheel Drive
+        fuel: Electricity and Hydrogen | MPG: 36 city / 43 hwy / 39 combined | EV range: 245 mi | epa_id: 50270
+    - Passport AWD  |  Auto (S9), 6 cyl, 3.5 L
+        class: Small Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: 6 cyl, 3.5 L SIDI | trans: Automatic (S9) | drive: All-Wheel Drive
+        fuel: Regular | MPG: 19 city / 24 hwy / 21 combined | epa_id: 48092
+    - Pilot AWD  |  Auto (S10), 6 cyl, 3.5 L
+        class: Standard Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: 6 cyl, 3.5 L SIDI | trans: Automatic (S10) | drive: All-Wheel Drive
+        fuel: Regular | MPG: 19 city / 25 hwy / 21 combined | epa_id: 47753
+    - Pilot AWD Touring/Elite/Black  |  Auto (S10), 6 cyl, 3.5 L
+        class: Standard Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: 6 cyl, 3.5 L SIDI | trans: Automatic (S10) | drive: All-Wheel Drive
+        fuel: Regular | MPG: 19 city / 25 hwy / 21 combined | epa_id: 47754
+    - Pilot AWD TrailSport  |  Auto (S10), 6 cyl, 3.5 L
+        class: Standard Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: 6 cyl, 3.5 L SIDI | trans: Automatic (S10) | drive: All-Wheel Drive
+        fuel: Regular | MPG: 18 city / 23 hwy / 20 combined | epa_id: 47755
+    - Pilot FWD  |  Auto (S10), 6 cyl, 3.5 L
+        class: Small Sport Utility Vehicle 2WD | NHTSA: SUV / MPV | engine: 6 cyl, 3.5 L SIDI | trans: Automatic (S10) | drive: Front-Wheel Drive
+        fuel: Regular | MPG: 19 city / 27 hwy / 22 combined | epa_id: 47728
+    - Prologue AWD Elite  |  Auto (A1)
+        class: Standard Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: - cyl, - L | trans: Automatic (A1) | drive: All-Wheel Drive
+        fuel: Electricity | MPG: 104 city / 87 hwy / 95 combined | EV range: 283 mi | epa_id: 49090
+    - Prologue AWD Touring  |  Auto (A1)
+        class: Standard Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: - cyl, - L | trans: Automatic (A1) | drive: All-Wheel Drive
+        fuel: Electricity | MPG: 108 city / 90 hwy / 99 combined | EV range: 294 mi | epa_id: 49089
+    - Prologue FWD  |  Auto (A1)
+        class: Standard Sport Utility Vehicle 2WD | NHTSA: SUV / MPV | engine: - cyl, - L | trans: Automatic (A1) | drive: Front-Wheel Drive
+        fuel: Electricity | MPG: 113 city / 94 hwy / 104 combined | EV range: 308 mi | epa_id: 49091
+
+  [Wagon]
+    - HR-V AWD  |  Auto (variable gear ratios), 4 cyl, 2.0 L
+        class: Small Station Wagons | NHTSA: SUV / MPV | engine: 4 cyl, 2.0 L | trans: Automatic (variable gear ratios) | drive: All-Wheel Drive
+        fuel: Regular | MPG: 25 city / 30 hwy / 27 combined | epa_id: 47782
+    - HR-V FWD  |  Auto (variable gear ratios), 4 cyl, 2.0 L
+        class: Small Station Wagons | NHTSA: SUV / MPV | engine: 4 cyl, 2.0 L | trans: Automatic (variable gear ratios) | drive: Front-Wheel Drive
+        fuel: Regular | MPG: 26 city / 32 hwy / 28 combined | epa_id: 47783
+
+### Hyundai  (42 models, 52 configurations)
+
+  [Car (Sedan/Coupe/Hatchback)]
+    - Elantra  |  Auto (AM-S7), 4 cyl, 1.6 L, Turbo, SIDI
+        class: Midsize Cars | NHTSA: Passenger Car | engine: 4 cyl, 1.6 L SIDI | trans: Automatic (AM-S7) | drive: Front-Wheel Drive
+        fuel: Regular | MPG: 28 city / 35 hwy / 31 combined | epa_id: 48021
+    - Elantra  |  Auto (AV-S1), 4 cyl, 2.0 L
+        class: Midsize Cars | NHTSA: Passenger Car | engine: 4 cyl, 2.0 L | trans: Automatic (AV-S1) | drive: Front-Wheel Drive
+        fuel: Regular | MPG: 30 city / 39 hwy / 34 combined | epa_id: 48019
+    - Elantra  |  Auto (AV-S1), 4 cyl, 2.0 L, with Stop-Start
+        class: Midsize Cars | NHTSA: Passenger Car | engine: 4 cyl, 2.0 L with Stop-Start | trans: Automatic (AV-S1) | drive: Front-Wheel Drive
+        fuel: Regular | MPG: 32 city / 41 hwy / 36 combined | epa_id: 48020
+    - Elantra Hybrid  |  Auto (AM-S6), 4 cyl, 1.6 L
+        class: Midsize Cars | NHTSA: Passenger Car | engine: 4 cyl, 1.6 L SIDI; Hybrid | trans: Automatic (AM-S6) | drive: Front-Wheel Drive
+        fuel: Regular | MPG: 49 city / 52 hwy / 50 combined | epa_id: 48022
+    - Elantra Hybrid Blue  |  Auto (AM-S6), 4 cyl, 1.6 L
+        class: Midsize Cars | NHTSA: Passenger Car | engine: 4 cyl, 1.6 L SIDI; Hybrid | trans: Automatic (AM-S6) | drive: Front-Wheel Drive
+        fuel: Regular | MPG: 51 city / 58 hwy / 54 combined | epa_id: 48023
+    - Elantra N  |  Auto (AM-S8), 4 cyl, 2.0 L, Turbo
+        class: Midsize Cars | NHTSA: Passenger Car | engine: 4 cyl, 2.0 L SIDI | trans: Automatic (AM-S8) | drive: Front-Wheel Drive
+        fuel: Premium | MPG: 20 city / 27 hwy / 23 combined | epa_id: 48024
+    - Elantra N  |  Man 6-spd, 4 cyl, 2.0 L, Turbo
+        class: Midsize Cars | NHTSA: Passenger Car | engine: 4 cyl, 2.0 L SIDI | trans: Manual 6-spd | drive: Front-Wheel Drive
+        fuel: Premium | MPG: 21 city / 29 hwy / 24 combined | epa_id: 48025
+    - Ioniq 6 AWD (18 inch Wheels)  |  Auto (A1)
+        class: Midsize Cars | NHTSA: Passenger Car | engine: - cyl, - L | trans: Automatic (A1) | drive: All-Wheel Drive
+        fuel: Electricity | MPG: 130 city / 111 hwy / 121 combined | EV range: 316 mi | epa_id: 48361
+    - Ioniq 6 AWD (20 inch Wheels)  |  Auto (A1)
+        class: Midsize Cars | NHTSA: Passenger Car | engine: - cyl, - L | trans: Automatic (A1) | drive: All-Wheel Drive
+        fuel: Electricity | MPG: 111 city / 94 hwy / 103 combined | EV range: 270 mi | epa_id: 48365
+    - Ioniq 6 RWD (18 inch Wheels)  |  Auto (A1)
+        class: Midsize Cars | NHTSA: Passenger Car | engine: - cyl, - L | trans: Automatic (A1) | drive: Rear-Wheel Drive
+        fuel: Electricity | MPG: 144 city / 120 hwy / 132 combined | EV range: 342 mi | epa_id: 48362
+    - Ioniq 6 RWD (20 inch Wheels)  |  Auto (A1)
+        class: Midsize Cars | NHTSA: Passenger Car | engine: - cyl, - L | trans: Automatic (A1) | drive: Rear-Wheel Drive
+        fuel: Electricity | MPG: 123 city / 100 hwy / 111 combined | EV range: 291 mi | epa_id: 48363
+    - Ioniq 6 Standard Range  |  Auto (A1)
+        class: Midsize Cars | NHTSA: Passenger Car | engine: - cyl, - L | trans: Automatic (A1) | drive: Rear-Wheel Drive
+        fuel: Electricity | MPG: 151 city / 120 hwy / 135 combined | EV range: 240 mi | epa_id: 48364
+    - Sonata AWD  |  Auto (S8), 4 cyl, 2.5 L
+        class: Large Cars | NHTSA: Passenger Car | engine: 4 cyl, 2.5 L SIDI & PFI | trans: Automatic (S8) | drive: All-Wheel Drive
+        fuel: Regular | MPG: 25 city / 34 hwy / 28 combined | epa_id: 48043
+    - Sonata FWD  |  Auto (AM-S8), 4 cyl, 2.5 L, Turbo, SIDI & PFI
+        class: Large Cars | NHTSA: Passenger Car | engine: 4 cyl, 2.5 L SIDI & PFI | trans: Automatic (AM-S8) | drive: Front-Wheel Drive
+        fuel: Regular | MPG: 23 city / 32 hwy / 27 combined | epa_id: 48046
+    - Sonata FWD  |  Auto (S8), 4 cyl, 2.5 L, SIDI & PFI
+        class: Large Cars | NHTSA: Passenger Car | engine: 4 cyl, 2.5 L SIDI & PFI | trans: Automatic (S8) | drive: Front-Wheel Drive
+        fuel: Regular | MPG: 25 city / 36 hwy / 29 combined | epa_id: 48044
+    - Sonata FWD  |  Auto (S8), 4 cyl, 2.5 L, SIDI & PFI; with Stop-Start
+        class: Large Cars | NHTSA: Passenger Car | engine: 4 cyl, 2.5 L SIDI & PFI; with Stop-Start | trans: Automatic (S8) | drive: Front-Wheel Drive
+        fuel: Regular | MPG: 28 city / 38 hwy / 32 combined | epa_id: 48045
+    - Sonata Hybrid  |  Auto (AM-S6), 4 cyl, 2.0 L
+        class: Large Cars | NHTSA: Passenger Car | engine: 4 cyl, 2.0 L SIDI; Hybrid | trans: Automatic (AM-S6) | drive: Front-Wheel Drive
+        fuel: Regular | MPG: 44 city / 51 hwy / 47 combined | epa_id: 48047
+
+  [SUV]
+    - Ioniq 5 AWD (19 inch Wheels)  |  Auto (A1)
+        class: Small Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: - cyl, - L | trans: Automatic (A1) | drive: All-Wheel Drive
+        fuel: Electricity | MPG: 116 city / 96 hwy / 106 combined | EV range: 290 mi | epa_id: 48710
+    - Ioniq 5 AWD (20 inch Wheels)  |  Auto (A1)
+        class: Small Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: - cyl, - L | trans: Automatic (A1) | drive: All-Wheel Drive
+        fuel: Electricity | MPG: 108 city / 88 hwy / 98 combined | EV range: 269 mi | epa_id: 48711
+    - Ioniq 5 AWD XRT  |  Auto (A1)
+        class: Small Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: - cyl, - L | trans: Automatic (A1) | drive: All-Wheel Drive
+        fuel: Electricity | MPG: 103 city / 85 hwy / 94 combined | EV range: 259 mi | epa_id: 48712
+    - Ioniq 5 N  |  Auto (A1)
+        class: Small Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: - cyl, - L | trans: Automatic (A1) | drive: All-Wheel Drive
+        fuel: Electricity | MPG: 84 city / 72 hwy / 78 combined | EV range: 221 mi | epa_id: 48360
+    - Ioniq 5 RWD  |  Auto (A1)
+        class: Small Sport Utility Vehicle 2WD | NHTSA: SUV / MPV | engine: - cyl, - L | trans: Automatic (A1) | drive: Rear-Wheel Drive
+        fuel: Electricity | MPG: 129 city / 100 hwy / 114 combined | EV range: 318 mi | epa_id: 48713
+    - Ioniq 5 Robo taxi  |  Auto (A1)
+        class: Small Sport Utility Vehicle 2WD | NHTSA: SUV / MPV | engine: - cyl, - L | trans: Automatic (A1) | drive: Rear-Wheel Drive
+        fuel: Electricity | MPG: 73 city / 69 hwy / 71 combined | EV range: 168 mi | epa_id: 49092
+    - Ioniq 5 Standard range  |  Auto (A1)
+        class: Small Sport Utility Vehicle 2WD | NHTSA: SUV / MPV | engine: - cyl, - L | trans: Automatic (A1) | drive: Rear-Wheel Drive
+        fuel: Electricity | MPG: 131 city / 100 hwy / 115 combined | EV range: 245 mi | epa_id: 48714
+    - Kona AWD  |  Auto (AV-S1), 4 cyl, 2.0 L
+        class: Small Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: 4 cyl, 2.0 L | trans: Automatic (AV-S1) | drive: All-Wheel Drive
+        fuel: Regular | MPG: 26 city / 29 hwy / 27 combined | epa_id: 47959
+    - Kona AWD  |  Auto (AV-S1), 4 cyl, 2.0 L, with Stop-Start
+        class: Small Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: 4 cyl, 2.0 L with Stop-Start | trans: Automatic (AV-S1) | drive: All-Wheel Drive
+        fuel: Regular | MPG: 27 city / 29 hwy / 28 combined | epa_id: 47960
+    - Kona AWD  |  Auto (S8), 4 cyl, 1.6 L, Turbo, SIDI
+        class: Small Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: 4 cyl, 1.6 L SIDI | trans: Automatic (S8) | drive: All-Wheel Drive
+        fuel: Regular | MPG: 24 city / 29 hwy / 26 combined | epa_id: 48093
+    - Kona Electric (17 inch Wheels)  |  Auto (A1)
+        class: Small Sport Utility Vehicle 2WD | NHTSA: SUV / MPV | engine: - cyl, - L | trans: Automatic (A1) | drive: Front-Wheel Drive
+        fuel: Electricity | MPG: 129 city / 103 hwy / 116 combined | EV range: 261 mi | epa_id: 48357
+    - Kona Electric (19 inch Wheels)  |  Auto (A1)
+        class: Small Sport Utility Vehicle 2WD | NHTSA: SUV / MPV | engine: - cyl, - L | trans: Automatic (A1) | drive: Front-Wheel Drive
+        fuel: Electricity | MPG: 113 city / 93 hwy / 103 combined | EV range: 230 mi | epa_id: 48358
+    - Kona Electric Standard Range  |  Auto (A1)
+        class: Small Sport Utility Vehicle 2WD | NHTSA: SUV / MPV | engine: - cyl, - L | trans: Automatic (A1) | drive: Front-Wheel Drive
+        fuel: Electricity | MPG: 131 city / 105 hwy / 118 combined | EV range: 200 mi | epa_id: 48359
+    - Kona FWD  |  Auto (AV-S1), 4 cyl, 2.0 L
+        class: Small Sport Utility Vehicle 2WD | NHTSA: SUV / MPV | engine: 4 cyl, 2.0 L | trans: Automatic (AV-S1) | drive: Front-Wheel Drive
+        fuel: Regular | MPG: 28 city / 35 hwy / 31 combined | epa_id: 47952
+    - Kona FWD  |  Auto (AV-S1), 4 cyl, 2.0 L, with Stop-Start
+        class: Small Sport Utility Vehicle 2WD | NHTSA: SUV / MPV | engine: 4 cyl, 2.0 L with Stop-Start | trans: Automatic (AV-S1) | drive: Front-Wheel Drive
+        fuel: Regular | MPG: 29 city / 34 hwy / 31 combined | epa_id: 47953
+    - Kona FWD  |  Auto (S8), 4 cyl, 1.6 L, Turbo, SIDI
+        class: Small Sport Utility Vehicle 2WD | NHTSA: SUV / MPV | engine: 4 cyl, 1.6 L SIDI | trans: Automatic (S8) | drive: Front-Wheel Drive
+        fuel: Regular | MPG: 26 city / 32 hwy / 28 combined | epa_id: 48064
+    - Nexo  |  Auto (A1)
+        class: Small Sport Utility Vehicle 2WD | NHTSA: SUV / MPV | engine: - cyl, - L PEM | trans: Automatic (A1) | drive: Front-Wheel Drive
+        fuel: Hydrogen | MPG: 59 city / 54 hwy / 57 combined | EV range: 354 mi | epa_id: 49065
+    - Nexo Blue  |  Auto (A1)
+        class: Small Sport Utility Vehicle 2WD | NHTSA: SUV / MPV | engine: - cyl, - L PEM | trans: Automatic (A1) | drive: Front-Wheel Drive
+        fuel: Hydrogen | MPG: 65 city / 58 hwy / 61 combined | EV range: 380 mi | epa_id: 49066
+    - Palisade AWD  |  Auto (S8), 6 cyl, 3.8 L
+        class: Small Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: 6 cyl, 3.8 L SIDI | trans: Automatic (S8) | drive: All-Wheel Drive
+        fuel: Regular | MPG: 19 city / 24 hwy / 21 combined | epa_id: 47958
+    - Palisade FWD  |  Auto (S8), 6 cyl, 3.8 L
+        class: Small Sport Utility Vehicle 2WD | NHTSA: SUV / MPV | engine: 6 cyl, 3.8 L SIDI | trans: Automatic (S8) | drive: Front-Wheel Drive
+        fuel: Regular | MPG: 19 city / 26 hwy / 22 combined | epa_id: 47951
+    - Santa Cruz AWD  |  Auto (AM-S8), 4 cyl, 2.5 L, Turbo
+        class: Small Sport Utility Vehicle 4WD | NHTSA: Truck | engine: 4 cyl, 2.5 L SIDI & PFI | trans: Automatic (AM-S8) | drive: All-Wheel Drive
+        fuel: Regular | MPG: 19 city / 27 hwy / 22 combined | epa_id: 48267
+    - Santa Cruz AWD  |  Auto (S8), 4 cyl, 2.5 L
+        class: Small Sport Utility Vehicle 4WD | NHTSA: Truck | engine: 4 cyl, 2.5 L SIDI & PFI | trans: Automatic (S8) | drive: All-Wheel Drive
+        fuel: Regular | MPG: 21 city / 29 hwy / 24 combined | epa_id: 48266
+    - Santa Cruz FWD  |  Auto (S8), 4 cyl, 2.5 L
+        class: Small Sport Utility Vehicle 2WD | NHTSA: Truck | engine: 4 cyl, 2.5 L SIDI & PFI | trans: Automatic (S8) | drive: Front-Wheel Drive
+        fuel: Regular | MPG: 22 city / 30 hwy / 25 combined | epa_id: 48257
+    - Santa Cruz XRT AWD  |  Auto (AM-S8), 4 cyl, 2.5 L, Turbo
+        class: Small Sport Utility Vehicle 4WD | NHTSA: Truck | engine: 4 cyl, 2.5 L SIDI & PFI | trans: Automatic (AM-S8) | drive: All-Wheel Drive
+        fuel: Regular | MPG: 18 city / 26 hwy / 21 combined | epa_id: 48270
+    - Santa Fe AWD  |  Auto (AM-S8), 4 cyl, 2.5 L, Turbo
+        class: Small Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: 4 cyl, 2.5 L SIDI & PFI | trans: Automatic (AM-S8) | drive: All-Wheel Drive
+        fuel: Regular | MPG: 20 city / 28 hwy / 23 combined | epa_id: 48269
+    - Santa Fe AWD XRT  |  Auto (AM-S8), 4 cyl, 2.5 L, Turbo
+        class: Small Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: 4 cyl, 2.5 L SIDI & PFI | trans: Automatic (AM-S8) | drive: All-Wheel Drive
+        fuel: Regular | MPG: 19 city / 26 hwy / 22 combined | epa_id: 48268
+    - Santa Fe FWD  |  Auto (AM-S8), 4 cyl, 2.5 L, Turbo
+        class: Small Sport Utility Vehicle 2WD | NHTSA: SUV / MPV | engine: 4 cyl, 2.5 L SIDI & PFI | trans: Automatic (AM-S8) | drive: Front-Wheel Drive
+        fuel: Regular | MPG: 20 city / 29 hwy / 24 combined | epa_id: 48258
+    - Santa Fe Hybrid AWD  |  Auto (AM-S6), 4 cyl, 1.6 L, Turbo
+        class: Small Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: 4 cyl, 1.6 L SIDI; Hybrid | trans: Automatic (AM-S6) | drive: All-Wheel Drive
+        fuel: Regular | MPG: 35 city / 34 hwy / 34 combined | epa_id: 48265
+    - Santa Fe Hybrid FWD  |  Auto (AM-S6), 4 cyl, 1.6 L, Turbo
+        class: Small Sport Utility Vehicle 2WD | NHTSA: SUV / MPV | engine: 4 cyl, 1.6 L SIDI; Hybrid | trans: Automatic (AM-S6) | drive: Front-Wheel Drive
+        fuel: Regular | MPG: 36 city / 35 hwy / 36 combined | epa_id: 48256
+    - Tucson AWD  |  Auto (S8), 4 cyl, 2.5 L
+        class: Small Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: 4 cyl, 2.5 L SIDI & PFI | trans: Automatic (S8) | drive: All-Wheel Drive
+        fuel: Regular | MPG: 24 city / 30 hwy / 26 combined | epa_id: 47793
+    - Tucson FWD  |  Auto (S8), 4 cyl, 2.5 L
+        class: Small Sport Utility Vehicle 2WD | NHTSA: SUV / MPV | engine: 4 cyl, 2.5 L SIDI & PFI | trans: Automatic (S8) | drive: Front-Wheel Drive
+        fuel: Regular | MPG: 25 city / 33 hwy / 28 combined | epa_id: 47789
+    - Tucson Hybrid  |  Auto (AM-S6), 4 cyl, 1.6 L, Turbo
+        class: Small Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: 4 cyl, 1.6 L SIDI; Hybrid | trans: Automatic (AM-S6) | drive: All-Wheel Drive
+        fuel: Regular | MPG: 35 city / 35 hwy / 35 combined | epa_id: 48271
+    - Tucson Hybrid Blue  |  Auto (AM-S6), 4 cyl, 1.6 L, Turbo
+        class: Small Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: 4 cyl, 1.6 L SIDI; Hybrid | trans: Automatic (AM-S6) | drive: All-Wheel Drive
+        fuel: Regular | MPG: 38 city / 38 hwy / 38 combined | epa_id: 48272
+    - Tucson Plug-in Hybrid  |  Auto (AM-S6), 4 cyl, 1.6 L, Turbo
+        class: Small Sport Utility Vehicle 4WD | NHTSA: SUV / MPV | engine: 4 cyl, 1.6 L SIDI; PHEV | trans: Automatic (AM-S6) | drive: All-Wheel Drive
+        fuel: Regular Gas and Electricity | MPG: 35 city / 35 hwy / 35 combined | EV range: 420 mi | epa_id: 49011
+    - Venue  |  Auto (AV-S1), 4 cyl, 1.6 L
+        class: Small Sport Utility Vehicle 2WD | NHTSA: Passenger Car | engine: 4 cyl, 1.6 L | trans: Automatic (AV-S1) | drive: Front-Wheel Drive
+        fuel: Regular | MPG: 29 city / 32 hwy / 31 combined | epa_id: 48604
