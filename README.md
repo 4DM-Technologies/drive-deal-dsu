@@ -143,7 +143,7 @@ The current schema contains 20 tables grouped by responsibility.
 
 | Area | Tables |
 |---|---|
-| Identity/reference | `states`, `brands`, `profiles`, `users` |
+| Identity/reference | `states`, `brands`, `profiles`, `users`, `buyer_documents` |
 | Marketplace | `cars`, `buyer_preference`, `buyer_requests`, `buyer_request_views`, `deal_quotes`, `deal_chats`, `deal_documents` |
 | AI memory/operations | `conversation_history`, `llm_audits`, `ai_traces`, `ai_trace_spans`, `error_logs` |
 | Support | `support_tickets`, `support_verifications` |
@@ -156,6 +156,7 @@ Notable data rules:
 - One dealer can submit only one quote for a buyer request; revisions update that quote.
 - Request interest counts unique verified dealers in `buyer_request_views`; refreshing the same brief does not inflate the buyer-facing number.
 - Quote media is never replaced with stock imagery: dealer photos and the optional single document are served from private S3 objects through short-lived URLs.
+- Buyer signup requires a driving-licence photo or PDF (JPG, PNG, WebP or PDF, up to 10 MB). It is uploaded by the API, never by the browser, to `s3://<S3_BUCKET>/buyer/<profile id>/personal-details/driving-licence/driving-licence.<ext>` with server-side encryption and `no-store` caching, and tracked in `buyer_documents`. If storage fails no account is created.
 - Production startup fails fast unless `STORAGE_DRIVER=s3`; local storage is intentionally limited to development and automated tests.
 - `deal_quotes.final_price` is computed by the database.
 - Preferences are stored as one evolvable JSON document per buyer.

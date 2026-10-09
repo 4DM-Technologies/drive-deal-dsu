@@ -225,6 +225,11 @@ export interface SignupInput {
   termsVersion: string;
 }
 
+export interface BuyerSignupInput extends SignupInput {
+  /** PDF of the buyer's driving licence; sent with the signup and stored privately. */
+  drivingLicense: File;
+}
+
 export interface DealerSignupInput extends SignupInput {
   dealershipName: string;
   branchName: string;

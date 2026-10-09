@@ -1,5 +1,6 @@
-from fastapi import APIRouter, Depends, Response, status
-from pydantic import BaseModel, EmailStr, Field
+from fastapi import APIRouter, Depends, File, Form, Response, UploadFile, status
+from fastapi.exceptions import RequestValidationError
+from pydantic import BaseModel, EmailStr, Field, ValidationError
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -10,6 +11,7 @@ from src.models.auth import BuyerSignup, DealerSignup, LoginRequest, RefreshRequ
 from src.repositories.schema import Profile, User
 from src.services.auth_service import AuthService
 from src.services.billing_service import BillingService
+from src.services.driving_license import read_driving_license
 from src.utils.exceptions import AppError, error_codes
 from src.utils.log_flow import log_flow
 from src.utils.logger import logger
@@ -28,10 +30,44 @@ class ResetPasswordRequest(BaseModel):
     new_password: str = Field(min_length=8, max_length=128)
 
 
+@log_flow(layer="route")
+async def buyer_signup_form(
+    full_name: str = Form(),
+    email: str = Form(),
+    phone: str = Form(),
+    password: str = Form(),
+    state_id: str = Form(),
+    terms_accepted: bool = Form(),
+    terms_version: str = Form(),
+    address: str | None = Form(None),
+) -> BuyerSignup:
+    """Reads the buyer signup fields from the multipart form and applies the same rules as the JSON models."""
+    try:
+        return BuyerSignup(
+            full_name=full_name,
+            email=email,
+            phone=phone,
+            password=password,
+            state_id=state_id,
+            address=address or None,
+            terms_accepted=terms_accepted,
+            terms_version=terms_version,
+        )
+    except ValidationError as exc:
+        errors = exc.errors(include_url=False, include_context=False, include_input=False)
+        raise RequestValidationError([{**error, "loc": ("body", *error["loc"])} for error in errors]) from exc
+
+
 @router.post("/signup/buyer", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
 @log_flow(layer="route")
-async def signup_buyer(payload: BuyerSignup, session: AsyncSession = Depends(get_session)):
-    return await AuthService(session).signup_buyer(payload)
+async def signup_buyer(
+    payload: BuyerSignup = Depends(buyer_signup_form),
+    driving_license: UploadFile | None = File(None),
+    session: AsyncSession = Depends(get_session),
+):
+    """Creates a buyer from a multipart form: the signup fields plus a ``driving_license`` photo or PDF."""
+    upload = await read_driving_license(driving_license)
+    return await AuthService(session).signup_buyer(payload, upload)
 
 
 @router.post("/signup/dealer", status_code=status.HTTP_202_ACCEPTED)

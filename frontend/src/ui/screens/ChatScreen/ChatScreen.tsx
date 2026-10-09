@@ -1,14 +1,19 @@
-import { ArrowUp, CheckCheck, LockKeyhole, MessageCircle, Pencil, Phone, Search, ShieldCheck, Undo2, UserCheck, X } from 'lucide-react';
+import { ArrowUp, CheckCheck, LockKeyhole, MessageCircle, Phone, Search, ShieldCheck, UserCheck, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import type { KeyboardEvent } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { relativeTime } from '@/helpers/dateTime';
 import { CHAT_GUIDELINES_NOTICE, violatesChatGuidelines } from '@/helpers/communityGuidelines';
 import { client } from '@/services/platform/client';
 import { useDemoStore } from '@/services/platform/demoStore';
+import { ChatMessageMenu } from '@/ui/reusables/ChatMessageMenu/ChatMessageMenu';
 import { PageLoading } from '@/ui/reusables/PageLoading/PageLoading';
 import { EmptyState } from '@/ui/reusables/EmptyState/EmptyState';
 import { StatusBadge } from '@/ui/reusables/StatusBadge/StatusBadge';
 import type { BuyerRequest, ChatMessage, Quote } from '@/types/domain';
+
+/** Grows the composer up to roughly 5 lines before it starts scrolling instead of pushing the thread up. */
+const COMPOSER_MAX_HEIGHT = 120;
 
 export default function ChatScreen() {
   const { quoteId } = useParams();
@@ -23,6 +28,8 @@ export default function ChatScreen() {
   const [messageError, setMessageError] = useState('');
   const [editingMessageId, setEditingMessageId] = useState('');
   const endRef = useRef<HTMLDivElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
     void client.quotes.list().then(async (rows) => {
@@ -61,11 +68,31 @@ export default function ChatScreen() {
   const filtered = available.filter((item) => { const itemRequest = requestMap[item.requestId]; return `${itemRequest?.brand} ${itemRequest?.model} ${item.dealerName}`.toLowerCase().includes(search.toLowerCase()); });
   const thread = useMemo(() => quote?.contactAvailable ? messages : [], [messages, quote?.contactAvailable]);
   const scrolledFor = useRef('');
+  // Follows the thread to the bottom when the conversation changes or a message arrives, but not when an existing
+  // message is edited or unsent in place - that would throw the buyer away from the message they just changed.
+  const lastMessageId = thread[thread.length - 1]?.id;
   useEffect(() => {
     const switched = scrolledFor.current !== effectiveId;
     scrolledFor.current = effectiveId;
     endRef.current?.scrollIntoView({ behavior: switched ? 'auto' : 'smooth', block: 'nearest' });
-  }, [effectiveId, thread]);
+  }, [effectiveId, thread.length, lastMessageId]);
+
+  // Choosing Edit puts the message in the composer: focus it, and make sure the highlighted message is on screen.
+  useEffect(() => {
+    if (!editingMessageId) return;
+    const field = inputRef.current;
+    field?.focus();
+    field?.setSelectionRange(field.value.length, field.value.length);
+    scrollRef.current?.querySelector(`[data-message-id="${CSS.escape(editingMessageId)}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }, [editingMessageId]);
+
+  // The composer grows with the message (up to a few lines, then scrolls) instead of staying a fixed single-line box.
+  useEffect(() => {
+    const field = inputRef.current;
+    if (!field) return;
+    field.style.height = 'auto';
+    field.style.height = `${Math.min(field.scrollHeight, COMPOSER_MAX_HEIGHT)}px`;
+  }, [input]);
 
   function chooseConversation(id: string) {
     setActiveId(id);
@@ -96,14 +123,28 @@ export default function ChatScreen() {
     } catch (error) { setMessageError(error instanceof Error ? error.message : 'Your edit could not be saved. Please try again.'); }
   }
 
+  function cancelEdit() {
+    setEditingMessageId(''); setInput(''); setMessageError('');
+  }
+
   async function unsend(message: ChatMessage) {
-    if (!quote || !window.confirm('Unsend this message for everyone in the conversation?')) return;
+    if (!quote) return;
     try {
       const updated = await client.chats.unsend(quote.id, message.id);
       setMessages((items) => items.map((item) => item.id === updated.id ? updated : item));
       if (editingMessageId === message.id) { setEditingMessageId(''); setInput(''); }
       setMessageError('');
     } catch (error) { setMessageError(error instanceof Error ? error.message : 'This message could not be unsent. Please try again.'); }
+  }
+
+  /** Enter sends (or saves an edit); Shift+Enter inserts a newline, same as every chat app. Guarded against
+   * IME composition so hitting Enter to confirm a kanji/hangul conversion doesn't fire the message early. */
+  function onComposerKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
+    if (event.key === 'Escape') { if (editingMessageId) cancelEdit(); return; }
+    if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
+      event.preventDefault();
+      if (editingMessageId) void saveEdit(); else void send();
+    }
   }
 
   async function acceptRequest(id: string) {
@@ -124,7 +165,18 @@ export default function ChatScreen() {
     <section className="card chat-layout chat-layout-modern" aria-label="Conversations">
       <aside className="chat-list"><div className="chat-list-head"><span><strong>Messages</strong><small>{available.length} conversations</small></span><label className="chat-search"><Search size={15} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search conversations" /></label></div>{filtered.map((item) => { const itemRequest = requestMap[item.requestId]; return <button className={`chat-item ${item.id === effectiveId ? 'active' : ''}`} key={item.id} onClick={() => chooseConversation(item.id)}><span className="chat-item-copy"><span><strong>{itemRequest?.brand} {itemRequest?.model}</strong></span><small>{isDealer ? `${itemRequest?.area ?? ''} buyer` : item.dealerName}</small><p>{item.chatRequestStatus === 'pending' ? isDealer ? 'Buyer asked to negotiate' : 'Waiting for dealer response' : 'Conversation opened'}</p></span>{item.chatRequestStatus === 'pending' && <i className="unread-dot" />}</button>; })}<p className="chat-list-note"><ShieldCheck size={15} /><span>Every conversation stays attached to one quote, so price and decisions remain clear.</span></p></aside>
       <main className="chat-thread">{quote && <><header className="chat-thread-head"><span className="chat-thread-title"><strong>{request?.brand} {request?.model} · {isDealer ? 'Buyer' : quote.dealerName}</strong><small><i /> {quote.contactAvailable ? 'Conversation open' : 'Awaiting dealer approval'} · Quote attached</small></span><span className="chat-thread-actions">{dealerPhone && <a className="chat-phone" href={`tel:${dealerPhone}`} aria-label={`Call the dealer on ${dealerPhone}`}><Phone size={15} />{formatPhone(dealerPhone)}</a>}<Link className="button button-secondary button-sm" to={`/quotes/${quote.id}`}>View offer</Link></span></header>
-        {quote.contactAvailable ? <><div className="chat-scroll" aria-live="polite"><div className="chat-context"><MessageCircle size={18} /><span><strong>Conversation linked to {formatVehicle(request?.brand, request?.model)}.</strong><small>Offer changes remain visible in the quote history.</small></span></div>{thread.map((message) => <div key={message.id} className={`chat-message-row ${message.senderId === session?.id ? 'mine' : ''}`}><div className="chat-message"><strong>{message.senderId === session?.id ? 'You' : message.senderName}</strong><p>{message.body}</p><small>{message.unsent ? 'Unsent' : <>{relativeTime(message.createdAt)} {message.edited && '· Edited'} {message.senderId === session?.id && <CheckCheck size={13} />}</>}</small>{message.senderId === session?.id && !message.unsent && <div className="chat-message-actions"><button type="button" onClick={() => beginEdit(message)}><Pencil size={12} /> Edit</button><button type="button" onClick={() => void unsend(message)}><Undo2 size={12} /> Unsend</button></div>}</div></div>)}<div ref={endRef} /></div><form className="chat-composer modern-composer" onSubmit={(event) => { event.preventDefault(); if (editingMessageId) void saveEdit(); else void send(); }}><input className="input" value={input} onChange={(event) => { setInput(event.target.value); setMessageError(''); }} placeholder={editingMessageId ? 'Edit your message' : 'Write a message about this offer'} aria-label={editingMessageId ? 'Edit message' : 'Message'} />{editingMessageId && <button type="button" className="button button-secondary" onClick={() => { setEditingMessageId(''); setInput(''); setMessageError(''); }}>Cancel</button>}<button className="button button-primary" disabled={!input.trim()} aria-label={editingMessageId ? 'Save edit' : 'Send message'}>{editingMessageId ? 'Save' : <ArrowUp size={18} />}</button></form>{messageError && <p className="chat-guideline-notice" role="alert">{messageError}</p>}</>
+        {quote.contactAvailable ? <><div className="chat-scroll" ref={scrollRef} aria-live="polite"><div className="chat-context"><MessageCircle size={18} /><span><strong>Conversation linked to {formatVehicle(request?.brand, request?.model)}.</strong><small>Offer changes remain visible in the quote history.</small></span></div>{thread.map((message) => {
+          const mine = message.senderId === session?.id;
+          const editing = message.id === editingMessageId;
+          return <div key={message.id} data-message-id={message.id} className={`chat-message-row ${mine ? 'mine' : ''} ${editing ? 'editing' : ''}`}>
+            <div className={`chat-message ${message.unsent ? 'unsent' : ''}`}>
+              {mine ? <span className="sr-only">You: </span> : <strong>{message.senderName}</strong>}
+              <p>{message.body}</p>
+              <small className="chat-message-meta">{editing && <b className="chat-editing-tag">Editing</b>}{relativeTime(message.createdAt)}{message.edited && !message.unsent && ' · Edited'}{mine && !message.unsent && <CheckCheck size={13} />}</small>
+              {mine && !message.unsent && <ChatMessageMenu onEdit={() => beginEdit(message)} onUnsend={() => void unsend(message)} />}
+            </div>
+          </div>;
+        })}<div ref={endRef} /></div><form className="chat-composer modern-composer" onSubmit={(event) => { event.preventDefault(); if (editingMessageId) void saveEdit(); else void send(); }}><textarea className="input" ref={inputRef} rows={1} value={input} onChange={(event) => { setInput(event.target.value); setMessageError(''); }} onKeyDown={onComposerKeyDown} placeholder={editingMessageId ? 'Edit your message' : 'Write a message about this offer'} aria-label={editingMessageId ? 'Edit message' : 'Message'} />{editingMessageId && <button type="button" className="button button-secondary composer-text-action" onClick={cancelEdit}>Cancel</button>}<button className={`button button-primary ${editingMessageId ? 'composer-text-action' : ''}`} disabled={!input.trim()} aria-label={editingMessageId ? 'Save edit' : 'Send message'}>{editingMessageId ? 'Save' : <ArrowUp size={18} />}</button></form>{messageError && <p className="chat-guideline-notice" role="alert">{messageError}</p>}</>
           : <div className="chat-waiting"><div className="empty-icon"><LockKeyhole /></div><h3>{isDealer ? 'Buyer requested a negotiation' : 'Negotiation request sent'}</h3><p>{isDealer ? 'Review the buyer’s opening note. Contact details and messaging open only after you accept.' : 'The dealer can read your opening note. Contact and messages unlock only if they accept.'}</p><div className="opening-note"><span>{isDealer ? 'Buyer’s opening note' : 'Your opening note'}</span><p>“{quote.chatRequestMessage ?? 'I would like to discuss this offer before deciding.'}”</p></div>{isDealer ? <div className="chat-request-actions"><button className="button button-primary" onClick={() => void acceptRequest(quote.id)}><UserCheck size={17} /> Accept &amp; open chat</button><button className="button button-secondary" onClick={() => { const reason = window.prompt('Brief reason shown to the buyer'); if (reason?.trim()) void declineRequest(quote.id, reason.trim()); }}><X size={17} /> Decline</button></div> : <StatusBadge status="pending" />}</div>}
         {!quote.contactAvailable && <form className="chat-composer modern-composer" onSubmit={(event) => event.preventDefault()}><input className="input" disabled placeholder={isDealer ? 'Accept the request to start messaging' : 'Messaging unlocks when the dealer accepts'} aria-label="Message (locked)" /><button className="button button-primary" disabled aria-label="Send message"><ArrowUp size={18} /></button></form>}
       </>}</main>

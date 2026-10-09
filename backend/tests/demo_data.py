@@ -109,6 +109,9 @@ STATE_ROWS = [
     ("Wyoming", "WY"),
 ]
 
+# The smallest thing the driving-licence upload accepts as a PNG: only the file signature is checked.
+PNG_BYTES = b"\x89PNG\r\n\x1a\n" + b"\x00" * 32
+
 IDS = {
     "tx": "00000000-0000-4000-8000-000000000044",
     "buyer": "10000000-0000-4000-8000-000000000001",

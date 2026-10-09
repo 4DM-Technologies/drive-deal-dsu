@@ -47,7 +47,7 @@ export function HowSection({ steps }: { steps: HowStep[] }) {
                   <div className="how-card-top"><span className="step-owner">{owner}</span><span className="step-number">{index + 1}</span></div>
                   <div className="how-icon"><Icon size={20} /></div>
                   <h3>{title}</h3>
-                  <p>{body}</p>
+                  <p>{body.split('Sera').map((part, i, parts) => (i < parts.length - 1 ? <span key={i}>{part}<em>Sera</em></span> : part))}</p>
                 </article>
               </Reveal>
             ))}
@@ -425,7 +425,7 @@ export function BenefitsSection() {
             <SpotlightCard className="lp-card">
               <span className="lp-card-icon"><LockKeyhole size={21} /></span>
               <h3>Private until you choose</h3>
-              <p>Your details are shared only once you accept a quote.</p>
+              <p>Dealers quote on the car, your budget and your area, not on who you are. Your name, phone and email stay hidden through every offer and chat, so no dealer can call or email you until you accept a quote.</p>
               <PrivacyVisual />
             </SpotlightCard>
           </Reveal>

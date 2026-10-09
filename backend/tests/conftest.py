@@ -31,3 +31,12 @@ def seeded_database() -> Iterator[None]:
     asyncio.run(seed_database())
     asyncio.run(dispose_engine())
     yield
+
+
+@pytest.fixture(autouse=True)
+def local_uploads(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """Points local file storage at a per-test directory so uploads never land in ``backend/uploads``."""
+    import src.services.storage.local_storage as local_storage
+
+    monkeypatch.setattr(local_storage, "UPLOAD_DIRECTORY", tmp_path)
+    return tmp_path

@@ -8,7 +8,7 @@ from starlette.websockets import WebSocketDisconnect
 from main import app
 from src.services.storage.s3_storage import S3Storage
 from src.settings import get_settings
-from tests.demo_data import IDS
+from tests.demo_data import IDS, PNG_BYTES
 
 
 def login(client: TestClient, email: str) -> dict[str, str]:
@@ -408,7 +408,11 @@ def test_signup_refresh_and_pending_account_flows() -> None:
             "terms_accepted": True,
             "terms_version": "2026-09-30",
         }
-        signup = client.post("/api/v1/auth/signup/buyer", json=common)
+        signup = client.post(
+            "/api/v1/auth/signup/buyer",
+            data={**common, "terms_accepted": "true"},
+            files={"driving_license": ("licence.png", PNG_BYTES, "image/png")},
+        )
         assert signup.status_code == 201, signup.text
         tokens = signup.json()
         refreshed = client.post("/api/v1/auth/refresh", json={"refresh_token": tokens["refresh_token"]})

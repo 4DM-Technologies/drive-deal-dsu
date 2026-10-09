@@ -194,6 +194,15 @@ paths:
         Creates a `profiles` row (role=buyer) and a `users` row with an Argon2id
         password hash, in one transaction. Returns access + refresh tokens.
 
+        The request is `multipart/form-data`: the signup fields plus a required
+        `driving_license` file. The file is stored privately in S3 (server-side
+        encrypted, `no-store`) at
+        `buyer/<profile id>/personal-details/driving-licence/driving-licence.<ext>` and recorded
+        in `buyer_documents`. The file type is decided from its signature, not
+        the declared content type. If storage is unavailable the signup fails
+        with 503 and no account is created; if the account cannot be saved the
+        stored file is removed.
+
         The password is never logged. Response is 201.
       operationId: signupBuyer
       tags:
@@ -202,18 +211,24 @@ paths:
       requestBody:
         required: true
         content:
-          application/json:
+          multipart/form-data:
             schema:
-              $ref: '#/components/schemas/BuyerSignupRequest'
-            examples:
-              valid:
-                value:
-                  full_name: Adithyaa Anand
-                  email: adithyaa.ma@gmail.com
-                  phone: '+14695550142'
-                  password: sunroof2024
-                  terms_accepted: true
-                  terms_version: '2026-09-01'
+              allOf:
+              - $ref: '#/components/schemas/BuyerSignupRequest'
+              - type: object
+                required:
+                - driving_license
+                properties:
+                  driving_license:
+                    type: string
+                    format: binary
+                    description: |-
+                      Photo or scan of the buyer's driving licence. JPG, PNG, WebP
+                      or PDF, 1 byte to 10 MB. A missing, empty, oversized or
+                      unrecognised file is a 422 `VALIDATION_ERROR`.
+            encoding:
+              driving_license:
+                contentType: image/jpeg, image/png, image/webp, application/pdf
       responses:
         '201':
           description: Buyer created and signed in
@@ -236,6 +251,8 @@ paths:
           $ref: '#/components/responses/validation_error'
         '429':
           $ref: '#/components/responses/rate_limited'
+        '503':
+          description: Document storage is unavailable (`STORAGE_UNAVAILABLE`); no account was created.
   /auth/signup/dealer:
     post:
       summary: Dealer signup — pending manual approval

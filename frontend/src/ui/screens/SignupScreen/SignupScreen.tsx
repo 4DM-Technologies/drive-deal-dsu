@@ -1,10 +1,13 @@
-import { ArrowRight, Building2, CheckCircle2, UserRound } from 'lucide-react';
+import { ArrowRight, Building2, CheckCircle2, FileUp, UserRound } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import heroImage from '@/assets/vehicles/drivedeal-hero.png';
+import { DRIVING_LICENSE_UPLOAD } from '@/config/uploads';
+import { DRIVING_LICENSE_ACCEPT, drivingLicenseProblem, formatFileSize } from '@/helpers/drivingLicense';
 import { client } from '@/services/platform/client';
 import { useDemoStore } from '@/services/platform/demoStore';
 import { Brand } from '@/ui/reusables/Brand/Brand';
+import { Dropdown } from '@/ui/reusables/Dropdown/Dropdown';
 import type { BrandRef, StateRef } from '@/types/domain';
 
 export function SignupChooser() {
@@ -44,6 +47,8 @@ export default function SignupScreen() {
   const [website, setWebsite] = useState('');
   const [brandId, setBrandId] = useState('');
   const [extraInformation, setExtraInformation] = useState('');
+  const [licenseFile, setLicenseFile] = useState<File | null>(null);
+  const [licenseError, setLicenseError] = useState('');
   const [terms, setTerms] = useState(false);
   const [complete, setComplete] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -55,14 +60,22 @@ export default function SignupScreen() {
     if (type === 'dealer') void client.reference.brands().then((rows) => { setBrands(rows); setBrandId((current) => current || rows[0]?.id || ''); }).catch(() => setBrands([]));
   }, [type]);
 
+  function pickLicense(file: File | undefined) {
+    if (!file) return;
+    const problem = drivingLicenseProblem(file);
+    setLicenseError(problem ?? '');
+    if (!problem) setLicenseFile(file);
+  }
+
   async function submit() {
     if (!terms || submitting) return;
+    if (type === 'buyer' && !licenseFile) { setLicenseError('Upload a PDF of your driving licence.'); return; }
     setSubmitting(true);
     setError('');
     try {
       const base = { fullName, email, phone, password, stateId, address, termsAccepted: terms, termsVersion: '2026-01' };
       if (type === 'buyer') {
-        const session = await client.auth.signupBuyer(base);
+        const session = await client.auth.signupBuyer({ ...base, drivingLicense: licenseFile as File });
         setSession(session);
       } else if (type === 'dealer') {
         await client.auth.signupDealer({ ...base, dealershipName, branchName, dealerLicense, website, supportedBrandIds: brandId ? [brandId] : [] });
@@ -77,27 +90,42 @@ export default function SignupScreen() {
     }
   }
 
+  const stateField = <div className="field"><label htmlFor="signup-state">State</label><Dropdown id="signup-state" ariaLabel="State" align="left" placement="auto" value={stateId} onChange={setStateId} options={states.map((item) => ({ value: item.id, label: item.name }))} /></div>;
+  const missingChoice = !stateId || (type === 'dealer' && !brandId);
+
   if (complete) return <main className="auth-panel signup-chooser"><div className="auth-card card card-pad signup-complete"><div className="empty-icon success-icon"><CheckCircle2 /></div><h1>{pending ? `Your ${type} account is pending approval.` : 'Your buyer account is ready.'}</h1><p className="muted">{pending ? 'Our team reviews every request. You will receive an email when access is approved.' : 'Create your first vehicle request and start receiving dealer offers.'}</p><button className="button button-primary" onClick={() => pending ? navigate(`/login?role=${type}`) : navigate('/home')}>{pending ? 'Back to sign in' : 'Open my dashboard'} <ArrowRight size={17} /></button></div></main>;
 
   return (
     <main className="auth-page">
       <section className="auth-art"><img src={heroImage} alt="Blue sedan on an open road" /><div className="auth-art-copy"><span className="eyebrow auth-eyebrow">{type === 'buyer' ? 'Your next car starts here' : type === 'dealer' ? 'Turn demand into deals' : 'Protected operational access'}</span><h2>{type === 'buyer' ? 'Describe the car. Let the right offer find you.' : type === 'dealer' ? 'Meet buyers already ready to decide.' : 'Support access is reviewed by a person.'}</h2></div></section>
       <section className="auth-panel">
-        <div className="auth-card">
+        <div className={`auth-card${type === 'dealer' ? ' auth-card-wide' : ''}`}>
           <div className="auth-brand-row"><Link to="/"><Brand /></Link></div>
           <div className="auth-title"><span className="eyebrow">{type === 'buyer' ? 'Buyer account' : type === 'dealer' ? 'Dealer application' : 'Team access request'}</span><h1>{type === 'buyer' ? 'Create your buyer account' : type === 'dealer' ? 'Register your dealership' : 'Request support access'}</h1><p className="muted">Required information keeps the marketplace trustworthy. You can review everything before submitting.</p></div>
-          <form className="form-grid signup-form" onSubmit={(event) => { event.preventDefault(); void submit(); }}>
+          <form className={`form-grid signup-form${type === 'dealer' ? ' signup-form-dealer' : ''}`} onSubmit={(event) => { event.preventDefault(); void submit(); }}>
             <div className="field"><label>Full name</label><input className="input" autoComplete="name" value={fullName} onChange={(event) => setFullName(event.target.value)} required /></div>
             <div className="field"><label>Email address</label><input className="input" type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} required /></div>
-            <div className="field"><label>Phone number</label><input className="input" type="tel" autoComplete="tel" pattern="^\+?[0-9 ()-]{7,18}$" value={phone} onChange={(event) => setPhone(event.target.value)} required /></div>
+            <div className="field"><label>Phone number</label><input className="input" type="tel" autoComplete="tel" pattern="^\+?[0-9 \(\)\-]{7,18}$" value={phone} onChange={(event) => setPhone(event.target.value)} required /></div>
             <div className="field"><label>Create password</label><input className="input" type="password" autoComplete="new-password" minLength={8} value={password} onChange={(event) => setPassword(event.target.value)} required /></div>
-            {type === 'dealer' && <><div className="field"><label>Dealership name</label><input className="input" value={dealershipName} onChange={(event) => setDealershipName(event.target.value)} required /></div><div className="field"><label>Branch name</label><input className="input" value={branchName} onChange={(event) => setBranchName(event.target.value)} required /></div><div className="field"><label>Dealer licence number</label><input className="input" value={dealerLicense} onChange={(event) => setDealerLicense(event.target.value)} required /></div><div className="field"><label>Website</label><input className="input" type="url" value={website} onChange={(event) => setWebsite(event.target.value)} required /></div><div className="field"><label>State</label><select className="select" required value={stateId} onChange={(event) => setStateId(event.target.value)}>{states.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></div><div className="field"><label>Primary brand</label><select className="select" required value={brandId} onChange={(event) => setBrandId(event.target.value)}>{brands.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></div><div className="field form-span"><label>Business address</label><input className="input" value={address} onChange={(event) => setAddress(event.target.value)} required /></div></>}
-            {type === 'buyer' && <div className="field form-span"><label>Home area <span className="muted">(optional)</span></label><input className="input" value={address} onChange={(event) => setAddress(event.target.value)} /></div>}
-            {type === 'support' && <><div className="field form-span"><label>Location address</label><input className="input" value={address} onChange={(event) => setAddress(event.target.value)} required /></div><div className="field"><label>State</label><select className="select" required value={stateId} onChange={(event) => setStateId(event.target.value)}>{states.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></div><div className="field form-span"><label>Verification note <span className="muted">(optional)</span></label><textarea className="textarea" rows={3} value={extraInformation} onChange={(event) => setExtraInformation(event.target.value)} placeholder="Add anything that helps us verify your request" /></div></>}
-            {type === 'buyer' && <div className="field"><label>State</label><select className="select" required value={stateId} onChange={(event) => setStateId(event.target.value)}>{states.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></div>}
+            {type === 'dealer' && <><div className="field"><label>Dealership name</label><input className="input" value={dealershipName} onChange={(event) => setDealershipName(event.target.value)} required /></div><div className="field"><label>Branch name</label><input className="input" value={branchName} onChange={(event) => setBranchName(event.target.value)} required /></div><div className="field"><label>Dealer licence number</label><input className="input" value={dealerLicense} onChange={(event) => setDealerLicense(event.target.value)} required /></div><div className="field"><label>Website</label><input className="input" type="url" value={website} onChange={(event) => setWebsite(event.target.value)} required /></div>{stateField}<div className="field"><label htmlFor="signup-brand">Primary brand</label><Dropdown id="signup-brand" ariaLabel="Primary brand" align="left" value={brandId} onChange={setBrandId} options={brands.map((item) => ({ value: item.id, label: item.name }))} /></div><div className="field form-span signup-address"><label>Business address</label><input className="input" value={address} onChange={(event) => setAddress(event.target.value)} required /></div></>}
+            {type === 'buyer' && <>
+              {stateField}
+              <div className="field"><label htmlFor="signup-area">Home area <span className="muted">(optional)</span></label><input id="signup-area" className="input" value={address} onChange={(event) => setAddress(event.target.value)} /></div>
+              <div className="field form-span">
+                <label htmlFor="driving-license">Driving licence <span className="muted">(PDF only)</span></label>
+                <label className={`upload-zone compact${licenseFile ? ' has-file' : ''}`} htmlFor="driving-license">
+                  {licenseFile ? <CheckCircle2 /> : <FileUp />}
+                  <span><strong>{licenseFile ? licenseFile.name : 'Upload your driving licence'}</strong><small>{licenseFile ? `${formatFileSize(licenseFile.size)} · click to choose a different PDF` : `${DRIVING_LICENSE_UPLOAD.formatsLabel} · up to ${DRIVING_LICENSE_UPLOAD.maxBytes / 1024 / 1024} MB · kept private`}</small></span>
+                  <input id="driving-license" type="file" accept={DRIVING_LICENSE_ACCEPT} required={!licenseFile} onChange={(event) => { pickLicense(event.target.files?.[0]); event.target.value = ''; }} />
+                  {licenseFile && <button type="button" className="upload-remove" onClick={() => { setLicenseFile(null); setLicenseError(''); }} aria-label={`Remove ${licenseFile.name}`}>Remove</button>}
+                </label>
+                {licenseError && <span className="field-error" role="alert">{licenseError}</span>}
+              </div>
+            </>}
+            {type === 'support' && <><div className="field"><label htmlFor="signup-address">Location address</label><input id="signup-address" className="input" value={address} onChange={(event) => setAddress(event.target.value)} required /></div>{stateField}<div className="field form-span"><label>Verification note <span className="muted">(optional)</span></label><textarea className="textarea" rows={3} value={extraInformation} onChange={(event) => setExtraInformation(event.target.value)} placeholder="Add anything that helps us verify your request" /></div></>}
             <label className="checkbox-row form-span"><input type="checkbox" checked={terms} onChange={(event) => setTerms(event.target.checked)} required /><span>I agree to Deal&amp;Drive’s <Link to="/terms" target="_blank">Terms of Service</Link> and <Link to="/privacy" target="_blank">Privacy Policy</Link>.{type === 'dealer' && <span className="trial-line"><b>Free for 2 months, up to 3 quotes.</b> Upgrade to Premium after that to keep quoting.</span>}</span></label>
             {error && <div className="inline-warning form-span" role="alert">{error}</div>}
-            <button className="button button-primary form-span" disabled={!terms || submitting}>{submitting ? 'Submitting…' : type === 'buyer' ? 'Create buyer account' : 'Submit for review'} <ArrowRight size={17} /></button>
+            <button className="button button-primary form-span" disabled={!terms || submitting || missingChoice}>{submitting ? 'Submitting…' : type === 'buyer' ? 'Create buyer account' : 'Submit for review'} <ArrowRight size={17} /></button>
           </form>
           <p className="auth-alternate auth-alternate-bottom">Already registered? <Link to={`/login?role=${type}`}>Sign in</Link></p>
         </div>

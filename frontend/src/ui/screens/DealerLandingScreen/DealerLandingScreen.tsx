@@ -1,12 +1,13 @@
 import { motion, useInView, useMotionValueEvent, useReducedMotion, useScroll, useSpring, useTransform, type Variants } from 'motion/react';
 import {
-  ArrowRight, BadgeCheck, Calculator, Check, ChevronDown, CircleDollarSign, ClipboardCheck, Handshake, LockKeyhole, LockOpen, Mail,
+  ArrowRight, BadgeCheck, Calculator, Check, ChevronDown, ClipboardCheck, Crown, Handshake, LockKeyhole, LockOpen, Mail,
   Phone, Plus, Radar, ReceiptText, Send, ShieldCheck, SlidersHorizontal, Sparkles, Store, Trophy, UserRound, Users, X,
 } from 'lucide-react';
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { formatMoney } from '@/helpers/currency';
 import { useScrollTopOnPush } from '@/helpers/useScrollTopOnPush';
+import { spyLinkProps, useScrollSpy } from '@/helpers/useScrollSpy';
 import { AnimatedNumber } from '@/ui/reusables/AnimatedNumber/AnimatedNumber';
 import { Brand } from '@/ui/reusables/Brand/Brand';
 import { Reveal } from '@/ui/reusables/Reveal/Reveal';
@@ -21,6 +22,9 @@ const dealerHeroImage = Object.values(heroImages)[0];
    Without it the section uses the blue gradient. */
 const ctaImages = import.meta.glob<string>('../../../assets/vehicles/dealer-cta.{png,jpg,jpeg,webp,avif}', { eager: true, query: '?url', import: 'default' });
 const dealerCtaImage = Object.values(ctaImages)[0];
+
+/** Dealer membership price shown on this page. It mirrors the backend's DEALER_PREMIUM_PRICE (USD per year). */
+const MEMBERSHIP_PRICE = '$500';
 
 const steps = [
   { n: '01', icon: Send, title: 'Request Enters the System', body: 'A buyer specifies their exact car—make, model, and trim—and it’s instantly logged to the network. No cold calling required.', tag: 'No cold calling' },
@@ -58,7 +62,7 @@ const startSteps = [
 ];
 
 const faqs = [
-  { question: 'What does it cost to be on Deal&Drive?', answer: 'Dealers pay only when a deal closes. Reviewing requests and sending quotes doesn’t cost you anything on its own, so you only pay for business you actually win.' },
+  { question: 'What does it cost to be on Deal&Drive?', answer: `Start free: your first 2 months include up to 3 quotes. After that, a dealer membership is ${MEMBERSHIP_PRICE} a year for unlimited quotes, and each renewal adds another year.` },
   { question: 'How are requests matched to my dealership?', answer: 'Buyers choose a search radius, and you’re notified about requests inside it. Your feed is built around the brands you carry, and you can filter by brand, body type, budget, distance, and timeframe to focus on the cars you can deliver.' },
   { question: 'What does the buyer see in my quote?', answer: 'An itemized out-the-door breakdown: vehicle price, documentation fee, sales tax, title and registration, and any trade-in credit, rolled into one final total. Quotes are ranked by that number, so every comparison is like for like.' },
   { question: 'When do I get the buyer’s contact details?', answer: 'Buyers stay anonymous while quotes arrive and while you negotiate in-platform. When a buyer accepts your quote, you receive their full contact details so you can finalize the deal in person.' },
@@ -127,7 +131,6 @@ function Hero() {
             <motion.div variants={rise} className="dl-hero-trust">
               <span><ShieldCheck size={16} /> Verified dealer network</span>
               <span><ReceiptText size={16} /> Itemized quotes</span>
-              <span><CircleDollarSign size={16} /> Pay only when a deal closes</span>
             </motion.div>
           </motion.div>
         </motion.div>
@@ -263,17 +266,25 @@ function UnlockVisual() {
   );
 }
 
-function FeeVisual() {
-  const stops = [['Browse the feed', 'No fee'], ['Send a quote', 'No fee'], ['Buyer accepts', 'No fee'], ['Deal closes', 'You pay']];
+const EASE_OUT = [.16, 1, .3, 1] as const;
+
+function MembershipVisual() {
   return (
-    <div className="dl-fee">
-      {stops.map(([label, note], index) => (
-        <motion.div key={label} className={index === stops.length - 1 ? 'is-last' : ''} initial={{ opacity: 0, y: 18 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true, amount: .8 }} transition={{ duration: .6, delay: .1 + index * .14, ease: [.16, 1, .3, 1] }}>
-          <i>{index === stops.length - 1 ? <Check size={14} /> : index + 1}</i>
-          <strong>{label}</strong>
-          <small>{note}</small>
-        </motion.div>
-      ))}
+    <div className="dl-member-visual">
+      <motion.div className="dl-member-card" initial={{ opacity: 0, y: 24, rotate: -1.5 }} whileInView={{ opacity: 1, y: 0, rotate: 0 }} viewport={{ once: true, amount: .6 }} transition={{ duration: .7, ease: EASE_OUT }}>
+        <div className="dl-mc-top"><span className="dl-mc-brand">Deal&amp;Drive</span><span className="dl-mc-tier"><Crown size={13} /> Member</span></div>
+        <div className="dl-mc-price"><b>{MEMBERSHIP_PRICE}</b><span>per year</span></div>
+        <div className="dl-mc-facts">
+          <div><small>Plan</small><strong>Dealer membership</strong></div>
+          <div><small>Quotes</small><strong>Unlimited</strong></div>
+          <div><small>Valid for</small><strong>12 months</strong></div>
+        </div>
+      </motion.div>
+      <motion.div className="dl-offer" initial={{ opacity: 0, y: 18 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true, amount: .8 }} transition={{ duration: .6, delay: .2, ease: EASE_OUT }}>
+        <div className="dl-offer-step is-free"><small>Launching offer</small><strong>Free for 2 months</strong><span>Up to 3 quotes included</span></div>
+        <span className="dl-offer-arrow" aria-hidden="true"><ArrowRight size={16} /></span>
+        <div className="dl-offer-step"><small>Then</small><strong>{MEMBERSHIP_PRICE} a year</strong><span>Unlimited quotes</span></div>
+      </motion.div>
     </div>
   );
 }
@@ -328,13 +339,19 @@ function Features() {
           </Reveal>
           <Reveal once className="dl-b-full">
             <SpotlightCard className="dl-card dl-card-dark">
-              <div className="dl-fee-layout">
-                <div>
-                  <span className="dl-card-icon"><CircleDollarSign size={21} /></span>
-                  <h3>Pay only when you win</h3>
-                  <p>Dealers pay only when a deal closes. Browsing requests and sending quotes doesn’t cost you anything on its own, so you only pay for business you actually win.</p>
+              <div className="dl-member">
+                <div className="dl-member-copy">
+                  <div className="dl-member-head"><span className="dl-card-icon"><Crown size={21} /></span><span className="dl-member-pill">Membership</span></div>
+                  <h3>Dealer membership</h3>
+                  <p>One flat price for the year. Start free, then keep quoting on every buyer request that fits your lot, with no limit on how many quotes you send.</p>
+                  <ul className="dl-member-perks">
+                    <li><Check size={15} /> Unlimited quotes on live buyer requests</li>
+                    <li><Check size={15} /> A full year of access, renew any time</li>
+                    <li><Check size={15} /> Buyer contact details unlock when they accept</li>
+                  </ul>
+                  <Link className="button button-primary dl-member-cta" to="/signup/dealer">Start free for 2 months <ArrowRight size={17} /></Link>
                 </div>
-                <FeeVisual />
+                <MembershipVisual />
               </div>
             </SpotlightCard>
           </Reveal>
@@ -443,7 +460,7 @@ function Platform() {
 
 function Versus() {
   return (
-    <section className="dl-section dl-versus-section">
+    <section className="dl-section dl-versus-section" id="dl-versus">
       <div className="shell">
         <SectionHead eyebrow="The difference" title="Stop working leads. Start winning deals.">
           See what changes when buyers arrive with the exact car already chosen.
@@ -553,8 +570,12 @@ function FinalCta() {
   );
 }
 
+/** Section id → header link it highlights. The platform and comparison sections belong to "Why dealers". */
+const NAV_SECTIONS = { 'dl-how': 'how', 'dl-features': 'why', 'dl-platform': 'why', 'dl-versus': 'why', 'dl-faq': 'faq' };
+
 export default function DealerLandingScreen() {
   useScrollTopOnPush();
+  const activeNav = useScrollSpy(NAV_SECTIONS);
   const [scrolled, setScrolled] = useState(false);
   const { scrollYProgress } = useScroll();
   const progress = useSpring(scrollYProgress, { stiffness: 140, damping: 30, restDelta: .001 });
@@ -579,9 +600,9 @@ export default function DealerLandingScreen() {
         <div className="shell public-nav">
           <Link to="/" aria-label="Deal&Drive home"><Brand /></Link>
           <nav className="public-nav-links" aria-label="Sections">
-            <a className="nav-link" href="#dl-how">How it works</a>
-            <a className="nav-link" href="#dl-features">Why dealers</a>
-            <a className="nav-link" href="#dl-faq">FAQ</a>
+            <a {...spyLinkProps(activeNav, 'how')} href="#dl-how">How it works</a>
+            <a {...spyLinkProps(activeNav, 'why')} href="#dl-features">Why dealers</a>
+            <a {...spyLinkProps(activeNav, 'faq')} href="#dl-faq">FAQ</a>
             <Link className="nav-link" to="/login?role=dealer">Dealer sign in</Link>
           </nav>
           <div className="public-nav-actions">

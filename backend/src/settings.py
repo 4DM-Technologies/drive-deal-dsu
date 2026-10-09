@@ -116,6 +116,20 @@ S3_PRESIGNED_URL_TTL_SECONDS = 900
 S3_CACHE_CONTROL_NO_STORE = "no-store"
 S3_SERVER_SIDE_ENCRYPTION = "AES256"
 
+# Each buyer's documents live in their own folder: <bucket>/buyer/<buyer id>/personal-details/<document folder>/.
+# The sniffed file signature, not the client-declared content type, decides which of these types an upload is.
+BUYER_STORAGE_PREFIX = "buyer"
+PERSONAL_DETAILS_FOLDER = "personal-details"
+DRIVING_LICENSE_FOLDER = "driving-licence"
+DRIVING_LICENSE_DOCUMENT_TYPE = "driving_license"
+DRIVING_LICENSE_MAX_BYTES = 10 * 1024 * 1024
+DRIVING_LICENSE_EXTENSIONS = {
+    "image/jpeg": ".jpg",
+    "image/png": ".png",
+    "image/webp": ".webp",
+    "application/pdf": ".pdf",
+}
+
 # Maps a manufacturer name to its official domain. web_search_agent has no site allow-list - it can crawl
 # any public site - this is only used as a last-resort fallback URL when search providers return nothing.
 MAKE_DOMAIN_MAP = {

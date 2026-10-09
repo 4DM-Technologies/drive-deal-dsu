@@ -90,6 +90,23 @@ class Profile(AuditMixin, Base):
     user: Mapped["User"] = relationship(back_populates="profile", uselist=False)
 
 
+class BuyerDocument(AuditMixin, Base):
+    """A personal-details document a buyer supplied at signup, such as a driving licence.
+
+    The file itself lives in private storage; only its object key and descriptive metadata are stored here.
+    """
+
+    __tablename__ = "buyer_documents"
+    __table_args__ = (UniqueConstraint("profile_id", "document_type", name="uq_buyer_documents_profile_type"),)
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
+    profile_id: Mapped[str] = mapped_column(ForeignKey("profiles.id", ondelete="CASCADE"), nullable=False, index=True)
+    document_type: Mapped[str] = mapped_column(String(40), nullable=False)
+    object_key: Mapped[str] = mapped_column(String(1024), nullable=False)
+    file_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    content_type: Mapped[str] = mapped_column(String(100), nullable=False)
+    size_bytes: Mapped[int] = mapped_column(Integer, nullable=False)
+
+
 class User(AuditMixin, Base):
     __tablename__ = "users"
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
