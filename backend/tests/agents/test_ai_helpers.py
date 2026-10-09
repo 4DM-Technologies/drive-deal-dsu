@@ -1,4 +1,4 @@
-"""Pure helpers behind the advisor: citation parsing, routing predicates, KB relevance and request publishing."""
+"""Pure helpers behind the advisor: citation parsing, routing predicates and request publishing."""
 
 import json
 from decimal import Decimal
@@ -6,11 +6,10 @@ from types import SimpleNamespace
 
 import pytest
 
-from src.agents.llm import _extract_url_citations
+from src.agents.llm import _extract_image_results, _extract_url_citations
 from src.agents.serra.graph import (
     _extract_json,
     _extract_json_array,
-    _kb_results_are_relevant,
     _trace_snapshot,
     is_explicit_image_search,
 )
@@ -62,6 +61,26 @@ def test_citation_parsing_never_raises_on_unexpected_input() -> None:
     assert _extract_url_citations(too_deep) == []
 
 
+def test_image_results_keep_the_direct_url_and_attribution_page() -> None:
+    result = {
+        "type": "web_search_call",
+        "results": [{
+            "type": "image_result",
+            "image_url": "https://media.audi.com/a3.jpg",
+            "source_website_url": "https://www.audiusa.com/a3",
+            "thumbnail_url": "https://media.audi.com/a3-thumb.jpg",
+            "caption": "Audi A3 sedan exterior",
+        }],
+    }
+
+    assert _extract_image_results(result) == [{
+        "image_url": "https://media.audi.com/a3.jpg",
+        "source_url": "https://www.audiusa.com/a3",
+        "thumbnail_url": "https://media.audi.com/a3-thumb.jpg",
+        "caption": "Audi A3 sedan exterior",
+    }]
+
+
 # --- is_explicit_image_search ----------------------------------------------------------------------------------
 
 
@@ -78,31 +97,6 @@ def test_citation_parsing_never_raises_on_unexpected_input() -> None:
 )
 def test_image_search_needs_both_an_image_word_and_a_vehicle(message: str, expected: bool) -> None:
     assert is_explicit_image_search(message) is expected
-
-
-# --- _kb_results_are_relevant ----------------------------------------------------------------------------------
-
-
-def test_kb_results_count_when_the_asked_model_is_mentioned() -> None:
-    assert _kb_results_are_relevant("how much is a BMW X3", [{"model": "X3"}]) is True
-    assert _kb_results_are_relevant("how much is a BMW X3", [{"model": "5 Series"}]) is False
-
-
-def test_kb_findings_count_by_structured_model_or_title() -> None:
-    by_content = [{"findings": [{"content": {"model": "Seltos"}}]}]
-    by_title = [{"findings": [{"title": "Kia Seltos review", "content": {"model": "other"}}]}]
-
-    assert _kb_results_are_relevant("tell me about the seltos", by_content) is True
-    assert _kb_results_are_relevant("kia seltos review please", by_title) is True
-
-
-def test_cached_text_answers_only_count_when_they_repeat_a_meaningful_term() -> None:
-    cached = [{"findings": [{"content": "The Seltos hybrid gets 40 mpg."}]}]
-
-    assert _kb_results_are_relevant("what mileage does the hybrid get", cached) is True
-    assert _kb_results_are_relevant("compare minivan towing capacity", cached) is False
-    assert _kb_results_are_relevant("anything", []) is False
-    assert _kb_results_are_relevant("anything", [{"findings": None, "model": None}]) is False
 
 
 # --- JSON extraction and trace snapshots -----------------------------------------------------------------------

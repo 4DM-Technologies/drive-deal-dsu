@@ -39,6 +39,12 @@ export interface BuyerRequest {
   brand: string;
   model: string;
   bodyType: string | null;
+  fuelType?: string | null;
+  transmission?: string | null;
+  trim?: string | null;
+  drivetrain?: string | null;
+  color?: string | null;
+  additionalInformation?: string | null;
   yearMin: number | null;
   yearMax: number | null;
   budgetMin: string | null;
@@ -85,6 +91,8 @@ export interface Quote {
   contactAvailable: boolean;
   chatRequestStatus: 'none' | 'pending' | 'accepted' | 'declined';
   chatRequestMessage?: string;
+  /** Whether the buyer has opened this quote as it stands now; a dealer's revision makes it unseen again. */
+  buyerViewed: boolean;
   vehicleImages?: string[];
   documents?: Array<{ name: string; status: 'uploaded' | 'verified' }>;
   /** One entry per price revision the dealer sent; `amount` is the final price before that revision. */
@@ -99,13 +107,54 @@ export interface ChatMessage {
   body: string;
   createdAt: string;
   read: boolean;
+  edited?: boolean;
+  unsent?: boolean;
 }
 
 export interface AiMessage {
   id: string;
   role: 'user' | 'assistant';
   body: string;
+  guidedStep?: string | undefined;
+  options?: string[] | undefined;
 }
+
+/** One option on the guided question card. */
+export interface GuidedOption {
+  value: string;
+  label: string;
+  description?: string | null;
+}
+
+/** A guided question as the planner returns it (POST /ai/guided/next). */
+export interface GuidedQuestion {
+  id: string;
+  title: string;
+  options: GuidedOption[];
+  allowOther: boolean;
+  otherPlaceholder: string;
+  multiSelect: boolean;
+  skippable: boolean;
+  index: number;
+  total: number;
+}
+
+/** The planner's answers so far. Opaque to the screen: it is only stored and sent back on the next call. */
+export type GuidedAnswers = Record<string, unknown>;
+
+export interface GuidedStepResult {
+  answers: GuidedAnswers;
+  question: GuidedQuestion | null;
+  draft: Record<string, string> | null;
+  message: string | null;
+  unresolved: boolean;
+}
+
+export type GuidedActionInput =
+  | { type: 'resume' }
+  | { type: 'back' }
+  | { type: 'skip'; questionId: string }
+  | { type: 'answer'; questionId: string; values?: string[]; text?: string };
 
 export interface AiThread {
   id: string;
@@ -113,6 +162,8 @@ export interface AiThread {
   title: string;
   updatedAt: string;
   messages: AiMessage[];
+  guidedState?: Record<string, unknown> | undefined;
+  requestContext?: Record<string, string> | null | undefined;
 }
 
 export interface DealDocument {
@@ -213,6 +264,11 @@ export interface SignupInput {
   termsVersion: string;
 }
 
+export interface BuyerSignupInput extends SignupInput {
+  /** PDF of the buyer's driving licence; sent with the signup and stored privately. */
+  drivingLicense: File;
+}
+
 export interface DealerSignupInput extends SignupInput {
   dealershipName: string;
   branchName: string;
@@ -244,6 +300,7 @@ export interface RequestCreateInput {
   searchRadiusMiles: number;
   timeline: BuyerRequest['timeline'];
   mustHaves?: string[];
+  additionalInformation?: string | null;
   requestExpire: string;
   status?: 'draft' | 'open';
 }

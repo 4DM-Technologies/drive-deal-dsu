@@ -1,6 +1,17 @@
 import { describe, expect, it } from 'vitest';
 
-import { normalizeRequestDraft } from './AdvisorScreen';
+import { hasGuidedHistoryOptions, normalizeRequestDraft } from './AdvisorScreen';
+
+describe('hasGuidedHistoryOptions', () => {
+  it('does not render a zero for an empty options list', () => {
+    expect(hasGuidedHistoryOptions([])).toBe(false);
+    expect(hasGuidedHistoryOptions(undefined)).toBe(false);
+  });
+
+  it('renders saved options when Sera offered some', () => {
+    expect(hasGuidedHistoryOptions(['2026', '2027'])).toBe(true);
+  });
+});
 
 describe('normalizeRequestDraft', () => {
   it('does not expose structured clarification questions to React as text fields', () => {

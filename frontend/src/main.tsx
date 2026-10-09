@@ -13,7 +13,6 @@ applyCachedTheme();
 const isThemePreview = new URLSearchParams(window.location.search).get('themePreview') === '1';
 if (!isThemePreview) {
   void refreshActiveTheme();
-  window.setInterval(() => { void refreshActiveTheme(); }, 60_000);
   window.addEventListener('focus', () => { void refreshActiveTheme(); });
 } else {
   window.addEventListener('message', (event: MessageEvent<{ type?: string; theme?: ThemeDefinition }>) => {

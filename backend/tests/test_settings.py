@@ -22,6 +22,14 @@ def test_settings_accept_valid_local_configuration() -> None:
     assert settings.storage_driver == "local"
 
 
+def test_settings_always_allow_local_frontend_origins() -> None:
+    settings = local_settings(cors_origins=["http://app.example"])
+
+    assert "http://app.example" in settings.cors_origins
+    assert "http://localhost:5173" in settings.cors_origins
+    assert "http://127.0.0.1:5173" in settings.cors_origins
+
+
 def test_settings_require_environment_specific_values(monkeypatch: pytest.MonkeyPatch) -> None:
     # conftest.py exports these three into the real process environment, and
     # `_env_file=None` only disables the dotenv *file* source, not the

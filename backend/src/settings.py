@@ -18,6 +18,7 @@ API_DESCRIPTION = "Reverse vehicle marketplace and Serra buyer advisor API."
 API_CORS_METHODS = ("*",)
 API_CORS_HEADERS = ("*",)
 API_EXPOSE_HEADERS = ("Content-Disposition",)
+LOCAL_DEVELOPMENT_ORIGINS = ("http://localhost:5173", "http://127.0.0.1:5173")
 REQUEST_CONTEXT_SKIPPED_PATHS = frozenset({"/health", "/metrics"})
 REQUEST_CONTEXT_LOGGED_METHODS = frozenset({"GET", "POST", "PUT", "PATCH", "DELETE"})
 
@@ -115,6 +116,20 @@ S3_PRESIGNED_URL_TTL_SECONDS = 900
 S3_CACHE_CONTROL_NO_STORE = "no-store"
 S3_SERVER_SIDE_ENCRYPTION = "AES256"
 
+# Each buyer's documents live in their own folder: <bucket>/buyer/<buyer id>/personal-details/<document folder>/.
+# The sniffed file signature, not the client-declared content type, decides which of these types an upload is.
+BUYER_STORAGE_PREFIX = "buyer"
+PERSONAL_DETAILS_FOLDER = "personal-details"
+DRIVING_LICENSE_FOLDER = "driving-licence"
+DRIVING_LICENSE_DOCUMENT_TYPE = "driving_license"
+DRIVING_LICENSE_MAX_BYTES = 10 * 1024 * 1024
+DRIVING_LICENSE_EXTENSIONS = {
+    "image/jpeg": ".jpg",
+    "image/png": ".png",
+    "image/webp": ".webp",
+    "application/pdf": ".pdf",
+}
+
 # Maps a manufacturer name to its official domain. web_search_agent has no site allow-list - it can crawl
 # any public site - this is only used as a last-resort fallback URL when search providers return nothing.
 MAKE_DOMAIN_MAP = {
@@ -154,7 +169,8 @@ class Settings(BaseSettings):
     openai_reasoning_effort: str = "medium"
     ai_provider: str = "openai"
     ai_disabled: bool = False
-    ai_enable_web_search: bool = True
+    # Off by default: Sera answers vehicle questions from the catalog tables. Set true to allow live web research.
+    ai_enable_web_search: bool = False
     ai_max_input_tokens: int = 8_000
     ai_max_output_tokens: int = 1_800
     ai_request_timeout_seconds: float = 45
@@ -176,8 +192,13 @@ class Settings(BaseSettings):
     @classmethod
     def split_origins(cls, value: object) -> object:
         if isinstance(value, str):
-            return [entry.strip() for entry in value.split(",") if entry.strip()]
-        return value
+            origins = [entry.strip() for entry in value.split(",") if entry.strip()]
+        elif isinstance(value, list):
+            origins = value
+        else:
+            return value
+        # Local Vite clients may use either host while calling a local or hosted API.
+        return list(dict.fromkeys([*origins, *LOCAL_DEVELOPMENT_ORIGINS]))
 
     @field_validator("log_level", mode="before")
     @classmethod

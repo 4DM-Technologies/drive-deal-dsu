@@ -1,11 +1,11 @@
-import type { PaymentInput, PaymentReceipt, ActiveTheme, AdministrationAuditEvent, AdminCatalog, AdminConfigBundle, AdminConfigType, AdminPromptBundle, AdminRevision, AiThread, AiTrace, BrandRef, BuyerPreferences, BuyerRequest, CarCreateInput, ChatMessage, DealDocument, DealerSignupInput, InventoryCar, ProfileUpdateInput, PromptDefinition, Quote, QuoteCreateInput, RequestCreateInput, Session, StateRef, SignupInput, SupportMember, SupportSignupInput, SupportTicketCreate, Ticket, Verification, WorkflowDefinition, WorkflowPreview, WorkflowPreviewStreamEvent } from '@/types/domain';
+import type { GuidedActionInput, GuidedAnswers, GuidedStepResult, PaymentInput, PaymentReceipt, ActiveTheme, AdministrationAuditEvent, AdminCatalog, AdminConfigBundle, AdminConfigType, AdminPromptBundle, AdminRevision, AiThread, AiTrace, BrandRef, BuyerPreferences, BuyerRequest, BuyerSignupInput, CarCreateInput, ChatMessage, DealDocument, DealerSignupInput, InventoryCar, ProfileUpdateInput, PromptDefinition, Quote, QuoteCreateInput, RequestCreateInput, Session, StateRef, SupportMember, SupportSignupInput, SupportTicketCreate, Ticket, Verification, WorkflowDefinition, WorkflowPreview, WorkflowPreviewStreamEvent } from '@/types/domain';
 
 export type AiStreamEvent =
   | { type: 'status'; phase: 'classifying' | 'searching' | 'crawling' | 'composing'; label: string }
   | { type: 'token'; text: string }
-  | { type: 'card'; kind: 'car' | 'compare' | 'requestPreview'; payload: unknown }
+  | { type: 'card'; kind: 'car' | 'compare' | 'requestPreview' | 'question'; payload: unknown }
   | { type: 'sources'; items: Array<{ url: string; title: string }> }
-  | { type: 'media'; items: Array<{ image_url: string; source_url: string; source_name?: string; alt?: string }> }
+  | { type: 'media'; items: Array<{ image_url: string; thumbnail_url?: string; source_url: string; source_name?: string; alt?: string }> }
   | { type: 'done'; threadId: string; messagesUsed: number; expandedUi: boolean }
   | { type: 'error'; message: string };
 
@@ -13,7 +13,7 @@ export interface DriveDealClient {
   auth: {
     login(email: string, password: string): Promise<Session>;
     me(): Promise<Session>;
-    signupBuyer(input: SignupInput): Promise<Session>;
+    signupBuyer(input: BuyerSignupInput): Promise<Session>;
     signupDealer(input: DealerSignupInput): Promise<{ pending: true }>;
     signupSupport(input: SupportSignupInput): Promise<{ pending: true }>;
     refresh(): Promise<Session>;
@@ -50,6 +50,8 @@ export interface DriveDealClient {
   chats: {
     list(quoteId: string): Promise<ChatMessage[]>;
     send(quoteId: string, body: string): Promise<ChatMessage>;
+    edit(quoteId: string, messageId: string, body: string): Promise<ChatMessage>;
+    unsend(quoteId: string, messageId: string): Promise<ChatMessage>;
     requestAccess(quoteId: string, message: string): Promise<Quote>;
     listRequests(): Promise<Quote[]>;
     acceptRequest(quoteId: string): Promise<Quote>;
@@ -87,7 +89,10 @@ export interface DriveDealClient {
     taxRate(stateCode: string): Promise<{ stateCode: string; rate: string }>;
   };
   ai: {
-    chat(input: { message: string; threadId?: string; agent?: 'sera-agent' | 'compare-agent'; requestIds?: string[]; quoteIds?: string[]; signal?: AbortSignal }): AsyncIterable<AiStreamEvent>;
+    chat(input: { message: string; threadId?: string; agent?: 'sera-agent' | 'compare-agent'; requestIds?: string[]; quoteIds?: string[]; requestContext?: Record<string, string>; signal?: AbortSignal }): AsyncIterable<AiStreamEvent>;
+    guidedNext(answers: GuidedAnswers, action: GuidedActionInput): Promise<GuidedStepResult>;
+    vehicleImages(query: string): Promise<{ items: Array<{ image_url: string; thumbnail_url?: string; source_url: string; source_name?: string; alt?: string }>; status: 'found' | 'not_found' | 'unavailable' }>;
+    saveGuidedCheckpoint(input: { threadId: string; messages: Array<{ id: string; role: 'user' | 'assistant'; body: string; guidedStep?: string | undefined; options?: string[] | undefined }>; guidedState: Record<string, unknown>; requestContext: Record<string, string> | null }): Promise<void>;
     threads(): Promise<AiThread[]>;
     thread(id: string): Promise<AiThread>;
     deleteThread(id: string): Promise<void>;

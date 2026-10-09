@@ -120,7 +120,7 @@
 .lp-sample { margin: .8rem 0 0; color: var(--subtle); font-size: .76rem; }
 
 /* ---------- Benefits bento ---------- */
-.lp-benefits { background: linear-gradient(135deg, #f0f5fc, #f8f6f1); border-block: 1px solid var(--border); }
+.lp-benefits { padding-top: clamp(2.5rem, 5vw, 4.25rem); background: linear-gradient(135deg, #f0f5fc, #f8f6f1); border-block: 1px solid var(--border); }
 .lp-bento { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 1.15rem; }
 .lp-bento > div { display: flex; min-width: 0; }
 .lp-b-wide { grid-column: span 4; }
@@ -134,7 +134,7 @@
 .lp-card-icon { width: 46px; height: 46px; display: grid; place-items: center; border-radius: 14px; color: var(--accent); background: var(--accent-soft); margin-bottom: 1.1rem; transition: 320ms var(--lp-ease); }
 .lp-card:hover .lp-card-icon { color: #fff; background: linear-gradient(145deg, var(--navy), var(--accent)); transform: rotate(-5deg); }
 .lp-card h3 { margin: 0 0 .55rem; font-size: 1.32rem; }
-.lp-card > p, .lp-board-layout p { margin: 0 0 1.4rem; color: var(--muted); line-height: 1.68; font-size: .98rem; max-width: 34em; }
+.lp-card > p, .lp-board-layout p { margin: 0 0 1.4rem; color: var(--muted); line-height: 1.68; font-size: .98rem; max-width: 34em; text-wrap: pretty; }
 .lp-card > :last-child { margin-top: auto; }
 .lp-card-dark { background: radial-gradient(60% 120% at 100% 0%, rgba(46, 118, 232, .38), transparent 60%), linear-gradient(135deg, #0d2547, #10233f); border-color: rgba(255, 255, 255, .08); color: #fff; }
 .lp-card-dark:hover { border-color: rgba(141, 187, 255, .4); box-shadow: 0 30px 70px rgba(9, 26, 51, .4); }

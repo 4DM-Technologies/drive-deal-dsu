@@ -3,22 +3,26 @@ import re
 from contextlib import suppress
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
-from time import perf_counter
+from time import monotonic, perf_counter
 from uuid import uuid4
 
 from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.agents.llm import LlmClient
 from src.agents.requirements import build_requirement_graph
 from src.agents.serra.graph import (
     DIRECT_REPLY_ROUTES,
     is_direct_reply,
     is_explicit_image_search,
     is_explicit_web_search,
+    is_ranking_request,
     main_agent,
 )
+from src.agents.tools.web_search import search_vehicle_images
 from src.database import SessionFactory
-from src.models.marketplace import AiChatRequest, CompareRequest, RequestCreate
+from src.models.guided import GuidedStep
+from src.models.marketplace import AiChatRequest, AiGuidedCheckpoint, CompareRequest, RequestCreate
 from src.repositories.schema import (
     AiTrace,
     Brand,
@@ -31,6 +35,9 @@ from src.repositories.schema import (
 )
 from src.services.administration_service import AdministrationService
 from src.services.billing_service import BillingService
+from src.services.catalog.matcher import MatchResult, match_message
+from src.services.catalog.planner import GuidedPlanner, opening_message
+from src.services.catalog.queries import CatalogQueries
 from src.services.marketplace_service import MarketplaceService
 from src.settings import get_settings
 from src.utils.exceptions import AppError, error_codes
@@ -41,6 +48,7 @@ _PUBLISH_CONFIRMATION_RE = re.compile(
     r"^\s*(?:yes[, ]*)?(?:please\s+)?(?:post|publish|send)\s+(?:it|this|the\s+(?:request|post)|my\s+(?:request|post))\s*[!.]*$",
     re.IGNORECASE,
 )
+_VEHICLE_IMAGE_CACHE: dict[str, tuple[float, dict[str, object]]] = {}
 
 
 def _is_publish_confirmation(message: str) -> bool:
@@ -65,6 +73,38 @@ def _money_value(value: object) -> Decimal | None:
 class AiService:
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
+
+    async def vehicle_images(self, query: str, thread_id: str | None = None) -> dict[str, object]:
+        """Find attributed reference images and distinguish a clean miss from a provider outage."""
+        settings = get_settings()
+        if settings.ai_disabled or not settings.ai_enable_web_search:
+            return {"items": [], "status": "unavailable"}
+        if not re.search(r"\b(?:model\s+[a-z0-9]+|[a-z][a-z0-9-]{1,})\b", query, re.I):
+            return {"items": [], "status": "not_found"}
+        cache_key = " ".join(query.casefold().split())
+        cached = _VEHICLE_IMAGE_CACHE.get(cache_key)
+        if cached and cached[0] > monotonic():
+            return {"items": list(cached[1]["items"]), "status": cached[1]["status"]}
+        if cached:
+            _VEHICLE_IMAGE_CACHE.pop(cache_key, None)
+        outcome: dict[str, str] = {}
+        items = await search_vehicle_images(
+            LlmClient(self.session, timeout_seconds=4), query, thread_id=thread_id, limit=4, outcome=outcome
+        )
+        status = outcome.get("status", "not_found")
+        result: dict[str, object] = {"items": items, "status": status}
+        # Image references are public and query-specific. Cache verified hits only: clean misses and
+        # provider outages stay eligible for an explicit retry against the live provider.
+        if status == "found":
+            _VEHICLE_IMAGE_CACHE[cache_key] = (monotonic() + 6 * 60 * 60, result)
+        if len(_VEHICLE_IMAGE_CACHE) > 400:
+            now = monotonic()
+            for key, (expires_at, _) in list(_VEHICLE_IMAGE_CACHE.items()):
+                if expires_at <= now:
+                    _VEHICLE_IMAGE_CACHE.pop(key, None)
+            while len(_VEHICLE_IMAGE_CACHE) > 400:
+                _VEHICLE_IMAGE_CACHE.pop(next(iter(_VEHICLE_IMAGE_CACHE)))
+        return {"items": list(items), "status": status}
 
     @log_flow(layer="service")
     async def _publish_saved_requirements(self, requirements: dict, buyer: Profile) -> dict | None:
@@ -130,6 +170,10 @@ class AiService:
         memory = await self._latest_memory(thread_id, buyer.id)
         trace_id = str(uuid4())
         trace_started = perf_counter()
+        conversation_context = list(memory.get("conversation_context", []))
+        request_context = payload.request_context or memory.get("request_context")
+        if request_context:
+            conversation_context.append({"request_context": request_context})
         state = {
             "user_id": buyer.id,
             "thread_id": thread_id,
@@ -138,10 +182,17 @@ class AiService:
             "requirements": memory.get("requirements", {}),
             "preferences": memory.get("preferences", {}),
             "preferences_pending": memory.get("preferences_pending", False),
+            "conversation_context": conversation_context,
         }
         explicit_web_search = (
-            is_explicit_web_search(payload.message) or is_explicit_image_search(payload.message)
-        ) and payload.agent != "compare-agent"
+            get_settings().ai_enable_web_search
+            and (
+                is_explicit_web_search(payload.message)
+                or is_explicit_image_search(payload.message)
+                or is_ranking_request(payload.message)
+            )
+            and payload.agent != "compare-agent"
+        )
         if explicit_web_search:
             yield {"type": "status", "phase": "crawling", "label": "Searching trusted sources"}
         else:
@@ -180,11 +231,29 @@ class AiService:
                 yield {"type": "card", "kind": "requestPreview", "payload": published_request}
                 await self._finish_trace(trace, main_result, trace_started)
                 await self._save_checkpoint(
-                    thread_id, buyer.id, payload, main_result, {"requirements": state.get("requirements", {})}
+                    thread_id, buyer.id, payload, main_result, {"requirements": state.get("requirements", {})}, memory
                 )
                 await self.session.commit()
                 yield {"type": "done", "threadId": thread_id, "messagesUsed": 1, "expandedUi": False}
                 return
+        # Guided question card. A message naming a catalog vehicle with buying intent ("I want a BMW M3") opens the
+        # card. When nothing else was asked, the card is the whole reply: a template sentence and no LLM call.
+        guided_step: GuidedStep | None = None
+        if payload.agent != "compare-agent" and not explicit_web_search:
+            match = await match_message(self.session, payload.message)
+            if match.opens_card and not match.has_question:
+                guided_step = await GuidedPlanner(self.session).from_match(match)
+                reply = await self._guided_reply(match, guided_step) if match.card_only else None
+                if reply is not None:
+                    main_result = {"route": "guided_card", "answer": reply}
+                    yield {"type": "token", "text": reply}
+                    if guided_step is not None:
+                        yield {"type": "card", "kind": "question", "payload": guided_step.model_dump()}
+                    await self._finish_trace(trace, main_result, trace_started)
+                    await self._save_checkpoint(thread_id, buyer.id, payload, main_result, {}, memory)
+                    await self.session.commit()
+                    yield {"type": "done", "threadId": thread_id, "messagesUsed": 1, "expandedUi": False}
+                    return
         main_graph = main_agent(
             self.session,
             compare=payload.agent == "compare-agent",
@@ -197,7 +266,7 @@ class AiService:
         if payload.agent == "compare-agent":
             main_result = await main_task
             requirement_result = {}
-        elif is_direct_reply(payload.message) or explicit_web_search:
+        elif is_direct_reply(payload.message) or explicit_web_search or guided_step is not None:
             # Greetings and explicit research requests are handled entirely by the main graph. Neither contains
             # a buyer requirement to extract, so starting the requirements graph would add latency and UI cards.
             main_result = await main_task
@@ -252,7 +321,9 @@ class AiService:
         if comparison_payload is not None:
             yield {"type": "card", "kind": "compare", "payload": comparison_payload}
         gate = await self.posting_gate(buyer)
-        if not requirement_result.get("missing_fields") and requirement_result.get("requirements"):
+        if guided_step is not None and main_result.get("route") not in DIRECT_REPLY_ROUTES:
+            yield {"type": "card", "kind": "question", "payload": guided_step.model_dump()}
+        elif not requirement_result.get("missing_fields") and requirement_result.get("requirements"):
             yield {
                 "type": "card",
                 "kind": "requestPreview",
@@ -279,9 +350,24 @@ class AiService:
         if main_result.get("media"):
             yield {"type": "media", "items": main_result["media"]}
         await self._finish_trace(trace, main_result, trace_started)
-        await self._save_checkpoint(thread_id, buyer.id, payload, main_result, requirement_result)
+        await self._save_checkpoint(thread_id, buyer.id, payload, main_result, requirement_result, memory)
         await self.session.commit()
         yield {"type": "done", "threadId": thread_id, "messagesUsed": 1, "expandedUi": False}
+
+    async def _guided_reply(self, match: MatchResult, step: GuidedStep | None) -> str | None:
+        """Sera's one sentence alongside the card, or a clear reply for a brand outside the dealer network."""
+        if step is None:
+            if match.make and not match.make.linked:
+                return (
+                    f"{match.make.name} isn’t in our dealer network yet, so I can’t send a request for it. "
+                    f"I can still answer questions about {match.make.name} models."
+                )
+            return None
+        catalog = CatalogQueries(self.session)
+        make = await catalog.make(step.answers.make_slug)
+        model = await catalog.model(step.answers.make_slug, step.answers.model_slug)
+        model_count = len(await catalog.models(make.slug)) if make else 0
+        return opening_message(step, make, model_count, model)
 
     @log_flow(layer="service")
     async def _stream_demo(self, payload: AiChatRequest, buyer: Profile, thread_id: str):
@@ -423,6 +509,57 @@ class AiService:
         return result
 
     @log_flow(layer="service")
+    async def save_guided_checkpoint(self, payload: AiGuidedCheckpoint, buyer: Profile) -> None:
+        """Persist the guided chat transcript and current picker state for reloads and chat history."""
+        latest = (
+            await self.session.execute(
+                select(ConversationHistory)
+                .where(ConversationHistory.thread_id == payload.thread_id, ConversationHistory.user_id == buyer.id)
+                .order_by(ConversationHistory.updated_at.desc())
+                .limit(1)
+            )
+        ).scalar_one_or_none()
+        messages = [message.model_dump() for message in payload.messages]
+        if (
+            latest
+            and latest.checkpoint.get("guided_messages") == messages
+            and latest.checkpoint.get("guided_state") == payload.guided_state
+            and latest.checkpoint.get("request_context") == payload.request_context
+        ):
+            return
+        previous = latest.checkpoint if latest else {}
+        first_user_message = next((message["body"] for message in messages if message["role"] == "user"), "")
+        request = payload.request_context or {}
+        vehicle = " ".join(
+            part for part in (str(request.get("brand", "")).strip(), str(request.get("model", "")).strip()) if part
+        )
+        title = f"Buying request: {vehicle}" if vehicle else (first_user_message[:72] or "New Sera chat")
+        last_user = next((message["body"] for message in reversed(messages) if message["role"] == "user"), "")
+        last_assistant = next((message["body"] for message in reversed(messages) if message["role"] == "assistant"), "")
+        self.session.add(
+            ConversationHistory(
+                thread_id=payload.thread_id,
+                checkpoint_id=str(uuid4()),
+                parent_checkpoint_id=latest.checkpoint_id if latest else None,
+                user_id=buyer.id,
+                thread_type="sera",
+                checkpoint={
+                    "user": last_user,
+                    "assistant": last_assistant,
+                    "requirements": previous.get("requirements", {}),
+                    "preferences": previous.get("preferences", {}),
+                    "preferences_pending": previous.get("preferences_pending", False),
+                    "published_request": previous.get("published_request"),
+                    "request_context": payload.request_context or previous.get("request_context"),
+                    "guided_messages": messages,
+                    "guided_state": payload.guided_state,
+                },
+                metadata_json={"title": title, "agent": "sera-guided", "saved_at": datetime.now(UTC).isoformat()},
+            )
+        )
+        await self.session.commit()
+
+    @log_flow(layer="service")
     async def get_thread(self, thread_id: str, buyer: Profile) -> dict:
         rows = (
             (
@@ -465,20 +602,58 @@ class AiService:
 
     @log_flow(layer="service")
     async def _latest_memory(self, thread_id: str, user_id: str) -> dict:
-        row = (
-            await self.session.execute(
-                select(ConversationHistory)
-                .where(ConversationHistory.thread_id == thread_id, ConversationHistory.user_id == user_id)
-                .order_by(ConversationHistory.created_at.desc())
-                .limit(1)
+        rows = (
+            (
+                await self.session.execute(
+                    select(ConversationHistory)
+                    .where(ConversationHistory.thread_id == thread_id, ConversationHistory.user_id == user_id)
+                    .order_by(ConversationHistory.created_at.desc())
+                    .limit(8)
+                )
             )
-        ).scalar_one_or_none()
-        return row.checkpoint if row else {}
+            .scalars()
+            .all()
+        )
+        if not rows:
+            return {}
+        latest = rows[0].checkpoint
+        context: list[dict[str, str]] = []
+        for row in reversed(rows):
+            checkpoint = row.checkpoint
+            guided_messages = checkpoint.get("guided_messages")
+            if isinstance(guided_messages, list):
+                for message in guided_messages:
+                    if (
+                        isinstance(message, dict)
+                        and message.get("role") in {"user", "assistant"}
+                        and message.get("body")
+                    ):
+                        context.append({"role": message["role"], "body": str(message["body"])[:2000]})
+            else:
+                for role, key in (("user", "user"), ("assistant", "assistant")):
+                    body = checkpoint.get(key)
+                    if body:
+                        context.append({"role": role, "body": str(body)[:2000]})
+        deduped: list[dict[str, str]] = []
+        seen: set[tuple[str, str]] = set()
+        for message in context:
+            key = (message["role"], message["body"])
+            if key not in seen:
+                deduped.append(message)
+                seen.add(key)
+        return {**latest, "conversation_context": deduped[-12:]}
 
     @log_flow(layer="service")
     async def _save_checkpoint(
-        self, thread_id: str, user_id: str, payload: AiChatRequest, main: dict, requirements: dict
+        self,
+        thread_id: str,
+        user_id: str,
+        payload: AiChatRequest,
+        main: dict,
+        requirements: dict,
+        memory: dict | None = None,
     ) -> None:
+        memory = memory or {}
         self.session.add(
             ConversationHistory(
                 thread_id=thread_id,
@@ -488,11 +663,12 @@ class AiService:
                 checkpoint={
                     "user": payload.message,
                     "assistant": main.get("answer"),
-                    "requirements": requirements.get("requirements", {}),
+                    "requirements": requirements.get("requirements") or memory.get("requirements", {}),
                     "questions": requirements.get("suggested_questions", []),
-                    "preferences": main.get("preferences", {}),
-                    "preferences_pending": main.get("preferences_pending", False),
-                    "published_request": main.get("published_request"),
+                    "preferences": main.get("preferences") or memory.get("preferences", {}),
+                    "preferences_pending": main.get("preferences_pending", memory.get("preferences_pending", False)),
+                    "published_request": main.get("published_request") or memory.get("published_request"),
+                    "request_context": payload.request_context or memory.get("request_context"),
                 },
                 metadata_json={
                     "title": payload.message[:72],

@@ -73,6 +73,10 @@ class ChatSend(BaseModel):
     message: str = Field(min_length=1, max_length=4000)
 
 
+class ChatEdit(BaseModel):
+    message: str = Field(min_length=1, max_length=4000)
+
+
 class DealStatusUpdate(BaseModel):
     status: Literal["paperwork_going_on", "funds_arrived", "dispatch", "delivery", "completed", "cancelled"]
 
@@ -111,6 +115,22 @@ class AiChatRequest(BaseModel):
     agent: Literal["sera-agent", "compare-agent"] = "sera-agent"
     request_ids: list[str] = Field(default_factory=list, max_length=5)
     quote_ids: list[str] = Field(default_factory=list, max_length=5, exclude=True)
+    request_context: dict | None = None
+
+
+class AiGuidedMessage(BaseModel):
+    id: str = Field(min_length=1, max_length=80)
+    role: Literal["user", "assistant"]
+    body: str = Field(max_length=8000)
+    guided_step: str | None = Field(default=None, max_length=40)
+    options: list[str] = Field(default_factory=list, max_length=30)
+
+
+class AiGuidedCheckpoint(BaseModel):
+    thread_id: str = Field(min_length=1, max_length=80)
+    messages: list[AiGuidedMessage] = Field(min_length=1, max_length=200)
+    guided_state: dict = Field(default_factory=dict)
+    request_context: dict | None = None
 
 
 class CompareRequest(BaseModel):

@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react';
 import type { ComponentType } from 'react';
 import { planDetailLine } from '@/helpers/plans';
 import { planLabel } from '@/helpers/subscription';
-import { SerraLogo } from '@/ui/reusables/SerraLogo/SerraLogo';
+import { SerraIcon } from '@/ui/reusables/Icons/SerraIcon';
 import { SerraWidget } from '@/ui/reusables/SerraWidget/SerraWidget';
 import { Brand } from '@/ui/reusables/Brand/Brand';
 import { ProfileMenu } from '@/ui/reusables/ProfileMenu/ProfileMenu';
@@ -15,9 +15,9 @@ import type { Role } from '@/types/domain';
 import { previewQuery, useEffectiveSession } from '@/ui/navigations/previewSession';
 import { BROWSER_STORAGE_KEYS, WORKSPACE_VIEW_QUERY_PARAMETER } from '@/config/browser';
 
-/** Sera's own mark as a nav icon. It is drawn a little larger than the line icons beside it, so its detail still reads, and kept still to keep the header light. */
+/** Sera's flat mark as a nav icon, coloured like the line icons beside it (muted at rest, blue when its page is open). It fills its whole box, so it is drawn only a little larger than they are. */
 function SeraNavIcon({ size = 16 }: { size?: number }) {
-  return <SerraLogo size={size + 4} animated={false} title={null} />;
+  return <SerraIcon className="nav-sera-icon" size={size + 2} />;
 }
 
 const links: Record<Role, Array<{ to: string; label: string; icon: ComponentType<{ size?: number }> }>> = {

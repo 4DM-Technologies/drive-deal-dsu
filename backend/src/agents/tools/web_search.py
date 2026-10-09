@@ -9,7 +9,8 @@ import asyncio
 import json
 import re
 from html.parser import HTMLParser
-from urllib.parse import urlparse
+from time import monotonic
+from urllib.parse import urljoin, urlparse
 
 import httpx
 
@@ -29,6 +30,105 @@ from src.utils.logger import logger
 # so the hosted search result stays grounded in manufacturer and established automotive sources.
 _EXCLUDED_REFERENCE_DOMAINS = ("wikipedia.org", "wikiwand.com")
 EXTRACTION_SCHEMA = CarSpecs.model_json_schema()
+_IMAGE_QUERY_STOPWORDS = {
+    "find",
+    "show",
+    "me",
+    "image",
+    "images",
+    "photo",
+    "photos",
+    "picture",
+    "pictures",
+    "vehicle",
+    "car",
+    "of",
+    "the",
+    "for",
+    "in",
+    "with",
+    "please",
+    "reference",
+    "search",
+    "again",
+    "model",
+    "year",
+    "color",
+    "black",
+    "white",
+    "red",
+    "blue",
+    "gray",
+    "grey",
+    "silver",
+    "automatic",
+    "manual",
+    "hybrid",
+    "electric",
+    "gasoline",
+    "gas",
+    "sedan",
+    "suv",
+    "hatchback",
+    "coupe",
+    "trim",
+    "gallery",
+    "exterior",
+    "interior",
+}
+_VEHICLE_MAKES = tuple(MAKE_DOMAIN_MAP) + (
+    "mercedes-benz",
+    "land rover",
+    "volkswagen",
+    "hyundai",
+    "kia",
+    "nissan",
+    "mazda",
+    "subaru",
+    "jeep",
+    "dodge",
+    "ram",
+    "lexus",
+    "acura",
+    "infiniti",
+    "genesis",
+    "volvo",
+    "porsche",
+    "rivian",
+    "lucid",
+    "buick",
+    "gmc",
+    "cadillac",
+    "lincoln",
+    "chrysler",
+    "mitsubishi",
+)
+_VEHICLE_IMAGE_CACHE: dict[str, tuple[float, list[dict[str, str]]]] = {}
+
+
+def _vehicle_image_terms(query: str) -> list[str]:
+    """Extract make and model identity while ignoring years, colors, and request wording."""
+    lowered = query.lower()
+    for make in sorted(set(_VEHICLE_MAKES), key=len, reverse=True):
+        match = re.search(rf"\b{re.escape(make)}\b", lowered)
+        if not match:
+            continue
+        make_terms = re.findall(r"[a-z0-9]+", make)
+        model_terms = [
+            term
+            for term in re.findall(r"[a-z0-9]+", lowered[match.end() :])
+            if (len(term) > 1 or term.isdigit())
+            and term not in _IMAGE_QUERY_STOPWORDS
+            and not re.fullmatch(r"(?:19|20)\d{2}", term)
+        ]
+        return make_terms + model_terms[:2] if model_terms else []
+    return [
+        term
+        for term in re.findall(r"[a-z0-9]+", lowered)
+        if (len(term) > 1 or term.isdigit())
+        and term not in _IMAGE_QUERY_STOPWORDS
+        and not re.fullmatch(r"(?:19|20)\d{2}", term)
+    ][-2:]
 
 
 def _is_excluded_domain(domain: str) -> bool:
@@ -73,13 +173,31 @@ class _ReadableHtmlParser(HTMLParser):
 
 
 class _ImageMetaParser(HTMLParser):
-    """Collect image metadata from a source page without launching a browser crawler."""
+    """Collect likely vehicle photos from metadata, structured data and image elements."""
 
     def __init__(self) -> None:
         super().__init__(convert_charrefs=True)
         self.images: list[str] = []
+        self._script_type = ""
+        self._script_parts: list[str] = []
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        if tag == "script":
+            values = {key.lower(): value or "" for key, value in attrs}
+            self._script_type = values.get("type", "").lower()
+            self._script_parts = []
+            return
+        if tag == "img":
+            values = {key.lower(): value or "" for key, value in attrs}
+            alt = values.get("alt", "").lower()
+            # Product pages commonly lazy-load gallery images; skip obvious logos and UI assets.
+            if not any(word in alt for word in ("logo", "icon", "avatar")):
+                candidates = [values.get("src", ""), values.get("data-src", ""), values.get("data-lazy-src", "")]
+                srcset = values.get("srcset", "")
+                if srcset:
+                    candidates.extend(part.strip().split()[0] for part in srcset.split(",") if part.strip())
+                self.images.extend(candidate for candidate in candidates if candidate)
+            return
         if tag not in {"meta", "link"}:
             return
         values = {key.lower(): value or "" for key, value in attrs}
@@ -87,6 +205,38 @@ class _ImageMetaParser(HTMLParser):
         content = values.get("content") or values.get("href")
         if content and property_name in {"og:image", "og:image:url", "twitter:image", "image_src"}:
             self.images.append(content.strip())
+
+    def handle_data(self, data: str) -> None:
+        if self._script_type == "application/ld+json":
+            self._script_parts.append(data)
+
+    def handle_endtag(self, tag: str) -> None:
+        if tag != "script" or self._script_type != "application/ld+json":
+            return
+        try:
+            payload = json.loads("".join(self._script_parts))
+        except (json.JSONDecodeError, TypeError):
+            payload = None
+
+        def collect(value: object) -> None:
+            if isinstance(value, dict):
+                image = value.get("image")
+                if isinstance(image, str):
+                    self.images.append(image)
+                elif isinstance(image, list):
+                    self.images.extend(item for item in image if isinstance(item, str))
+                elif isinstance(image, dict) and isinstance(image.get("url"), str):
+                    self.images.append(image["url"])
+                for child in value.values():
+                    if isinstance(child, dict | list):
+                        collect(child)
+            elif isinstance(value, list):
+                for child in value:
+                    collect(child)
+
+        collect(payload)
+        self._script_type = ""
+        self._script_parts = []
 
 
 async def search_vehicle_images(
@@ -96,31 +246,115 @@ async def search_vehicle_images(
     thread_id: str | None = None,
     limit: int = 2,
     market: str = "US",
+    outcome: dict[str, str] | None = None,
 ) -> list[dict[str, str]]:
-    """Use hosted web search to find source pages, then read their declared preview images.
+    """Search for direct vehicle image results, retaining source pages for attribution and verification.
 
-    This deliberately avoids scraped image search and browser crawling. The returned image URL is always
-    paired with the source page so the UI can show attribution and the buyer can verify the source.
+    Responses web search can return image results and supporting text in one call. If a provider omits image
+    results, source-page metadata is used as a same-call fallback; no extra search provider is queried.
     """
+    query_terms = _vehicle_image_terms(query)
+    if not query_terms:
+        if outcome is not None:
+            outcome["status"] = "not_found"
+        return []
+    years = re.findall(r"\b(?:19|20)\d{2}\b", query)
+    cache_key = " ".join([*years, *query_terms]).casefold()
+    cached = _VEHICLE_IMAGE_CACHE.get(cache_key)
+    if cached and cached[0] > monotonic():
+        if outcome is not None:
+            outcome["status"] = "found"
+        return list(cached[1][:limit])
+    if cached:
+        _VEHICLE_IMAGE_CACHE.pop(cache_key, None)
+
     prompt = (
-        "Find official or reputable automotive source pages that show the requested vehicle. "
-        "Prefer the manufacturer's gallery, then established automotive publications. "
-        f"Market hint: {market}. Return a small number of relevant source pages for this request: {query}"
+        "Find real photographs of the exact requested production vehicle, not generated images, logos, diagrams, "
+        "or unrelated trims. Prefer the manufacturer's gallery or official dealer media library, then reputable "
+        "automotive publications. Return image results with their source page and caption. "
+        f"Market hint: {market}. Vehicle: {query}"
     )
-    result = await llm.generate(
-        prompt,
-        "vehicle_image_search",
-        thread_id,
-        # Hosted web search is not compatible with GPT-5-family minimal reasoning.
-        reasoning_effort="low",
-        max_output_tokens=350,
-        tools=[{"type": "web_search", "search_context_size": "low"}],
-        tool_choice="required",
-    )
-    # A couple of source pages are enough for the gallery. Keep this bounded so an image request cannot fan out
-    # into a slow crawl of every citation returned by search.
-    sources = list(result.sources or [])[: max(limit * 2, limit)]
+    provider_unavailable = False
+    try:
+        result = await llm.generate(
+            prompt,
+            "vehicle_image_search",
+            thread_id,
+            # Hosted web search is not compatible with GPT-5-family minimal reasoning.
+            reasoning_effort="low",
+            max_output_tokens=1000,
+            tools=[
+                {
+                    "type": "web_search",
+                    "search_context_size": "low",
+                    "search_content_types": ["image", "text"],
+                    "image_settings": {"max_results": min(max(limit, 1), 4), "caption": True},
+                }
+            ],
+            tool_choice="required",
+            include=["web_search_call.results"],
+            transient_retries=0,
+        )
+        provider_unavailable = getattr(result, "status", "success") not in ("success", None)
+    except Exception as exc:
+        logger.warning("vehicle_image_hosted_search_failed", query=query, error=str(exc)[:200])
+        result = None
+        provider_unavailable = True
+    # Use direct image-result URLs first. Every image keeps a click-through source for attribution.
+    direct_results = list(getattr(result, "image_results", None) or [])
+    matched_images: list[dict[str, str]] = []
+    for image in direct_results:
+        image_url = str(image.get("image_url") or "").strip()
+        source_url = str(image.get("source_url") or "").strip()
+        caption = str(image.get("caption") or "").strip()
+        identity_text = f"{caption} {source_url}".casefold()
+        image_path = urlparse(image_url).path.casefold()
+        if (
+            not image_url.startswith("https://")
+            or not source_url.startswith("https://")
+            or _is_excluded_domain(urlparse(source_url).hostname or "")
+            or not all(term.casefold() in identity_text for term in query_terms[-2:])
+            or re.search(r"(?:logo|brand[-_]?mark|wordmark|favicon|icon|sprite)", image_path)
+            or image_path.endswith(".svg")
+        ):
+            continue
+        host = (urlparse(source_url).hostname or "Vehicle source").removeprefix("www.")
+        matched_images.append(
+            {
+                "image_url": image_url,
+                "thumbnail_url": str(image.get("thumbnail_url") or ""),
+                "source_url": source_url,
+                "source_name": host,
+                "alt": caption or f"{query} vehicle photo",
+            }
+        )
+        if len(matched_images) >= limit:
+            break
+    if matched_images:
+        if outcome is not None:
+            outcome["status"] = "found"
+        _VEHICLE_IMAGE_CACHE[cache_key] = (monotonic() + 6 * 60 * 60, matched_images)
+        if len(_VEHICLE_IMAGE_CACHE) > 400:
+            now = monotonic()
+            for key, (expires_at, _) in list(_VEHICLE_IMAGE_CACHE.items()):
+                if expires_at <= now:
+                    _VEHICLE_IMAGE_CACHE.pop(key, None)
+            while len(_VEHICLE_IMAGE_CACHE) > 400:
+                _VEHICLE_IMAGE_CACHE.pop(next(iter(_VEHICLE_IMAGE_CACHE)))
+        return matched_images
+
+    # If the API returns citations but no direct image results, inspect only those pages from this same call.
+    sources = list(getattr(result, "sources", None) or [])[: max(limit * 2, limit)]
+    sources = [
+        source
+        for source in sources
+        if all(term in f"{source.get('title', '')} {source.get('url', '')}".lower() for term in query_terms[-2:])
+    ]
     if not sources:
+        # Do not fan out to Wikimedia when hosted search is unavailable or has no attributable
+        # source pages. This avoids a known 403 in the deployed environment and keeps the miss fast.
+        if outcome is not None:
+            outcome["status"] = "unavailable" if provider_unavailable else "not_found"
         return []
 
     settings = get_settings()
@@ -135,16 +369,18 @@ async def search_vehicle_images(
                 response = await client.get(source["url"])
                 response.raise_for_status()
             parser = _ImageMetaParser()
-            parser.feed(response.text[:250_000])
+            parser.feed(response.text[:750_000])
             for image_url in parser.images:
-                if image_url.startswith("//"):
-                    image_url = f"https:{image_url}"
-                elif image_url.startswith("/"):
-                    parsed = urlparse(source["url"])
-                    image_url = f"{parsed.scheme}://{parsed.netloc}{image_url}"
-                if image_url.startswith(("http://", "https://")):
+                image_url = urljoin(str(response.url), image_url.strip())
+                image_path = urlparse(image_url).path.lower()
+                if (
+                    image_url.startswith(("http://", "https://"))
+                    and not image_path.endswith(".svg")
+                    and not re.search(r"(?:logo|brand[-_]?mark|wordmark|favicon|icon|sprite)", image_path)
+                ):
                     return {
                         "image_url": image_url,
+                        "thumbnail_url": image_url,
                         "source_url": source["url"],
                         "source_name": source.get("title") or "Vehicle source",
                         "alt": f"{query} vehicle image",
@@ -158,7 +394,15 @@ async def search_vehicle_images(
     for item in results:
         if item and item["image_url"] not in unique:
             unique[item["image_url"]] = item
-    return list(unique.values())[:limit]
+    images = list(unique.values())[:limit]
+    if images:
+        if outcome is not None:
+            outcome["status"] = "found"
+        _VEHICLE_IMAGE_CACHE[cache_key] = (monotonic() + 6 * 60 * 60, images)
+        return images
+    if outcome is not None:
+        outcome["status"] = "unavailable" if provider_unavailable else "not_found"
+    return []
 
 
 async def _hosted_get_urls(
@@ -181,7 +425,8 @@ async def _hosted_get_urls(
         thread_id,
         # Hosted web search is not compatible with GPT-5-family minimal reasoning.
         reasoning_effort="low",
-        max_output_tokens=500,
+        # Citations are attached to the answer text; a tight cap truncates it before most URLs land.
+        max_output_tokens=1500,
         tools=[{"type": "web_search", "search_context_size": "low"}],
         tool_choice="required",
     )

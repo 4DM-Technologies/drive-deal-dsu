@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import func, select, union_all
+from sqlalchemy import func, select, union_all, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.repositories.schema import BuyerRequest, BuyerRequestView, Car, DealChat, DealDocument, DealQuote
@@ -94,6 +94,18 @@ class MarketplaceRepository:
         return list(result.scalars())
 
     @log_flow(layer="repository")
+    async def dealer_has_quote_for_request(self, dealer_id: str, request_id: str) -> bool:
+        result = await self.session.execute(
+            select(DealQuote.id)
+            .where(
+                DealQuote.dealer_id == dealer_id,
+                DealQuote.buyer_request_id == request_id,
+            )
+            .limit(1)
+        )
+        return result.scalar_one_or_none() is not None
+
+    @log_flow(layer="repository")
     async def quotes_for_requests(self, request_ids: list[str]) -> list[DealQuote]:
         if not request_ids:
             return []
@@ -116,11 +128,31 @@ class MarketplaceRepository:
         return await self.session.get(DealQuote, quote_id)
 
     @log_flow(layer="repository")
+    async def mark_quotes_read_by_buyer(self, quote_ids: list[str]) -> None:
+        if not quote_ids:
+            return
+        await self.session.execute(
+            update(DealQuote)
+            .where(DealQuote.id.in_(quote_ids), DealQuote.read_by_buyer.is_(False))
+            # Opening a quote is not a change to it, so its updated_at must not move.
+            .values(read_by_buyer=True, updated_at=DealQuote.updated_at)
+            .execution_options(synchronize_session=False)
+        )
+        await self.session.commit()
+
+    @log_flow(layer="repository")
     async def chat_messages(self, quote_id: str) -> list[DealChat]:
         result = await self.session.execute(
             select(DealChat).where(DealChat.quote_id == quote_id).order_by(DealChat.created_at)
         )
         return list(result.scalars())
+
+    @log_flow(layer="repository")
+    async def chat_message_by_id(self, quote_id: str, message_id: str) -> DealChat | None:
+        result = await self.session.execute(
+            select(DealChat).where(DealChat.quote_id == quote_id, DealChat.id == message_id)
+        )
+        return result.scalar_one_or_none()
 
     @log_flow(layer="repository")
     async def document_by_id(self, document_id: str) -> DealDocument | None:

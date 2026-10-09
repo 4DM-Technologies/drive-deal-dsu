@@ -1,12 +1,12 @@
 import { motion, useInView, useMotionValueEvent, useReducedMotion, useScroll, useSpring, useTransform, type Variants } from 'motion/react';
 import {
-  ArrowRight, BadgeCheck, Calculator, Check, ChevronDown, CircleDollarSign, ClipboardCheck, Handshake, LockKeyhole, LockOpen, Mail,
+  ArrowRight, BadgeCheck, Calculator, Check, ChevronDown, ClipboardCheck, Crown, Handshake, LockKeyhole, LockOpen, Mail,
   Phone, Plus, Radar, ReceiptText, Send, ShieldCheck, SlidersHorizontal, Sparkles, Store, Trophy, UserRound, Users, X,
 } from 'lucide-react';
-import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
-import { formatMoney } from '@/helpers/currency';
 import { useScrollTopOnPush } from '@/helpers/useScrollTopOnPush';
+import { spyLinkProps, useScrollSpy } from '@/helpers/useScrollSpy';
 import { AnimatedNumber } from '@/ui/reusables/AnimatedNumber/AnimatedNumber';
 import { Brand } from '@/ui/reusables/Brand/Brand';
 import { Reveal } from '@/ui/reusables/Reveal/Reveal';
@@ -22,18 +22,14 @@ const dealerHeroImage = Object.values(heroImages)[0];
 const ctaImages = import.meta.glob<string>('../../../assets/vehicles/dealer-cta.{png,jpg,jpeg,webp,avif}', { eager: true, query: '?url', import: 'default' });
 const dealerCtaImage = Object.values(ctaImages)[0];
 
+/** Dealer membership price shown on this page. It mirrors the backend's DEALER_PREMIUM_PRICE (USD per year). */
+const MEMBERSHIP_PRICE = '$500';
+
 const steps = [
   { n: '01', icon: Send, title: 'Request Enters the System', body: 'A buyer specifies their exact car—make, model, and trim—and it’s instantly logged to the network. No cold calling required.', tag: 'No cold calling' },
   { n: '02', icon: Radar, title: 'Dashboard Flags the Match', body: 'Matching requests appear against your live inventory instantly, eliminating the need to manually triage lead lists.', tag: 'Live inventory match' },
   { n: '03', icon: Calculator, title: 'You Set the Price', body: 'Set your out-the-door quote against your margin targets. The dashboard displays your win probability before you even submit.', tag: 'Win probability shown' },
   { n: '04', icon: Handshake, title: 'Deal Closes, Books Update', body: 'If the buyer accepts your offer, you receive their full contact details so you can finalize the deal in person.', tag: 'Contact details unlocked' },
-];
-
-const platformPoints = [
-  'A live feed you can filter by brand, body type, budget, distance, and timeframe',
-  'Sales tax is calculated for you, so the quote is one clear out-the-door total',
-  'Clear signals—“You are leading” or “Revision may be needed”—as the market moves',
-  'Revise, withdraw, or set an expiry whenever your numbers change',
 ];
 
 const oldWay = [
@@ -58,7 +54,7 @@ const startSteps = [
 ];
 
 const faqs = [
-  { question: 'What does it cost to be on Deal&Drive?', answer: 'Dealers pay only when a deal closes. Reviewing requests and sending quotes doesn’t cost you anything on its own, so you only pay for business you actually win.' },
+  { question: 'What does it cost to be on Deal&Drive?', answer: `Start free: your first 2 months include up to 3 quotes. After that, a dealer membership is ${MEMBERSHIP_PRICE} a year for unlimited quotes, and each renewal adds another year.` },
   { question: 'How are requests matched to my dealership?', answer: 'Buyers choose a search radius, and you’re notified about requests inside it. Your feed is built around the brands you carry, and you can filter by brand, body type, budget, distance, and timeframe to focus on the cars you can deliver.' },
   { question: 'What does the buyer see in my quote?', answer: 'An itemized out-the-door breakdown: vehicle price, documentation fee, sales tax, title and registration, and any trade-in credit, rolled into one final total. Quotes are ranked by that number, so every comparison is like for like.' },
   { question: 'When do I get the buyer’s contact details?', answer: 'Buyers stay anonymous while quotes arrive and while you negotiate in-platform. When a buyer accepts your quote, you receive their full contact details so you can finalize the deal in person.' },
@@ -80,7 +76,6 @@ const stagger: Variants = {
 };
 
 const percent = (value: number) => `${Math.round(value)}%`;
-const money = (value: number) => formatMoney(Math.round(value));
 
 function SectionHead({ eyebrow, title, children, tone = 'light' }: { eyebrow: string; title: ReactNode; children: ReactNode; tone?: 'light' | 'dark' }) {
   return (
@@ -127,7 +122,6 @@ function Hero() {
             <motion.div variants={rise} className="dl-hero-trust">
               <span><ShieldCheck size={16} /> Verified dealer network</span>
               <span><ReceiptText size={16} /> Itemized quotes</span>
-              <span><CircleDollarSign size={16} /> Pay only when a deal closes</span>
             </motion.div>
           </motion.div>
         </motion.div>
@@ -170,16 +164,44 @@ function Timeline() {
   );
 }
 
+const INITIAL_LEADS = [
+  { car: 'Toyota RAV4 Hybrid XLE', meta: '9 mi · within 2 weeks' },
+  { car: 'Honda Civic Sport', meta: '14 mi · this month' },
+  { car: 'Ford F-150 Lariat', meta: '22 mi · within 3 weeks' },
+];
+const LEADS_ROTATE_MS = 2600;
+
 function LeadsVisual() {
-  const rows = [
-    { car: 'Toyota RAV4 Hybrid XLE', meta: '9 mi · within 2 weeks' },
-    { car: 'Honda Civic Sport', meta: '14 mi · this month' },
-    { car: 'Ford F-150 Lariat', meta: '22 mi · within 3 weeks' },
-  ];
+  const ref = useRef<HTMLDivElement>(null);
+  const inView = useInView(ref, { margin: '0px 0px -10% 0px' });
+  const reduceMotion = useReducedMotion();
+  const [rows, setRows] = useState(INITIAL_LEADS);
+
+  // Cycles the list like a leaderboard - the top request steps to the back and the other two move up to fill
+  // in, so every request gets a turn at the top. Paused off-screen and for anyone who asked for less motion.
+  useEffect(() => {
+    if (!inView || reduceMotion) return;
+    const timer = window.setInterval(() => {
+      setRows((current) => [...current.slice(1), current[0]!]);
+    }, LEADS_ROTATE_MS);
+    return () => window.clearInterval(timer);
+  }, [inView, reduceMotion]);
+
   return (
-    <div className="dl-leads">
+    <div className="dl-leads" ref={ref}>
       {rows.map(({ car, meta }, index) => (
-        <motion.div className="dl-lead-row" key={car} initial={{ opacity: 0, x: 48 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true, amount: .6 }} transition={{ duration: .7, delay: .15 + index * .12, ease: [.16, 1, .3, 1] }}>
+        <motion.div
+          className="dl-lead-row"
+          key={car}
+          layout
+          initial={reduceMotion ? false : { opacity: 0, x: 48 }}
+          whileInView={{ opacity: 1, x: 0 }}
+          viewport={{ once: true, amount: .6 }}
+          transition={{
+            default: { duration: .7, delay: .15 + index * .12, ease: [.16, 1, .3, 1] },
+            layout: { duration: .6, ease: [.16, 1, .3, 1] },
+          }}
+        >
           <span className="dl-lead-avatar"><UserRound size={16} /></span>
           <div><strong>{car}</strong><small>{meta}</small></div>
           <span className="dl-lead-real"><BadgeCheck size={14} /> Real request</span>
@@ -263,17 +285,25 @@ function UnlockVisual() {
   );
 }
 
-function FeeVisual() {
-  const stops = [['Browse the feed', 'No fee'], ['Send a quote', 'No fee'], ['Buyer accepts', 'No fee'], ['Deal closes', 'You pay']];
+const EASE_OUT = [.16, 1, .3, 1] as const;
+
+function MembershipVisual() {
   return (
-    <div className="dl-fee">
-      {stops.map(([label, note], index) => (
-        <motion.div key={label} className={index === stops.length - 1 ? 'is-last' : ''} initial={{ opacity: 0, y: 18 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true, amount: .8 }} transition={{ duration: .6, delay: .1 + index * .14, ease: [.16, 1, .3, 1] }}>
-          <i>{index === stops.length - 1 ? <Check size={14} /> : index + 1}</i>
-          <strong>{label}</strong>
-          <small>{note}</small>
-        </motion.div>
-      ))}
+    <div className="dl-member-visual">
+      <motion.div className="dl-member-card" initial={{ opacity: 0, y: 24, rotate: -1.5 }} whileInView={{ opacity: 1, y: 0, rotate: 0 }} viewport={{ once: true, amount: .6 }} transition={{ duration: .7, ease: EASE_OUT }}>
+        <div className="dl-mc-top"><span className="dl-mc-brand">Deal&amp;Drive</span><span className="dl-mc-tier"><Crown size={13} /> Member</span></div>
+        <div className="dl-mc-price"><b>{MEMBERSHIP_PRICE}</b><span>per year</span></div>
+        <div className="dl-mc-facts">
+          <div><small>Plan</small><strong>Dealer membership</strong></div>
+          <div><small>Quotes</small><strong>Unlimited</strong></div>
+          <div><small>Valid for</small><strong>12 months</strong></div>
+        </div>
+      </motion.div>
+      <motion.div className="dl-offer" initial={{ opacity: 0, y: 18 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true, amount: .8 }} transition={{ duration: .6, delay: .2, ease: EASE_OUT }}>
+        <div className="dl-offer-step is-free"><small>Launching offer</small><strong>Free for 2 months</strong><span>Up to 3 quotes included</span></div>
+        <span className="dl-offer-arrow" aria-hidden="true"><ArrowRight size={16} /></span>
+        <div className="dl-offer-step"><small>Then</small><strong>{MEMBERSHIP_PRICE} a year</strong><span>Unlimited quotes</span></div>
+      </motion.div>
     </div>
   );
 }
@@ -328,13 +358,19 @@ function Features() {
           </Reveal>
           <Reveal once className="dl-b-full">
             <SpotlightCard className="dl-card dl-card-dark">
-              <div className="dl-fee-layout">
-                <div>
-                  <span className="dl-card-icon"><CircleDollarSign size={21} /></span>
-                  <h3>Pay only when you win</h3>
-                  <p>Dealers pay only when a deal closes. Browsing requests and sending quotes doesn’t cost you anything on its own, so you only pay for business you actually win.</p>
+              <div className="dl-member">
+                <div className="dl-member-copy">
+                  <div className="dl-member-head"><span className="dl-card-icon"><Crown size={21} /></span><span className="dl-member-pill">Membership</span></div>
+                  <h3>Dealer membership</h3>
+                  <p>One flat price for the year. Start free, then keep quoting on every buyer request that fits your lot, with no limit on how many quotes you send.</p>
+                  <ul className="dl-member-perks">
+                    <li><Check size={15} /> Unlimited quotes on live buyer requests</li>
+                    <li><Check size={15} /> A full year of access, renew any time</li>
+                    <li><Check size={15} /> Buyer contact details unlock when they accept</li>
+                  </ul>
+                  <Link className="button button-primary dl-member-cta" to="/signup/dealer">Start free for 2 months <ArrowRight size={17} /></Link>
                 </div>
-                <FeeVisual />
+                <MembershipVisual />
               </div>
             </SpotlightCard>
           </Reveal>
@@ -344,106 +380,9 @@ function Features() {
   );
 }
 
-const FLOOR_PRICE = 35600;
-const LEADING_TOTAL = 40500;
-const DOC_FEE = 650;
-const TITLE_FEE = 225;
-
-function QuoteDemo() {
-  const ref = useRef<HTMLDivElement>(null);
-  const inView = useInView(ref, { once: true, margin: '0px 0px -20% 0px' });
-  const [price, setPrice] = useState(36400);
-  const tax = Math.round(price * .0625);
-  const total = price + tax + DOC_FEE + TITLE_FEE;
-  const probability = Math.min(97, Math.max(3, Math.round(100 / (1 + Math.exp((total - LEADING_TOTAL) / 700)))));
-  const leading = total < LEADING_TOTAL;
-  const belowFloor = price < FLOOR_PRICE;
-  const min = 34000;
-  const max = 40000;
-  const fill = ((price - min) / (max - min)) * 100;
-  // the slider thumb is 28px wide, so its centre travels from 14px to (100% - 14px)
-  const floorLeft = `calc(14px + (100% - 28px) * ${(FLOOR_PRICE - min) / (max - min)})`;
-
-  return (
-    <div className="dl-window" ref={ref}>
-      <div className="dl-window-bar"><i /><i /><i /><span>Quote builder · Sample request</span></div>
-      <div className="dl-window-body">
-        <div className="dl-window-car">
-          <span className="dl-window-car-icon"><Store size={18} /></span>
-          <div><strong>2025 Hyundai Ioniq 5 Limited</strong><small>12 mi away · within 3 weeks · identity protected</small></div>
-        </div>
-
-        <div className="dl-field">
-          <div className="dl-field-label"><label htmlFor="dl-price">Your vehicle price</label><strong><AnimatedNumber value={price} format={money} active={inView} /></strong></div>
-          <div className="dl-range-wrap">
-            <input id="dl-price" className="dl-range" type="range" min={min} max={max} step={100} value={price} onChange={(event) => setPrice(Number(event.target.value))} style={{ '--fill': `${fill}%` } as CSSProperties} aria-describedby="dl-demo-note" />
-            <i className="dl-floor-tick" style={{ left: floorLeft }} aria-hidden="true" />
-          </div>
-          <div className="dl-range-marks"><span>{formatMoney(min)}</span><span className="dl-floor" style={{ left: floorLeft }}>Margin target</span><span>{formatMoney(max)}</span></div>
-        </div>
-
-        <div className="dl-breakdown">
-          <div><span>Sales tax · 6.25%</span><b>{formatMoney(tax)}</b></div>
-          <div><span>Documentation fee</span><b>{formatMoney(DOC_FEE)}</b></div>
-          <div><span>Title &amp; registration</span><b>{formatMoney(TITLE_FEE)}</b></div>
-          <div className="dl-breakdown-total"><span>Out-the-door total</span><b><AnimatedNumber value={total} format={money} active={inView} /></b></div>
-        </div>
-
-        <div className="dl-odds">
-          <div className="dl-odds-head"><span>Win probability</span><strong><AnimatedNumber value={probability} format={percent} active={inView} /></strong></div>
-          <div className="dl-odds-track"><motion.i animate={{ width: inView ? `${probability}%` : '0%' }} transition={{ type: 'spring', stiffness: 90, damping: 20 }} className={probability >= 60 ? 'is-good' : probability >= 30 ? 'is-mid' : 'is-low'} /></div>
-          <div className="dl-odds-status">
-            <span className={leading ? 'is-good' : 'is-warn'}>{leading ? <><Check size={14} /> You are leading</> : <><X size={14} /> Revision may be needed</>}</span>
-            <span className={belowFloor ? 'is-warn' : 'is-good'}>{belowFloor ? 'Below your margin target' : 'Above your margin target'}</span>
-          </div>
-        </div>
-        <p className="dl-demo-note" id="dl-demo-note">Drag the price to see the odds move. Lowest competing quote in this demo: {formatMoney(LEADING_TOTAL)}. Sample numbers only.</p>
-      </div>
-    </div>
-  );
-}
-
-function Platform() {
-  const reduceMotion = useReducedMotion();
-  const ref = useRef<HTMLElement>(null);
-  const { scrollYProgress } = useScroll({ target: ref, offset: ['start end', 'center center'] });
-  const rotate = useTransform(scrollYProgress, [0, 1], [-9, 0]);
-  const lift = useTransform(scrollYProgress, [0, 1], [60, 0]);
-  const tilt = reduceMotion ? {} : { rotateY: rotate, y: lift, transformPerspective: 1400 };
-
-  return (
-    <section className="dl-section dl-platform" id="dl-platform" ref={ref}>
-      <div className="dl-orb dl-orb-a" aria-hidden="true" />
-      <div className="dl-orb dl-orb-b" aria-hidden="true" />
-      <div className="shell dl-platform-grid">
-        <div className="dl-platform-copy">
-          <Reveal from="left" once>
-            <span className="eyebrow">Your dealer dashboard</span>
-            <h2>Set your number. See your odds.</h2>
-            <p className="dl-platform-lead">Build one itemized quote against your margin targets and watch your win probability move before you send it. Try it on the right.</p>
-          </Reveal>
-          <ul className="dl-checks">
-            {platformPoints.map((point, index) => (
-              <motion.li key={point} initial={{ opacity: 0, x: -48 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true, amount: .6 }} transition={{ duration: .7, delay: index * .09, ease: [.16, 1, .3, 1] }}>
-                <span><Check size={14} /></span>{point}
-              </motion.li>
-            ))}
-          </ul>
-          <Reveal from="left" once delay={.5}>
-            <Link className="button button-primary dl-platform-cta" to="/signup/dealer">Apply as a dealer <ArrowRight size={17} /></Link>
-          </Reveal>
-        </div>
-        <motion.div className="dl-platform-demo" style={tilt}>
-          <QuoteDemo />
-        </motion.div>
-      </div>
-    </section>
-  );
-}
-
 function Versus() {
   return (
-    <section className="dl-section dl-versus-section">
+    <section className="dl-section dl-versus-section" id="dl-versus">
       <div className="shell">
         <SectionHead eyebrow="The difference" title="Stop working leads. Start winning deals.">
           See what changes when buyers arrive with the exact car already chosen.
@@ -553,8 +492,12 @@ function FinalCta() {
   );
 }
 
+/** Section id → header link it highlights. The comparison section belongs to "Why dealers". */
+const NAV_SECTIONS = { 'dl-how': 'how', 'dl-features': 'why', 'dl-versus': 'why', 'dl-faq': 'faq' };
+
 export default function DealerLandingScreen() {
   useScrollTopOnPush();
+  const activeNav = useScrollSpy(NAV_SECTIONS);
   const [scrolled, setScrolled] = useState(false);
   const { scrollYProgress } = useScroll();
   const progress = useSpring(scrollYProgress, { stiffness: 140, damping: 30, restDelta: .001 });
@@ -579,9 +522,9 @@ export default function DealerLandingScreen() {
         <div className="shell public-nav">
           <Link to="/" aria-label="Deal&Drive home"><Brand /></Link>
           <nav className="public-nav-links" aria-label="Sections">
-            <a className="nav-link" href="#dl-how">How it works</a>
-            <a className="nav-link" href="#dl-features">Why dealers</a>
-            <a className="nav-link" href="#dl-faq">FAQ</a>
+            <a {...spyLinkProps(activeNav, 'how')} href="#dl-how">How it works</a>
+            <a {...spyLinkProps(activeNav, 'why')} href="#dl-features">Why dealers</a>
+            <a {...spyLinkProps(activeNav, 'faq')} href="#dl-faq">FAQ</a>
             <Link className="nav-link" to="/login?role=dealer">Dealer sign in</Link>
           </nav>
           <div className="public-nav-actions">
@@ -604,7 +547,6 @@ export default function DealerLandingScreen() {
         </section>
 
         <Features />
-        <Platform />
         <Versus />
         <GetStarted />
         <DealerFaq />

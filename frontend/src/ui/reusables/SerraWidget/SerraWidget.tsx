@@ -1,7 +1,7 @@
 import { AnimatePresence, motion } from 'motion/react';
 import { ArrowUp, Check, Expand, MessageCircle, Sparkles, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { client } from '@/services/platform/client';
 import { BROWSER_STORAGE_KEYS } from '@/config/browser';
 import { createId } from '@/helpers/ids';
@@ -19,6 +19,7 @@ function CompactAnswer({ body }: { body: string }) {
 
 export function SerraWidget() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [open, setOpen] = useState(false);
   const [visible, setVisible] = useState(
     () => window.sessionStorage.getItem(BROWSER_STORAGE_KEYS.seraWidgetDismissed) !== 'true',
@@ -47,7 +48,7 @@ export function SerraWidget() {
   }, [visible]);
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }, [messages, status]);
 
-  if (!visible) return null;
+  if (!visible || location.pathname === '/chat' || location.pathname.startsWith('/chat/')) return null;
 
   function dismiss() {
     window.sessionStorage.setItem(BROWSER_STORAGE_KEYS.seraWidgetDismissed, 'true');

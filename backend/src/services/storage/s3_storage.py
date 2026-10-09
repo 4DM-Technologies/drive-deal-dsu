@@ -1,7 +1,13 @@
 import boto3
+from botocore.exceptions import BotoCoreError, ClientError
 
-from src.services.storage.storage import Storage
-from src.settings import S3_PRESIGNED_URL_TTL_SECONDS, get_settings
+from src.services.storage.storage import Storage, StorageError, StorageObject
+from src.settings import (
+    S3_CACHE_CONTROL_NO_STORE,
+    S3_PRESIGNED_URL_TTL_SECONDS,
+    S3_SERVER_SIDE_ENCRYPTION,
+    get_settings,
+)
 from src.utils.log_flow import log_flow
 
 
@@ -36,3 +42,24 @@ class S3Storage(Storage):
             Params=params,
             ExpiresIn=S3_PRESIGNED_URL_TTL_SECONDS,
         )
+
+    @log_flow(layer="service")
+    def put_object(self, item: StorageObject) -> None:
+        try:
+            self.client.put_object(
+                Bucket=self.bucket,
+                Key=item.key,
+                Body=item.content,
+                ContentType=item.content_type,
+                CacheControl=S3_CACHE_CONTROL_NO_STORE,
+                ServerSideEncryption=S3_SERVER_SIDE_ENCRYPTION,
+            )
+        except (BotoCoreError, ClientError) as exc:
+            raise StorageError("Could not write the object to S3.") from exc
+
+    @log_flow(layer="service")
+    def delete_object(self, key: str) -> None:
+        try:
+            self.client.delete_object(Bucket=self.bucket, Key=key)
+        except (BotoCoreError, ClientError) as exc:
+            raise StorageError("Could not delete the object from S3.") from exc

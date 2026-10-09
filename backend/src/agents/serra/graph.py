@@ -17,8 +17,15 @@ from src.agents.observability import log_agent_step
 from src.agents.prompts import load_fragment, load_prompt
 from src.agents.schemas import CarSpecs, OrchestratorPlan
 from src.agents.state import AgentState
+from src.agents.tools.catalog_tools import (
+    body_style_hint,
+    fallback_plan,
+    parse_plan,
+    run_catalog_tools,
+    shortcut_plan,
+)
 from src.agents.tools.kb import kb_insert, kb_search
-from src.agents.tools.kb_db import update_preferences, write_car
+from src.agents.tools.kb_db import write_car
 from src.agents.tools.web_search import (
     get_urls,
     has_official_domain,
@@ -27,6 +34,7 @@ from src.agents.tools.web_search import (
 )
 from src.database import SessionFactory
 from src.repositories.schema import AiTraceSpan, Brand, BuyerPreference, State
+from src.services.catalog.matcher import MatchResult, match_message
 from src.settings import get_settings
 from src.utils.logger import logger
 from src.utils.serialization import model_dict
@@ -267,6 +275,19 @@ def is_explicit_web_search(message: str) -> bool:
     return bool(EXPLICIT_WEB_SEARCH_RE.search(message)) and _has_domain_content(message)
 
 
+RANKING_RE = re.compile(
+    r"\b(top\s*(?:\d{1,2}|three|five|ten|twenty)|rank(?:ing|ings|ed)?|most popular|best[- ]selling|"
+    r"best[- ]rated|highest[- ]rated)\b",
+    re.IGNORECASE,
+)
+
+
+def is_ranking_request(message: str) -> bool:
+    """True for a ranking about vehicles ("top 10 premium cars"). Rankings come from current reviews and sales,
+    which the catalog does not hold, so they go to web research when it is switched on."""
+    return bool(RANKING_RE.search(message)) and _has_domain_content(message)
+
+
 def is_explicit_image_search(message: str) -> bool:
     """True when the buyer is asking to see a real vehicle image, not generate one."""
     return bool(EXPLICIT_IMAGE_SEARCH_RE.search(message)) and bool(VEHICLE_IMAGE_CONTEXT_RE.search(message))
@@ -288,39 +309,27 @@ def _is_small_talk(message: str) -> bool:
 
 
 def _has_domain_content(message: str) -> bool:
-    """Guards the knowledge-base lookup: greetings and pure pleasantries have nothing to embed or retrieve."""
+    """True when the message is about vehicles at all; used to keep explicit web searches in scope."""
     return bool(DOMAIN_TERM_RE.search(message) or MODEL_TERM_RE.search(message))
 
 
-def _kb_results_are_relevant(message: str, kb_results: list[dict]) -> bool:
-    """kb_search() ORs Car.model and Brand.name together (src/agents/tools/kb.py) - a message naming one
-    specific model (e.g. "BMW M3") matches ANY car of that brand in inventory (e.g. a 5 Series), not
-    necessarily the model actually asked about. A result only counts as a real answer if its own model name
-    (or a cached web finding's model, see kb_insert/kb_search's "learned_web_knowledge" entries) appears in
-    the message - a same-brand-wrong-model row must not block the kb-miss escalation in after_kb()."""
-    message_lower = message.lower()
-
-    def _mentioned(model: object) -> bool:
-        text = str(model or "").strip().lower()
-        return bool(text) and text in message_lower
-
-    for result in kb_results:
-        if _mentioned(result.get("model")):
-            return True
-        for finding in result.get("findings") or []:
-            content = finding.get("content")
-            if isinstance(content, dict) and _mentioned(content.get("model")):
-                return True
-            if _mentioned(finding.get("title")):
-                return True
-            # Hosted-search answers are cached as text. Treat a text finding as relevant only when it repeats
-            # a meaningful vehicle term from the buyer's message; never let an unrelated cached answer block a
-            # live-search escalation.
-            if isinstance(content, str):
-                message_terms = [term for term in re.findall(r"[a-z0-9]+", message_lower) if len(term) > 3]
-                if any(term in content.lower() for term in message_terms):
-                    return True
-    return False
+def _hint_summary(hints: MatchResult, message: str) -> dict:
+    """What the catalog matcher recognised in the buyer's message, passed to the tool planner as hints."""
+    summary: dict = {}
+    if hints.make:
+        summary["make"] = hints.make.name
+    if hints.model:
+        summary["model"] = hints.model.name
+    if hints.candidates:
+        summary["vehicles_named"] = [
+            f"{make.name} {model.name}" if model else make.name for make, model in hints.candidates
+        ]
+    if hints.model_year:
+        summary["model_year"] = hints.model_year
+    if body := body_style_hint(message):
+        summary["body_style"] = body
+    summary.update(hints.filters)
+    return summary
 
 
 def _normalize_route(raw: str) -> str:
@@ -347,7 +356,17 @@ def _trace_snapshot(value: dict | None, *, output: bool = False) -> dict:
     if not value:
         return {}
     allowed = (
-        ("route", "mode", "answer", "sources", "media", "preferences_pending", "kb_results", "web_results", "car_specs")
+        (
+            "route",
+            "mode",
+            "answer",
+            "sources",
+            "media",
+            "catalog_results",
+            "tool_plan_source",
+            "web_results",
+            "car_specs",
+        )
         if output
         else ("message", "route", "mode", "preferences", "preferences_pending", "requirements")
     )
@@ -466,7 +485,7 @@ def main_agent(
         if not context:
             return ""
         return (
-            '<conversation_context trust="internal">\n'
+            '<conversation_context trust="untrusted">\n'
             f"{json.dumps(context[-6:], ensure_ascii=False)}\n"
             "</conversation_context>\n\n"
         )
@@ -555,11 +574,12 @@ def main_agent(
             step = log_agent_step("serra", "triage", state, small_talk=True)
             logger.info("agent_small_talk_short_circuit", thread_id=state.get("thread_id"))
             return {"route": "small_talk", "step": step}
-        if is_explicit_image_search(message):
+        web_enabled = get_settings().ai_enable_web_search
+        if web_enabled and is_explicit_image_search(message):
             step = log_agent_step("serra", "triage", state, web_search=True, image_search=True)
             logger.info("agent_vehicle_image_search_direct", thread_id=state.get("thread_id"))
             return {"route": "web_search", "mode": "image_search", "step": step}
-        if is_explicit_web_search(message):
+        if web_enabled and (is_explicit_web_search(message) or is_ranking_request(message)):
             # The buyer explicitly requested current online research. Skip two LLM routing calls and enter the
             # trusted-domain web pipeline directly; compose still turns the evidence into the final answer.
             step = log_agent_step("serra", "triage", state, web_search=True)
@@ -648,101 +668,101 @@ def main_agent(
     async def route_from_orchestrator(state: AgentState) -> str:
         if state.get("route") == "compare" and compare:
             return configured_target("orchestrator", "compare", "compose")
-        condition = "web_direct" if state.get("mode") == "web_direct" else "default"
-        return configured_target(
-            "orchestrator", condition, "web_search_agent" if condition == "web_direct" else "kb_agent"
-        )
+        if state.get("mode") == "web_direct" and get_settings().ai_enable_web_search:
+            return configured_target("orchestrator", "web_direct", "web_search_agent")
+        # kb_only, web_per_car, and web_direct while web search is off: answer from the vehicle catalog.
+        return configured_target("orchestrator", "default", "kb_agent")
 
     async def knowledge(state: AgentState) -> AgentState:
-        step = log_agent_step("serra", "kb_agent", state, mode=state.get("mode"))
-        preferences = state.get("preferences") or {}
-        preferences_pending = state.get("preferences_pending", False)
+        """kb_agent: answers from the vehicle catalog only, through four read-only tools (catalog_tools.py).
 
-        if preferences_pending:
-            extraction_prompt = f"{load_prompt('kb_agent.md', prompt_overrides)}\n\nExtract must-have car features as a JSON array of short strings from this buyer reply:\n{state['message']}"
+        1. The catalog matcher finds named makes, models, years and preferences (no LLM).
+        2. A tool plan is built: in code when the buyer names specific models, otherwise by one LLM call that
+           returns JSON. An unparsable LLM plan falls back to a plan built from the matcher's hints.
+        3. Each call is validated and run against catalog_makes, catalog_models and catalog_variants only.
+        """
+        step = log_agent_step("serra", "kb_agent", state, mode=state.get("mode"))
+        message = state["message"]
+        if state.get("route") == "compare":
+            prior_buyer_messages = [
+                item.get("body", "")
+                for item in state.get("conversation_context", [])
+                if item.get("role") == "user" and item.get("body")
+            ][-3:]
+            message = " ".join([*prior_buyer_messages, message])
+        trace_id = state.get("trace_id") or state.get("thread_id")
+        hints = await match_message(session, message)
+        plan = shortcut_plan(message, hints)
+        plan_source = "shortcut"
+        if plan is None:
+            prompt = (
+                f"{load_prompt('kb_agent.md', prompt_overrides)}\n\n{conversation_block(state)}"
+                f"ORCHESTRATOR MODE: {state.get('mode') or 'kb_only'}\n"
+                f"CATALOG HINTS: {json.dumps(_hint_summary(hints, message))}\n"
+                f'<buyer_question trust="untrusted">\n{message}\n</buyer_question>'
+            )
             result = await llm.generate(
-                extraction_prompt,
-                "preference_extraction",
-                state.get("trace_id") or state.get("thread_id"),
+                prompt,
+                "catalog_tool_plan",
+                trace_id,
                 prompt_version=prompt_version,
-                **profile_kwargs("kb_agent"),
+                **profile_kwargs("kb_agent", "low"),
             )
             try:
-                features = [str(item) for item in _extract_json_array(result.text)]
-            except Exception:
-                features = [state["message"].strip()]
-            preferences = await update_preferences(session, state["user_id"], features)
-            preferences_pending = False
-        elif not preferences and state.get("route") != "compare":
-            question = (
-                "Do you have any preferences I should know about — brand, budget, body type, or must-have features?"
-            )
-            return {"answer": question, "preferences": {}, "preferences_pending": True, "kb_results": [], "step": step}
-
-        if not _has_domain_content(state["message"]):
-            # Nothing about a vehicle was asked, so there is nothing worth embedding or retrieving. Skip the
-            # lookup and let compose answer from the conversation instead of a meaningless KB result set.
-            logger.info("agent_kb_search_skipped", thread_id=state.get("thread_id"), reason="no_domain_content")
-            return {
-                "preferences": preferences,
-                "preferences_pending": preferences_pending,
-                "kb_results": [],
-                "step": step,
-            }
-
-        query = f"{state['message']} {' '.join(str(value) for value in preferences.values() if value)}".strip()
-        kb_results = await kb_search(session, query)
+                plan = parse_plan(result.text)
+                plan_source = "llm"
+            except ValueError as exc:
+                logger.warning("agent_catalog_plan_unparsable", thread_id=state.get("thread_id"), error=str(exc)[:200])
+                plan = fallback_plan(message, hints)
+                plan_source = "fallback"
+        results = await run_catalog_tools(session, plan)
+        if state.get("trace_id"):
+            for item in results:
+                session.add(
+                    AiTraceSpan(
+                        trace_id=state["trace_id"],
+                        sequence=0,
+                        name=f"catalog.{item.tool}",
+                        kind="tool",
+                        status="error" if item.error else "success",
+                        duration_ms=item.duration_ms,
+                        details={
+                            "input": item.args,
+                            "output": {"row_count": len(item.rows), "rows": item.rows[:5]},
+                            "error": item.error,
+                            "plan_source": plan_source,
+                            "llm_called": False,
+                        },
+                    )
+                )
         update: AgentState = {
-            "kb_results": kb_results,
-            "kb_searched": True,  # distinguishes a real zero-match search from the early-return paths above,
-            # which also leave kb_results empty but never actually searched (nothing worth escalating for)
-            "kb_results_relevant": _kb_results_are_relevant(state["message"], kb_results),
-            "preferences": preferences,
-            "preferences_pending": preferences_pending,
+            "catalog_results": [item.as_evidence() for item in results],
+            "tool_plan_source": plan_source,
+            "kb_searched": bool(results),
+            "kb_results_relevant": any(item.rows for item in results),
             "step": step,
         }
-
         if state.get("mode") == "web_per_car":
-            shortlist_prompt = (
-                f"{load_prompt('kb_agent.md', prompt_overrides)}\n\nUSER QUESTION: {state['message']}\nKNOWN PREFERENCES: {preferences}\n"
-                f"LOCAL INVENTORY MATCHES: {kb_results}\n\nReturn a JSON array of 3-6 specific car names (make + model, "
-                "optionally year range) that best fit this ask."
-            )
-            shortlist_result = await llm.generate(
-                shortlist_prompt,
-                "car_shortlist",
-                state.get("trace_id") or state.get("thread_id"),
-                prompt_version=prompt_version,
-                **profile_kwargs("kb_agent"),
-            )
-            try:
-                update["car_names"] = [str(name) for name in _extract_json_array(shortlist_result.text)]
-            except Exception:
-                update["car_names"] = []
+            names: list[str] = []
+            for item in results:
+                for row in item.rows:
+                    name = " ".join(str(part) for part in (row.get("make"), row.get("model")) if part)
+                    if name and name not in names:
+                        names.append(name)
+            update["car_names"] = names[:6]
         return update
 
     async def after_kb(state: AgentState) -> str:
-        if state.get("preferences_pending"):
-            return configured_target("kb_agent", "default", "compose")
-        if state.get("mode") == "web_per_car":
+        web_enabled = get_settings().ai_enable_web_search
+        if web_enabled and state.get("mode") == "web_per_car" and state.get("car_names"):
             return configured_target("kb_agent", "web_per_car", "web_search_agent")
         if (
-            state.get("mode") == "kb_only"
+            web_enabled
             and state.get("route") == "requirements"
             and state.get("kb_searched")
             and not state.get("kb_results_relevant")
         ):
-            # The classifier already decided this message is "describing a vehicle wanted" (route ==
-            # "requirements"), the orchestrator judged it answerable from inventory alone (mode == "kb_only"),
-            # and Deal&Drive's own inventory had nothing that actually matches the named model - kb_results
-            # can be non-empty and still irrelevant, since kb_search ORs Car.model with Brand.name, so "BMW
-            # M3" matches any BMW in inventory (e.g. a 5 Series) even with zero M3s - see
-            # _kb_results_are_relevant. kb_searched is only set when a real search ran, not on the early-return
-            # paths that also leave kb_results empty (a generic "what SUVs do you have" browsing question
-            # classifies as "advice", not "requirements", and correctly never reaches here). Escalate to a
-            # live web lookup instead of settling for "nothing found" (see WEB_SEARCH_CRAWLING_AGENT.md).
-            # search_web's direct-mode branch builds its query from state["message"] + preferences regardless
-            # of mode value, so no further state change is needed.
+            # A named vehicle the catalog does not have: look it up online, but only when web search is on.
             return configured_target("kb_agent", "kb_miss", "web_search_agent")
         return configured_target("kb_agent", "default", "compose")
 
@@ -793,7 +813,7 @@ def main_agent(
         preferences = state.get("preferences") or {}
 
         if state.get("mode") == "image_search":
-            cached = await kb_search(session, state["message"], limit=2)
+            cached = await kb_search(session, state["message"], limit=2) if compare else []
             media = [
                 finding
                 for result in cached
@@ -802,7 +822,9 @@ def main_agent(
             ][:2]
             if not media:
                 try:
-                    media = await search_vehicle_images(llm, state["message"], thread_id=thread_id, limit=2)
+                    media = await search_vehicle_images(
+                        LlmClient(session, timeout_seconds=4), state["message"], thread_id=thread_id, limit=2
+                    )
                 except Exception as exc:
                     logger.warning("agent_vehicle_image_search_failed", thread_id=thread_id, error=str(exc)[:200])
                     media = []
@@ -811,13 +833,16 @@ def main_agent(
                 for item in media
                 if item.get("source_url")
             ]
-            if media and not (preview or state.get("preview")):
+            if compare and media and not (preview or state.get("preview")):
                 await kb_insert(session, state["message"], media, state["user_id"])
             return {
                 "media": media,
                 "sources": sources,
                 "answer": (
-                    "Here are a couple of vehicle views from automotive sources."
+                    (
+                        f"Found {len(media)} reference photo{'' if len(media) == 1 else 's'} "
+                        f"from automotive source{'s' if len(media) != 1 else ''}."
+                    )
                     if media
                     else "I couldn't find reliable images for that vehicle yet."
                 ),
@@ -886,19 +911,20 @@ def main_agent(
                     except (TypeError, json.JSONDecodeError):
                         sources = []
                     if hosted_answer and not (preview or state.get("preview")):
-                        await kb_insert(
-                            session,
-                            state["message"],
-                            [
-                                {
-                                    "title": source.get("title", "Web source"),
-                                    "url": source.get("url", ""),
-                                    "content": hosted_answer,
-                                }
-                                for source in sources
-                            ],
-                            state["user_id"],
-                        )
+                        if compare:
+                            await kb_insert(
+                                session,
+                                state["message"],
+                                [
+                                    {
+                                        "title": source.get("title", "Web source"),
+                                        "url": source.get("url", ""),
+                                        "content": hosted_answer,
+                                    }
+                                    for source in sources
+                                ],
+                                state["user_id"],
+                            )
                     return {
                         "answer": hosted_answer,
                         "direct_web_answer": True,
@@ -930,13 +956,16 @@ def main_agent(
         sources = list(resolved_sources.values())
         if not specs and not sources and not candidate_evidence:
             return {
-                "answer": "I couldn't find reliable current information for that vehicle yet. Please try the search again.",
+                "answer": (
+                    "I can’t retrieve live reviews or current prices in this chat. I can still compare the vehicles’ "
+                    "catalog specs, or help you make a short checklist for evaluating owner reviews."
+                ),
                 "sources": [],
                 "web_results": [],
                 "direct_web_answer": True,
                 "step": step,
             }
-        if specs and not (preview or state.get("preview")):
+        if compare and specs and not (preview or state.get("preview")):
             await kb_insert(
                 session,
                 state["message"],
@@ -969,24 +998,29 @@ def main_agent(
         step = log_agent_step("serra", "compose", state)
         if state.get("media") or state.get("direct_web_answer"):
             return {"answer": state.get("answer") or "Here are the vehicle images I found.", "step": step}
-        if state.get("answer") and state.get("preferences_pending"):
-            return {"step": step}  # kb_agent already produced the clarifying question as the final answer
 
         # Only the explicit compare-agent receives selected marketplace offers. A natural-language
         # question such as "compare BMW and Audi" stays in the normal advisor flow and uses gathered
         # vehicle evidence instead of asking the buyer to select saved dealer offers.
         is_compare = compare
         system_prompt = compare_prompt if is_compare else compose_prompt
-        kb_block = f'<knowledge_base trust="internal">{json.dumps(state.get("kb_results") or [], default=str)}</knowledge_base>'
+        catalog_block = f'<catalog_data trust="internal">{json.dumps(state.get("catalog_results") or [], default=str)}</catalog_data>'
         web_block = f'<web_research trust="untrusted">{json.dumps(state.get("car_specs") or state.get("web_results") or [], default=str)}</web_research>'
         source_block = (
             f'<web_sources trust="untrusted">{json.dumps(state.get("sources") or [], default=str)}</web_sources>'
         )
         comparison_block = f'<selected_offers trust="internal">{json.dumps(state.get("comparison_rows") or [], default=str)}</selected_offers>'
         question_block = f'<buyer_question trust="untrusted">{state["message"]}</buyer_question>'
+        comparison_guidance = (
+            "The buyer is comparing vehicles mentioned in this conversation. Compare only facts present in catalog_data "
+            "or web_research, identify the compared vehicles by name, and label unavailable facts (especially price, "
+            "availability, colors, and reliability) as not reported. Never ask the buyer to pick a saved dealer offer.\n\n"
+            if state.get("route") == "compare" and not compare
+            else ""
+        )
         prompt = (
-            f"{system_prompt}\n\n{conversation_block(state)}{question_block}\n\n"
-            f"{comparison_block}\n\n{kb_block}\n\n{web_block}\n\n{source_block}"
+            f"{system_prompt}\n\n{comparison_guidance}{conversation_block(state)}{question_block}\n\n"
+            f"{comparison_block}\n\n{catalog_block}\n\n{web_block}\n\n{source_block}"
         )
         result = await llm.generate(
             prompt,
@@ -1025,7 +1059,8 @@ def main_agent(
     graph.add_conditional_edges("classifier", route_from_classifier, allowed_targets)
     graph.add_conditional_edges("orchestrator", route_from_orchestrator, allowed_targets)
     graph.add_conditional_edges("kb_agent", after_kb, allowed_targets)
-    graph.add_edge("web_search_agent", allowed_targets[configured_target("web_search_agent", "always", "persist_cars")])
+    web_search_target = configured_target("web_search_agent", "always", "persist_cars") if compare else "compose"
+    graph.add_edge("web_search_agent", allowed_targets[web_search_target])
     graph.add_edge("persist_cars", allowed_targets[configured_target("persist_cars", "always", "compose")])
     graph.add_edge("compose", allowed_targets[configured_target("compose", "always", "end")])
     return graph.compile()

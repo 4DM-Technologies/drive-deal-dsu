@@ -1,5 +1,6 @@
 import type { DriveDealClient, AiStreamEvent } from '@/services/generated/client';
-import type { ActiveTheme, AdministrationAuditEvent, AdminCatalog, AdminConfigBundle, AdminConfigType, AdminPromptBundle, AdminRevision, AiThread, AiTrace, BrandRef, BuyerRequest, CarCreateInput, ChatMessage, DealDocument, InventoryCar, PromptDefinition, Quote, Session, StateRef, SupportMember, Ticket, Verification, WorkflowDefinition, WorkflowPreview, WorkflowPreviewStreamEvent, PaymentReceipt } from '@/types/domain';
+import type { GuidedActionInput, GuidedAnswers, GuidedOption, GuidedStepResult } from '@/types/domain';
+import type { ActiveTheme, AdministrationAuditEvent, AdminCatalog, AdminConfigBundle, AdminConfigType, AdminPromptBundle, AdminRevision, AiMessage, AiThread, AiTrace, BrandRef, BuyerRequest, CarCreateInput, ChatMessage, DealDocument, InventoryCar, PromptDefinition, Quote, Session, StateRef, SupportMember, Ticket, Verification, WorkflowDefinition, WorkflowPreview, WorkflowPreviewStreamEvent, PaymentReceipt } from '@/types/domain';
 import driveDealHero from '@/assets/vehicles/drivedeal-hero.png';
 import { BROWSER_STORAGE_KEYS, WORKSPACE_VIEW_QUERY_PARAMETER } from '@/config/browser';
 import { environment } from '@/config/environment';
@@ -34,7 +35,8 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${baseUrl}${path}`, {
     ...init,
     headers: {
-      'content-type': 'application/json',
+      // A multipart body needs the browser to set its own content-type, which carries the form boundary.
+      ...(init?.body instanceof FormData ? {} : { 'content-type': 'application/json' }),
       ...(token() ? { authorization: `Bearer ${token()}` } : {}),
       ...init?.headers,
     },
@@ -93,13 +95,21 @@ const profileToSession = (row: Record<string, unknown>): Session => ({
 
 const requestToDomain = (row: Record<string, unknown>): BuyerRequest => ({
   id: String(row.id), buyerId: String(row.buyer_id), brand: String(row.brand_name ?? 'Vehicle'), model: String(row.model),
-  bodyType: row.body_type as string | null, yearMin: row.year_min as number | null, yearMax: row.year_max as number | null,
+  bodyType: row.body_type as string | null, fuelType: row.fuel_type as string | null, transmission: row.transmission as string | null,
+  trim: row.trim as string | null, drivetrain: row.drivetrain as string | null, color: row.color as string | null,
+  additionalInformation: row.additional_information as string | null, yearMin: row.year_min as number | null, yearMax: row.year_max as number | null,
   budgetMin: row.budget_min == null ? null : String(row.budget_min), budgetMax: row.budget_max == null ? null : String(row.budget_max),
   targetOtdPrice: row.target_otd_price == null ? null : String(row.target_otd_price), area: String(row.buyer_area),
   radiusMiles: Number(row.search_radius_miles), timeline: row.timeline as BuyerRequest['timeline'], status: row.status as BuyerRequest['status'],
   quoteCount: Number(row.quote_count ?? 0), viewCount: Number(row.view_count ?? 0), createdAt: String(row.created_at), expiresAt: String(row.request_expire),
   image: '', mustHaves: (row.must_haves as string[]) ?? [],
   alreadyQuoted: Boolean(row.already_quoted),
+});
+
+const chatMessageToDomain = (row: Record<string, unknown>): ChatMessage => ({
+  id: String(row.id), quoteId: String(row.quote_id), senderId: String(row.sender_id),
+  senderName: String(row.sender_name ?? 'Account unavailable'), body: String(row.message),
+  createdAt: String(row.created_at), read: Boolean(row.read_at), edited: Boolean(row.edited), unsent: Boolean(row.unsent),
 });
 
 /** The dealer's price revisions, read from the quote's history (`amount` is the final price before each one). */
@@ -117,7 +127,7 @@ const quoteToDomain = (row: Record<string, unknown>): Quote => ({
   vehiclePrice: String(row.vehicle_price), docFee: String(row.doc_fee), salesTax: String(row.sales_tax), titleReg: String(row.title_reg),
   tradeInCredit: String(row.trade_in_credit), finalPrice: String(row.final_price), status: row.status as Quote['status'], dealStatus: row.deal_status as Quote['dealStatus'],
   message: String(row.message ?? ''), createdAt: String(row.created_at), expiresAt: String(row.expires_at),
-  contactAvailable: row.status === 'accepted' || row.chat_request_status === 'accepted', chatRequestStatus: row.chat_request_status as Quote['chatRequestStatus'], revisions: revisionsOf(row.deal_history),
+  contactAvailable: row.status === 'accepted' || row.chat_request_status === 'accepted', chatRequestStatus: row.chat_request_status as Quote['chatRequestStatus'], revisions: revisionsOf(row.deal_history), buyerViewed: Boolean(row.buyer_viewed),
 });
 
 const memberToDomain = (row: Record<string, unknown>): SupportMember => ({
@@ -211,10 +221,38 @@ const bundleToDomain = <T>(row: Record<string, unknown>): AdminConfigBundle<T> =
   defaultVersion: Number(row.default_version ?? 0),
 });
 
-async function* streamAi(input: { message: string; threadId?: string; agent?: 'sera-agent' | 'compare-agent'; requestIds?: string[]; quoteIds?: string[]; signal?: AbortSignal }): AsyncIterable<AiStreamEvent> {
+/** Maps the planner's snake_case question to the screen's types; `answers` passes through untouched. */
+export function guidedStepToDomain(row: Record<string, unknown>): GuidedStepResult {
+  const question = row.question as Record<string, unknown> | null;
+  return {
+    answers: (row.answers as GuidedAnswers) ?? {},
+    question: question ? {
+      id: String(question.id),
+      title: String(question.title),
+      options: ((question.options as GuidedOption[] | undefined) ?? []).map((option) => ({ value: String(option.value), label: String(option.label), description: option.description ?? null })),
+      allowOther: Boolean(question.allow_other),
+      otherPlaceholder: String(question.other_placeholder ?? 'Something else…'),
+      multiSelect: Boolean(question.multi_select),
+      skippable: Boolean(question.skippable),
+      index: Number(question.index),
+      total: Number(question.total),
+    } : null,
+    draft: (row.draft as Record<string, string> | null) ?? null,
+    message: (row.message as string | null) ?? null,
+    unresolved: Boolean(row.unresolved),
+  };
+}
+
+function guidedActionToBody(action: GuidedActionInput): Record<string, unknown> {
+  if (action.type === 'resume' || action.type === 'back') return { type: action.type };
+  if (action.type === 'skip') return { type: 'skip', question_id: action.questionId };
+  return { type: 'answer', question_id: action.questionId, values: action.values ?? [], text: action.text ?? null };
+}
+
+async function* streamAi(input: { message: string; threadId?: string; agent?: 'sera-agent' | 'compare-agent'; requestIds?: string[]; quoteIds?: string[]; requestContext?: Record<string, string>; signal?: AbortSignal }): AsyncIterable<AiStreamEvent> {
   const response = await fetch(`${baseUrl}/ai/chat`, {
     method: 'POST', headers: { 'content-type': 'application/json', ...(token() ? { authorization: `Bearer ${token()}` } : {}) },
-    body: JSON.stringify({ message: input.message, thread_id: input.threadId, agent: input.agent ?? 'sera-agent', request_ids: input.requestIds ?? [], quote_ids: input.quoteIds ?? [] }),
+    body: JSON.stringify({ message: input.message, thread_id: input.threadId, agent: input.agent ?? 'sera-agent', request_ids: input.requestIds ?? [], quote_ids: input.quoteIds ?? [], request_context: input.requestContext ?? null }),
     ...(input.signal ? { signal: input.signal } : {}),
   });
   if (!response.ok || !response.body) throw new Error('Sera is temporarily unavailable.');
@@ -280,7 +318,7 @@ async function uploadQuoteFile(quoteId: string, file: File, type: 'vehicle_image
   try {
     upload = await fetch(presigned.url, { method: 'PUT', headers: presigned.headers, body: file });
   } catch {
-    throw new Error('The file could not be uploaded to storage. Check your connection and try again.');
+    throw new Error('The browser could not reach file storage. The quote may already be saved; retry the attachment upload.');
   }
   if (!upload.ok) throw new Error(`Upload failed (${upload.status})`);
   const documentId = createId();
@@ -298,7 +336,13 @@ export const httpClient: DriveDealClient = {
     },
     me: async () => profileToSession(await request('/auth/me')),
     signupBuyer: async (input) => {
-      const response = await request<{ access_token: string; refresh_token: string; profile: Record<string, unknown> }>('/auth/signup/buyer', { method: 'POST', body: JSON.stringify(signupBody(input as unknown as Record<string, unknown>)) });
+      // The driving licence travels with the signup as multipart; the API stores it privately, then creates the account.
+      const form = new FormData();
+      for (const [name, value] of Object.entries(signupBody(input as unknown as Record<string, unknown>))) {
+        if (value !== null && value !== undefined && value !== '') form.append(name, String(value));
+      }
+      form.append('driving_license', input.drivingLicense);
+      const response = await request<{ access_token: string; refresh_token: string; profile: Record<string, unknown> }>('/auth/signup/buyer', { method: 'POST', body: form });
       storeTokens(response);
       return profileToSession(response.profile);
     },
@@ -335,7 +379,7 @@ export const httpClient: DriveDealClient = {
   requests: {
     list: async () => (await request<Record<string, unknown>[]>(workspaceView() ? `/support/workspaces/${workspaceView()}/requests` : '/requests')).map(requestToDomain),
     get: async (id) => requestToDomain(await request(`/requests/${id}`)),
-    create: async (input) => requestToDomain(await request('/requests', { method: 'POST', body: JSON.stringify({ brand_id: input.brandId, buyer_area_state_id: input.buyerAreaStateId, model: input.model, body_type: input.bodyType ?? null, fuel_type: input.fuelType ?? null, year_min: input.yearMin ?? null, year_max: input.yearMax ?? null, trim: input.trim ?? null, drivetrain: input.drivetrain ?? null, transmission: input.transmission ?? null, color: input.color ?? null, budget_min: input.budgetMin ?? null, budget_max: input.budgetMax ?? null, target_otd_price: input.targetOtdPrice ?? null, buyer_area: input.buyerArea, search_radius_miles: input.searchRadiusMiles, timeline: input.timeline, must_haves: input.mustHaves ?? [], request_expire: input.requestExpire, status: input.status ?? 'open' }) })),
+    create: async (input) => requestToDomain(await request('/requests', { method: 'POST', body: JSON.stringify({ brand_id: input.brandId, buyer_area_state_id: input.buyerAreaStateId, model: input.model, body_type: input.bodyType ?? null, fuel_type: input.fuelType ?? null, year_min: input.yearMin ?? null, year_max: input.yearMax ?? null, trim: input.trim ?? null, drivetrain: input.drivetrain ?? null, transmission: input.transmission ?? null, color: input.color ?? null, budget_min: input.budgetMin ?? null, budget_max: input.budgetMax ?? null, target_otd_price: input.targetOtdPrice ?? null, buyer_area: input.buyerArea, search_radius_miles: input.searchRadiusMiles, timeline: input.timeline, must_haves: input.mustHaves ?? [], additional_information: input.additionalInformation ?? null, request_expire: input.requestExpire, status: input.status ?? 'open' }) })),
     publish: async (id) => requestToDomain(await request(`/requests/${id}/publish`, { method: 'POST' })),
     close: async (id) => requestToDomain(await request(`/requests/${id}/close`, { method: 'POST' })),
   },
@@ -381,8 +425,10 @@ export const httpClient: DriveDealClient = {
     },
   },
   chats: {
-    list: async (quoteId) => (await request<Record<string, unknown>[]>(`/chats/${quoteId}`)).map((row): ChatMessage => ({ id: String(row.id), quoteId: String(row.quote_id), senderId: String(row.sender_id), senderName: String(row.sender_name ?? 'Account unavailable'), body: String(row.message), createdAt: String(row.created_at), read: Boolean(row.read_at) })),
-    send: async (quoteId, body) => { const row = await request<Record<string, unknown>>(`/chats/${quoteId}`, { method: 'POST', body: JSON.stringify({ id: createId(), message: body }) }); return { id: String(row.id), quoteId: String(row.quote_id), senderId: String(row.sender_id), senderName: String(row.sender_name ?? 'Account unavailable'), body: String(row.message), createdAt: String(row.created_at), read: Boolean(row.read_at) }; },
+    list: async (quoteId) => (await request<Record<string, unknown>[]>(`/chats/${quoteId}`)).map(chatMessageToDomain),
+    send: async (quoteId, body) => chatMessageToDomain(await request<Record<string, unknown>>(`/chats/${quoteId}`, { method: 'POST', body: JSON.stringify({ id: createId(), message: body }) })),
+    edit: async (quoteId, messageId, body) => chatMessageToDomain(await request<Record<string, unknown>>(`/chats/${quoteId}/messages/${messageId}`, { method: 'PATCH', body: JSON.stringify({ message: body }) })),
+    unsend: async (quoteId, messageId) => chatMessageToDomain(await request<Record<string, unknown>>(`/chats/${quoteId}/messages/${messageId}`, { method: 'DELETE' })),
     requestAccess: async (quoteId, message) => quoteToDomain(await request(`/chats/${quoteId}/request-access`, { method: 'POST', body: JSON.stringify({ message }) })),
     listRequests: async () => (await request<Record<string, unknown>[]>('/chats/requests')).map(quoteToDomain),
     acceptRequest: async (quoteId) => quoteToDomain(await request(`/chats/requests/${quoteId}/accept`, { method: 'POST' })),
@@ -427,10 +473,27 @@ export const httpClient: DriveDealClient = {
   },
   ai: {
     chat: streamAi,
+    guidedNext: async (answers, action) => guidedStepToDomain(await request<Record<string, unknown>>('/ai/guided/next', { method: 'POST', body: JSON.stringify({ answers, action: guidedActionToBody(action) }) })),
+    vehicleImages: async (query) => request<{ items: Array<{ image_url: string; source_url: string; source_name?: string; alt?: string }>; status: 'found' | 'not_found' | 'unavailable' }>(`/ai/vehicle-images?query=${encodeURIComponent(query)}`),
+    saveGuidedCheckpoint: async (input) => request<void>('/ai/threads/guided-checkpoint', { method: 'POST', body: JSON.stringify({ thread_id: input.threadId, messages: input.messages.map(({ guidedStep, ...message }) => ({ ...message, guided_step: guidedStep ?? null })), guided_state: input.guidedState, request_context: input.requestContext }) }),
     threads: async () => (await request<Array<Record<string, unknown>>>('/ai/threads')).map((row): AiThread => ({ id: String(row.id), type: row.type as AiThread['type'], title: String(row.title), updatedAt: String(row.updated_at), messages: [] })),
     thread: async (id) => {
-      const row = await request<{ id: string; checkpoints: Array<{ user?: string; assistant?: string }> }>(`/ai/threads/${id}`);
-      return { id: row.id, type: 'sera', title: 'Conversation', updatedAt: new Date().toISOString(), messages: row.checkpoints.flatMap((checkpoint, index) => [{ id: `${id}-${index}-user`, role: 'user' as const, body: checkpoint.user ?? '' }, { id: `${id}-${index}-assistant`, role: 'assistant' as const, body: checkpoint.assistant ?? '' }]).filter((message) => message.body) };
+      const row = await request<{ id: string; checkpoints: Array<{ user?: string; assistant?: string; guided_messages?: Array<{ id: string; role: 'user' | 'assistant'; body: string; guided_step?: string | null; options?: string[] }>; guided_state?: Record<string, unknown>; request_context?: Record<string, string> | null }> }>(`/ai/threads/${id}`);
+      const messages: AiMessage[] = [];
+      let guidedState: Record<string, unknown> | undefined;
+      let requestContext: Record<string, string> | null = null;
+      row.checkpoints.forEach((checkpoint, index) => {
+        if (checkpoint.request_context) requestContext = checkpoint.request_context;
+        if (checkpoint.guided_messages) {
+          messages.splice(0, messages.length, ...checkpoint.guided_messages.map(({ guided_step, ...message }) => ({ ...message, guidedStep: guided_step ?? undefined })));
+          guidedState = checkpoint.guided_state;
+          requestContext = checkpoint.request_context ?? requestContext;
+        } else {
+          if (checkpoint.user) messages.push({ id: `${id}-${index}-user`, role: 'user', body: checkpoint.user });
+          if (checkpoint.assistant) messages.push({ id: `${id}-${index}-assistant`, role: 'assistant', body: checkpoint.assistant });
+        }
+      });
+      return { id: row.id, type: 'sera', title: 'Conversation', updatedAt: new Date().toISOString(), messages, guidedState, requestContext };
     },
     deleteThread: async (id) => { await request(`/ai/threads/${encodeURIComponent(id)}`, { method: 'DELETE' }); },
   },

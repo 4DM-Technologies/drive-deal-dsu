@@ -1,6 +1,6 @@
 %% Deal&Drive current entity relationship diagram
 %% Source of truth: backend/src/repositories/schema/tables.py
-%% 22 tables. Render with Mermaid Live, VS Code Mermaid preview, or:
+%% 23 tables. Render with Mermaid Live, VS Code Mermaid preview, or:
 %% mmdc -i define/schema-erd.mmd -o define/schema-erd.svg
 %% Tables using AuditMixin also contain created_at, updated_at, created_by and updated_by.
 %% Support Administrator buyer/dealer workspace views are read-only API projections over buyer_requests
@@ -26,6 +26,7 @@ erDiagram
     profiles ||--o{ support_verifications : "decides"
     profiles ||--o{ error_logs : "associated user"
     profiles ||--o{ payments : "pays"
+    profiles ||--o{ buyer_documents : "supplies"
     buyer_requests ||--o{ deal_quotes : "receives"
     buyer_requests ||--o{ buyer_request_views : "viewed by"
     deal_quotes ||--o{ deal_chats : "conversation"
@@ -91,6 +92,18 @@ erDiagram
         text card_last4
         text status
         timestamptz premium_expires_at
+    }
+
+    %% One row per (profile_id, document_type); the file itself is a private S3 object at object_key,
+    %% e.g. buyer/<profile id>/personal-details/driving-licence/driving-licence.<ext>.
+    buyer_documents {
+        uuid id PK
+        uuid profile_id FK
+        text document_type
+        text object_key
+        text file_name
+        text content_type
+        int size_bytes
     }
 
     cars {

@@ -7,6 +7,7 @@ import { client } from '@/services/platform/client';
 import { useDemoStore } from '@/services/platform/demoStore';
 import { Dropdown } from '@/ui/reusables/Dropdown/Dropdown';
 import { PageLoading } from '@/ui/reusables/PageLoading/PageLoading';
+import { SerraLogo } from '@/ui/reusables/SerraLogo/SerraLogo';
 import { UpgradePrompt } from '@/ui/reusables/UpgradePrompt/UpgradePrompt';
 import { UsageChip } from '@/ui/reusables/UsageMeter/UsageMeter';
 import type { BrandRef, BuyerRequest, StateRef } from '@/types/domain';
@@ -81,7 +82,7 @@ export default function NewRequestScreen() {
     <div className="page-heading request-builder-heading"><div><span className="eyebrow">Private buyer brief · Step {step} of 2</span><h1>{step === 1 ? 'Tell dealers exactly what fits.' : 'Review the brief dealers will receive.'}</h1><p>{step === 1 ? 'This is a buying request—not a vehicle listing. No photos, contact details, or target price are shared.' : 'Your identity remains private until you accept an offer or open a negotiation.'}</p></div><div className="request-stepper"><i className="active" /><i className={step === 2 ? 'active' : ''} /></div></div>
     {subscription && planTone(subscription) !== 'premium' && <div className="plan-strip"><UsageChip subscription={subscription} /></div>}
     {(gate || blocked) && <UpgradePrompt reason={gate?.reason ?? (subscription ? gateReasonFor(subscription) : null)} role="buyer" limit={gate?.limit ?? subscription?.limit ?? null} subscription={subscription} reveal={gate !== null} />}
-    {step === 1 ? <section className="card request-form-card"><div className="request-form-intro"><span><strong>Not sure about a specification?</strong><small>Leave optional fields blank or <Link to="/chatbot?prompt=request">build the brief with Sera</Link>.</small></span></div><form className="form-grid" onSubmit={(event) => { event.preventDefault(); setStep(2); }}>
+    {step === 1 ? <section className="card request-form-card"><div className="request-form-intro"><span><strong>Not sure about a specification?</strong><small>Leave optional fields blank, or have Sera fill out this brief with you.</small></span><Link to="/chatbot?prompt=request" className="serra-ask-chip"><SerraLogo size={22} title={null} /><span>Ask Sera</span><ArrowRight size={15} /></Link></div><form className="form-grid" onSubmit={(event) => { event.preventDefault(); setStep(2); }}>
       <div className="field"><label htmlFor="request-brand">Brand</label><Dropdown id="request-brand" ariaLabel="Brand" align="left" value={form.brandId} onChange={(value) => set('brandId', value)} options={brands.map((item) => ({ value: item.id, label: item.name }))} /></div>
       <div className="field"><label>Model</label><input className="input" value={form.model} onChange={(event) => set('model', event.target.value)} placeholder="e.g. Bronco" required /></div>
       <div className="field"><label htmlFor="request-body">Body style <span className="muted">(optional)</span></label><Dropdown id="request-body" ariaLabel="Body style" align="left" value={form.bodyType} onChange={(value) => set('bodyType', value)} options={bodyOptions} /></div>

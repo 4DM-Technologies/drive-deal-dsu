@@ -8,7 +8,7 @@ from starlette.websockets import WebSocketDisconnect
 from main import app
 from src.services.storage.s3_storage import S3Storage
 from src.settings import get_settings
-from tests.demo_data import IDS
+from tests.demo_data import IDS, PNG_BYTES
 
 
 def login(client: TestClient, email: str) -> dict[str, str]:
@@ -279,11 +279,32 @@ def test_complete_request_quote_chat_and_deal_flow() -> None:
         )
         assert dealer_message.status_code == 201
         assert dealer_message.json()["sender_name"] == "Navee Motors"
+        dealer_message_id = dealer_message.json()["id"]
+        rejected_message = client.post(
+            f"/api/v1/chats/{quote_id}", headers=buyer, json={"id": str(uuid4()), "message": "fuckman"}
+        )
+        assert rejected_message.status_code == 422
+        edited_message = client.patch(
+            f"/api/v1/chats/{quote_id}/messages/{dealer_message_id}",
+            headers=dealer,
+            json={"message": "Pickup is available on Friday."},
+        )
+        assert edited_message.status_code == 200
+        assert edited_message.json()["edited"] is True
+        assert edited_message.json()["message"] == "Pickup is available on Friday."
+        unsent_message = client.delete(f"/api/v1/chats/{quote_id}/messages/{dealer_message_id}", headers=dealer)
+        assert unsent_message.status_code == 200
+        assert unsent_message.json()["unsent"] is True
+        assert unsent_message.json()["message"] == "This message was unsent."
         assert client.post(f"/api/v1/chats/{quote_id}/read", headers=dealer).status_code == 200
         assert client.get(f"/api/v1/quotes/{quote_id}/dealer-contact", headers=buyer).status_code == 200
 
         accepted = client.post(f"/api/v1/quotes/{quote_id}/accept", headers=buyer)
         assert accepted.status_code == 200 and accepted.json()["deal_status"] == "paperwork_going_on"
+        assert (
+            client.get(f"/api/v1/feed/requests/{accepted.json()['buyer_request_id']}", headers=dealer).status_code
+            == 200
+        )
         assert (
             client.patch(
                 f"/api/v1/deals/{quote_id}/status", headers=dealer, json={"status": "funds_arrived"}
@@ -390,7 +411,11 @@ def test_signup_refresh_and_pending_account_flows() -> None:
             "terms_accepted": True,
             "terms_version": "2026-09-30",
         }
-        signup = client.post("/api/v1/auth/signup/buyer", json=common)
+        signup = client.post(
+            "/api/v1/auth/signup/buyer",
+            data={**common, "terms_accepted": "true"},
+            files={"driving_license": ("licence.png", PNG_BYTES, "image/png")},
+        )
         assert signup.status_code == 201, signup.text
         tokens = signup.json()
         refreshed = client.post("/api/v1/auth/refresh", json={"refresh_token": tokens["refresh_token"]})

@@ -58,9 +58,7 @@ def upgrade() -> None:
             sa.Column("created_by", sa.String(length=64), nullable=False),
             sa.Column("updated_by", sa.String(length=64), nullable=False),
             sa.CheckConstraint("plan IN ('dealer_premium','buyer_premium')", name="ck_payments_plan"),
-            sa.CheckConstraint(
-                "payment_method IN ('credit_card','debit_card')", name="ck_payments_method"
-            ),
+            sa.CheckConstraint("payment_method IN ('credit_card','debit_card')", name="ck_payments_method"),
             sa.CheckConstraint("status IN ('succeeded','failed','refunded')", name="ck_payments_status"),
             sa.ForeignKeyConstraint(["profile_id"], ["profiles.id"], ondelete="CASCADE"),
             sa.PrimaryKeyConstraint("id"),
