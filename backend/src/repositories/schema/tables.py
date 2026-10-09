@@ -513,3 +513,96 @@ class AiTraceSpan(Base):
     model_name: Mapped[str | None] = mapped_column(String(80))
     details: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
+
+
+# --- Vehicle catalog -------------------------------------------------------------------------------------------
+# Reference data loaded by the catalog sync from fueleconomy.gov (EPA). It is read-only for the application and
+# deliberately separate from the marketplace `brands`/`cars` tables. See testing/vehicle-catalog-poc/
+# CATALOG_DATA_FINDINGS.md for how each column is derived from the source data.
+
+CATALOG_BODY_STYLES = ("SUV", "Sedan", "Coupe", "Convertible", "Hatchback", "Wagon", "Truck", "Minivan", "Van")
+CATALOG_FUEL_TYPES = (
+    "Gasoline",
+    "Mild hybrid",
+    "Hybrid",
+    "Plug-in hybrid",
+    "Electric",
+    "Diesel",
+    "Flex fuel",
+    "Hydrogen",
+)
+CATALOG_TRANSMISSIONS = ("Automatic", "Manual")
+CATALOG_DRIVE_TYPES = ("AWD", "4WD", "FWD", "RWD")
+
+
+def _in_list(column: str, values: tuple[str, ...]) -> str:
+    return f"{column} IN ({', '.join(repr(value) for value in values)})"
+
+
+class CatalogMake(AuditMixin, Base):
+    """A vehicle manufacturer, such as BMW."""
+
+    __tablename__ = "catalog_makes"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
+    name: Mapped[str] = mapped_column(String(80), unique=True, nullable=False)
+    slug: Mapped[str] = mapped_column(String(80), unique=True, nullable=False)
+    brand_id: Mapped[str | None] = mapped_column(ForeignKey("brands.id", ondelete="SET NULL"), index=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+
+
+class CatalogModel(AuditMixin, Base):
+    """A model family buyers ask for by name, such as M3, 3 Series or X5."""
+
+    __tablename__ = "catalog_models"
+    __table_args__ = (UniqueConstraint("make_id", "slug", name="uq_catalog_models_make_slug"),)
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
+    make_id: Mapped[str] = mapped_column(ForeignKey("catalog_makes.id", ondelete="CASCADE"), nullable=False, index=True)
+    name: Mapped[str] = mapped_column(String(120), nullable=False)
+    slug: Mapped[str] = mapped_column(String(120), nullable=False)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+
+
+class CatalogVariant(AuditMixin, Base):
+    """One buyer-distinguishable configuration of a model for one model year.
+
+    Several EPA records can collapse into one variant (wheel sizes, stop-start or sport-mode test configurations);
+    every merged EPA id is kept in `epa_vehicle_ids`.
+    """
+
+    __tablename__ = "catalog_variants"
+    __table_args__ = (
+        UniqueConstraint(
+            "model_id",
+            "model_year",
+            "name",
+            "engine",
+            "transmission",
+            "drive_type",
+            "fuel_type",
+            name="uq_catalog_variants_configuration",
+        ),
+        CheckConstraint(_in_list("body_style", CATALOG_BODY_STYLES), name="ck_catalog_variants_body_style"),
+        CheckConstraint(_in_list("fuel_type", CATALOG_FUEL_TYPES), name="ck_catalog_variants_fuel_type"),
+        CheckConstraint(_in_list("transmission", CATALOG_TRANSMISSIONS), name="ck_catalog_variants_transmission"),
+        CheckConstraint(_in_list("drive_type", CATALOG_DRIVE_TYPES), name="ck_catalog_variants_drive_type"),
+        CheckConstraint("model_year BETWEEN 1984 AND 2100", name="ck_catalog_variants_model_year"),
+        Index("ix_catalog_variants_model_year", "model_id", "model_year"),
+        Index("ix_catalog_variants_body_style", "body_style"),
+    )
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
+    model_id: Mapped[str] = mapped_column(ForeignKey("catalog_models.id", ondelete="CASCADE"), nullable=False)
+    model_year: Mapped[int] = mapped_column(Integer, nullable=False)
+    name: Mapped[str] = mapped_column(String(160), nullable=False)
+    trim_name: Mapped[str | None] = mapped_column(String(120))
+    body_style: Mapped[str] = mapped_column(String(30), nullable=False)
+    engine: Mapped[str] = mapped_column(String(120), nullable=False)
+    transmission: Mapped[str] = mapped_column(String(20), nullable=False)
+    drive_type: Mapped[str] = mapped_column(String(10), nullable=False)
+    fuel_type: Mapped[str] = mapped_column(String(20), nullable=False)
+    mpg_city: Mapped[int | None] = mapped_column(Integer)
+    mpg_highway: Mapped[int | None] = mapped_column(Integer)
+    mpg_combined: Mapped[int | None] = mapped_column(Integer)
+    ev_range_miles: Mapped[int | None] = mapped_column(Integer)
+    epa_vehicle_ids: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
+    source_payload: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)

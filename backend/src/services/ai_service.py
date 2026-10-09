@@ -1,11 +1,9 @@
 import asyncio
-import json
 import re
 from contextlib import suppress
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from time import perf_counter
-from urllib.parse import urlparse
 from uuid import uuid4
 
 from sqlalchemy import delete, func, select
@@ -18,10 +16,12 @@ from src.agents.serra.graph import (
     is_direct_reply,
     is_explicit_image_search,
     is_explicit_web_search,
+    is_ranking_request,
     main_agent,
 )
 from src.agents.tools.web_search import search_vehicle_images
 from src.database import SessionFactory
+from src.models.guided import GuidedStep
 from src.models.marketplace import AiChatRequest, AiGuidedCheckpoint, CompareRequest, RequestCreate
 from src.repositories.schema import (
     AiTrace,
@@ -35,8 +35,11 @@ from src.repositories.schema import (
 )
 from src.services.administration_service import AdministrationService
 from src.services.billing_service import BillingService
+from src.services.catalog.matcher import MatchResult, match_message
+from src.services.catalog.planner import GuidedPlanner, opening_message
+from src.services.catalog.queries import CatalogQueries
 from src.services.marketplace_service import MarketplaceService
-from src.settings import MAKE_DOMAIN_MAP, get_settings
+from src.settings import get_settings
 from src.utils.exceptions import AppError, error_codes
 from src.utils.log_flow import log_flow
 from src.utils.serialization import model_dict
@@ -45,14 +48,6 @@ _PUBLISH_CONFIRMATION_RE = re.compile(
     r"^\s*(?:yes[, ]*)?(?:please\s+)?(?:post|publish|send)\s+(?:it|this|the\s+(?:request|post)|my\s+(?:request|post))\s*[!.]*$",
     re.IGNORECASE,
 )
-_MODEL_SOURCE_DOMAINS = {
-    "audi": "audiusa.com",
-    "hyundai": "hyundaiusa.com",
-    "kia": "kia.com",
-    "mahindra": "mahindrausa.com",
-    "mercedes-benz": "mbusa.com",
-    "nissan": "nissanusa.com",
-}
 
 
 def _is_publish_confirmation(message: str) -> bool:
@@ -77,59 +72,6 @@ def _money_value(value: object) -> Decimal | None:
 class AiService:
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
-
-    async def vehicle_models(self, brand: str) -> dict:
-        """Return model names only when hosted web search supplies citations for a current US lineup."""
-        settings = get_settings()
-        if settings.ai_disabled or not settings.ai_enable_web_search:
-            return {"models": [], "sources": []}
-        prompt = (
-            "Search official manufacturer sources for current passenger vehicle models sold in the United States "
-            f"by {brand}. Return a JSON object with a `models` array (up to 10 names) and `sources` array "
-            "containing the official source page URLs you actually used. Do not include discontinued models, "
-            "trims, explanations, or guesses. If current lineup evidence is unavailable, return empty arrays."
-        )
-        result = await LlmClient(self.session).generate(
-            prompt,
-            "vehicle_model_options",
-            reasoning_effort="low",
-            max_output_tokens=500,
-            tools=[{"type": "web_search", "search_context_size": "low"}],
-            tool_choice="required",
-        )
-        if result.status != "success":
-            return {"models": [], "sources": []}
-        match = re.search(r"\{[\s\S]*\}", result.text)
-        if not match:
-            return {"models": [], "sources": []}
-        try:
-            payload = json.loads(match.group(0))
-        except json.JSONDecodeError:
-            return {"models": [], "sources": []}
-        if not isinstance(payload, dict) or not isinstance(payload.get("models"), list):
-            return {"models": [], "sources": []}
-        official_domain = MAKE_DOMAIN_MAP.get(brand.lower()) or _MODEL_SOURCE_DOMAINS.get(brand.lower())
-        raw_sources = result.sources or []
-        # OAuth search can omit citation annotations. Accept model-provided URLs only when they
-        # point to the configured official make domain; otherwise keep the verified empty state.
-        model_sources = payload.get("sources", [])
-        official_links = [
-            {"url": item.get("url"), "title": item.get("title") or brand}
-            for item in raw_sources if isinstance(item, dict) and item.get("url")
-        ]
-        if official_domain:
-            for url in model_sources if isinstance(model_sources, list) else []:
-                host = (urlparse(url).hostname or "").lower() if isinstance(url, str) else ""
-                if isinstance(url, str) and urlparse(url).scheme == "https" and (host == official_domain or host.endswith(f".{official_domain}")):
-                    official_links.append({"url": url, "title": brand})
-        sources = list({item["url"]: item for item in official_links if item.get("url")}.values())[:3]
-        if not sources:
-            return {"models": [], "sources": []}
-        models = list(dict.fromkeys(
-            value.strip() for value in payload["models"]
-            if isinstance(value, str) and 1 <= len(value.strip()) <= 80
-        ))[:10]
-        return {"models": models, "sources": sources}
 
     async def vehicle_images(self, query: str, thread_id: str | None = None) -> list[dict[str, str]]:
         """Find attributed reference images without blocking the request create/publish flow."""
@@ -212,13 +154,19 @@ class AiService:
             "requirements": memory.get("requirements", {}),
             "preferences": memory.get("preferences", {}),
             "preferences_pending": memory.get("preferences_pending", False),
-            "conversation_context": [
-                {"request_context": payload.request_context or memory.get("request_context")}
-            ] if payload.request_context or memory.get("request_context") else [],
+            "conversation_context": [{"request_context": payload.request_context or memory.get("request_context")}]
+            if payload.request_context or memory.get("request_context")
+            else [],
         }
         explicit_web_search = (
-            is_explicit_web_search(payload.message) or is_explicit_image_search(payload.message)
-        ) and payload.agent != "compare-agent"
+            get_settings().ai_enable_web_search
+            and (
+                is_explicit_web_search(payload.message)
+                or is_explicit_image_search(payload.message)
+                or is_ranking_request(payload.message)
+            )
+            and payload.agent != "compare-agent"
+        )
         if explicit_web_search:
             yield {"type": "status", "phase": "crawling", "label": "Searching trusted sources"}
         else:
@@ -262,6 +210,24 @@ class AiService:
                 await self.session.commit()
                 yield {"type": "done", "threadId": thread_id, "messagesUsed": 1, "expandedUi": False}
                 return
+        # Guided question card. A message naming a catalog vehicle with buying intent ("I want a BMW M3") opens the
+        # card. When nothing else was asked, the card is the whole reply: a template sentence and no LLM call.
+        guided_step: GuidedStep | None = None
+        if payload.agent != "compare-agent" and not explicit_web_search:
+            match = await match_message(self.session, payload.message)
+            if match.opens_card:
+                guided_step = await GuidedPlanner(self.session).from_match(match)
+                reply = await self._guided_reply(match, guided_step) if match.card_only else None
+                if reply is not None:
+                    main_result = {"route": "guided_card", "answer": reply}
+                    yield {"type": "token", "text": reply}
+                    if guided_step is not None:
+                        yield {"type": "card", "kind": "question", "payload": guided_step.model_dump()}
+                    await self._finish_trace(trace, main_result, trace_started)
+                    await self._save_checkpoint(thread_id, buyer.id, payload, main_result, {})
+                    await self.session.commit()
+                    yield {"type": "done", "threadId": thread_id, "messagesUsed": 1, "expandedUi": False}
+                    return
         main_graph = main_agent(
             self.session,
             compare=payload.agent == "compare-agent",
@@ -274,7 +240,7 @@ class AiService:
         if payload.agent == "compare-agent":
             main_result = await main_task
             requirement_result = {}
-        elif is_direct_reply(payload.message) or explicit_web_search:
+        elif is_direct_reply(payload.message) or explicit_web_search or guided_step is not None:
             # Greetings and explicit research requests are handled entirely by the main graph. Neither contains
             # a buyer requirement to extract, so starting the requirements graph would add latency and UI cards.
             main_result = await main_task
@@ -329,7 +295,9 @@ class AiService:
         if comparison_payload is not None:
             yield {"type": "card", "kind": "compare", "payload": comparison_payload}
         gate = await self.posting_gate(buyer)
-        if not requirement_result.get("missing_fields") and requirement_result.get("requirements"):
+        if guided_step is not None and main_result.get("route") not in DIRECT_REPLY_ROUTES:
+            yield {"type": "card", "kind": "question", "payload": guided_step.model_dump()}
+        elif not requirement_result.get("missing_fields") and requirement_result.get("requirements"):
             yield {
                 "type": "card",
                 "kind": "requestPreview",
@@ -359,6 +327,21 @@ class AiService:
         await self._save_checkpoint(thread_id, buyer.id, payload, main_result, requirement_result)
         await self.session.commit()
         yield {"type": "done", "threadId": thread_id, "messagesUsed": 1, "expandedUi": False}
+
+    async def _guided_reply(self, match: MatchResult, step: GuidedStep | None) -> str | None:
+        """Sera's one sentence alongside the card, or a clear reply for a brand outside the dealer network."""
+        if step is None:
+            if match.make and not match.make.linked:
+                return (
+                    f"{match.make.name} isn’t in our dealer network yet, so I can’t send a request for it. "
+                    f"I can still answer questions about {match.make.name} models."
+                )
+            return None
+        catalog = CatalogQueries(self.session)
+        make = await catalog.make(step.answers.make_slug)
+        model = await catalog.model(step.answers.make_slug, step.answers.model_slug)
+        model_count = len(await catalog.models(make.slug)) if make else 0
+        return opening_message(step, make, model_count, model)
 
     @log_flow(layer="service")
     async def _stream_demo(self, payload: AiChatRequest, buyer: Profile, thread_id: str):
@@ -511,12 +494,19 @@ class AiService:
             )
         ).scalar_one_or_none()
         messages = [message.model_dump() for message in payload.messages]
-        if latest and latest.checkpoint.get("guided_messages") == messages and latest.checkpoint.get("guided_state") == payload.guided_state and latest.checkpoint.get("request_context") == payload.request_context:
+        if (
+            latest
+            and latest.checkpoint.get("guided_messages") == messages
+            and latest.checkpoint.get("guided_state") == payload.guided_state
+            and latest.checkpoint.get("request_context") == payload.request_context
+        ):
             return
         previous = latest.checkpoint if latest else {}
         first_user_message = next((message["body"] for message in messages if message["role"] == "user"), "")
         request = payload.request_context or {}
-        vehicle = " ".join(part for part in (str(request.get("brand", "")).strip(), str(request.get("model", "")).strip()) if part)
+        vehicle = " ".join(
+            part for part in (str(request.get("brand", "")).strip(), str(request.get("model", "")).strip()) if part
+        )
         title = f"Buying request: {vehicle}" if vehicle else (first_user_message[:72] or "New Sera chat")
         last_user = next((message["body"] for message in reversed(messages) if message["role"] == "user"), "")
         last_assistant = next((message["body"] for message in reversed(messages) if message["role"] == "assistant"), "")

@@ -1,3 +1,4 @@
+import asyncio
 import json
 import re
 import threading
@@ -5,7 +6,7 @@ from dataclasses import dataclass
 from time import perf_counter
 from typing import Any
 
-from openai import AsyncOpenAI, BadRequestError
+from openai import APIConnectionError, APIError, APIStatusError, APITimeoutError, AsyncOpenAI, BadRequestError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.auth.codex_oauth import get_cached_access_token
@@ -17,6 +18,19 @@ from src.utils.logger import logger
 _capability_lock = threading.Lock()
 _models_without_max_output_tokens: set[str] = set()
 _models_without_reasoning_effort: set[str] = set()
+# Transient provider failures (5xx, dropped connection, mid-stream "An error occurred while processing your
+# request") are retried this many times before falling back. Rate limits, auth errors and timeouts are not.
+_TRANSIENT_RETRIES = 2
+_TRANSIENT_BACKOFF_SECONDS = 0.5
+
+
+def _is_transient(exc: APIError) -> bool:
+    if isinstance(exc, APITimeoutError):
+        return False
+    if isinstance(exc, APIStatusError):
+        return exc.status_code >= 500
+    # Plain APIError is what the SDK raises for an error event inside a 200 stream.
+    return isinstance(exc, APIConnectionError) or type(exc) is APIError
 
 
 def _safe_error_value(value: Any, *, limit: int = 320) -> str:
@@ -242,7 +256,9 @@ class LlmClient:
             if model not in _models_without_reasoning_effort:
                 kwargs["reasoning"] = {"effort": reasoning_effort or self.settings.openai_reasoning_effort}
 
-        for attempt in range(1, 4):  # at most: drop max_output_tokens, then drop reasoning, then give up
+        transient_failures = 0
+        # at most: drop max_output_tokens, drop reasoning, retry transient failures, then give up
+        for attempt in range(1, 4 + _TRANSIENT_RETRIES):
             try:
                 stream = await client.responses.create(**kwargs)
                 text = ""
@@ -274,6 +290,17 @@ class LlmClient:
                     kwargs.pop("reasoning", None)
                     continue
                 raise RuntimeError(f"Model {model} rejected the request: {_safe_error_value(str(exc))}") from exc
+            except APIError as exc:
+                if not _is_transient(exc) or transient_failures >= _TRANSIENT_RETRIES:
+                    raise
+                transient_failures += 1
+                logger.warning(
+                    "llm_transient_retry",
+                    model=model,
+                    attempt=attempt,
+                    error=_safe_error_value(str(exc), limit=200),
+                )
+                await asyncio.sleep(_TRANSIENT_BACKOFF_SECONDS * transient_failures)
         raise RuntimeError(f"Model {model} rejected every retry attempt.")
 
     @staticmethod

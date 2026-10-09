@@ -155,7 +155,8 @@ class Settings(BaseSettings):
     openai_reasoning_effort: str = "medium"
     ai_provider: str = "openai"
     ai_disabled: bool = False
-    ai_enable_web_search: bool = True
+    # Off by default: Sera answers vehicle questions from the catalog tables. Set true to allow live web research.
+    ai_enable_web_search: bool = False
     ai_max_input_tokens: int = 8_000
     ai_max_output_tokens: int = 1_800
     ai_request_timeout_seconds: float = 45

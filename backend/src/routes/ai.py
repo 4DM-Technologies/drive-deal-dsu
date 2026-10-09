@@ -6,9 +6,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.database import get_session
 from src.middleware.auth import require_roles
+from src.models.guided import GuidedNextRequest
 from src.models.marketplace import AiChatRequest, AiGuidedCheckpoint, CompareRequest
 from src.repositories.schema import Profile
 from src.services.ai_service import AiService
+from src.services.catalog.planner import GuidedPlanner
 from src.utils.log_flow import log_flow
 from src.utils.logger import logger
 
@@ -45,16 +47,16 @@ async def chat(
     )
 
 
-@router.get("/vehicle-models")
+@router.post("/guided/next")
 @log_flow(layer="route")
-async def vehicle_models(
-    brand: str = Query(min_length=1, max_length=80),
+async def guided_next(
+    payload: GuidedNextRequest,
     profile: Profile = Depends(require_roles("buyer")),
     session: AsyncSession = Depends(get_session),
 ):
-    result = await AiService(session).vehicle_models(brand)
-    await session.commit()
-    return result
+    """Next question of the guided card, or the finished request draft. Deterministic: no LLM call."""
+    step = await GuidedPlanner(session).next(payload)
+    return step.model_dump()
 
 
 @router.get("/vehicle-images")

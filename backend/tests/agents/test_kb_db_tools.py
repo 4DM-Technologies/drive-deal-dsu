@@ -3,7 +3,8 @@ from fastapi.testclient import TestClient
 from sqlalchemy import select
 
 from main import app
-from src.agents.tools.kb_db import describe_schema, query_data, update_preferences, write_car
+from src.agents.tools import kb_db
+from src.agents.tools.kb_db import write_car
 from src.database import SessionFactory
 from src.repositories.schema import Brand, BuyerPreference, Car
 from tests.demo_data import IDS
@@ -15,12 +16,12 @@ def seeded_app() -> TestClient:
         yield client
 
 
-async def test_describe_schema_lists_tables_without_hardcoding(seeded_app: TestClient) -> None:
-    schema = describe_schema()
-    assert "cars" in schema
-    assert "buyer_preference" in schema
-    assert "price" in schema["cars"]
-    assert "preferences" in schema["buyer_preference"]
+def test_unrestricted_table_reader_is_gone() -> None:
+    """kb_agent used to hold query_data, which could read any table (users, payments). It now reads the vehicle
+    catalog only, through catalog_tools.py, and kb_db keeps nothing but the cars-table writer."""
+    assert not hasattr(kb_db, "query_data")
+    assert not hasattr(kb_db, "describe_schema")
+    assert not hasattr(kb_db, "update_preferences")
 
 
 async def test_preference_fields_round_trip_through_the_json_column(seeded_app: TestClient) -> None:
@@ -44,56 +45,6 @@ async def test_legacy_preference_array_reads_back_as_must_have_features() -> Non
     assert row.must_have_features == ["Third-row seating", "Roof rack"]
     assert row.body_type is None
     assert row.source == "advisor"
-
-
-async def test_query_data_is_read_only_and_returns_rows(seeded_app: TestClient) -> None:
-    async with SessionFactory() as session:
-        before = len((await session.execute(select(Car))).scalars().all())
-        rows = await query_data(session, "cars", {"status": "available"}, limit=5)
-        after = len((await session.execute(select(Car))).scalars().all())
-        assert after == before  # no write path reachable
-        assert isinstance(rows, list)
-        assert all(row["status"] == "available" for row in rows)
-
-
-async def test_query_data_rejects_unknown_table() -> None:
-    async with SessionFactory() as session:
-        with pytest.raises(ValueError):
-            await query_data(session, "users; DROP TABLE users;--", {}, limit=5)
-
-
-async def test_query_data_rejects_unknown_column() -> None:
-    async with SessionFactory() as session:
-        with pytest.raises(ValueError):
-            await query_data(session, "cars", {"price = 0 OR 1=1": "x"}, limit=5)
-
-
-async def test_update_preferences_only_touches_must_have_features(seeded_app: TestClient) -> None:
-    async with SessionFactory() as session:
-        before = await session.get(BuyerPreference, IDS["buyer"])
-        budget_before, brand_before = before.budget_max, before.brand_id
-
-        await update_preferences(session, IDS["buyer"], ["Sunroof", "Heated seats"])
-        await session.commit()
-
-    async with SessionFactory() as session:
-        after = await session.get(BuyerPreference, IDS["buyer"])
-        assert after.must_have_features == ["Sunroof", "Heated seats"]
-        assert after.budget_max == budget_before
-        assert after.brand_id == brand_before
-
-
-async def test_update_preferences_does_not_affect_other_profiles(seeded_app: TestClient) -> None:
-    async with SessionFactory() as session:
-        other_before = await session.get(BuyerPreference, IDS["adithyaa"])
-        other_features_before = list(other_before.must_have_features)
-
-        await update_preferences(session, IDS["buyer"], ["4WD"])
-        await session.commit()
-
-    async with SessionFactory() as session:
-        other_after = await session.get(BuyerPreference, IDS["adithyaa"])
-        assert other_after.must_have_features == other_features_before  # untouched by the other profile's write
 
 
 async def test_write_car_only_touches_cars_table(seeded_app: TestClient) -> None:

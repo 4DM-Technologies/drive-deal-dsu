@@ -1,4 +1,5 @@
 import type { DriveDealClient, AiStreamEvent } from '@/services/generated/client';
+import type { GuidedActionInput, GuidedAnswers, GuidedOption, GuidedStepResult } from '@/types/domain';
 import type { ActiveTheme, AdministrationAuditEvent, AdminCatalog, AdminConfigBundle, AdminConfigType, AdminPromptBundle, AdminRevision, AiMessage, AiThread, AiTrace, BrandRef, BuyerRequest, CarCreateInput, ChatMessage, DealDocument, InventoryCar, PromptDefinition, Quote, Session, StateRef, SupportMember, Ticket, Verification, WorkflowDefinition, WorkflowPreview, WorkflowPreviewStreamEvent, PaymentReceipt } from '@/types/domain';
 import driveDealHero from '@/assets/vehicles/drivedeal-hero.png';
 import { BROWSER_STORAGE_KEYS, WORKSPACE_VIEW_QUERY_PARAMETER } from '@/config/browser';
@@ -219,6 +220,34 @@ const bundleToDomain = <T>(row: Record<string, unknown>): AdminConfigBundle<T> =
   defaultVersion: Number(row.default_version ?? 0),
 });
 
+/** Maps the planner's snake_case question to the screen's types; `answers` passes through untouched. */
+export function guidedStepToDomain(row: Record<string, unknown>): GuidedStepResult {
+  const question = row.question as Record<string, unknown> | null;
+  return {
+    answers: (row.answers as GuidedAnswers) ?? {},
+    question: question ? {
+      id: String(question.id),
+      title: String(question.title),
+      options: ((question.options as GuidedOption[] | undefined) ?? []).map((option) => ({ value: String(option.value), label: String(option.label), description: option.description ?? null })),
+      allowOther: Boolean(question.allow_other),
+      otherPlaceholder: String(question.other_placeholder ?? 'Something else…'),
+      multiSelect: Boolean(question.multi_select),
+      skippable: Boolean(question.skippable),
+      index: Number(question.index),
+      total: Number(question.total),
+    } : null,
+    draft: (row.draft as Record<string, string> | null) ?? null,
+    message: (row.message as string | null) ?? null,
+    unresolved: Boolean(row.unresolved),
+  };
+}
+
+function guidedActionToBody(action: GuidedActionInput): Record<string, unknown> {
+  if (action.type === 'resume' || action.type === 'back') return { type: action.type };
+  if (action.type === 'skip') return { type: 'skip', question_id: action.questionId };
+  return { type: 'answer', question_id: action.questionId, values: action.values ?? [], text: action.text ?? null };
+}
+
 async function* streamAi(input: { message: string; threadId?: string; agent?: 'sera-agent' | 'compare-agent'; requestIds?: string[]; quoteIds?: string[]; requestContext?: Record<string, string>; signal?: AbortSignal }): AsyncIterable<AiStreamEvent> {
   const response = await fetch(`${baseUrl}/ai/chat`, {
     method: 'POST', headers: { 'content-type': 'application/json', ...(token() ? { authorization: `Bearer ${token()}` } : {}) },
@@ -437,7 +466,7 @@ export const httpClient: DriveDealClient = {
   },
   ai: {
     chat: streamAi,
-    vehicleModels: async (brand) => request<{ models: string[]; sources: Array<{ title: string; url: string }> }>(`/ai/vehicle-models?brand=${encodeURIComponent(brand)}`),
+    guidedNext: async (answers, action) => guidedStepToDomain(await request<Record<string, unknown>>('/ai/guided/next', { method: 'POST', body: JSON.stringify({ answers, action: guidedActionToBody(action) }) })),
     vehicleImages: async (query) => (await request<{ items: Array<{ image_url: string; source_url: string; source_name?: string; alt?: string }> }>(`/ai/vehicle-images?query=${encodeURIComponent(query)}`)).items,
     saveGuidedCheckpoint: async (input) => request<void>('/ai/threads/guided-checkpoint', { method: 'POST', body: JSON.stringify({ thread_id: input.threadId, messages: input.messages.map(({ guidedStep, ...message }) => ({ ...message, guided_step: guidedStep ?? null })), guided_state: input.guidedState, request_context: input.requestContext }) }),
     threads: async () => (await request<Array<Record<string, unknown>>>('/ai/threads')).map((row): AiThread => ({ id: String(row.id), type: row.type as AiThread['type'], title: String(row.title), updatedAt: String(row.updated_at), messages: [] })),
