@@ -31,15 +31,77 @@ from src.utils.logger import logger
 _EXCLUDED_REFERENCE_DOMAINS = ("wikipedia.org", "wikiwand.com")
 EXTRACTION_SCHEMA = CarSpecs.model_json_schema()
 _IMAGE_QUERY_STOPWORDS = {
-    "find", "show", "me", "image", "images", "photo", "photos", "picture", "pictures", "vehicle", "car",
-    "of", "the", "for", "in", "with", "please", "reference", "search", "again", "model", "year", "color", "black",
-    "white", "red", "blue", "gray", "grey", "silver", "automatic", "manual", "hybrid", "electric",
-    "gasoline", "gas", "sedan", "suv", "hatchback", "coupe", "trim", "gallery", "exterior", "interior",
+    "find",
+    "show",
+    "me",
+    "image",
+    "images",
+    "photo",
+    "photos",
+    "picture",
+    "pictures",
+    "vehicle",
+    "car",
+    "of",
+    "the",
+    "for",
+    "in",
+    "with",
+    "please",
+    "reference",
+    "search",
+    "again",
+    "model",
+    "year",
+    "color",
+    "black",
+    "white",
+    "red",
+    "blue",
+    "gray",
+    "grey",
+    "silver",
+    "automatic",
+    "manual",
+    "hybrid",
+    "electric",
+    "gasoline",
+    "gas",
+    "sedan",
+    "suv",
+    "hatchback",
+    "coupe",
+    "trim",
+    "gallery",
+    "exterior",
+    "interior",
 }
 _VEHICLE_MAKES = tuple(MAKE_DOMAIN_MAP) + (
-    "mercedes-benz", "land rover", "volkswagen", "hyundai", "kia", "nissan", "mazda", "subaru", "jeep",
-    "dodge", "ram", "lexus", "acura", "infiniti", "genesis", "volvo", "porsche", "rivian", "lucid",
-    "buick", "gmc", "cadillac", "lincoln", "chrysler", "mitsubishi",
+    "mercedes-benz",
+    "land rover",
+    "volkswagen",
+    "hyundai",
+    "kia",
+    "nissan",
+    "mazda",
+    "subaru",
+    "jeep",
+    "dodge",
+    "ram",
+    "lexus",
+    "acura",
+    "infiniti",
+    "genesis",
+    "volvo",
+    "porsche",
+    "rivian",
+    "lucid",
+    "buick",
+    "gmc",
+    "cadillac",
+    "lincoln",
+    "chrysler",
+    "mitsubishi",
 )
 _VEHICLE_IMAGE_CACHE: dict[str, tuple[float, list[dict[str, str]]]] = {}
 
@@ -53,14 +115,16 @@ def _vehicle_image_terms(query: str) -> list[str]:
             continue
         make_terms = re.findall(r"[a-z0-9]+", make)
         model_terms = [
-            term for term in re.findall(r"[a-z0-9]+", lowered[match.end():])
+            term
+            for term in re.findall(r"[a-z0-9]+", lowered[match.end() :])
             if (len(term) > 1 or term.isdigit())
             and term not in _IMAGE_QUERY_STOPWORDS
             and not re.fullmatch(r"(?:19|20)\d{2}", term)
         ]
         return make_terms + model_terms[:2] if model_terms else []
     return [
-        term for term in re.findall(r"[a-z0-9]+", lowered)
+        term
+        for term in re.findall(r"[a-z0-9]+", lowered)
         if (len(term) > 1 or term.isdigit())
         and term not in _IMAGE_QUERY_STOPWORDS
         and not re.fullmatch(r"(?:19|20)\d{2}", term)
@@ -219,12 +283,14 @@ async def search_vehicle_images(
             # Hosted web search is not compatible with GPT-5-family minimal reasoning.
             reasoning_effort="low",
             max_output_tokens=1000,
-            tools=[{
-                "type": "web_search",
-                "search_context_size": "low",
-                "search_content_types": ["image", "text"],
-                "image_settings": {"max_results": min(max(limit, 1), 4), "caption": True},
-            }],
+            tools=[
+                {
+                    "type": "web_search",
+                    "search_context_size": "low",
+                    "search_content_types": ["image", "text"],
+                    "image_settings": {"max_results": min(max(limit, 1), 4), "caption": True},
+                }
+            ],
             tool_choice="required",
             include=["web_search_call.results"],
             transient_retries=0,
@@ -253,13 +319,15 @@ async def search_vehicle_images(
         ):
             continue
         host = (urlparse(source_url).hostname or "Vehicle source").removeprefix("www.")
-        matched_images.append({
-            "image_url": image_url,
-            "thumbnail_url": str(image.get("thumbnail_url") or ""),
-            "source_url": source_url,
-            "source_name": host,
-            "alt": caption or f"{query} vehicle photo",
-        })
+        matched_images.append(
+            {
+                "image_url": image_url,
+                "thumbnail_url": str(image.get("thumbnail_url") or ""),
+                "source_url": source_url,
+                "source_name": host,
+                "alt": caption or f"{query} vehicle photo",
+            }
+        )
         if len(matched_images) >= limit:
             break
     if matched_images:

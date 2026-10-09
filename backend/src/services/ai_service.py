@@ -603,13 +603,17 @@ class AiService:
     @log_flow(layer="service")
     async def _latest_memory(self, thread_id: str, user_id: str) -> dict:
         rows = (
-            await self.session.execute(
-                select(ConversationHistory)
-                .where(ConversationHistory.thread_id == thread_id, ConversationHistory.user_id == user_id)
-                .order_by(ConversationHistory.created_at.desc())
-                .limit(8)
+            (
+                await self.session.execute(
+                    select(ConversationHistory)
+                    .where(ConversationHistory.thread_id == thread_id, ConversationHistory.user_id == user_id)
+                    .order_by(ConversationHistory.created_at.desc())
+                    .limit(8)
+                )
             )
-        ).scalars().all()
+            .scalars()
+            .all()
+        )
         if not rows:
             return {}
         latest = rows[0].checkpoint
@@ -619,7 +623,11 @@ class AiService:
             guided_messages = checkpoint.get("guided_messages")
             if isinstance(guided_messages, list):
                 for message in guided_messages:
-                    if isinstance(message, dict) and message.get("role") in {"user", "assistant"} and message.get("body"):
+                    if (
+                        isinstance(message, dict)
+                        and message.get("role") in {"user", "assistant"}
+                        and message.get("body")
+                    ):
                         context.append({"role": message["role"], "body": str(message["body"])[:2000]})
             else:
                 for role, key in (("user", "user"), ("assistant", "assistant")):
@@ -637,7 +645,12 @@ class AiService:
 
     @log_flow(layer="service")
     async def _save_checkpoint(
-        self, thread_id: str, user_id: str, payload: AiChatRequest, main: dict, requirements: dict,
+        self,
+        thread_id: str,
+        user_id: str,
+        payload: AiChatRequest,
+        main: dict,
+        requirements: dict,
         memory: dict | None = None,
     ) -> None:
         memory = memory or {}

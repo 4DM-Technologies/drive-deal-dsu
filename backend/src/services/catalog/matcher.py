@@ -458,7 +458,9 @@ def match_text(text: str, index: CatalogIndex) -> MatchResult:
     result.model_year = years[0] if years else None
     lowered = text.lower()
     result.timeline = next((timeline for timeline in TIMELINES if timeline.lower() in lowered), None)
-    result.must_haves = list(dict.fromkeys(f"Exterior color: {match.group(1).title()}" for match in EXTERIOR_COLOR_RE.finditer(text)))
+    result.must_haves = list(
+        dict.fromkeys(f"Exterior color: {match.group(1).title()}" for match in EXTERIOR_COLOR_RE.finditer(text))
+    )
     for column, patterns in (
         ("transmission", TRANSMISSION_WORDS),
         ("fuel_type", FUEL_WORDS),
