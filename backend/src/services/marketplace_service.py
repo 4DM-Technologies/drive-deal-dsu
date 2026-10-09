@@ -4,6 +4,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.models.marketplace import (
+    ChatEdit,
     ChatRequestCreate,
     ChatSend,
     DealStatusUpdate,
@@ -14,11 +15,16 @@ from src.models.marketplace import (
 from src.repositories.marketplace_repository import MarketplaceRepository
 from src.repositories.schema import Brand, BuyerRequest, DealChat, DealQuote, Profile
 from src.services.billing_service import BillingService
+from src.services.community_guidelines import violates_chat_guidelines
 from src.settings import MARKETPLACE_DEAL_FLOW
 from src.utils.exceptions import AppError, error_codes
 from src.utils.log_flow import log_flow
 from src.utils.logger import logger
 from src.utils.serialization import model_dict
+
+CHAT_UNSENT_MARKER = "__dealdrive_message_unsent__"
+CHAT_UNSENT_TEXT = "This message was unsent."
+CHAT_GUIDELINE_MESSAGE = "Please keep messages respectful. This wording violates our community guidelines."
 
 
 class MarketplaceService:
@@ -105,8 +111,11 @@ class MarketplaceService:
         if actor.role == "buyer" and row.buyer_id != actor.id:
             raise AppError(error_codes.RESOURCE_NOT_FOUND, "Request not found.", 404)
         if actor.role == "dealer" and row.status != "open":
-            raise AppError(error_codes.RESOURCE_NOT_FOUND, "Request not found.", 404)
-        if actor.role == "dealer":
+            # Once a buyer accepts a quote the request leaves the public feed, but the
+            # quoting dealer still needs its details to view the accepted offer/deal.
+            if not await self.repository.dealer_has_quote_for_request(actor.id, row.id):
+                raise AppError(error_codes.RESOURCE_NOT_FOUND, "Request not found.", 404)
+        if actor.role == "dealer" and row.status == "open":
             await self.repository.record_request_view(row.id, actor.id, datetime.now(UTC))
         return await self.request_dict(row)
 
@@ -257,6 +266,7 @@ class MarketplaceService:
 
     @log_flow(layer="service")
     async def request_chat(self, quote_id: str, payload: ChatRequestCreate, buyer: Profile) -> dict:
+        self.validate_chat_message(payload.message)
         quote = await self._quote(quote_id)
         self._require_owner(quote.buyer_id, buyer.id)
         quote.chat_request_status = "pending"
@@ -297,10 +307,11 @@ class MarketplaceService:
             raise AppError(error_codes.CHAT_NOT_OPEN, "This conversation is not open.", 403)
         rows = [row for row in await self.repository.chat_messages(quote_id) if actor.id not in row.hidden_for]
         profiles = await self._profile_map({row.sender_id for row in rows})
-        return [{**model_dict(row), "sender_name": self._chat_sender_name(profiles.get(row.sender_id))} for row in rows]
+        return [self._chat_message_dict(row, profiles.get(row.sender_id)) for row in rows]
 
     @log_flow(layer="service")
     async def send_chat(self, quote_id: str, payload: ChatSend, actor: Profile) -> dict:
+        self.validate_chat_message(payload.message)
         quote = await self._quote(quote_id)
         self._require_party(quote, actor)
         if quote.status != "accepted" and quote.chat_request_status != "accepted":
@@ -310,12 +321,59 @@ class MarketplaceService:
         )
         if existing:
             sender = await self.session.get(Profile, existing.sender_id)
-            return {**model_dict(existing), "sender_name": self._chat_sender_name(sender)}
+            return self._chat_message_dict(existing, sender)
         row = DealChat(quote_id=quote_id, sender_id=actor.id, message=payload.message, client_message_id=payload.id)
         self.repository.add(row)
         await self.repository.commit()
         await self.session.refresh(row)
-        return {**model_dict(row), "sender_name": self._chat_sender_name(actor)}
+        return self._chat_message_dict(row, actor)
+
+    @staticmethod
+    def validate_chat_message(message: str) -> None:
+        if violates_chat_guidelines(message):
+            raise AppError(error_codes.CHAT_GUIDELINE_VIOLATION, CHAT_GUIDELINE_MESSAGE, 422)
+
+    @staticmethod
+    def _chat_message_dict(row: DealChat, sender: Profile | None) -> dict:
+        unsent = row.message == CHAT_UNSENT_MARKER
+        return {
+            **model_dict(row),
+            "message": CHAT_UNSENT_TEXT if unsent else row.message,
+            "sender_name": MarketplaceService._chat_sender_name(sender),
+            "edited": row.updated_by == row.sender_id and not unsent,
+            "unsent": unsent,
+        }
+
+    async def _owned_chat_message(self, quote_id: str, message_id: str, actor: Profile) -> DealChat:
+        quote = await self._quote(quote_id)
+        self._require_party(quote, actor)
+        if quote.status != "accepted" and quote.chat_request_status != "accepted":
+            raise AppError(error_codes.CHAT_NOT_OPEN, "This conversation is not open.", 403)
+        row = await self.repository.chat_message_by_id(quote_id, message_id)
+        if row is None or row.sender_id != actor.id:
+            raise AppError(error_codes.RESOURCE_NOT_FOUND, "Message not found.", 404)
+        if row.message == CHAT_UNSENT_MARKER:
+            raise AppError(error_codes.ILLEGAL_TRANSITION, "An unsent message can’t be changed again.", 409)
+        return row
+
+    @log_flow(layer="service")
+    async def edit_chat_message(self, quote_id: str, message_id: str, payload: ChatEdit, actor: Profile) -> dict:
+        self.validate_chat_message(payload.message)
+        row = await self._owned_chat_message(quote_id, message_id, actor)
+        row.message = payload.message.strip()
+        row.updated_by = actor.id
+        await self.repository.commit()
+        await self.session.refresh(row)
+        return self._chat_message_dict(row, actor)
+
+    @log_flow(layer="service")
+    async def unsend_chat_message(self, quote_id: str, message_id: str, actor: Profile) -> dict:
+        row = await self._owned_chat_message(quote_id, message_id, actor)
+        row.message = CHAT_UNSENT_MARKER
+        row.updated_by = actor.id
+        await self.repository.commit()
+        await self.session.refresh(row)
+        return self._chat_message_dict(row, actor)
 
     @log_flow(layer="service")
     async def update_deal_status(self, quote_id: str, payload: DealStatusUpdate, actor: Profile) -> dict:

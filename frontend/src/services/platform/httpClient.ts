@@ -104,6 +104,12 @@ const requestToDomain = (row: Record<string, unknown>): BuyerRequest => ({
   alreadyQuoted: Boolean(row.already_quoted),
 });
 
+const chatMessageToDomain = (row: Record<string, unknown>): ChatMessage => ({
+  id: String(row.id), quoteId: String(row.quote_id), senderId: String(row.sender_id),
+  senderName: String(row.sender_name ?? 'Account unavailable'), body: String(row.message),
+  createdAt: String(row.created_at), read: Boolean(row.read_at), edited: Boolean(row.edited), unsent: Boolean(row.unsent),
+});
+
 /** The dealer's price revisions, read from the quote's history (`amount` is the final price before each one). */
 const revisionsOf = (history: unknown): NonNullable<Quote['revisions']> =>
   (Array.isArray(history) ? history : [])
@@ -282,7 +288,7 @@ async function uploadQuoteFile(quoteId: string, file: File, type: 'vehicle_image
   try {
     upload = await fetch(presigned.url, { method: 'PUT', headers: presigned.headers, body: file });
   } catch {
-    throw new Error('The file could not be uploaded to storage. Check your connection and try again.');
+    throw new Error('The browser could not reach file storage. The quote may already be saved; retry the attachment upload.');
   }
   if (!upload.ok) throw new Error(`Upload failed (${upload.status})`);
   const documentId = createId();
@@ -383,8 +389,10 @@ export const httpClient: DriveDealClient = {
     },
   },
   chats: {
-    list: async (quoteId) => (await request<Record<string, unknown>[]>(`/chats/${quoteId}`)).map((row): ChatMessage => ({ id: String(row.id), quoteId: String(row.quote_id), senderId: String(row.sender_id), senderName: String(row.sender_name ?? 'Account unavailable'), body: String(row.message), createdAt: String(row.created_at), read: Boolean(row.read_at) })),
-    send: async (quoteId, body) => { const row = await request<Record<string, unknown>>(`/chats/${quoteId}`, { method: 'POST', body: JSON.stringify({ id: createId(), message: body }) }); return { id: String(row.id), quoteId: String(row.quote_id), senderId: String(row.sender_id), senderName: String(row.sender_name ?? 'Account unavailable'), body: String(row.message), createdAt: String(row.created_at), read: Boolean(row.read_at) }; },
+    list: async (quoteId) => (await request<Record<string, unknown>[]>(`/chats/${quoteId}`)).map(chatMessageToDomain),
+    send: async (quoteId, body) => chatMessageToDomain(await request<Record<string, unknown>>(`/chats/${quoteId}`, { method: 'POST', body: JSON.stringify({ id: createId(), message: body }) })),
+    edit: async (quoteId, messageId, body) => chatMessageToDomain(await request<Record<string, unknown>>(`/chats/${quoteId}/messages/${messageId}`, { method: 'PATCH', body: JSON.stringify({ message: body }) })),
+    unsend: async (quoteId, messageId) => chatMessageToDomain(await request<Record<string, unknown>>(`/chats/${quoteId}/messages/${messageId}`, { method: 'DELETE' })),
     requestAccess: async (quoteId, message) => quoteToDomain(await request(`/chats/${quoteId}/request-access`, { method: 'POST', body: JSON.stringify({ message }) })),
     listRequests: async () => (await request<Record<string, unknown>[]>('/chats/requests')).map(quoteToDomain),
     acceptRequest: async (quoteId) => quoteToDomain(await request(`/chats/requests/${quoteId}/accept`, { method: 'POST' })),

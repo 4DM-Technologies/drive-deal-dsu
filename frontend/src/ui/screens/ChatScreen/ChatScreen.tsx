@@ -1,7 +1,8 @@
-import { ArrowUp, CheckCheck, LockKeyhole, MessageCircle, Phone, Search, ShieldCheck, UserCheck, X } from 'lucide-react';
+import { ArrowUp, CheckCheck, LockKeyhole, MessageCircle, Pencil, Phone, Search, ShieldCheck, Undo2, UserCheck, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { relativeTime } from '@/helpers/dateTime';
+import { CHAT_GUIDELINES_NOTICE, violatesChatGuidelines } from '@/helpers/communityGuidelines';
 import { client } from '@/services/platform/client';
 import { useDemoStore } from '@/services/platform/demoStore';
 import { PageLoading } from '@/ui/reusables/PageLoading/PageLoading';
@@ -19,6 +20,8 @@ export default function ChatScreen() {
   const [loaded, setLoaded] = useState(false);
   const [search, setSearch] = useState('');
   const [input, setInput] = useState('');
+  const [messageError, setMessageError] = useState('');
+  const [editingMessageId, setEditingMessageId] = useState('');
   const endRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -70,11 +73,37 @@ export default function ChatScreen() {
   }
 
   async function send() {
-    if (!quote || !input.trim()) return;
+    if (!quote || !input.trim() || editingMessageId) return;
     const body = input.trim();
-    setInput('');
-    const message = await client.chats.send(quote.id, body);
-    setMessages((items) => [...items, message]);
+    if (violatesChatGuidelines(body)) { setMessageError(CHAT_GUIDELINES_NOTICE); return; }
+    try {
+      const message = await client.chats.send(quote.id, body);
+      setInput(''); setMessageError(''); setMessages((items) => [...items, message]);
+    } catch (error) { setMessageError(error instanceof Error ? error.message : 'Your message could not be sent. Please try again.'); }
+  }
+
+  function beginEdit(message: ChatMessage) {
+    setEditingMessageId(message.id); setInput(message.body); setMessageError('');
+  }
+
+  async function saveEdit() {
+    if (!quote || !editingMessageId || !input.trim()) return;
+    if (violatesChatGuidelines(input.trim())) { setMessageError(CHAT_GUIDELINES_NOTICE); return; }
+    try {
+      const updated = await client.chats.edit(quote.id, editingMessageId, input.trim());
+      setMessages((items) => items.map((item) => item.id === updated.id ? updated : item));
+      setEditingMessageId(''); setInput(''); setMessageError('');
+    } catch (error) { setMessageError(error instanceof Error ? error.message : 'Your edit could not be saved. Please try again.'); }
+  }
+
+  async function unsend(message: ChatMessage) {
+    if (!quote || !window.confirm('Unsend this message for everyone in the conversation?')) return;
+    try {
+      const updated = await client.chats.unsend(quote.id, message.id);
+      setMessages((items) => items.map((item) => item.id === updated.id ? updated : item));
+      if (editingMessageId === message.id) { setEditingMessageId(''); setInput(''); }
+      setMessageError('');
+    } catch (error) { setMessageError(error instanceof Error ? error.message : 'This message could not be unsent. Please try again.'); }
   }
 
   async function acceptRequest(id: string) {
@@ -95,7 +124,7 @@ export default function ChatScreen() {
     <section className="card chat-layout chat-layout-modern" aria-label="Conversations">
       <aside className="chat-list"><div className="chat-list-head"><span><strong>Messages</strong><small>{available.length} conversations</small></span><label className="chat-search"><Search size={15} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search conversations" /></label></div>{filtered.map((item) => { const itemRequest = requestMap[item.requestId]; return <button className={`chat-item ${item.id === effectiveId ? 'active' : ''}`} key={item.id} onClick={() => chooseConversation(item.id)}><span className="chat-item-copy"><span><strong>{itemRequest?.brand} {itemRequest?.model}</strong></span><small>{isDealer ? `${itemRequest?.area ?? ''} buyer` : item.dealerName}</small><p>{item.chatRequestStatus === 'pending' ? isDealer ? 'Buyer asked to negotiate' : 'Waiting for dealer response' : 'Conversation opened'}</p></span>{item.chatRequestStatus === 'pending' && <i className="unread-dot" />}</button>; })}<p className="chat-list-note"><ShieldCheck size={15} /><span>Every conversation stays attached to one quote, so price and decisions remain clear.</span></p></aside>
       <main className="chat-thread">{quote && <><header className="chat-thread-head"><span className="chat-thread-title"><strong>{request?.brand} {request?.model} · {isDealer ? 'Buyer' : quote.dealerName}</strong><small><i /> {quote.contactAvailable ? 'Conversation open' : 'Awaiting dealer approval'} · Quote attached</small></span><span className="chat-thread-actions">{dealerPhone && <a className="chat-phone" href={`tel:${dealerPhone}`} aria-label={`Call the dealer on ${dealerPhone}`}><Phone size={15} />{formatPhone(dealerPhone)}</a>}<Link className="button button-secondary button-sm" to={`/quotes/${quote.id}`}>View offer</Link></span></header>
-        {quote.contactAvailable ? <><div className="chat-scroll" aria-live="polite"><div className="chat-context"><MessageCircle size={18} /><span><strong>Conversation linked to {formatVehicle(request?.brand, request?.model)}.</strong><small>Offer changes remain visible in the quote history.</small></span></div>{thread.map((message) => <div key={message.id} className={`chat-message-row ${message.senderId === session?.id ? 'mine' : ''}`}><div className="chat-message"><strong>{message.senderId === session?.id ? 'You' : message.senderName}</strong><p>{message.body}</p><small>{relativeTime(message.createdAt)} {message.senderId === session?.id && <CheckCheck size={13} />}</small></div></div>)}<div ref={endRef} /></div><form className="chat-composer modern-composer" onSubmit={(event) => { event.preventDefault(); void send(); }}><input className="input" value={input} onChange={(event) => setInput(event.target.value)} placeholder="Write a message about this offer" aria-label="Message" /><button className="button button-primary" disabled={!input.trim()} aria-label="Send message"><ArrowUp size={18} /></button></form></>
+        {quote.contactAvailable ? <><div className="chat-scroll" aria-live="polite"><div className="chat-context"><MessageCircle size={18} /><span><strong>Conversation linked to {formatVehicle(request?.brand, request?.model)}.</strong><small>Offer changes remain visible in the quote history.</small></span></div>{thread.map((message) => <div key={message.id} className={`chat-message-row ${message.senderId === session?.id ? 'mine' : ''}`}><div className="chat-message"><strong>{message.senderId === session?.id ? 'You' : message.senderName}</strong><p>{message.body}</p><small>{message.unsent ? 'Unsent' : <>{relativeTime(message.createdAt)} {message.edited && '· Edited'} {message.senderId === session?.id && <CheckCheck size={13} />}</>}</small>{message.senderId === session?.id && !message.unsent && <div className="chat-message-actions"><button type="button" onClick={() => beginEdit(message)}><Pencil size={12} /> Edit</button><button type="button" onClick={() => void unsend(message)}><Undo2 size={12} /> Unsend</button></div>}</div></div>)}<div ref={endRef} /></div><form className="chat-composer modern-composer" onSubmit={(event) => { event.preventDefault(); if (editingMessageId) void saveEdit(); else void send(); }}><input className="input" value={input} onChange={(event) => { setInput(event.target.value); setMessageError(''); }} placeholder={editingMessageId ? 'Edit your message' : 'Write a message about this offer'} aria-label={editingMessageId ? 'Edit message' : 'Message'} />{editingMessageId && <button type="button" className="button button-secondary" onClick={() => { setEditingMessageId(''); setInput(''); setMessageError(''); }}>Cancel</button>}<button className="button button-primary" disabled={!input.trim()} aria-label={editingMessageId ? 'Save edit' : 'Send message'}>{editingMessageId ? 'Save' : <ArrowUp size={18} />}</button></form>{messageError && <p className="chat-guideline-notice" role="alert">{messageError}</p>}</>
           : <div className="chat-waiting"><div className="empty-icon"><LockKeyhole /></div><h3>{isDealer ? 'Buyer requested a negotiation' : 'Negotiation request sent'}</h3><p>{isDealer ? 'Review the buyer’s opening note. Contact details and messaging open only after you accept.' : 'The dealer can read your opening note. Contact and messages unlock only if they accept.'}</p><div className="opening-note"><span>{isDealer ? 'Buyer’s opening note' : 'Your opening note'}</span><p>“{quote.chatRequestMessage ?? 'I would like to discuss this offer before deciding.'}”</p></div>{isDealer ? <div className="chat-request-actions"><button className="button button-primary" onClick={() => void acceptRequest(quote.id)}><UserCheck size={17} /> Accept &amp; open chat</button><button className="button button-secondary" onClick={() => { const reason = window.prompt('Brief reason shown to the buyer'); if (reason?.trim()) void declineRequest(quote.id, reason.trim()); }}><X size={17} /> Decline</button></div> : <StatusBadge status="pending" />}</div>}
         {!quote.contactAvailable && <form className="chat-composer modern-composer" onSubmit={(event) => event.preventDefault()}><input className="input" disabled placeholder={isDealer ? 'Accept the request to start messaging' : 'Messaging unlocks when the dealer accepts'} aria-label="Message (locked)" /><button className="button button-primary" disabled aria-label="Send message"><ArrowUp size={18} /></button></form>}
       </>}</main>

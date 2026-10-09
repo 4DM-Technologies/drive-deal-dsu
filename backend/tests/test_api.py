@@ -279,11 +279,29 @@ def test_complete_request_quote_chat_and_deal_flow() -> None:
         )
         assert dealer_message.status_code == 201
         assert dealer_message.json()["sender_name"] == "Navee Motors"
+        dealer_message_id = dealer_message.json()["id"]
+        rejected_message = client.post(
+            f"/api/v1/chats/{quote_id}", headers=buyer, json={"id": str(uuid4()), "message": "fuckman"}
+        )
+        assert rejected_message.status_code == 422
+        edited_message = client.patch(
+            f"/api/v1/chats/{quote_id}/messages/{dealer_message_id}",
+            headers=dealer,
+            json={"message": "Pickup is available on Friday."},
+        )
+        assert edited_message.status_code == 200
+        assert edited_message.json()["edited"] is True
+        assert edited_message.json()["message"] == "Pickup is available on Friday."
+        unsent_message = client.delete(f"/api/v1/chats/{quote_id}/messages/{dealer_message_id}", headers=dealer)
+        assert unsent_message.status_code == 200
+        assert unsent_message.json()["unsent"] is True
+        assert unsent_message.json()["message"] == "This message was unsent."
         assert client.post(f"/api/v1/chats/{quote_id}/read", headers=dealer).status_code == 200
         assert client.get(f"/api/v1/quotes/{quote_id}/dealer-contact", headers=buyer).status_code == 200
 
         accepted = client.post(f"/api/v1/quotes/{quote_id}/accept", headers=buyer)
         assert accepted.status_code == 200 and accepted.json()["deal_status"] == "paperwork_going_on"
+        assert client.get(f"/api/v1/feed/requests/{accepted.json()['buyer_request_id']}", headers=dealer).status_code == 200
         assert (
             client.patch(
                 f"/api/v1/deals/{quote_id}/status", headers=dealer, json={"status": "funds_arrived"}

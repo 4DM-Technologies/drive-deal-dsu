@@ -50,6 +50,8 @@ export interface DriveDealClient {
   chats: {
     list(quoteId: string): Promise<ChatMessage[]>;
     send(quoteId: string, body: string): Promise<ChatMessage>;
+    edit(quoteId: string, messageId: string, body: string): Promise<ChatMessage>;
+    unsend(quoteId: string, messageId: string): Promise<ChatMessage>;
     requestAccess(quoteId: string, message: string): Promise<Quote>;
     listRequests(): Promise<Quote[]>;
     acceptRequest(quoteId: string): Promise<Quote>;

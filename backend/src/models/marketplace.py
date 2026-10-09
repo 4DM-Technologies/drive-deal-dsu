@@ -73,6 +73,10 @@ class ChatSend(BaseModel):
     message: str = Field(min_length=1, max_length=4000)
 
 
+class ChatEdit(BaseModel):
+    message: str = Field(min_length=1, max_length=4000)
+
+
 class DealStatusUpdate(BaseModel):
     status: Literal["paperwork_going_on", "funds_arrived", "dispatch", "delivery", "completed", "cancelled"]
 

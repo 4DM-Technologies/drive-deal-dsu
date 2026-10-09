@@ -752,6 +752,10 @@ h1, h2, h3, .display { font-family: 'Manrope', 'DM Sans', sans-serif; letter-spa
 .chat-message strong { font-size: .72rem; }
 .chat-message p { margin: .2rem 0; line-height: 1.5; }
 .chat-message small { display: flex; align-items: center; justify-content: flex-end; gap: .2rem; color: var(--muted); }
+.chat-message-actions { display: flex; justify-content: flex-end; gap: .25rem; margin-top: .35rem; }
+.chat-message-actions button { display: inline-flex; align-items: center; gap: .22rem; padding: .2rem .35rem; border: 0; border-radius: 6px; background: transparent; color: var(--muted); font-size: .68rem; cursor: pointer; }
+.chat-message-actions button:hover { background: rgba(20,86,184,.08); color: var(--accent); }
+.chat-guideline-notice { margin: .35rem 1rem .5rem; padding: .55rem .75rem; border: 1px solid #f0c98e; border-radius: 9px; background: #fff6e7; color: #805000; font-size: .82rem; }
 .modern-composer { padding-bottom: max(1rem,env(safe-area-inset-bottom)); }
 .chat-waiting { max-width: 500px; margin: auto; text-align: center; padding: 2rem; }
 .opening-note { text-align: left; margin: 1.2rem 0; padding: 1rem; border-left: 3px solid var(--accent); background: var(--surface); }

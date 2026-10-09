@@ -9,6 +9,7 @@ from src.database import get_session
 from src.middleware.auth import get_current_profile, require_roles
 from src.models.marketplace import (
     ChatDeclineRequest,
+    ChatEdit,
     ChatRequestCreate,
     ChatSend,
     DealStatusUpdate,
@@ -267,6 +268,29 @@ async def send_chat(
     session: AsyncSession = Depends(get_session),
 ):
     return await MarketplaceService(session).send_chat(quote_id, payload, profile)
+
+
+@router.patch("/chats/{quote_id}/messages/{message_id}")
+@log_flow(layer="route")
+async def edit_chat_message(
+    quote_id: str,
+    message_id: str,
+    payload: ChatEdit,
+    profile: Profile = Depends(require_roles("buyer", "dealer")),
+    session: AsyncSession = Depends(get_session),
+):
+    return await MarketplaceService(session).edit_chat_message(quote_id, message_id, payload, profile)
+
+
+@router.delete("/chats/{quote_id}/messages/{message_id}")
+@log_flow(layer="route")
+async def unsend_chat_message(
+    quote_id: str,
+    message_id: str,
+    profile: Profile = Depends(require_roles("buyer", "dealer")),
+    session: AsyncSession = Depends(get_session),
+):
+    return await MarketplaceService(session).unsend_chat_message(quote_id, message_id, profile)
 
 
 @router.post("/chats/{quote_id}/request-negotiation")

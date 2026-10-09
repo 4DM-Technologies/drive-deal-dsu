@@ -105,6 +105,8 @@ export interface ChatMessage {
   body: string;
   createdAt: string;
   read: boolean;
+  edited?: boolean;
+  unsent?: boolean;
 }
 
 export interface AiMessage {

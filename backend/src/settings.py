@@ -18,6 +18,7 @@ API_DESCRIPTION = "Reverse vehicle marketplace and Serra buyer advisor API."
 API_CORS_METHODS = ("*",)
 API_CORS_HEADERS = ("*",)
 API_EXPOSE_HEADERS = ("Content-Disposition",)
+LOCAL_DEVELOPMENT_ORIGINS = ("http://localhost:5173", "http://127.0.0.1:5173")
 REQUEST_CONTEXT_SKIPPED_PATHS = frozenset({"/health", "/metrics"})
 REQUEST_CONTEXT_LOGGED_METHODS = frozenset({"GET", "POST", "PUT", "PATCH", "DELETE"})
 
@@ -176,8 +177,13 @@ class Settings(BaseSettings):
     @classmethod
     def split_origins(cls, value: object) -> object:
         if isinstance(value, str):
-            return [entry.strip() for entry in value.split(",") if entry.strip()]
-        return value
+            origins = [entry.strip() for entry in value.split(",") if entry.strip()]
+        elif isinstance(value, list):
+            origins = value
+        else:
+            return value
+        # Local Vite clients may use either host while calling a local or hosted API.
+        return list(dict.fromkeys([*origins, *LOCAL_DEVELOPMENT_ORIGINS]))
 
     @field_validator("log_level", mode="before")
     @classmethod
