@@ -170,7 +170,7 @@ async def search_vehicle_images(
     # A couple of source pages are enough for the gallery. Keep this bounded so an image request cannot fan out
     # into a slow crawl of every citation returned by search.
     sources = list(result.sources or [])[: max(limit * 2, limit)]
-    query_terms = [term.lower() for term in re.findall(r"[a-z0-9]+", query) if len(term) > 2]
+    query_terms = [term.lower() for term in re.findall(r"[a-z0-9]+", query.lower()) if len(term) > 2]
     # A manufacturer-only query has no useful vehicle identity; searching it tends to return logos.
     if len(query_terms) < 2:
         return []

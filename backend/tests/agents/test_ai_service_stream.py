@@ -6,6 +6,7 @@ import pytest
 
 from src.services.administration_service import AdministrationService
 from src.services.ai_service import AiService
+from src.services.catalog.matcher import MatchResult
 from src.utils.exceptions import AppError
 
 
@@ -39,7 +40,8 @@ async def _drain(message: str, main_result: dict, main_delay: float = 0.0):
     with (
         patch("src.services.ai_service.main_agent", return_value=main),
         patch("src.services.ai_service.build_requirement_graph", return_value=requirements),
-        patch("src.services.ai_service.get_settings", return_value=SimpleNamespace(ai_disabled=False)),
+        patch("src.services.ai_service.get_settings", return_value=SimpleNamespace(ai_disabled=False, ai_enable_web_search=True)),
+        patch("src.services.ai_service.match_message", new=AsyncMock(return_value=MatchResult())),
         patch.object(
             AdministrationService,
             "runtime_bundle",
@@ -138,7 +140,8 @@ async def test_compare_chat_passes_selected_offers_to_the_agent_and_card() -> No
     with (
         patch("src.services.ai_service.main_agent", return_value=SimpleNamespace(ainvoke=invoke)),
         patch("src.services.ai_service.build_requirement_graph", requirements_builder),
-        patch("src.services.ai_service.get_settings", return_value=SimpleNamespace(ai_disabled=False)),
+        patch("src.services.ai_service.get_settings", return_value=SimpleNamespace(ai_disabled=False, ai_enable_web_search=True)),
+        patch("src.services.ai_service.match_message", new=AsyncMock(return_value=MatchResult())),
         patch.object(
             AdministrationService,
             "runtime_bundle",

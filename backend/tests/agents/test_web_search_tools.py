@@ -72,7 +72,7 @@ async def test_image_search_resolves_relative_images_and_drops_unreachable_or_du
     llm = _llm_returning(
         sources=[
             {"url": "https://www.kia.com/us/seltos", "title": "Kia Seltos"},
-            {"url": "https://cdn-test.example.com/page", "title": ""},
+            {"url": "https://cdn-test.example.com/seltos", "title": ""},
             {"url": "https://www.broken.com/seltos", "title": "Broken"},
             {"url": "https://www.repeat.com/seltos", "title": "Repeat"},
             {"url": "https://www.kia.com/in/seltos", "title": "Kia India"},
@@ -106,8 +106,8 @@ async def test_image_search_resolves_relative_images_and_drops_unreachable_or_du
 async def test_image_search_respects_the_result_limit() -> None:
     llm = _llm_returning(
         sources=[
-            {"url": "https://www.one.com/a", "title": "One"},
-            {"url": "https://www.two.com/a", "title": "Two"},
+            {"url": "https://www.one.com/seltos", "title": "One"},
+            {"url": "https://www.two.com/seltos", "title": "Two"},
         ]
     )
 
