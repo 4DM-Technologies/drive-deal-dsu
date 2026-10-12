@@ -1,6 +1,6 @@
 import type { DriveDealClient, AiStreamEvent } from '@/services/generated/client';
 import type { GuidedActionInput, GuidedAnswers, GuidedOption, GuidedStepResult } from '@/types/domain';
-import type { ActiveTheme, AdministrationAuditEvent, AdminCatalog, AdminConfigBundle, AdminConfigType, AdminPromptBundle, AdminRevision, AiMessage, AiThread, AiTrace, BrandRef, BuyerRequest, CarCreateInput, ChatMessage, DealDocument, InventoryCar, PromptDefinition, Quote, Session, StateRef, SupportMember, Ticket, Verification, WorkflowDefinition, WorkflowPreview, WorkflowPreviewStreamEvent, PaymentReceipt } from '@/types/domain';
+import type { ActiveTheme, AdministrationAuditEvent, AdminCatalog, AdminConfigBundle, AdminConfigType, AdminPromptBundle, AdminRevision, AiMessage, AiThread, AiTrace, AiTraceSummary, BrandRef, BuyerRequest, CarCreateInput, ChatMessage, DealDocument, InventoryCar, PromptDefinition, Quote, Session, StateRef, SupportMember, Ticket, Verification, WorkflowDefinition, WorkflowPreview, WorkflowPreviewStreamEvent, PaymentReceipt } from '@/types/domain';
 import driveDealHero from '@/assets/vehicles/drivedeal-hero.png';
 import { BROWSER_STORAGE_KEYS, WORKSPACE_VIEW_QUERY_PARAMETER } from '@/config/browser';
 import { environment } from '@/config/environment';
@@ -79,6 +79,8 @@ async function download(path: string, fallbackFilename: string): Promise<{ filen
 const profileToSession = (row: Record<string, unknown>): Session => ({
   id: String(row.id),
   fullName: String(row.full_name),
+  firstName: row.first_name == null ? null : String(row.first_name),
+  lastName: row.last_name == null ? null : String(row.last_name),
   email: String(row.email),
   role: row.role as Session['role'],
   avatarInitials: String(row.full_name).split(' ').map((part) => part[0]).join('').slice(0, 2).toUpperCase(),
@@ -122,6 +124,7 @@ const quoteToDomain = (row: Record<string, unknown>): Quote => ({
   brand: String(row.brand_name ?? ''), model: String(row.model ?? ''),
   yearMin: row.year_min as number | null, yearMax: row.year_max as number | null, bodyType: row.body_type as string | null,
   buyerArea: String(row.buyer_area ?? ''),
+  buyerFirstName: row.buyer_first_name == null ? null : String(row.buyer_first_name),
   dealerId: String(row.dealer_id), dealerName: String(row.dealer_name ?? 'Verified dealer'),
   dealerCity: String(row.dealer_city ?? 'Local dealer'), rating: Number(row.rating ?? 4.8), responseMinutes: Number(row.response_minutes ?? 20),
   vehiclePrice: String(row.vehicle_price), docFee: String(row.doc_fee), salesTax: String(row.sales_tax), titleReg: String(row.title_reg),
@@ -156,12 +159,14 @@ const ticketToDomain = (row: Record<string, unknown>): Ticket => ({
   status: row.status as Ticket['status'],
   priority: row.priority as Ticket['priority'],
   createdAt: String(row.created_at),
+  updatedAt: String(row.updated_at ?? row.created_at),
   ...(row.notes ? { notes: (row.notes as Array<{ at?: string; ts?: string; actor_id?: string; agent?: string; note?: string; text?: string }>).map((entry) => ({
     at: entry.at ?? entry.ts ?? String(row.updated_at ?? row.created_at),
     author: entry.actor_id ?? entry.agent ?? 'Support team',
     body: entry.note ?? entry.text ?? 'Case updated.',
   })) } : {}),
   ...(row.rca == null ? {} : { rca: String(row.rca) }),
+  attachments: ((row.attachments as Array<Record<string, unknown>> | undefined) ?? []).map((item) => ({ id: String(item.id), fileName: String(item.file_name), contentType: String(item.content_type), sizeBytes: Number(item.size_bytes) })),
 });
 
 const verificationToDomain = (row: Record<string, unknown>): Verification => ({
@@ -309,7 +314,8 @@ function storeTokens(response: { access_token: string; refresh_token: string }) 
   window.localStorage.setItem(BROWSER_STORAGE_KEYS.refreshToken, response.refresh_token);
 }
 
-const signupBody = (input: Record<string, unknown>) => ({ full_name: input.fullName, email: input.email, phone: input.phone, password: input.password, state_id: input.stateId, address: input.address ?? null, terms_accepted: input.termsAccepted, terms_version: input.termsVersion });
+// Buyers send first_name/last_name; dealer and support applications send full_name. Absent keys are dropped.
+const signupBody = (input: Record<string, unknown>) => ({ full_name: input.fullName, first_name: input.firstName, last_name: input.lastName, email: input.email, phone: input.phone, password: input.password, state_id: input.stateId, address: input.address ?? null, terms_accepted: input.termsAccepted, terms_version: input.termsVersion });
 
 /** Presigns, uploads to storage, then confirms one quote attachment. */
 async function uploadQuoteFile(quoteId: string, file: File, type: 'vehicle_image' | 'quote_document'): Promise<DealDocument> {
@@ -347,7 +353,7 @@ export const httpClient: DriveDealClient = {
       return profileToSession(response.profile);
     },
     signupDealer: async (input) => {
-      await request('/auth/signup/dealer', { method: 'POST', body: JSON.stringify({ ...signupBody(input as unknown as Record<string, unknown>), dealership_name: input.dealershipName, branch_name: input.branchName, dealer_license: input.dealerLicense, website: input.website, supported_brand_ids: input.supportedBrandIds }) });
+      await request('/auth/signup/dealer', { method: 'POST', body: JSON.stringify({ ...signupBody(input as unknown as Record<string, unknown>), dealership_name: input.dealershipName, branch_name: input.branchName, dealer_license: input.dealerLicense, website: input.website?.trim() || null, supported_brand_ids: input.supportedBrandIds }) });
       return { pending: true as const };
     },
     signupSupport: async (input) => {
@@ -366,7 +372,7 @@ export const httpClient: DriveDealClient = {
     },
   },
   profiles: {
-    update: async (input) => profileToSession(await request('/profiles/me', { method: 'PATCH', body: JSON.stringify({ full_name: input.fullName, phone: input.phone, address: input.address, state_id: input.stateId, website: input.website, branch_name: input.branchName }) })),
+    update: async (input) => profileToSession(await request('/profiles/me', { method: 'PATCH', body: JSON.stringify({ full_name: input.fullName, first_name: input.firstName, last_name: input.lastName, phone: input.phone, address: input.address, state_id: input.stateId, website: input.website, branch_name: input.branchName }) })),
     getPreferences: async () => {
       const row = await request<Record<string, unknown>>('/profiles/me/preferences');
       return { brandId: row.brand_id as string | null, otherBrandIds: (row.other_brand_ids as string[]) ?? [], modelPreference: row.model_preference as string | null, bodyType: row.body_type as string | null, seaterCount: row.seater_count as number | null, transmission: row.transmission as string | null, drivetrain: row.drivetrain as string | null, fuelType: row.fuel_type as string | null, condition: row.condition as string | null, exteriorColor: row.exterior_color as string | null, minYear: row.min_year as number | null, maxMileage: row.max_mileage as number | null, budgetMin: row.budget_min as number | null, budgetMax: row.budget_max as number | null, mustHaveFeatures: (row.must_have_features as string[]) ?? [], neverWantFeatures: (row.never_want_features as string[]) ?? [] };
@@ -398,6 +404,14 @@ export const httpClient: DriveDealClient = {
     dealerContact: async (id) => {
       const row = await request<{ dealer: { name: string; email: string; phone: string | null } }>(`/quotes/${id}/dealer-contact`);
       return row.dealer;
+    },
+    position: async (id) => {
+      const row = await request<{ rank: number | null; total: number; lead_by: string | null; behind_by: string | null }>(`/quotes/${id}/position`);
+      return { rank: row.rank, total: row.total, leadBy: row.lead_by == null ? null : Number(row.lead_by), behindBy: row.behind_by == null ? null : Number(row.behind_by) };
+    },
+    buyerContact: async (id) => {
+      const row = await request<{ buyer: { first_name: string | null; phone: string | null } }>(`/quotes/${id}/buyer-contact`);
+      return { firstName: row.buyer.first_name, phone: row.buyer.phone };
     },
   },
   payments: {
@@ -452,6 +466,15 @@ export const httpClient: DriveDealClient = {
     createTicket: async (input) => ticketToDomain(await request<Record<string, unknown>>('/support/tickets', { method: 'POST', body: JSON.stringify({ issue_summary: input.issueSummary, issue_description: input.issueDescription, issue_type: input.issueType, page_context: input.pageContext, priority: input.priority }) })),
     updateTicket: async (id, status, note, rca) => ticketToDomain(await request<Record<string, unknown>>(`/support/queue/tickets/${id}`, { method: 'PATCH', body: JSON.stringify({ status: status ?? null, note: note ?? null, rca: rca ?? null }) })),
     queue: async () => (await request<Record<string, unknown>[]>('/support/queue/tickets')).map(ticketToDomain),
+    uploadAttachments: async (ticketId, files) => {
+      const form = new FormData();
+      files.forEach((file) => form.append('files', file));
+      return ticketToDomain(await request<Record<string, unknown>>(`/support/tickets/${ticketId}/attachments`, { method: 'POST', body: form }));
+    },
+    attachmentDownload: async (ticketId, attachmentId) => {
+      const row = await request<{ url: string; file_name: string }>(`/support/tickets/${ticketId}/attachments/${attachmentId}/download`);
+      return { url: row.url, fileName: row.file_name };
+    },
     members: async () => (await request<Record<string, unknown>[]>('/members')).map(memberToDomain),
     member: async (id) => memberToDomain(await request<Record<string, unknown>>(`/members/${id}`)),
     updateMemberRole: async (id, role) => {
@@ -515,6 +538,7 @@ export const httpClient: DriveDealClient = {
     prompts: async () => (await request<Array<Record<string, unknown>>>('/administration/prompts')).map((row): AdminPromptBundle => ({ key: String(row.key), file: String(row.file), label: String(row.label), description: String(row.description), ...bundleToDomain(row) } as AdminPromptBundle)),
     audit: async () => (await request<Array<Record<string, unknown>>>('/administration/audit')).map((row): AdministrationAuditEvent => ({ id: Number(row.id), uuid: String(row.uuid), action: String(row.action), resourceType: row.resource_type as AdminConfigType, resourceKey: String(row.resource_key), revisionId: row.revision_id == null ? null : String(row.revision_id), actorId: String(row.actor_id), details: (row.details as Record<string, unknown>) ?? {}, createdAt: String(row.created_at) })),
     traces: async () => request<AiTrace[]>('/administration/traces'),
+    traceSummary: async () => request<AiTraceSummary>('/administration/traces/summary'),
     trace: async (id) => request<AiTrace>(`/administration/traces/${encodeURIComponent(id)}`),
     exportConfiguration: async (format) => download(`/administration/export?format=${format}`, `deal-drive-config.${format === 'yaml' ? 'yaml' : 'json'}`),
     preview: async (message, options) => request<WorkflowPreview>('/administration/workflow/preview', { method: 'POST', body: JSON.stringify({ message, thread_id: options?.threadId ?? null, revision_id: options?.revisionId ?? null, workflow_payload: options?.workflow ?? null, prompt_key: options?.promptKey ?? null, prompt_payload: options?.prompt ?? null }) }),

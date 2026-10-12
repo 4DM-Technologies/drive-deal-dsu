@@ -6,7 +6,11 @@ export type VerificationStatus = 'pending' | 'approved' | 'denied' | 'rejected';
 
 export interface Session {
   id: string;
+  /** Display name. For buyers it is "firstName lastName". */
   fullName: string;
+  /** Buyers only. Buyers from before the name split hold their whole name here and have no last name. */
+  firstName?: string | null;
+  lastName?: string | null;
   email: string;
   role: Role;
   avatarInitials: string;
@@ -63,6 +67,16 @@ export interface BuyerRequest {
   alreadyQuoted: boolean;
 }
 
+/** A dealer's standing on one request. rank is null once the offer is out of play (withdrawn, expired, declined, accepted). */
+export interface QuotePosition {
+  rank: number | null;
+  total: number;
+  /** Leading: how far below the next offer. */
+  leadBy: number | null;
+  /** Behind: how far above the leading offer. */
+  behindBy: number | null;
+}
+
 export interface Quote {
   id: string;
   requestId: string;
@@ -72,6 +86,8 @@ export interface Quote {
   yearMax: number | null;
   bodyType: string | null;
   buyerArea: string;
+  /** Dealer quote lists only: the buyer's first name (null when the buyer has none on file). */
+  buyerFirstName?: string | null;
   dealerId: string;
   dealerName: string;
   dealerCity: string;
@@ -201,9 +217,20 @@ export interface Ticket {
   status: 'open' | 'in_progress' | 'on_hold' | 'resolved' | 'closed';
   priority: 'low' | 'medium' | 'high' | 'urgent';
   createdAt: string;
+  /** When the case last changed, which for a resolved ticket is when it was resolved unless someone has edited it since. */
+  updatedAt: string;
   description?: string;
   notes?: Array<{ at: string; author: string; body: string }>;
   rca?: string;
+  /** Screenshots or PDFs the requester attached. Downloaded through a short-lived link, never a stored URL. */
+  attachments?: TicketAttachment[];
+}
+
+export interface TicketAttachment {
+  id: string;
+  fileName: string;
+  contentType: string;
+  sizeBytes: number;
 }
 
 export interface SupportTicketCreate {
@@ -254,7 +281,6 @@ export interface BrandRef {
 }
 
 export interface SignupInput {
-  fullName: string;
   email: string;
   phone: string;
   password: string;
@@ -265,19 +291,23 @@ export interface SignupInput {
 }
 
 export interface BuyerSignupInput extends SignupInput {
+  firstName: string;
+  lastName: string;
   /** PDF of the buyer's driving licence; sent with the signup and stored privately. */
   drivingLicense: File;
 }
 
 export interface DealerSignupInput extends SignupInput {
+  fullName: string;
   dealershipName: string;
   branchName: string;
   dealerLicense: string;
-  website: string;
+  website?: string | null;
   supportedBrandIds: string[];
 }
 
 export interface SupportSignupInput extends SignupInput {
+  fullName: string;
   extraInformation?: string;
 }
 
@@ -326,6 +356,9 @@ export interface BuyerPreferences {
 
 export interface ProfileUpdateInput {
   fullName?: string;
+  /** Buyers edit these instead of fullName; the API rebuilds fullName from them. */
+  firstName?: string;
+  lastName?: string | null;
   phone?: string;
   address?: string;
   stateId?: string;
@@ -491,6 +524,16 @@ export interface AiTraceSpan {
   model_name: string | null;
   details: Record<string, unknown>;
   created_at: string;
+}
+
+/** Totals over every stored AI trace; the history list only holds the newest ones. */
+export interface AiTraceSummary {
+  total_traces: number;
+  test_runs: number;
+  input_tokens: number;
+  output_tokens: number;
+  average_duration_ms: number;
+  failed: number;
 }
 
 export interface AiTrace {

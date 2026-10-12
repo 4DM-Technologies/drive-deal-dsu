@@ -411,9 +411,10 @@ def test_signup_refresh_and_pending_account_flows() -> None:
             "terms_accepted": True,
             "terms_version": "2026-09-30",
         }
+        buyer_fields = {key: value for key, value in common.items() if key != "full_name"}
         signup = client.post(
             "/api/v1/auth/signup/buyer",
-            data={**common, "terms_accepted": "true"},
+            data={**buyer_fields, "first_name": "Fresh", "last_name": "Buyer", "terms_accepted": "true"},
             files={"driving_license": ("licence.png", PNG_BYTES, "image/png")},
         )
         assert signup.status_code == 201, signup.text

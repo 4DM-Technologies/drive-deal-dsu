@@ -5,7 +5,10 @@ import { useEffect, useState } from 'react';
 import type { ComponentType } from 'react';
 import { planDetailLine } from '@/helpers/plans';
 import { planLabel } from '@/helpers/subscription';
+import { ColorModeToggle } from '@/ui/reusables/ColorModeToggle/ColorModeToggle';
 import { SerraIcon } from '@/ui/reusables/Icons/SerraIcon';
+import { COLOR_MODE_ROLES, useColorMode } from '@/services/platform/colorMode';
+import './darkTheme.css';
 import { SerraWidget } from '@/ui/reusables/SerraWidget/SerraWidget';
 import { Brand } from '@/ui/reusables/Brand/Brand';
 import { ProfileMenu } from '@/ui/reusables/ProfileMenu/ProfileMenu';
@@ -61,6 +64,15 @@ export function AppShell() {
   const previewSearch = previewQuery(location.search);
   const previewPath = (path: string) => `${path}${previewSearch}`;
   const [supportOpen, setSupportOpen] = useState(false);
+  // Dark mode is the support workspace's: the real account decides, so read-only previews and the theme preview stay light.
+  const { mode: colorMode } = useColorMode();
+  const showColorMode = !!accountSession && COLOR_MODE_ROLES.includes(accountSession.role) && !isThemePreview;
+  const dark = showColorMode && colorMode === 'dark' && !workspaceView;
+  useEffect(() => {
+    if (!dark) return undefined;
+    document.documentElement.dataset.uiTheme = 'dark';
+    return () => { delete document.documentElement.dataset.uiTheme; };
+  }, [dark]);
   // Switching conversations (/chat/:quoteId) is not a page change: keep the same page instance so nothing remounts or re-animates.
   const pageKey = /^\/chat\/(?!requests$)[^/]+$/.test(location.pathname) ? '/chat' : location.pathname;
   useEffect(() => { window.scrollTo({ top: 0, left: 0 }); }, [pageKey]);
@@ -88,7 +100,7 @@ export function AppShell() {
             {nav.map(({ to, label, icon: Icon }) => <NavLink key={to} to={previewPath(to)} className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}><Icon size={16} />{label}</NavLink>)}
           </nav>
           <div className="topbar-actions">
-            {accountSession && ['support-admin', 'admin'].includes(accountSession.role) && !isThemePreview && <label className="workspace-switcher desktop-header-action"><Eye size={16} /><span className="sr-only">View workspace</span><select aria-label="View workspace" value={workspaceView ?? 'support'} onChange={(event) => navigate(event.target.value === 'support' ? '/support' : `/home?workspaceView=${event.target.value}`)}><option value="support">Support workspace</option><option value="buyer">Buyer · read only</option><option value="dealer">Dealer · read only</option></select></label>}
+            {showColorMode && <ColorModeToggle />}
             {(session.role === 'buyer' || session.role === 'dealer') && <button className="support-help-trigger desktop-header-action" onClick={() => setSupportOpen(true)} aria-label="Open help and support"><CircleQuestionMark size={18} /><span>Help</span></button>}
             <ProfileMenu session={session} previewSearch={previewSearch} showAccount={showAccount} signOutDisabled={isThemePreview} onSignOut={signOut} />
             <button className="button button-ghost mobile-menu" onClick={() => setSidebarOpen(!sidebarOpen)} aria-label="Open menu"><Menu /></button>
@@ -102,7 +114,7 @@ export function AppShell() {
             <motion.nav className="mobile-nav-drawer" style={{ width: 'min(340px,88vw)', height: '100%', padding: '1rem', background: 'var(--raised)', marginLeft: 'auto' }} initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }} transition={{ duration: .25 }} onClick={(event) => event.stopPropagation()}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}><Brand /><button className="button button-ghost" onClick={() => setSidebarOpen(false)}><X /></button></div>
               <div className="mobile-nav-links">{nav.map(({ to, label, icon: Icon }) => <NavLink key={to} to={previewPath(to)} onClick={() => setSidebarOpen(false)} className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}><Icon size={17} />{label}</NavLink>)}</div>
-              {accountSession && ['support-admin', 'admin'].includes(accountSession.role) && !isThemePreview && <label className="workspace-switcher mobile-workspace-switcher"><Eye size={16} /><select aria-label="View workspace" value={workspaceView ?? 'support'} onChange={(event) => { navigate(event.target.value === 'support' ? '/support' : `/home?workspaceView=${event.target.value}`); setSidebarOpen(false); }}><option value="support">Support workspace</option><option value="buyer">Buyer · read only</option><option value="dealer">Dealer · read only</option></select></label>}
+              {showColorMode && <ColorModeToggle variant="drawer" />}
               <div className="mobile-nav-account">
                 <button type="button" onClick={() => { navigate(previewPath('/profiles')); setSidebarOpen(false); }}><span className="avatar">{session.avatarInitials}</span><span><strong>{session.fullName}</strong><small>Profile</small></span></button>
                 {showAccount && <button type="button" onClick={() => { navigate('/account'); setSidebarOpen(false); }}><WalletCards size={18} /><span><strong>Account</strong><small>{subscription ? `${planLabel(subscription)} · ${planDetailLine(subscription)}` : 'Your plan and billing'}</small></span></button>}

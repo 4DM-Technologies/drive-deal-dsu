@@ -1,10 +1,11 @@
 from fastapi import APIRouter, Depends
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.database import get_session
 from src.middleware.auth import get_current_profile, require_roles
+from src.models.auth import clean_name_part
 from src.repositories.schema import BuyerPreference, Profile, User
 from src.services.billing_service import BillingService
 from src.utils.exceptions import AppError, error_codes
@@ -17,11 +18,26 @@ router = APIRouter(prefix="/profiles", tags=["Profiles"])
 class ProfileUpdate(BaseModel):
     model_config = ConfigDict(extra="forbid")
     full_name: str | None = None
+    first_name: str | None = None
+    last_name: str | None = None
     phone: str | None = None
     address: str | None = None
     state_id: str | None = None
     website: str | None = None
     branch_name: str | None = None
+
+    @field_validator("first_name")
+    @classmethod
+    def validate_first_name(cls, value: str | None) -> str | None:
+        return None if value is None else clean_name_part(value, "First name")
+
+    @field_validator("last_name")
+    @classmethod
+    def validate_last_name(cls, value: str | None) -> str | None:
+        # A last name may be cleared (buyers from before the split have none), so blank becomes None.
+        if value is None or not value.strip():
+            return None
+        return clean_name_part(value, "Last name")
 
 
 class PreferenceUpdate(BaseModel):
@@ -61,7 +77,15 @@ async def update_me(
     profile: Profile = Depends(get_current_profile),
     session: AsyncSession = Depends(get_session),
 ) -> dict:
-    for field, value in payload.model_dump(exclude_unset=True).items():
+    changes = payload.model_dump(exclude_unset=True)
+    if "first_name" in changes or "last_name" in changes:
+        # The name parts and the display name always change together, so full_name never drifts from them.
+        first_name = changes["first_name"] if "first_name" in changes else profile.first_name
+        last_name = changes["last_name"] if "last_name" in changes else profile.last_name
+        if not first_name:
+            raise AppError(error_codes.VALIDATION_ERROR, "First name is required.", 422)
+        changes.update(first_name=first_name, last_name=last_name, full_name=f"{first_name} {last_name or ''}".strip())
+    for field, value in changes.items():
         setattr(profile, field, value)
     profile.updated_by = profile.id
     await session.commit()

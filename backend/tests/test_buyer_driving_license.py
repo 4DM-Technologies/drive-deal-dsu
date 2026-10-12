@@ -28,7 +28,8 @@ def expected_key(profile_id: str, extension: str) -> str:
 
 def signup_fields(email: str, overrides: dict[str, str] | None = None) -> dict[str, str]:
     return {
-        "full_name": "Licence Buyer",
+        "first_name": "Licence",
+        "last_name": "Buyer",
         "email": email,
         "phone": "+12145550999",
         "password": PASSWORD,

@@ -1,4 +1,4 @@
-import type { GuidedActionInput, GuidedAnswers, GuidedStepResult, PaymentInput, PaymentReceipt, ActiveTheme, AdministrationAuditEvent, AdminCatalog, AdminConfigBundle, AdminConfigType, AdminPromptBundle, AdminRevision, AiThread, AiTrace, BrandRef, BuyerPreferences, BuyerRequest, BuyerSignupInput, CarCreateInput, ChatMessage, DealDocument, DealerSignupInput, InventoryCar, ProfileUpdateInput, PromptDefinition, Quote, QuoteCreateInput, RequestCreateInput, Session, StateRef, SupportMember, SupportSignupInput, SupportTicketCreate, Ticket, Verification, WorkflowDefinition, WorkflowPreview, WorkflowPreviewStreamEvent } from '@/types/domain';
+import type { QuotePosition, GuidedActionInput, GuidedAnswers, GuidedStepResult, PaymentInput, PaymentReceipt, ActiveTheme, AdministrationAuditEvent, AdminCatalog, AdminConfigBundle, AdminConfigType, AdminPromptBundle, AdminRevision, AiThread, AiTrace, AiTraceSummary, BrandRef, BuyerPreferences, BuyerRequest, BuyerSignupInput, CarCreateInput, ChatMessage, DealDocument, DealerSignupInput, InventoryCar, ProfileUpdateInput, PromptDefinition, Quote, QuoteCreateInput, RequestCreateInput, Session, StateRef, SupportMember, SupportSignupInput, SupportTicketCreate, Ticket, Verification, WorkflowDefinition, WorkflowPreview, WorkflowPreviewStreamEvent } from '@/types/domain';
 
 export type AiStreamEvent =
   | { type: 'status'; phase: 'classifying' | 'searching' | 'crawling' | 'composing'; label: string }
@@ -44,6 +44,10 @@ export interface DriveDealClient {
     decline(id: string): Promise<Quote>;
     withdraw(id: string): Promise<Quote>;
     dealerContact(id: string): Promise<{ name: string; email: string; phone: string | null }>;
+    /** Dealer side of the same contact gate: the buyer's first name and phone. */
+    /** The dealer's rank among the offers still in play on the quote's request, with the price gaps. */
+    position(id: string): Promise<QuotePosition>;
+    buyerContact(id: string): Promise<{ firstName: string | null; phone: string | null }>;
   };
   payments: { create(input: PaymentInput): Promise<PaymentReceipt> };
   documents: { list(quoteId: string): Promise<DealDocument[]>; upload(quoteId: string, file: File, type: 'vehicle_image' | 'quote_document'): Promise<DealDocument>; replace(quoteId: string, file: File, previous: DealDocument | null): Promise<DealDocument> };
@@ -73,6 +77,10 @@ export interface DriveDealClient {
   support: {
     listTickets(): Promise<Ticket[]>;
     createTicket(input: SupportTicketCreate): Promise<Ticket>;
+    /** Screenshots or PDFs for the caller's own ticket: up to 3, JPG/PNG/WebP/PDF, 10 MB each. */
+    uploadAttachments(ticketId: string, files: File[]): Promise<Ticket>;
+    /** A short-lived link that saves the file, for support staff or the ticket's owner. */
+    attachmentDownload(ticketId: string, attachmentId: string): Promise<{ url: string; fileName: string }>;
     updateTicket(id: string, status?: Ticket['status'], note?: string, rca?: string): Promise<Ticket>;
     queue(): Promise<Ticket[]>;
     members(): Promise<SupportMember[]>;
@@ -110,6 +118,7 @@ export interface DriveDealClient {
     prompts(): Promise<AdminPromptBundle[]>;
     audit(): Promise<AdministrationAuditEvent[]>;
     traces(): Promise<AiTrace[]>;
+    traceSummary(): Promise<AiTraceSummary>;
     trace(id: string): Promise<AiTrace>;
     exportConfiguration(format: 'yaml' | 'json'): Promise<{ filename: string; size: number }>;
     preview(message: string, options?: { threadId?: string; revisionId?: string; workflow?: WorkflowDefinition; promptKey?: string; prompt?: PromptDefinition }): Promise<WorkflowPreview>;

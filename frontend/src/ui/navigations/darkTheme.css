@@ -1,0 +1,32 @@
+/* Dark appearance for the support workspace (support, support administrators and admins).
+   AppShell sets data-ui-theme="dark" on <html> while the mode is on and the signed-in account is support staff.
+
+   The palette is declared on <body>, not <html>: the brand theme writes its colours as inline variables on <html>,
+   and an inline declaration there would beat any stylesheet rule on the same element. */
+html[data-ui-theme='dark'] { color-scheme: dark; background: #11161e; }
+html[data-ui-theme='dark'] body {
+  --bg: #11161e; --surface: #1b222c; --raised: #202834; --ink: #edf2f8; --muted: #a9b4c2; --subtle: #8996a6;
+  --border: #303b49; --border-strong: #465466; --navigation-bg: #161c25;
+  --accent: #76a9ff; --accent-rgb: 93, 151, 245; --accent-deep: #a9c9ff; --accent-soft: #202f46;
+  --success: #79d49a; --success-soft: #1b3528; --warning: #f2bc68; --warning-soft: #3a2d1b; --danger: #ff9992; --danger-soft: #3d2527;
+  --focus-ring: rgba(118, 169, 255, .42);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, .35), 0 8px 24px rgba(0, 0, 0, .22);
+  --shadow-lg: 0 24px 80px rgba(0, 0, 0, .5);
+}
+
+/* Primary buttons keep their strong blue with white text; the lighter dark-mode accent is for text and outlines. */
+html[data-ui-theme='dark'] .button-primary { --accent: #1456b8; --accent-deep: #0d438f; }
+html[data-ui-theme='dark'] ::selection { background: #2f4a73; color: #edf2f8; }
+
+/* Header */
+html[data-ui-theme='dark'] .topbar { background: rgba(17, 22, 30, .88); border-bottom-color: var(--border); }
+html[data-ui-theme='dark'] .support-help-trigger { background: var(--raised); color: var(--ink); }
+html[data-ui-theme='dark'] .support-help-trigger:hover { background: var(--surface); border-color: var(--border-strong); color: var(--accent); box-shadow: 0 8px 24px rgba(0, 0, 0, .35); }
+
+/* Controls and surfaces that were written with fixed light colours */
+html[data-ui-theme='dark'] .button-secondary:hover { background: var(--surface); }
+html[data-ui-theme='dark'] .dropdown-trigger:hover, html[data-ui-theme='dark'] .dropdown-trigger.open { background: var(--surface); }
+html[data-ui-theme='dark'] .dropdown-menu { background: var(--raised); box-shadow: 0 16px 40px rgba(0, 0, 0, .5); }
+html[data-ui-theme='dark'] .dropdown-menu li.active { background: var(--surface); }
+html[data-ui-theme='dark'] .data-table tbody tr:hover { background: var(--surface); }
+html[data-ui-theme='dark'] .decision-tabs button { background: var(--raised); }

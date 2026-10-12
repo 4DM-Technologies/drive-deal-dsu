@@ -23,6 +23,7 @@ from src.repositories.schema.tables import (
     Profile,
     State,
     SupportTicket,
+    SupportTicketAttachment,
     SupportVerification,
     User,
 )
@@ -52,6 +53,7 @@ __all__ = [
     "Profile",
     "State",
     "SupportTicket",
+    "SupportTicketAttachment",
     "SupportVerification",
     "User",
 ]
