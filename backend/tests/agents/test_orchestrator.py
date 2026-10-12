@@ -319,15 +319,15 @@ async def test_web_direct_retries_the_open_web_when_every_scoped_candidate_fails
     assert {"title": "Model X", "url": "https://www.caranddriver.com/tesla/model-x"} in result["sources"]
 
 
-async def test_persist_cars_schedules_a_background_write_without_blocking_compose(web_on) -> None:
+@pytest.mark.parametrize("compare", [False, True])
+async def test_persist_cars_schedules_a_background_write_without_blocking_compose(web_on, compare: bool) -> None:
     """The streamed answer must not wait on the DB write - persist_cars schedules it as a fire-and-forget
     task (see _fire_and_forget/_persist_cars_background in graph.py) instead of awaiting it inline.
 
-    Only the compare-agent graph (`compare=True`) still routes web_search_agent through persist_cars; the
-    default buyer-advisor graph now goes straight to compose (see `web_search_target` in `main_agent`),
-    since the local KB is no longer written to outside of compare. `compare=True` here reaches the same
-    persist_cars/_persist_cars_background code this test is about, which is otherwise unexercised."""
-    graph = main_agent(session=AsyncMock(), compare=True)
+    Both the default buyer-advisor and compare-agent graphs follow the configured web_search_agent route
+    through persist_cars. The persistence node itself safely skips image and direct-answer results, while
+    car research persistence runs in the background so composing can proceed immediately."""
+    graph = main_agent(session=AsyncMock(), compare=compare)
     generate = AsyncMock(return_value=_FakeLlmResult("some answer"))
     specs = CarSpecs(source_url="https://www.tesla.com/", make="Tesla", model="Model 3", year=2026, price_usd=42990.0)
     get_urls = AsyncMock(

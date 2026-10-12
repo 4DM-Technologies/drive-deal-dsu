@@ -1059,7 +1059,9 @@ def main_agent(
     graph.add_conditional_edges("classifier", route_from_classifier, allowed_targets)
     graph.add_conditional_edges("orchestrator", route_from_orchestrator, allowed_targets)
     graph.add_conditional_edges("kb_agent", after_kb, allowed_targets)
-    web_search_target = configured_target("web_search_agent", "always", "persist_cars") if compare else "compose"
+    # Keep the executable route aligned with the published workflow shown in admin.
+    # persist_cars is also the safe pass-through for media and direct web answers.
+    web_search_target = configured_target("web_search_agent", "always", "persist_cars")
     graph.add_edge("web_search_agent", allowed_targets[web_search_target])
     graph.add_edge("persist_cars", allowed_targets[configured_target("persist_cars", "always", "compose")])
     graph.add_edge("compose", allowed_targets[configured_target("compose", "always", "end")])

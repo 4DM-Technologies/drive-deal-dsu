@@ -1,5 +1,11 @@
 .admin-page { min-height: calc(100dvh - 72px); padding-bottom: 5rem; }
 .admin-hero { display: flex; align-items: flex-end; justify-content: space-between; gap: 2rem; padding-top: clamp(2rem, 4vw, 3.4rem); padding-bottom: 1.75rem; }
+.admin-hero-tools { display: flex; align-items: center; gap: .65rem; }
+.admin-theme-toggle { min-height: 42px; display: inline-flex; align-items: center; gap: .5rem; padding: 0 .8rem; border: 1px solid var(--border); border-radius: 11px; background: var(--raised); color: var(--ink); font: inherit; font-size: .78rem; font-weight: 700; cursor: pointer; transition: border-color .16s ease, background .16s ease, transform .16s ease; }
+.admin-theme-toggle:hover { border-color: var(--border-strong); background: var(--surface); }
+.admin-theme-toggle:active { transform: translateY(1px); }
+.admin-theme-toggle:focus-visible { outline: 3px solid var(--focus-ring); outline-offset: 2px; }
+.admin-theme-toggle-icon { display: grid; place-items: center; color: var(--accent); }
 .admin-hero h1 { margin: .55rem 0 .65rem; font-size: clamp(2rem, 4vw, 3.35rem); line-height: 1.03; }
 .admin-hero > div:first-child > p { max-width: 760px; margin: 0; color: var(--muted); line-height: 1.62; }
 .admin-kicker { display: inline-flex; align-items: center; gap: .42rem; color: var(--accent); font-size: .75rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
@@ -10,6 +16,13 @@
 .admin-runtime-status small { margin-top: .12rem; color: var(--muted); font-size: .72rem; }
 
 .admin-tabs-wrap { position: sticky; top: 72px; z-index: 28; border-block: 1px solid var(--border); background: rgba(250, 249, 246, .92); backdrop-filter: blur(16px); }
+.admin-page[data-admin-theme='dark'] { color-scheme: dark; --bg: #11161e; --surface: #1b222c; --raised: #202834; --ink: #edf2f8; --muted: #a9b4c2; --subtle: #8996a6; --border: #303b49; --border-strong: #465466; --accent: #76a9ff; --accent-rgb: 93, 151, 245; --accent-deep: #a9c9ff; --accent-soft: #202f46; --success: #79d49a; --success-soft: #1b3528; --warning: #f2bc68; --warning-soft: #3a2d1b; --danger: #ff9992; --danger-soft: #3d2527; --focus-ring: rgba(118, 169, 255, .42); background: radial-gradient(circle at 8% 2%, rgba(var(--accent-rgb), .09), transparent 24rem), var(--bg); }
+.admin-page[data-admin-theme='dark'] .admin-tabs-wrap { background: rgba(17, 22, 30, .92); }
+.admin-page[data-admin-theme='dark'] .workflow-canvas { background: #151c25; }
+.admin-page[data-admin-theme='dark'] .admin-notice.success { border-color: #315b43; }
+.admin-page[data-admin-theme='dark'] .admin-notice.error { border-color: #694143; }
+.admin-page[data-admin-theme='dark'] .admin-flow-node { color: var(--ink); }
+.admin-page[data-admin-theme='dark'] .button-primary { --accent: #1456b8; --accent-deep: #0d438f; }
 .admin-tabs { display: flex; gap: .25rem; overflow-x: auto; scrollbar-width: none; }
 .admin-tabs::-webkit-scrollbar { display: none; }
 .admin-tabs button { flex: none; min-height: 52px; padding: 0 .82rem; border: 0; border-bottom: 2px solid transparent; background: transparent; color: var(--muted); display: inline-flex; align-items: center; gap: .45rem; font-size: .79rem; font-weight: 700; }
@@ -414,7 +427,8 @@ button.trace-row.selected { background: var(--accent-soft); box-shadow: inset 3p
 
 @media (max-width: 860px) {
   .admin-hero { align-items: flex-start; flex-direction: column; }
-  .admin-runtime-status { width: 100%; }
+  .admin-hero-tools { width: 100%; flex-wrap: wrap; }
+  .admin-runtime-status { flex: 1 1 240px; }
   .admin-section-head { align-items: flex-start; flex-direction: column; }
   .admin-actions { width: 100%; justify-content: flex-start; }
   .admin-overview-grid, .theme-layout, .version-audit-layout { grid-template-columns: 1fr; }
@@ -437,6 +451,8 @@ button.trace-row.selected { background: var(--accent-soft); box-shadow: inset 3p
 
 @media (max-width: 640px) {
   .admin-hero { padding-top: 1.35rem; }
+  .admin-hero-tools { align-items: stretch; }
+  .admin-theme-toggle { flex: 1 1 100%; justify-content: center; }
   .admin-tabs-wrap { top: 64px; }
   .admin-tabs { padding-inline: .5rem; }
   .admin-tabs button { min-height: 48px; padding-inline: .65rem; }
