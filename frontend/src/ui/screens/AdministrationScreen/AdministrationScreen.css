@@ -1,4 +1,4 @@
-.admin-page { min-height: calc(100dvh - 72px); padding-bottom: 5rem; }
+.admin-page { min-height: calc(100dvh - 72px); padding-bottom: 5rem; color: var(--ink); }
 .admin-hero { display: flex; align-items: flex-end; justify-content: space-between; gap: 2rem; padding-top: clamp(2rem, 4vw, 3.4rem); padding-bottom: 1.75rem; }
 .admin-hero-tools { display: flex; align-items: center; gap: .65rem; }
 .admin-theme-toggle { min-height: 42px; display: inline-flex; align-items: center; gap: .5rem; padding: 0 .8rem; border: 1px solid var(--border); border-radius: 11px; background: var(--raised); color: var(--ink); font: inherit; font-size: .78rem; font-weight: 700; cursor: pointer; transition: border-color .16s ease, background .16s ease, transform .16s ease; }
@@ -19,10 +19,27 @@
 .admin-page[data-admin-theme='dark'] { color-scheme: dark; --bg: #11161e; --surface: #1b222c; --raised: #202834; --ink: #edf2f8; --muted: #a9b4c2; --subtle: #8996a6; --border: #303b49; --border-strong: #465466; --accent: #76a9ff; --accent-rgb: 93, 151, 245; --accent-deep: #a9c9ff; --accent-soft: #202f46; --success: #79d49a; --success-soft: #1b3528; --warning: #f2bc68; --warning-soft: #3a2d1b; --danger: #ff9992; --danger-soft: #3d2527; --focus-ring: rgba(118, 169, 255, .42); background: radial-gradient(circle at 8% 2%, rgba(var(--accent-rgb), .09), transparent 24rem), var(--bg); }
 .admin-page[data-admin-theme='dark'] .admin-tabs-wrap { background: rgba(17, 22, 30, .92); }
 .admin-page[data-admin-theme='dark'] .workflow-canvas { background: #151c25; }
+.admin-page[data-admin-theme='dark'] .workflow-canvas .react-flow__minimap { background: #1b222c; }
+.admin-page[data-admin-theme='dark'] .workflow-canvas .react-flow__minimap-mask { fill: rgba(17, 22, 30, .72); }
+.admin-page[data-admin-theme='dark'] .workflow-canvas .react-flow__minimap-node { fill: #52739d; stroke: #91b7e8; }
 .admin-page[data-admin-theme='dark'] .admin-notice.success { border-color: #315b43; }
 .admin-page[data-admin-theme='dark'] .admin-notice.error { border-color: #694143; }
 .admin-page[data-admin-theme='dark'] .admin-flow-node { color: var(--ink); }
 .admin-page[data-admin-theme='dark'] .button-primary { --accent: #1456b8; --accent-deep: #0d438f; }
+.workflow-overview { display: grid; gap: .9rem; padding: 1.15rem; border: 1px solid var(--border); border-radius: 18px; background: linear-gradient(135deg, var(--raised), var(--surface)); }
+.workflow-overview > header h2 { margin: .45rem 0 .3rem; font-size: 1.28rem; letter-spacing: -.025em; }
+.workflow-overview > header p { max-width: 760px; margin: 0; color: var(--muted); font-size: .79rem; line-height: 1.55; }
+.workflow-overview-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .65rem; }
+.workflow-route-card { min-width: 0; padding: .9rem; border: 1px solid var(--border); border-radius: 13px; background: var(--raised); }
+.workflow-route-heading { display: flex; align-items: center; gap: .65rem; }
+.workflow-route-icon { flex: none; width: 34px; height: 34px; display: grid; place-items: center; border-radius: 10px; background: var(--accent-soft); color: var(--accent); }
+.workflow-route-heading h3 { margin: 0 0 .2rem; font-size: .84rem; letter-spacing: -.01em; }
+.workflow-route-badge { display: inline-flex; padding: .18rem .42rem; border-radius: 999px; background: var(--surface); color: var(--muted); font-size: .61rem; font-weight: 750; }
+.workflow-route-card ol { display: flex; align-items: center; flex-wrap: wrap; gap: .3rem; margin: .75rem 0 .55rem; padding: 0; list-style: none; }
+.workflow-route-card li { display: inline-flex; align-items: center; gap: .3rem; padding: .28rem .46rem; border: 1px solid var(--border); border-radius: 7px; background: var(--bg); color: var(--ink); font-size: .64rem; font-weight: 700; line-height: 1.25; }
+.workflow-route-card li:not(:last-child)::after { content: '›'; margin-left: .12rem; color: var(--accent); font-size: .9rem; }
+.workflow-route-card > p { margin: 0; color: var(--muted); font-size: .68rem; line-height: 1.45; }
+.admin-page[data-admin-theme='dark'] .workflow-overview { background: linear-gradient(135deg, #1a222d, #171e27); }
 .admin-tabs { display: flex; gap: .25rem; overflow-x: auto; scrollbar-width: none; }
 .admin-tabs::-webkit-scrollbar { display: none; }
 .admin-tabs button { flex: none; min-height: 52px; padding: 0 .82rem; border: 0; border-bottom: 2px solid transparent; background: transparent; color: var(--muted); display: inline-flex; align-items: center; gap: .45rem; font-size: .79rem; font-weight: 700; }
@@ -86,6 +103,7 @@
 .workflow-canvas .react-flow__controls { border: 1px solid var(--border); box-shadow: var(--shadow-sm); overflow: hidden; }
 .workflow-canvas .react-flow__controls button { border-bottom-color: var(--border); background: var(--raised); }
 .workflow-canvas .react-flow__minimap { border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+.workflow-canvas .react-flow__minimap { background-color: var(--raised); }
 .admin-flow-node { width: 154px !important; padding: .72rem !important; border: 1px solid var(--border-strong) !important; border-radius: 12px !important; background: var(--raised) !important; color: var(--ink) !important; box-shadow: 0 7px 22px rgba(31, 30, 27, .07) !important; font-size: .75rem !important; font-weight: 750 !important; text-align: left !important; transition: border-color .18s ease, background-color .18s ease, box-shadow .18s ease !important; }
 .admin-flow-node.selected { border-color: var(--accent) !important; box-shadow: 0 0 0 3px rgba(var(--accent-rgb), .12) !important; }
 .admin-flow-node.executed { border-color: var(--accent) !important; background: var(--accent-soft) !important; }
@@ -451,6 +469,8 @@ button.trace-row.selected { background: var(--accent-soft); box-shadow: inset 3p
 
 @media (max-width: 640px) {
   .admin-hero { padding-top: 1.35rem; }
+  .workflow-overview { padding: .85rem; }
+  .workflow-overview-grid { grid-template-columns: 1fr; }
   .admin-hero-tools { align-items: stretch; }
   .admin-theme-toggle { flex: 1 1 100%; justify-content: center; }
   .admin-tabs-wrap { top: 64px; }
