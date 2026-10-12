@@ -847,7 +847,7 @@ async def get_urls(
         if cached:
             _WEB_RESEARCH_CACHE.pop(cache_key, None)
         results: list[dict[str, str]] = []
-        if settings.google_api_key and settings.google_cse_id:
+        if getattr(settings, "google_api_key", None) and getattr(settings, "google_cse_id", None):
             try:
                 results = await _google_cse_get_urls(
                     query,

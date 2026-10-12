@@ -24,7 +24,14 @@ def _graph(result: dict, started: list[str], name: str, delay: float = 0.0):
 
 def _payload(message: str) -> SimpleNamespace:
     return SimpleNamespace(
-        thread_id="t1", agent="sera", message=message, request_ids=[], quote_ids=[], request_context=None
+        thread_id="t1",
+        agent="sera",
+        message=message,
+        request_ids=[],
+        quote_ids=[],
+        request_context=None,
+        preference_action=None,
+        chat_preferences=None,
     )
 
 
@@ -49,6 +56,7 @@ async def _drain(message: str, main_result: dict, main_delay: float = 0.0):
         ),
         patch.object(AiService, "_finish_trace", new=AsyncMock()),
         patch.object(AiService, "_latest_memory", new=AsyncMock(return_value={})),
+        patch.object(AiService, "_buyer_preferences", new=AsyncMock(return_value={})),
         patch.object(AiService, "_save_checkpoint", new=AsyncMock()),
     ):
         service = AiService(session=session)
@@ -132,6 +140,8 @@ async def test_compare_chat_passes_selected_offers_to_the_agent_and_card() -> No
         request_ids=[],
         quote_ids=["q1", "q2"],
         request_context=None,
+        preference_action=None,
+        chat_preferences=None,
     )
     requirements_builder = MagicMock()
     session = AsyncMock()

@@ -280,7 +280,7 @@ async def test_get_urls_records_a_trace_step_and_survives_a_search_failure() -> 
     with patch("src.agents.tools.web_search.get_settings", return_value=settings):
         results = await get_urls("Kia Seltos", llm=llm, trace=trace)
         llm.generate.side_effect = RuntimeError("search backend down")
-        assert await get_urls("Kia Seltos", llm=llm) == []
+        assert await get_urls("Kia Sportage", llm=llm) == []
 
     assert trace[0]["stage"] == "hosted_search"
     assert trace[0]["candidates"] == results

@@ -42,7 +42,6 @@ async def test_orchestrator_raises_on_unparsable_plan() -> None:
     graph = main_agent(session=AsyncMock())
     with (
         patch("src.agents.llm.LlmClient.generate", new=AsyncMock(return_value=_FakeLlmResult("not json at all"))),
-        patch("src.agents.serra.graph._fetch_preferences", new=AsyncMock(return_value={})),
     ):
         with pytest.raises(OrchestratorPlanError):
             await graph.ainvoke({"user_id": "u1", "thread_id": "t1", "message": "top 5 SUVs under $40k"})
@@ -54,7 +53,6 @@ async def test_orchestrator_raises_on_wrong_mode_value() -> None:
         patch(
             "src.agents.llm.LlmClient.generate", new=AsyncMock(return_value=_FakeLlmResult('{"mode": "do_whatever"}'))
         ),
-        patch("src.agents.serra.graph._fetch_preferences", new=AsyncMock(return_value={})),
     ):
         with pytest.raises(OrchestratorPlanError):
             await graph.ainvoke({"user_id": "u1", "thread_id": "t1", "message": "top 5 SUVs under $40k"})
@@ -70,7 +68,6 @@ async def test_orchestrator_accepts_a_valid_plan(catalog) -> None:
     ]
     with (
         patch("src.agents.llm.LlmClient.generate", new=AsyncMock(side_effect=responses)),
-        patch("src.agents.serra.graph._fetch_preferences", new=AsyncMock(return_value={"brand": "Ford"})),
     ):
         result = await graph.ainvoke({"user_id": "u1", "thread_id": "t1", "message": "what cars do you have"})
     assert result["mode"] == "kb_only"
@@ -150,7 +147,6 @@ async def test_vehicle_questions_still_run_the_full_pipeline(catalog) -> None:
     )
     with (
         patch("src.agents.llm.LlmClient.generate", new=generate),
-        patch("src.agents.serra.graph._fetch_preferences", new=AsyncMock(return_value={"brand": "Ford"})),
     ):
         result = await graph.ainvoke({"user_id": "u1", "thread_id": "t1", "message": "what SUVs do you have"})
 
@@ -177,7 +173,6 @@ async def test_kb_miss_on_a_named_vehicle_escalates_to_a_live_web_lookup(catalog
     )
     with (
         patch("src.agents.llm.LlmClient.generate", new=AsyncMock(side_effect=responses)),
-        patch("src.agents.serra.graph._fetch_preferences", new=AsyncMock(return_value={"brand": "BMW"})),
         patch("src.agents.serra.graph.get_urls", new=get_urls),
         patch("src.agents.serra.graph.process_url", new=AsyncMock(return_value=specs)),
         patch("src.agents.serra.graph.kb_insert", new=AsyncMock()),
@@ -202,7 +197,6 @@ async def test_kb_miss_stays_offline_when_web_search_is_off(catalog) -> None:
     get_urls = AsyncMock()
     with (
         patch("src.agents.llm.LlmClient.generate", new=AsyncMock(side_effect=responses)),
-        patch("src.agents.serra.graph._fetch_preferences", new=AsyncMock(return_value={})),
         patch("src.agents.serra.graph.get_urls", new=get_urls),
     ):
         result = await graph.ainvoke({"user_id": "u1", "thread_id": "t1", "message": "i want bmw i7"})
@@ -225,7 +219,6 @@ async def test_kb_miss_does_not_escalate_when_the_catalog_has_the_model(catalog,
     get_urls = AsyncMock()
     with (
         patch("src.agents.llm.LlmClient.generate", new=AsyncMock(side_effect=responses)),
-        patch("src.agents.serra.graph._fetch_preferences", new=AsyncMock(return_value={"brand": "BMW"})),
         patch("src.agents.serra.graph.get_urls", new=get_urls),
     ):
         result = await graph.ainvoke({"user_id": "u1", "thread_id": "t1", "message": "i need bmw m3 new 2026"})
@@ -380,7 +373,6 @@ async def test_natural_vehicle_comparison_uses_the_advisor_prompt(catalog) -> No
     )
     with (
         patch("src.agents.llm.LlmClient.generate", new=generate),
-        patch("src.agents.serra.graph._fetch_preferences", new=AsyncMock(return_value={})),
     ):
         result = await graph.ainvoke({"user_id": "u1", "thread_id": "t1", "message": "compare BMW and Audi cars"})
 
@@ -402,7 +394,6 @@ async def test_general_chat_gets_an_empty_tool_plan(catalog) -> None:
     ]
     with (
         patch("src.agents.llm.LlmClient.generate", new=AsyncMock(side_effect=responses)),
-        patch("src.agents.serra.graph._fetch_preferences", new=AsyncMock(return_value={"brand": "Ford"})),
     ):
         result = await graph.ainvoke({"user_id": "u1", "thread_id": "t1", "message": "let me think about it"})
 
