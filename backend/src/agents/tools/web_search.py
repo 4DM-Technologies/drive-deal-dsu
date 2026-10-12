@@ -276,7 +276,9 @@ async def search_vehicle_images(
     settings = get_settings()
     if settings.google_api_key and settings.google_cse_id:
         try:
-            cse_items = await _google_cse_items(f'"{query}" car photo', limit=min(max(limit * 3, 4), 8), image_search=True)
+            cse_items = await _google_cse_items(
+                f'"{query}" car photo', limit=min(max(limit * 3, 4), 8), image_search=True
+            )
             exact_images: list[dict[str, str]] = []
             expected = set(query_terms)
             for item in cse_items:
@@ -749,16 +751,16 @@ async def _google_cse_get_urls(
                     else "I found matching photos for:\n\n" + "\n".join(f"- **{name}**" for name in found_names)
                 )
                 if missing_names:
-                    hosted_answer += f"\n\nI’m still missing photos for {', '.join(missing_names)}. Want me to try those again?"
+                    hosted_answer += (
+                        f"\n\nI’m still missing photos for {', '.join(missing_names)}. Want me to try those again?"
+                    )
             else:
                 hosted_answer = (
                     f"I couldn’t find reliable photos for **{', '.join(image_names)}** just yet, "
                     "so I haven’t attached unrelated cars."
                 )
         sources.extend(
-            {"url": item["source_url"], "title": item["source_name"]}
-            for item in media
-            if item["source_url"]
+            {"url": item["source_url"], "title": item["source_name"]} for item in media if item["source_url"]
         )
 
     unique_sources = list({item["url"]: item for item in sources}.values())[:limit]
@@ -840,7 +842,9 @@ async def get_urls(
         # ask for the same shortlist, and rerunning hosted search adds avoidable latency
         # and provider input usage. Keep image and text result variants separate.
         image_key = ",".join(name.casefold() for name in image_queries or [])
-        cache_key = f"{market}:{'images' if include_images else 'text'}:{int(image_only)}:{image_key}:{normalized_query}"
+        cache_key = (
+            f"{market}:{'images' if include_images else 'text'}:{int(image_only)}:{image_key}:{normalized_query}"
+        )
         cached = _WEB_RESEARCH_CACHE.get(cache_key)
         if cached and cached[0] > monotonic():
             return [dict(item) for item in cached[1][:num_results]]

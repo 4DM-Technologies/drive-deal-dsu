@@ -87,9 +87,11 @@ def _compact_conversation_context(context: list[dict[str, Any]], *, max_chars: i
         media = item.get("media")
         if isinstance(media, list):
             item["media"] = [
-                {key: str(value)[:500] for key, value in image.items() if key in {
-                    "image_url", "source_url", "source_name", "vehicle_name", "alt", "thumbnail_url"
-                }}
+                {
+                    key: str(value)[:500]
+                    for key, value in image.items()
+                    if key in {"image_url", "source_url", "source_name", "vehicle_name", "alt", "thumbnail_url"}
+                }
                 for image in media[:8]
                 if isinstance(image, dict)
             ]
@@ -99,7 +101,7 @@ def _compact_conversation_context(context: list[dict[str, Any]], *, max_chars: i
             if not compacted:
                 for key in ("body",):
                     if isinstance(item.get(key), str):
-                        item[key] = item[key][-max(200, max_chars - used - 100):]
+                        item[key] = item[key][-max(200, max_chars - used - 100) :]
                 size = len(str(item))
             if used + size > max_chars:
                 continue
@@ -282,14 +284,8 @@ class AiService:
         if request_context:
             conversation_context.append({"request_context": request_context})
         published_request_id = (
-            str(request_context.get("publishedRequestId") or "").strip()
-            if isinstance(request_context, dict)
-            else ""
-        ) or str(
-            memory.get("published_request_id")
-            or (memory.get("published_request") or {}).get("id")
-            or ""
-        ).strip()
+            str(request_context.get("publishedRequestId") or "").strip() if isinstance(request_context, dict) else ""
+        ) or str(memory.get("published_request_id") or (memory.get("published_request") or {}).get("id") or "").strip()
         if published_request_id:
             live_request = await self._live_request_context(published_request_id, buyer.id)
             if live_request:

@@ -1085,13 +1085,16 @@ def main_agent(
                                 state["user_id"],
                             )
                     if is_image_followup and prior_names:
-                        found_names = list(dict.fromkeys(item["vehicle_name"] for item in media if item.get("vehicle_name")))
+                        found_names = list(
+                            dict.fromkeys(item["vehicle_name"] for item in media if item.get("vehicle_name"))
+                        )
                         missing_names = [name for name in target_names if name not in found_names]
                         if found_names:
                             readable_answer = (
                                 f"I found a matching photo for **{found_names[0]}**."
                                 if len(found_names) == 1
-                                else "I found matching photos for:\n\n" + "\n".join(f"- **{name}**" for name in found_names)
+                                else "I found matching photos for:\n\n"
+                                + "\n".join(f"- **{name}**" for name in found_names)
                             )
                         else:
                             readable_answer = (
