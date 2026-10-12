@@ -3,9 +3,9 @@ import type { GuidedActionInput, GuidedAnswers, GuidedStepResult, PaymentInput, 
 export type AiStreamEvent =
   | { type: 'status'; phase: 'classifying' | 'searching' | 'crawling' | 'composing'; label: string }
   | { type: 'token'; text: string }
-  | { type: 'card'; kind: 'car' | 'compare' | 'requestPreview' | 'question'; payload: unknown }
+  | { type: 'card'; kind: 'car' | 'compare' | 'requestPreview' | 'question' | 'preference'; payload: unknown }
   | { type: 'sources'; items: Array<{ url: string; title: string }> }
-  | { type: 'media'; items: Array<{ image_url: string; thumbnail_url?: string; source_url: string; source_name?: string; alt?: string }> }
+  | { type: 'media'; items: Array<{ image_url: string; thumbnail_url?: string; source_url: string; source_name?: string; vehicle_name?: string; alt?: string }> }
   | { type: 'done'; threadId: string; messagesUsed: number; expandedUi: boolean }
   | { type: 'error'; message: string };
 
@@ -89,7 +89,7 @@ export interface DriveDealClient {
     taxRate(stateCode: string): Promise<{ stateCode: string; rate: string }>;
   };
   ai: {
-    chat(input: { message: string; threadId?: string; agent?: 'sera-agent' | 'compare-agent'; requestIds?: string[]; quoteIds?: string[]; requestContext?: Record<string, string>; signal?: AbortSignal }): AsyncIterable<AiStreamEvent>;
+    chat(input: { message: string; threadId?: string; agent?: 'sera-agent' | 'compare-agent'; requestIds?: string[]; quoteIds?: string[]; requestContext?: Record<string, string>; preferenceAction?: 'use_saved' | 'customize' | 'update_saved' | 'skip' | 'continue_without_saved'; chatPreferences?: string; signal?: AbortSignal }): AsyncIterable<AiStreamEvent>;
     guidedNext(answers: GuidedAnswers, action: GuidedActionInput): Promise<GuidedStepResult>;
     vehicleImages(query: string): Promise<{ items: Array<{ image_url: string; thumbnail_url?: string; source_url: string; source_name?: string; alt?: string }>; status: 'found' | 'not_found' | 'unavailable' }>;
     saveGuidedCheckpoint(input: { threadId: string; messages: Array<{ id: string; role: 'user' | 'assistant'; body: string; guidedStep?: string | undefined; options?: string[] | undefined }>; guidedState: Record<string, unknown>; requestContext: Record<string, string> | null }): Promise<void>;

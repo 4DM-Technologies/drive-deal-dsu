@@ -4,6 +4,7 @@ from contextlib import suppress
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from time import monotonic, perf_counter
+from typing import Any
 from uuid import uuid4
 
 from sqlalchemy import delete, func, select
@@ -13,10 +14,12 @@ from src.agents.llm import LlmClient
 from src.agents.requirements import build_requirement_graph
 from src.agents.serra.graph import (
     DIRECT_REPLY_ROUTES,
+    is_contextual_image_followup,
     is_direct_reply,
     is_explicit_image_search,
     is_explicit_web_search,
     is_ranking_request,
+    is_sports_car_recommendation,
     main_agent,
 )
 from src.agents.tools.web_search import search_vehicle_images
@@ -70,9 +73,76 @@ def _money_value(value: object) -> Decimal | None:
     return amount
 
 
+def _compact_conversation_context(context: list[dict[str, Any]], *, max_chars: int = 6000) -> list[dict[str, Any]]:
+    """Keep the latest ten exchanges useful without replaying long answers and galleries verbatim."""
+    compacted: list[dict[str, Any]] = []
+    used = 0
+    for original in reversed(context[-20:]):
+        item = dict(original)
+        if isinstance(item.get("body"), str):
+            body = item["body"]
+            limit = 2200 if item.get("role") == "assistant" else 700
+            if len(body) > limit:
+                item["body"] = body[: limit - 40] + " … [earlier text omitted]"
+        media = item.get("media")
+        if isinstance(media, list):
+            item["media"] = [
+                {key: str(value)[:500] for key, value in image.items() if key in {
+                    "image_url", "source_url", "source_name", "vehicle_name", "alt", "thumbnail_url"
+                }}
+                for image in media[:8]
+                if isinstance(image, dict)
+            ]
+        size = len(str(item))
+        if used + size > max_chars:
+            # Keep the most recent user turn intact enough to resolve references; older turns can be omitted.
+            if not compacted:
+                for key in ("body",):
+                    if isinstance(item.get(key), str):
+                        item[key] = item[key][-max(200, max_chars - used - 100):]
+                size = len(str(item))
+            if used + size > max_chars:
+                continue
+        compacted.append(item)
+        used += size
+    return list(reversed(compacted))
+
+
 class AiService:
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
+
+    async def _live_request_context(self, request_id: str, buyer_id: str) -> dict[str, Any] | None:
+        """Load a short, ownership-checked snapshot so follow-ups use live request and offer state."""
+        request = await self.session.get(BuyerRequest, request_id)
+        if request is None or request.buyer_id != buyer_id:
+            return None
+        brand = await self.session.get(Brand, request.brand_id)
+        offers = (
+            await self.session.execute(
+                select(DealQuote.status, DealQuote.final_price, DealQuote.created_at)
+                .where(DealQuote.buyer_request_id == request.id, DealQuote.buyer_id == buyer_id)
+                .order_by(DealQuote.created_at.desc())
+                .limit(8)
+            )
+        ).all()
+        return {
+            "request_id": request.id,
+            "status": request.status,
+            "vehicle": " ".join(part for part in (brand.name if brand else "Vehicle", request.model) if part),
+            "year_min": request.year_min,
+            "year_max": request.year_max,
+            "timeline": request.timeline,
+            "created_at": request.created_at.isoformat() if request.created_at else None,
+            "offers": [
+                {
+                    "status": status,
+                    "total_price": str(price) if price is not None else None,
+                    "received_at": created_at.isoformat() if created_at else None,
+                }
+                for status, price, created_at in offers
+            ],
+        }
 
     async def vehicle_images(self, query: str, thread_id: str | None = None) -> dict[str, object]:
         """Find attributed reference images and distinguish a clean miss from a provider outage."""
@@ -163,33 +233,102 @@ class AiService:
     @log_flow(layer="service")
     async def stream_chat(self, payload: AiChatRequest, buyer: Profile):
         thread_id = payload.thread_id or str(uuid4())
+        memory = await self._latest_memory(thread_id, buyer.id)
+        if payload.preference_action == "update_saved":
+            saved_preferences = await self._buyer_preferences(buyer.id)
+            card = {"preferences": saved_preferences, "updated": True}
+            answer = "Your saved preferences are updated. Would you like me to use them for this recommendation?"
+            result = {"route": "preference_choice", "answer": answer}
+            yield {"type": "token", "text": answer}
+            result["preference_card"] = card
+            yield {"type": "card", "kind": "preference", "payload": card}
+            await self._save_checkpoint(thread_id, buyer.id, payload, result, {}, memory)
+            await self.session.commit()
+            yield {"type": "done", "threadId": thread_id, "messagesUsed": 1, "expandedUi": False}
+            return
+        preference_control = payload.preference_action in {"use_saved", "customize", "skip"}
+        continuing_original = preference_control and bool(memory.get("active_request"))
+        if (
+            payload.agent != "compare-agent"
+            and payload.preference_action is None
+            and not memory.get("active_request")
+            and self._is_recommendation_request(payload.message)
+        ):
+            yield {"type": "status", "phase": "classifying", "label": "Checking saved preferences"}
+            saved_preferences = await self._buyer_preferences(buyer.id)
+            if saved_preferences:
+                answer = "I found your saved preferences. Should I use them for this request?"
+                card = {"preferences": saved_preferences}
+                result = {"route": "preference_choice", "answer": answer, "preference_card": card}
+                yield {"type": "token", "text": answer}
+                yield {"type": "card", "kind": "preference", "payload": card}
+                await self._save_checkpoint(thread_id, buyer.id, payload, result, {}, memory)
+                await self.session.commit()
+                yield {"type": "done", "threadId": thread_id, "messagesUsed": 1, "expandedUi": False}
+                return
         if get_settings().ai_disabled:
-            async for event in self._stream_demo(payload, buyer, thread_id):
+            demo_payload = (
+                payload.model_copy(update={"message": memory.get("active_request") or payload.message})
+                if continuing_original
+                else payload
+            )
+            async for event in self._stream_demo(demo_payload, buyer, thread_id, memory):
                 yield event
             return
-        memory = await self._latest_memory(thread_id, buyer.id)
         trace_id = str(uuid4())
         trace_started = perf_counter()
         conversation_context = list(memory.get("conversation_context", []))
         request_context = payload.request_context or memory.get("request_context")
         if request_context:
             conversation_context.append({"request_context": request_context})
+        published_request_id = (
+            str(request_context.get("publishedRequestId") or "").strip()
+            if isinstance(request_context, dict)
+            else ""
+        ) or str(
+            memory.get("published_request_id")
+            or (memory.get("published_request") or {}).get("id")
+            or ""
+        ).strip()
+        if published_request_id:
+            live_request = await self._live_request_context(published_request_id, buyer.id)
+            if live_request:
+                conversation_context.append({"live_request": live_request})
+        conversation_context = _compact_conversation_context(conversation_context)
+        preference_action = payload.preference_action or memory.get("preference_action")
+        preferences = await self._buyer_preferences(buyer.id) if preference_action == "use_saved" else {}
+        # A typed user message that dismisses the preference card must still be answered as written.
+        # Only the explicit preference buttons should resume the earlier recommendation request.
+        active_request = memory.get("active_request") if continuing_original else None
+        effective_message = active_request or payload.message
+        if payload.preference_action == "skip":
+            preference_action = "skip"
+            preferences = {}
+        chat_preferences = (
+            "" if preference_action == "skip" else payload.chat_preferences or memory.get("chat_preferences") or ""
+        )
+        if chat_preferences:
+            effective_message = f"{effective_message}\n\nFor this chat only, also prioritize: {chat_preferences}"
         state = {
             "user_id": buyer.id,
             "thread_id": thread_id,
             "trace_id": trace_id,
-            "message": payload.message,
+            "message": effective_message,
             "requirements": memory.get("requirements", {}),
-            "preferences": memory.get("preferences", {}),
-            "preferences_pending": memory.get("preferences_pending", False),
+            "preferences": preferences,
+            "preferences_pending": False,
+            "preference_action": preference_action,
+            "chat_preferences": chat_preferences,
             "conversation_context": conversation_context,
         }
         explicit_web_search = (
             get_settings().ai_enable_web_search
             and (
-                is_explicit_web_search(payload.message)
-                or is_explicit_image_search(payload.message)
-                or is_ranking_request(payload.message)
+                is_explicit_web_search(effective_message)
+                or is_explicit_image_search(effective_message)
+                or is_contextual_image_followup(effective_message, conversation_context)
+                or is_ranking_request(effective_message)
+                or is_sports_car_recommendation(effective_message)
             )
             and payload.agent != "compare-agent"
         )
@@ -207,7 +346,8 @@ class AiService:
             id=trace_id,
             thread_id=thread_id,
             user_id=buyer.id,
-            query=payload.message[:4000],
+            # Preference card callbacks are control events; trace the actual request being answered.
+            query=effective_message[:4000],
             status="running",
             is_test=False,
             configuration_version=runtime["version"],
@@ -240,7 +380,7 @@ class AiService:
         # card. When nothing else was asked, the card is the whole reply: a template sentence and no LLM call.
         guided_step: GuidedStep | None = None
         if payload.agent != "compare-agent" and not explicit_web_search:
-            match = await match_message(self.session, payload.message)
+            match = await match_message(self.session, effective_message)
             if match.opens_card and not match.has_question:
                 guided_step = await GuidedPlanner(self.session).from_match(match)
                 reply = await self._guided_reply(match, guided_step) if match.card_only else None
@@ -266,7 +406,7 @@ class AiService:
         if payload.agent == "compare-agent":
             main_result = await main_task
             requirement_result = {}
-        elif is_direct_reply(payload.message) or explicit_web_search or guided_step is not None:
+        elif is_direct_reply(effective_message) or explicit_web_search or guided_step is not None:
             # Greetings and explicit research requests are handled entirely by the main graph. Neither contains
             # a buyer requirement to extract, so starting the requirements graph would add latency and UI cards.
             main_result = await main_task
@@ -370,8 +510,9 @@ class AiService:
         return opening_message(step, make, model_count, model)
 
     @log_flow(layer="service")
-    async def _stream_demo(self, payload: AiChatRequest, buyer: Profile, thread_id: str):
+    async def _stream_demo(self, payload: AiChatRequest, buyer: Profile, thread_id: str, memory: dict | None = None):
         """Stream a deterministic product demo without invoking any agent workflow."""
+        memory = memory or {}
         phases = [
             ("classifying", "Thinking"),
             ("searching", "Searching Deal&Drive knowledge"),
@@ -550,6 +691,7 @@ class AiService:
                     "preferences": previous.get("preferences", {}),
                     "preferences_pending": previous.get("preferences_pending", False),
                     "published_request": previous.get("published_request"),
+                    "published_request_id": payload.guided_state.get("publishedRequestId"),
                     "request_context": payload.request_context or previous.get("request_context"),
                     "guided_messages": messages,
                     "guided_state": payload.guided_state,
@@ -608,7 +750,7 @@ class AiService:
                     select(ConversationHistory)
                     .where(ConversationHistory.thread_id == thread_id, ConversationHistory.user_id == user_id)
                     .order_by(ConversationHistory.created_at.desc())
-                    .limit(8)
+                    .limit(10)
                 )
             )
             .scalars()
@@ -617,7 +759,7 @@ class AiService:
         if not rows:
             return {}
         latest = rows[0].checkpoint
-        context: list[dict[str, str]] = []
+        context: list[dict[str, Any]] = []
         for row in reversed(rows):
             checkpoint = row.checkpoint
             guided_messages = checkpoint.get("guided_messages")
@@ -628,12 +770,21 @@ class AiService:
                         and message.get("role") in {"user", "assistant"}
                         and message.get("body")
                     ):
-                        context.append({"role": message["role"], "body": str(message["body"])[:2000]})
+                        item: dict[str, Any] = {
+                            "role": message["role"],
+                            "body": str(message["body"])[:4000],
+                        }
+                        if message["role"] == "assistant" and isinstance(message.get("media"), list):
+                            item["media"] = message["media"][:8]
+                        context.append(item)
             else:
                 for role, key in (("user", "user"), ("assistant", "assistant")):
                     body = checkpoint.get(key)
                     if body:
-                        context.append({"role": role, "body": str(body)[:2000]})
+                        item: dict[str, Any] = {"role": role, "body": str(body)[:2000]}
+                        if role == "assistant" and isinstance(checkpoint.get("media"), list):
+                            item["media"] = checkpoint["media"]
+                        context.append(item)
         deduped: list[dict[str, str]] = []
         seen: set[tuple[str, str]] = set()
         for message in context:
@@ -641,7 +792,52 @@ class AiService:
             if key not in seen:
                 deduped.append(message)
                 seen.add(key)
-        return {**latest, "conversation_context": deduped[-12:]}
+        return {**latest, "conversation_context": deduped[-20:]}
+
+    async def _buyer_preferences(self, user_id: str) -> dict:
+        from src.repositories.schema import BuyerPreference
+
+        row = await self.session.get(BuyerPreference, user_id)
+        if row is None:
+            return {}
+        values = {
+            key: value
+            for key, value in model_dict(row).items()
+            if key not in {"profile_id", "created_at", "updated_at", "created_by", "updated_by", "source", "id"}
+            and value not in (None, [], "")
+        }
+        return values
+
+    @staticmethod
+    def _is_recommendation_request(message: str) -> bool:
+        text = message.casefold()
+        asks_for_recommendations = any(
+            phrase in text
+            for phrase in (
+                "recommend",
+                "suggest",
+                "help me choose",
+                "looking for",
+                "find me",
+                "show me",
+                "shortlist",
+                "cross-shop",
+            )
+        )
+        vehicle_context = bool(
+            re.search(r"\b(?:cars?|vehicles?|suvs?|trucks?|sedans?|sports? cars?|coupes?|roadsters?|models?)\b", text)
+        )
+        ranked_vehicle_list = bool(
+            re.search(
+                r"\b(?:top\s+(?:\d+\s+)?(?:cars?|vehicles?|suvs?|trucks?|sedans?|sports cars?|coupes?|roadsters?)|best\s+(?:cars?|vehicles?|suvs?|trucks?|sedans?|sports cars?|coupes?|roadsters?))\b",
+                text,
+            )
+        )
+        return (
+            (asks_for_recommendations and vehicle_context)
+            or ranked_vehicle_list
+            or is_sports_car_recommendation(message)
+        )
 
     @log_flow(layer="service")
     async def _save_checkpoint(
@@ -654,6 +850,19 @@ class AiService:
         memory: dict | None = None,
     ) -> None:
         memory = memory or {}
+        controls = {"use_saved", "customize", "update_saved", "skip"}
+        is_control = payload.preference_action in controls
+        preference_choice = main.get("route") == "preference_choice"
+        active_request = (
+            payload.message
+            if preference_choice and payload.preference_action is None
+            else memory.get("active_request")
+            if payload.preference_action == "update_saved"
+            else None
+            if is_control or payload.preference_action == "continue_without_saved"
+            else memory.get("active_request")
+        )
+        user_message = None if is_control else payload.message
         self.session.add(
             ConversationHistory(
                 thread_id=thread_id,
@@ -661,17 +870,30 @@ class AiService:
                 user_id=user_id,
                 thread_type="compare" if payload.agent == "compare-agent" else "sera",
                 checkpoint={
-                    "user": payload.message,
+                    "user": user_message,
                     "assistant": main.get("answer"),
+                    "media": main.get("media") or [],
+                    "sources": main.get("sources") or [],
                     "requirements": requirements.get("requirements") or memory.get("requirements", {}),
                     "questions": requirements.get("suggested_questions", []),
                     "preferences": main.get("preferences") or memory.get("preferences", {}),
                     "preferences_pending": main.get("preferences_pending", memory.get("preferences_pending", False)),
                     "published_request": main.get("published_request") or memory.get("published_request"),
+                    "published_request_id": memory.get("published_request_id")
+                    or (main.get("published_request") or {}).get("id")
+                    or (memory.get("published_request") or {}).get("id"),
                     "request_context": payload.request_context or memory.get("request_context"),
+                    "active_request": active_request,
+                    "preference_action": None,
+                    "chat_preferences": payload.chat_preferences
+                    if payload.preference_action == "customize"
+                    else memory.get("chat_preferences"),
+                    "preference_card": main.get("preference_card") if preference_choice else None,
                 },
                 metadata_json={
-                    "title": payload.message[:72],
+                    "title": (
+                        payload.message if user_message is not None else memory.get("active_request", "Sera chat")
+                    )[:72],
                     "agent": payload.agent,
                     "saved_at": datetime.now(UTC).isoformat(),
                 },

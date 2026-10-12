@@ -6,11 +6,13 @@ class AgentState(TypedDict, total=False):
     thread_id: str
     trace_id: str
     message: str
-    conversation_context: list[dict[str, str]]
+    conversation_context: list[dict[str, Any]]
     route: str
     mode: str
+    include_images: bool
     preferences: dict[str, Any]
     preferences_pending: bool
+    chat_preferences: str
     car_names: list[str]
     car_specs: list[dict[str, Any]]
     kb_results: list[dict[str, Any]]
@@ -19,6 +21,7 @@ class AgentState(TypedDict, total=False):
     kb_searched: bool
     kb_results_relevant: bool
     web_results: list[dict[str, str]]
+    search_provider: str
     requirements: dict[str, Any]
     missing_fields: list[str]
     suggested_questions: list[dict[str, Any]]

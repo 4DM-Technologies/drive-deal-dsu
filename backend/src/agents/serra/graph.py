@@ -4,6 +4,8 @@ import re
 from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
 from time import perf_counter
+from typing import Any
+from urllib.parse import urlparse
 from uuid import uuid4
 
 from langgraph.graph import END, START, StateGraph
@@ -33,7 +35,7 @@ from src.agents.tools.web_search import (
     search_vehicle_images,
 )
 from src.database import SessionFactory
-from src.repositories.schema import AiTraceSpan, Brand, BuyerPreference, State
+from src.repositories.schema import AiTraceSpan, Brand, State
 from src.services.catalog.matcher import MatchResult, match_message
 from src.settings import get_settings
 from src.utils.logger import logger
@@ -259,6 +261,11 @@ EXPLICIT_IMAGE_SEARCH_RE = re.compile(
     r"\b(?:image|images|photo|photos|picture|pictures|gallery|exterior|interior|looks?\s+like|show\s+me)\b",
     re.IGNORECASE,
 )
+SPORTS_CAR_RECOMMENDATION_RE = re.compile(
+    r"\bsports?\s+cars?\b.*\b(?:top|good|best|recommend|companies|company|brands?|automakers?|manufacturers?)\b|"
+    r"\b(?:top|good|best|recommend)\b.*\bsports?\s+cars?\b",
+    re.IGNORECASE,
+)
 VEHICLE_IMAGE_CONTEXT_RE = re.compile(
     r"\b(?:car|cars|vehicle|vehicles|suv|sedan|hatchback|coupe|kia|seltos|bmw|audi|honda|toyota|ford|tesla|"
     r"hyundai|mercedes|volkswagen|x3|i7|creta|model\s+[3sxyl])\b",
@@ -286,6 +293,13 @@ def is_ranking_request(message: str) -> bool:
     """True for a ranking about vehicles ("top 10 premium cars"). Rankings come from current reviews and sales,
     which the catalog does not hold, so they go to web research when it is switched on."""
     return bool(RANKING_RE.search(message)) and _has_domain_content(message)
+
+
+def is_sports_car_recommendation(message: str) -> bool:
+    """Route broad sports-car shortlists through one combined text-and-image web search."""
+    return bool(SPORTS_CAR_RECOMMENDATION_RE.search(message)) or bool(
+        re.fullmatch(r"\s*(?:some\s+)?sports?\s+cars?\s*[.!?]*\s*", message, re.IGNORECASE)
+    )
 
 
 def is_explicit_image_search(message: str) -> bool:
@@ -341,6 +355,91 @@ def _normalize_route(raw: str) -> str:
     return match.group(1) if match else "advice"
 
 
+def _vehicle_names_from_shortlist(text: str) -> list[str]:
+    """Read vehicle names from numbered recommendation headings without guessing from prose."""
+    names: list[str] = []
+    for line in text.splitlines():
+        match = re.match(r"\s*\d{1,2}[.)]\s*(.+?)\s*$", line)
+        if not match:
+            continue
+        name = re.sub(r"[*_`#]", "", match.group(1)).strip()
+        name = re.split(r"\s+[—–|:]\s+", name, maxsplit=1)[0].strip()
+        if len(name.split()) < 2 or len(name) > 90:
+            continue
+        if name.casefold() not in {item.casefold() for item in names}:
+            names.append(name)
+    return names[:8]
+
+
+def _shortlist_from_context(context: list[dict[str, str]]) -> list[str]:
+    """Use the latest assistant recommendation as the source of truth for follow-up image requests."""
+    for item in reversed(context):
+        if item.get("role") != "assistant":
+            continue
+        names = _vehicle_names_from_shortlist(str(item.get("body") or ""))
+        if len(names) >= 2:
+            return names
+    return []
+
+
+def _previously_found_image_names(context: list[dict[str, Any]], vehicle_names: list[str]) -> list[str]:
+    """Recover image matches from persisted media, with a text fallback for older checkpoints."""
+    for item in reversed(context):
+        if item.get("role") != "assistant":
+            continue
+        media = item.get("media")
+        if isinstance(media, list):
+            found = [
+                str(image.get("vehicle_name"))
+                for image in media
+                if isinstance(image, dict) and image.get("vehicle_name")
+            ]
+            if found:
+                return [name for name in vehicle_names if any(name.casefold() == value.casefold() for value in found)]
+        body = str(item.get("body") or "")
+        match = re.search(
+            r"found (?:a matching photo|images?) for\s+(.+?)(?:\.|\s+I(?:['’]m| am) still missing|$)",
+            body,
+            re.IGNORECASE,
+        )
+        if match:
+            segment = match.group(1).casefold()
+            return [name for name in vehicle_names if name.casefold() in segment]
+    return []
+
+
+def is_contextual_image_followup(message: str, context: list[dict[str, Any]]) -> bool:
+    """Recognize short image follow-ups when the chat already contains a numbered vehicle shortlist."""
+    return bool(EXPLICIT_IMAGE_SEARCH_RE.search(message) and _shortlist_from_context(context))
+
+
+def _label_matching_images(media: list[dict[str, str]], vehicle_names: list[str]) -> list[dict[str, str]]:
+    """Match at most one image per vehicle, requiring the full make/model identity as evidence.
+
+    Hostnames and partial model names are deliberately excluded: those weak matches caused unrelated
+    search results to be presented as exact trims (and allowed duplicate cars in the photo count).
+    """
+    labeled: list[dict[str, str]] = []
+    matched_names: set[str] = set()
+    for image in media:
+        # The source hostname is not vehicle evidence (for example, a Nissan fan site can host a
+        # discussion containing photos of another make). Search captions and URL paths only.
+        source_path = urlparse(image.get("source_url", "")).path
+        evidence = re.sub(r"[^a-z0-9]+", " ", f"{image.get('alt', '')} {source_path}".casefold()).strip()
+        for name in vehicle_names:
+            key = re.sub(r"[^a-z0-9]+", " ", name.casefold()).strip()
+            if not key or key in matched_names:
+                continue
+            identity = re.sub(r"[^a-z0-9]+", " ", name.casefold()).strip()
+            if re.search(rf"\b{re.escape(identity)}\b", evidence):
+                # Keep the provider caption as useful accessibility text; the canonical shortlist
+                # label is a separate field for the UI.
+                labeled.append({**image, "vehicle_name": name})
+                matched_names.add(key)
+                break
+    return labeled
+
+
 def _extract_json(text: str) -> dict:
     match = re.search(r"\{.*\}", text, re.DOTALL)
     return json.loads(match.group(0) if match else text)
@@ -366,9 +465,21 @@ def _trace_snapshot(value: dict | None, *, output: bool = False) -> dict:
             "tool_plan_source",
             "web_results",
             "car_specs",
+            "search_provider",
         )
         if output
-        else ("message", "route", "mode", "preferences", "preferences_pending", "requirements")
+        else (
+            "message",
+            "route",
+            "mode",
+            "preferences",
+            "preferences_pending",
+            "requirements",
+            "preference_action",
+            "conversation_context",
+            "car_names",
+            "include_images",
+        )
     )
     snapshot: dict = {}
     for key in allowed:
@@ -377,11 +488,6 @@ def _trace_snapshot(value: dict | None, *, output: bool = False) -> dict:
         raw = json.dumps(value[key], default=str, ensure_ascii=False)
         snapshot[key] = json.loads(raw[:12_000]) if len(raw) <= 12_000 else f"{raw[:12_000]}…"
     return snapshot
-
-
-async def _fetch_preferences(session: AsyncSession, user_id: str) -> dict:
-    row = await session.get(BuyerPreference, user_id)
-    return model_dict(row) if row else {}
 
 
 # asyncio only holds a weak reference to a task - with nothing else referencing it, a fire-and-forget task can
@@ -486,7 +592,7 @@ def main_agent(
             return ""
         return (
             '<conversation_context trust="untrusted">\n'
-            f"{json.dumps(context[-6:], ensure_ascii=False)}\n"
+            f"{json.dumps(context[-20:], ensure_ascii=False)}\n"
             "</conversation_context>\n\n"
         )
 
@@ -496,6 +602,7 @@ def main_agent(
             span_id = str(uuid4())
             trace_id = state.get("trace_id")
             sequence = int(state.get("step", 0) + 1)
+            llm_calls_before = llm.call_count
             if trace_id and trace_event_sink:
                 try:
                     await trace_event_sink(
@@ -528,8 +635,7 @@ def main_agent(
                     details = {
                         "input": _trace_snapshot(state),
                         "output": _trace_snapshot(result, output=True),
-                        "llm_called": name
-                        in {"classifier", "orchestrator", "kb_agent", "web_search_agent", "compose", "small_talk"},
+                        "llm_called": llm.call_count > llm_calls_before,
                     }
                     span = AiTraceSpan(
                         id=span_id,
@@ -575,16 +681,20 @@ def main_agent(
             logger.info("agent_small_talk_short_circuit", thread_id=state.get("thread_id"))
             return {"route": "small_talk", "step": step}
         web_enabled = get_settings().ai_enable_web_search
-        if web_enabled and is_explicit_image_search(message):
+        context = state.get("conversation_context", [])
+        if web_enabled and (is_explicit_image_search(message) or is_contextual_image_followup(message, context)):
             step = log_agent_step("serra", "triage", state, web_search=True, image_search=True)
             logger.info("agent_vehicle_image_search_direct", thread_id=state.get("thread_id"))
-            return {"route": "web_search", "mode": "image_search", "step": step}
-        if web_enabled and (is_explicit_web_search(message) or is_ranking_request(message)):
+            return {"route": "web_search", "mode": "web_direct", "include_images": True, "step": step}
+        if web_enabled and (
+            is_explicit_web_search(message) or is_ranking_request(message) or is_sports_car_recommendation(message)
+        ):
             # The buyer explicitly requested current online research. Skip two LLM routing calls and enter the
             # trusted-domain web pipeline directly; compose still turns the evidence into the final answer.
             step = log_agent_step("serra", "triage", state, web_search=True)
             logger.info("agent_web_search_direct", thread_id=state.get("thread_id"))
-            return {"route": "web_search", "mode": "web_direct", "step": step}
+            include_images = is_ranking_request(message) or is_sports_car_recommendation(message)
+            return {"route": "web_search", "mode": "web_direct", "include_images": include_images, "step": step}
         return {"route": None, "step": log_agent_step("serra", "triage", state, small_talk=False)}
 
     async def small_talk(state: AgentState) -> AgentState:
@@ -633,13 +743,17 @@ def main_agent(
         if state.get("route") == "compare":
             return {"mode": "kb_only", "step": step}
 
-        preferences = state.get("preferences") or await _fetch_preferences(session, state["user_id"])
+        # Profile preferences are opt-in for each recommendation request. AiService supplies them only
+        # after the buyer chooses "Use saved preferences" on the preference card.
+        preferences = state.get("preferences") or {}
         prompt = (
             f"{load_prompt('orchestrator.md', prompt_overrides)}\n\n"
             f"{conversation_block(state)}"
             f"ROUTE: {state.get('route')}\n"
             f'<buyer_question trust="untrusted">\n{state["message"]}\n</buyer_question>\n'
-            f"KNOWN PREFERENCES: {preferences or 'none'}\nPREFERENCES_PENDING: {state.get('preferences_pending', False)}"
+            f"BUYER-APPROVED SAVED PREFERENCES: {preferences or 'none'}\n"
+            f"CHAT-ONLY PRIORITIES: {state.get('chat_preferences') or 'none'}\n"
+            f"PREFERENCES_PENDING: {state.get('preferences_pending', False)}"
         )
         result = await llm.generate(
             prompt,
@@ -853,6 +967,7 @@ def main_agent(
         specs: list[CarSpecs] = []
         resolved_sources: dict[str, dict[str, str]] = {}
         candidate_evidence: list[dict[str, str]] = []
+        search_provider = "openai_hosted_responses"
 
         if state.get("mode") == "web_per_car" and state.get("car_names"):
             results = await asyncio.gather(
@@ -860,8 +975,35 @@ def main_agent(
             )
             specs = [spec for spec in results if spec]
         else:
-            query_terms = [state["message"]] + [str(value) for value in preferences.values() if value]
-            full_query = " ".join(query_terms)
+            # Keep normal research focused on what the buyer just asked. For an image follow-up, carry
+            # forward the exact names from the latest numbered shortlist instead of sending the entire
+            # transcript to web search (which was wasting tokens and losing the list in long answers).
+            context = state.get("conversation_context", [])
+            prior_names = _shortlist_from_context(context)
+            is_image_followup = bool(state.get("include_images")) and is_contextual_image_followup(
+                state["message"], context
+            )
+            target_names = prior_names
+            if is_image_followup and re.search(
+                r"\b(?:other|remaining|rest|missing|last)\b", state["message"], re.IGNORECASE
+            ):
+                previously_found = _previously_found_image_names(context, prior_names)
+                if previously_found:
+                    target_names = [
+                        name
+                        for name in prior_names
+                        if name.casefold() not in {value.casefold() for value in previously_found}
+                    ]
+            if is_image_followup and prior_names:
+                full_query = (
+                    f"Find one real, attributable photo for each exact vehicle requested: "
+                    f"{'; '.join(target_names)}. The buyer asks: {state['message']}. "
+                    "Return only images whose caption or source page identifies the matching vehicle; "
+                    "never substitute a similar car."
+                )
+            else:
+                preference_terms = [str(value) for value in preferences.values() if value]
+                full_query = " ".join([f"Current buyer request: {state['message']}", *preference_terms])
             trace_id = state.get("trace_id") or thread_id
 
             async def _crawl_all(cands: list[dict]) -> list[CarSpecs]:
@@ -893,7 +1035,12 @@ def main_agent(
                     llm=llm,
                     thread_id=trace_id,
                     prompt_overrides=prompt_overrides,
+                    include_images=bool(state.get("include_images")),
+                    image_queries=target_names if is_image_followup else None,
+                    image_only=is_image_followup,
                 )
+                if candidates:
+                    search_provider = candidates[0].get("search_provider") or search_provider
                 hosted_answer = next(
                     (candidate.get("hosted_answer") for candidate in candidates if candidate.get("hosted_answer")), None
                 )
@@ -910,6 +1057,18 @@ def main_agent(
                         sources = json.loads(hosted_sources)
                     except (TypeError, json.JSONDecodeError):
                         sources = []
+                    hosted_media = next(
+                        (candidate.get("hosted_media") for candidate in candidates if candidate.get("hosted_media")),
+                        "[]",
+                    )
+                    try:
+                        media = json.loads(hosted_media)
+                    except (TypeError, json.JSONDecodeError):
+                        media = []
+                    recommended_names = _vehicle_names_from_shortlist(hosted_answer)
+                    image_names = target_names if is_image_followup and target_names else recommended_names
+                    if image_names:
+                        media = _label_matching_images(media, image_names)
                     if hosted_answer and not (preview or state.get("preview")):
                         if compare:
                             await kb_insert(
@@ -925,11 +1084,42 @@ def main_agent(
                                 ],
                                 state["user_id"],
                             )
+                    if is_image_followup and prior_names:
+                        found_names = list(dict.fromkeys(item["vehicle_name"] for item in media if item.get("vehicle_name")))
+                        missing_names = [name for name in target_names if name not in found_names]
+                        if found_names:
+                            readable_answer = (
+                                f"I found a matching photo for **{found_names[0]}**."
+                                if len(found_names) == 1
+                                else "I found matching photos for:\n\n" + "\n".join(f"- **{name}**" for name in found_names)
+                            )
+                        else:
+                            readable_answer = (
+                                f"I couldn’t find reliable photos for **{', '.join(target_names)}** just yet, "
+                                "so I haven’t attached unrelated cars."
+                            )
+                        if missing_names and found_names:
+                            readable_answer += (
+                                f"\n\nI’m still missing photos for {', '.join(missing_names)}. "
+                                "Want me to try those again?"
+                            )
+                    else:
+                        readable_answer = re.sub(r"\[[^\]]*\]\(https?://[^)]+\)|https?://\S+", " ", hosted_answer)
+                        readable_answer = re.sub(r"(?m)^\s*!\s*$", "", readable_answer)
+                        readable_answer = re.sub(r"\(\s*\)", "", readable_answer)
+                        readable_answer = re.sub(r"\n{3,}", "\n\n", readable_answer).strip()
+                    if sources and len(re.findall(r"\b[\w'-]+\b", readable_answer)) < 5:
+                        readable_answer = (
+                            "I found relevant vehicle sources, but they didn’t provide enough clear evidence to give "
+                            "you a reliable summary. Would you like me to retry with a budget or model year?"
+                        )
                     return {
-                        "answer": hosted_answer,
+                        "answer": readable_answer,
                         "direct_web_answer": True,
                         "sources": sources,
+                        "media": media,
                         "web_results": [{"content": hosted_answer, "source": source} for source in sources],
+                        "search_provider": search_provider,
                         "step": step,
                     }
                 crawl_candidates = candidates[: settings.web_search_max_crawl_sites]

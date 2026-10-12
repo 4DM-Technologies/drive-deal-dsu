@@ -117,7 +117,20 @@ export interface AiMessage {
   body: string;
   guidedStep?: string | undefined;
   options?: string[] | undefined;
+  media?: VehicleMedia[] | undefined;
+  sources?: VehicleSource[] | undefined;
 }
+
+export interface VehicleMedia {
+  image_url: string;
+  thumbnail_url?: string;
+  source_url: string;
+  source_name?: string;
+  vehicle_name?: string;
+  alt?: string;
+}
+
+export interface VehicleSource { url: string; title: string }
 
 /** One option on the guided question card. */
 export interface GuidedOption {
@@ -135,9 +148,10 @@ export interface GuidedQuestion {
   otherPlaceholder: string;
   multiSelect: boolean;
   skippable: boolean;
-  index: number;
-  total: number;
-}
+    index: number;
+    total: number;
+    emptyMessage?: string;
+  }
 
 /** The planner's answers so far. Opaque to the screen: it is only stored and sent back on the next call. */
 export type GuidedAnswers = Record<string, unknown>;
@@ -164,6 +178,7 @@ export interface AiThread {
   messages: AiMessage[];
   guidedState?: Record<string, unknown> | undefined;
   requestContext?: Record<string, string> | null | undefined;
+  preferenceCard?: Record<string, unknown> | null | undefined;
 }
 
 export interface DealDocument {

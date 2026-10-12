@@ -249,10 +249,10 @@ function guidedActionToBody(action: GuidedActionInput): Record<string, unknown> 
   return { type: 'answer', question_id: action.questionId, values: action.values ?? [], text: action.text ?? null };
 }
 
-async function* streamAi(input: { message: string; threadId?: string; agent?: 'sera-agent' | 'compare-agent'; requestIds?: string[]; quoteIds?: string[]; requestContext?: Record<string, string>; signal?: AbortSignal }): AsyncIterable<AiStreamEvent> {
+async function* streamAi(input: { message: string; threadId?: string; agent?: 'sera-agent' | 'compare-agent'; requestIds?: string[]; quoteIds?: string[]; requestContext?: Record<string, string>; preferenceAction?: 'use_saved' | 'customize' | 'update_saved' | 'skip' | 'continue_without_saved'; chatPreferences?: string; signal?: AbortSignal }): AsyncIterable<AiStreamEvent> {
   const response = await fetch(`${baseUrl}/ai/chat`, {
     method: 'POST', headers: { 'content-type': 'application/json', ...(token() ? { authorization: `Bearer ${token()}` } : {}) },
-    body: JSON.stringify({ message: input.message, thread_id: input.threadId, agent: input.agent ?? 'sera-agent', request_ids: input.requestIds ?? [], quote_ids: input.quoteIds ?? [], request_context: input.requestContext ?? null }),
+    body: JSON.stringify({ message: input.message, thread_id: input.threadId, agent: input.agent ?? 'sera-agent', request_ids: input.requestIds ?? [], quote_ids: input.quoteIds ?? [], request_context: input.requestContext ?? null, preference_action: input.preferenceAction ?? null, chat_preferences: input.chatPreferences ?? null }),
     ...(input.signal ? { signal: input.signal } : {}),
   });
   if (!response.ok || !response.body) throw new Error('Sera is temporarily unavailable.');
@@ -478,11 +478,13 @@ export const httpClient: DriveDealClient = {
     saveGuidedCheckpoint: async (input) => request<void>('/ai/threads/guided-checkpoint', { method: 'POST', body: JSON.stringify({ thread_id: input.threadId, messages: input.messages.map(({ guidedStep, ...message }) => ({ ...message, guided_step: guidedStep ?? null })), guided_state: input.guidedState, request_context: input.requestContext }) }),
     threads: async () => (await request<Array<Record<string, unknown>>>('/ai/threads')).map((row): AiThread => ({ id: String(row.id), type: row.type as AiThread['type'], title: String(row.title), updatedAt: String(row.updated_at), messages: [] })),
     thread: async (id) => {
-      const row = await request<{ id: string; checkpoints: Array<{ user?: string; assistant?: string; guided_messages?: Array<{ id: string; role: 'user' | 'assistant'; body: string; guided_step?: string | null; options?: string[] }>; guided_state?: Record<string, unknown>; request_context?: Record<string, string> | null }> }>(`/ai/threads/${id}`);
+      const row = await request<{ id: string; checkpoints: Array<{ user?: string; assistant?: string; media?: AiMessage['media']; sources?: AiMessage['sources']; guided_messages?: Array<{ id: string; role: 'user' | 'assistant'; body: string; guided_step?: string | null; options?: string[]; media?: AiMessage['media']; sources?: AiMessage['sources'] }>; guided_state?: Record<string, unknown>; request_context?: Record<string, string> | null; preference_card?: Record<string, unknown> | null }> }>(`/ai/threads/${id}`);
       const messages: AiMessage[] = [];
       let guidedState: Record<string, unknown> | undefined;
       let requestContext: Record<string, string> | null = null;
+      let preferenceCard: Record<string, unknown> | null = null;
       row.checkpoints.forEach((checkpoint, index) => {
+        preferenceCard = checkpoint.preference_card ?? null;
         if (checkpoint.request_context) requestContext = checkpoint.request_context;
         if (checkpoint.guided_messages) {
           messages.splice(0, messages.length, ...checkpoint.guided_messages.map(({ guided_step, ...message }) => ({ ...message, guidedStep: guided_step ?? undefined })));
@@ -490,10 +492,10 @@ export const httpClient: DriveDealClient = {
           requestContext = checkpoint.request_context ?? requestContext;
         } else {
           if (checkpoint.user) messages.push({ id: `${id}-${index}-user`, role: 'user', body: checkpoint.user });
-          if (checkpoint.assistant) messages.push({ id: `${id}-${index}-assistant`, role: 'assistant', body: checkpoint.assistant });
+          if (checkpoint.assistant) messages.push({ id: `${id}-${index}-assistant`, role: 'assistant', body: checkpoint.assistant, media: checkpoint.media ?? [], sources: checkpoint.sources ?? [] });
         }
       });
-      return { id: row.id, type: 'sera', title: 'Conversation', updatedAt: new Date().toISOString(), messages, guidedState, requestContext };
+      return { id: row.id, type: 'sera', title: 'Conversation', updatedAt: new Date().toISOString(), messages, guidedState, requestContext, preferenceCard };
     },
     deleteThread: async (id) => { await request(`/ai/threads/${encodeURIComponent(id)}`, { method: 'DELETE' }); },
   },
