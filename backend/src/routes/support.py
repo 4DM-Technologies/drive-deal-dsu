@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, File, UploadFile, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -13,6 +13,7 @@ from src.models.marketplace import (
 )
 from src.repositories.schema import Profile, User
 from src.services.marketplace_service import MarketplaceService
+from src.services.support_attachments import read_support_uploads
 from src.services.support_service import SupportService
 from src.utils.exceptions import AppError, error_codes
 from src.utils.log_flow import log_flow
@@ -69,6 +70,34 @@ async def create_ticket(
     payload: TicketCreate, profile: Profile = Depends(get_current_profile), session: AsyncSession = Depends(get_session)
 ):
     return await SupportService(session).create_ticket(payload, profile)
+
+
+@router.post("/support/tickets/{ticket_id}/attachments", status_code=status.HTTP_201_CREATED)
+@log_flow(layer="route")
+async def add_ticket_attachments(
+    ticket_id: str,
+    files: list[UploadFile] = File(...),
+    profile: Profile = Depends(get_current_profile),
+    session: AsyncSession = Depends(get_session),
+):
+    """Screenshots or PDFs for the requester's own ticket (multipart ``files``): up to 3, JPG/PNG/WebP/PDF, 10 MB each."""
+    service = SupportService(session)
+    current = next((row for row in await service.list_tickets(profile) if row["id"] == ticket_id), None)
+    if current is None:
+        raise AppError(error_codes.RESOURCE_NOT_FOUND, "Ticket not found.", 404)
+    uploads = await read_support_uploads(files, already_attached=len(current["attachments"]))
+    return await service.add_attachments(ticket_id, uploads, profile)
+
+
+@router.get("/support/tickets/{ticket_id}/attachments/{attachment_id}/download")
+@log_flow(layer="route")
+async def download_ticket_attachment(
+    ticket_id: str,
+    attachment_id: str,
+    profile: Profile = Depends(get_current_profile),
+    session: AsyncSession = Depends(get_session),
+):
+    return await SupportService(session).attachment_download(ticket_id, attachment_id, profile)
 
 
 @router.patch("/support/tickets/{ticket_id}")

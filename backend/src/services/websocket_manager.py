@@ -3,6 +3,7 @@ from collections import defaultdict
 from fastapi import WebSocket
 
 from src.utils.log_flow import log_flow
+from src.utils.logger import logger
 
 
 class WebSocketManager:
@@ -26,7 +27,11 @@ class WebSocketManager:
         self.sequence += 1
         payload = {"seq": self.sequence, **frame}
         for socket in list(self.connections.get(profile_id, set())):
-            await socket.send_json(payload)
+            try:
+                await socket.send_json(payload)
+            except Exception as exc:  # noqa: BLE001 - one dead tab must not stop the others or the caller
+                logger.warning("websocket_send_failed", profile_id=profile_id, error=str(exc))
+                self.disconnect(profile_id, socket)
 
 
 manager = WebSocketManager()

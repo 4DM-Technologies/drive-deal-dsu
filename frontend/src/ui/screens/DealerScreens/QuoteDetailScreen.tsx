@@ -6,7 +6,8 @@ import { formatLongDate } from '@/helpers/dateTime';
 import { smoothScroll } from '@/helpers/motion';
 import { client } from '@/services/platform/client';
 import { useDemoStore } from '@/services/platform/demoStore';
-import type { BuyerRequest, DealDocument, Quote } from '@/types/domain';
+import type { BuyerRequest, DealDocument, Quote, QuotePosition } from '@/types/domain';
+import { OfferDecision } from '@/ui/reusables/OfferDecision/OfferDecision';
 import { PageLoading } from '@/ui/reusables/PageLoading/PageLoading';
 import { StatusBadge } from '@/ui/reusables/StatusBadge/StatusBadge';
 
@@ -23,7 +24,8 @@ export default function QuoteDetailScreen({ deal = false }: { deal?: boolean }) 
   const session = useDemoStore((state) => state.session);
   const [quote, setQuote] = useState<Quote | null | undefined>(undefined);
   const [request, setRequest] = useState<BuyerRequest | null | undefined>(undefined);
-  const [competing, setCompeting] = useState<Quote[]>([]);
+  const [position, setPosition] = useState<QuotePosition | null>(null);
+  const [decisionNotice, setDecisionNotice] = useState('');
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState({ vehiclePrice: '', docFee: '', titleReg: '', tradeInCredit: '' });
   const [newFile, setNewFile] = useState<File | null>(null);
@@ -41,19 +43,17 @@ export default function QuoteDetailScreen({ deal = false }: { deal?: boolean }) 
       setQuote(row);
       const lookup = session?.role === 'buyer' ? client.requests.get : client.feed.get;
       void lookup(row.requestId).then(setRequest).catch(() => setRequest(null));
-      void client.quotes.list(row.requestId).then((rows) => setCompeting(rows.filter((item) => !['withdrawn', 'expired'].includes(item.status)).sort((a, b) => Number(a.finalPrice) - Number(b.finalPrice)))).catch(() => setCompeting([]));
+      // Ranked on the server against every live offer on this request (dealers cannot list each other's quotes).
+      if (session?.role === 'dealer') void client.quotes.position(row.id).then(setPosition).catch(() => setPosition(null));
     }).catch(() => setQuote(null));
     void client.documents.list(id).then((rows) => { setAttachments(rows); setSelectedImage(0); }).catch(() => setAttachments([]));
   };
   // eslint-disable-next-line react-hooks/set-state-in-effect, react-hooks/exhaustive-deps
-  useEffect(() => { setQuote(undefined); setRequest(undefined); setCompeting([]); refresh(); }, [id]);
+  useEffect(() => { setQuote(undefined); setRequest(undefined); setPosition(null); refresh(); }, [id]);
 
   if (quote === undefined || (quote && request === undefined)) return <PageLoading label="Opening quote" />;
   if (!quote || !request) return <div className="shell page-content"><section className="card card-pad"><h1>Quote not found</h1><p className="muted">This quote may no longer be available in your workspace.</p><Link className="button button-primary" to="/quotes">Back to quotes</Link></section></div>;
 
-  const rank = competing.findIndex((item) => item.id === quote.id) + 1;
-  const leader = competing[0];
-  const gap = leader ? Number(quote.finalPrice) - Number(leader.finalPrice) : 0;
   const images = attachments.filter((item) => item.type === 'vehicle_image' && item.downloadUrl);
   const documents = attachments.filter((item) => item.type !== 'vehicle_image' && item.downloadUrl);
   const canRevise = session?.role === 'dealer' && ['pending', 'negotiating'].includes(quote.status);
@@ -125,8 +125,9 @@ export default function QuoteDetailScreen({ deal = false }: { deal?: boolean }) 
   return <div className="shell page-content quote-detail-page">
     <Link className="button button-ghost" to={deal ? session?.role === 'buyer' ? '/orders' : '/deals' : session?.role === 'buyer' ? `/requests/${request.id}` : '/quotes'}><ArrowLeft size={17} /> Back</Link>
     <div className="page-heading quote-detail-heading"><div><span className="eyebrow">{deal ? 'Accepted deal' : 'Dealer quote'} · {request.brand} {request.model}</span><h1>{formatMoney(quote.finalPrice)} out the door</h1><p>{quote.dealerName} · {quote.dealerCity} · valid through {new Date(quote.expiresAt).toLocaleDateString('en-US')}</p></div>{!deal && <StatusBadge status={quote.status} />}</div>
-    {session?.role === 'dealer' && !accepted && <section className={`quote-position ${rank === 1 ? 'leading' : 'behind'}`}>{rank === 1 ? <Trophy /> : <TrendingDown />}<div><span className="eyebrow">Live position · #{rank} of {competing.length}</span><h2>{rank === 1 ? 'You are leading this request.' : 'A revision may improve your position.'}</h2><p>{rank === 1 ? `Your offer is ${formatMoney(Math.max(0, Number(competing[1]?.finalPrice ?? quote.finalPrice) - Number(quote.finalPrice)))} below the next dealer.` : `The current leading offer is ${formatMoney(gap)} lower. Buyer identity remains protected.`}</p></div>{canRevise && <button className="button button-secondary" onClick={goToBreakdown}><Pencil size={17} /> Revise price</button>}</section>}
+    {session?.role === 'dealer' && !accepted && position?.rank != null && <section className={`quote-position ${position.rank === 1 ? 'leading' : 'behind'}`}>{position.rank === 1 ? <Trophy /> : <TrendingDown />}<div><span className="eyebrow">Live position · #{position.rank} of {position.total}</span><h2>{position.rank === 1 ? (position.total === 1 ? 'Yours is the only offer so far.' : 'You are leading this request.') : 'A revision may improve your position.'}</h2><p>{position.rank === 1 ? (position.leadBy != null ? `Your offer is ${formatMoney(position.leadBy)} below the next dealer.` : 'You will lead as long as no dealer quotes lower.') : `The leading offer is ${formatMoney(position.behindBy ?? 0)} lower. Buyer identity remains protected.`}</p></div>{canRevise && <button className="button button-secondary" onClick={goToBreakdown}><Pencil size={17} /> Revise price</button>}</section>}
     {accepted && session?.role === 'dealer' && <section className="quote-position accepted"><CheckCircle2 /><div><span className="eyebrow">Buyer accepted your offer</span><h2>Contact and realtime chat are now open.</h2></div><Link className="button button-primary" to={`/chat/${quote.id}`}><MessageCircle size={17} /> Message buyer</Link></section>}
+    {decisionNotice && <div className="inline-success" role="status"><CheckCircle2 size={18} />{decisionNotice}</div>}
     <div className="detail-grid"><main className="grid">
       <section className={`card quote-gallery ${images.length ? '' : 'quote-gallery-empty'}`}>
         {images.length ? <><div className="quote-gallery-main"><img src={images[selectedImage]?.downloadUrl ?? images[0]!.downloadUrl} alt={`${request.brand} ${request.model} supplied by ${quote.dealerName}`} /></div><div className="quote-gallery-thumbs">{images.map((image, index) => <button type="button" className={selectedImage === index ? 'active' : ''} onClick={() => setSelectedImage(index)} key={image.id} aria-label={`View dealer vehicle photo ${index + 1}`}><img src={image.downloadUrl} alt="" loading="lazy" /></button>)}<span><Image size={18} /> {images.length} dealer-supplied {images.length === 1 ? 'photo' : 'photos'}</span></div></> : <div className="quote-media-empty"><span><ImageOff /></span><h3>No vehicle photos supplied</h3><p>This quote includes pricing only. Deal&amp;Drive does not substitute stock or demo images.</p></div>}
@@ -155,7 +156,7 @@ export default function QuoteDetailScreen({ deal = false }: { deal?: boolean }) 
         </div>}
         <blockquote className="dealer-note">“{quote.message}”</blockquote>
       </section>
-    </main><aside className="sticky-card grid"><section className="card card-pad quote-contact-card"><span className="quote-contact-icon"><ShieldCheck size={22} /></span><h3>{quote.contactAvailable ? 'Contact is unlocked' : 'Buyer identity is protected'}</h3><p className="muted">{quote.contactAvailable ? 'The accepted quote or approved negotiation opened this private conversation.' : 'Contact opens only after acceptance or an approved negotiation request.'}</p>{quote.contactAvailable && <Link className="button button-primary button-wide" to={`/chat/${quote.id}`}><MessageCircle size={17} /> Open conversation</Link>}</section><section className="card card-pad quote-documents"><span className="eyebrow">Dealer document</span><h3>Quote attachment</h3>{editing ? <>
+    </main><aside className="sticky-card grid">{session?.role === 'buyer' && !deal && <section className="card card-pad best-offer-card quote-decision-card"><span className="eyebrow">Your decision</span><div className="best-offer-price-row"><h2 className="price">{formatMoney(quote.finalPrice)}</h2><StatusBadge status={quote.status} /></div><p><strong>{quote.dealerName}</strong><br /><span className="muted">Out-the-door total, valid through {new Date(quote.expiresAt).toLocaleDateString('en-US')}</span></p><OfferDecision quote={quote} vehicle={`${request.brand} ${request.model}`} onChanged={(message) => { setDecisionNotice(message); refresh(); }} /></section>}<section className="card card-pad quote-contact-card"><span className="quote-contact-icon"><ShieldCheck size={22} /></span><h3>{quote.contactAvailable ? 'Contact is unlocked' : 'Buyer identity is protected'}</h3><p className="muted">{quote.contactAvailable ? 'The accepted quote or approved negotiation opened this private conversation.' : 'Contact opens only after acceptance or an approved negotiation request.'}</p>{quote.contactAvailable && <Link className="button button-primary button-wide" to={`/chat/${quote.id}`}><MessageCircle size={17} /> Open conversation</Link>}</section><section className="card card-pad quote-documents"><span className="eyebrow">Dealer document</span><h3>Quote attachment</h3>{editing ? <>
     {currentDocument && <div className="document-row is-static"><FileCheck2 size={18} /><span><strong>{currentDocument.name}</strong><small>{newFile ? 'Replaced when you send' : 'Current document'}</small></span></div>}
     <label className="upload-zone compact" htmlFor="revised-document"><FileUp /><span><strong>{newFile ? 'Choose a different file' : currentDocument ? 'Replace this document' : 'Attach a document'}</strong><small>PDF, DOC or DOCX · up to 20 MB</small></span><input id="revised-document" type="file" accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" onChange={(event) => { pickDocument(event.target.files?.[0]); event.target.value = ''; }} /></label>
     {newFile && <span className="uploaded-file"><FileUp size={15} /><span><strong>{newFile.name}</strong><small>{(newFile.size / 1024 / 1024).toFixed(1)} MB · replaces the current document</small></span><button type="button" onClick={() => setNewFile(null)} aria-label={`Remove ${newFile.name}`}>Remove</button></span>}

@@ -509,6 +509,10 @@ class AdministrationService:
         return [model_dict(row) for row in await self.repository.traces(min(max(limit, 1), 250))]
 
     @log_flow(layer="service")
+    async def trace_summary(self) -> dict[str, int]:
+        return await self.repository.trace_totals()
+
+    @log_flow(layer="service")
     async def trace_detail(self, trace_id: str) -> dict[str, Any]:
         trace, spans, llm_calls = await self.repository.trace(trace_id)
         if trace is None:

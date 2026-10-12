@@ -69,7 +69,11 @@ class Profile(AuditMixin, Base):
     )
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
     state_id: Mapped[str | None] = mapped_column(ForeignKey("states.id"), nullable=True, index=True)
+    # The display name. For buyers it is always "first_name last_name"; dealer and support accounts give one
+    # full name and leave the parts empty. Buyers who signed up before the split keep their whole name in first_name.
     full_name: Mapped[str] = mapped_column(String(160), nullable=False)
+    first_name: Mapped[str | None] = mapped_column(String(80))
+    last_name: Mapped[str | None] = mapped_column(String(80))
     email: Mapped[str] = mapped_column(String(254), unique=True, nullable=False, index=True)
     role: Mapped[str] = mapped_column(String(20), nullable=False, index=True)
     phone: Mapped[str] = mapped_column(String(24), nullable=False)
@@ -390,6 +394,24 @@ class SupportTicket(AuditMixin, Base):
     priority: Mapped[str] = mapped_column(String(20), default="medium", nullable=False)
     notes: Mapped[list[dict]] = mapped_column(JSON, default=list, nullable=False)
     rca: Mapped[str | None] = mapped_column(Text)
+
+
+class SupportTicketAttachment(AuditMixin, Base):
+    """A screenshot or PDF a buyer or dealer attached to a help & support ticket.
+
+    The file lives in private storage under help-support/<audience>-support/<profile id>/<ticket id>/; only its key
+    and descriptive metadata are stored here.
+    """
+
+    __tablename__ = "support_ticket_attachments"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
+    ticket_id: Mapped[str] = mapped_column(
+        ForeignKey("support_tickets.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    object_key: Mapped[str] = mapped_column(String(1024), nullable=False)
+    file_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    content_type: Mapped[str] = mapped_column(String(100), nullable=False)
+    size_bytes: Mapped[int] = mapped_column(Integer, nullable=False)
 
 
 class SupportVerification(AuditMixin, Base):

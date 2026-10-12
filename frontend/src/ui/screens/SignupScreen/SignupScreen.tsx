@@ -1,4 +1,4 @@
-import { ArrowRight, Building2, CheckCircle2, FileUp, UserRound } from 'lucide-react';
+import { AlertCircle, ArrowRight, Building2, CheckCircle2, FileUp, UserRound } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import heroImage from '@/assets/vehicles/drivedeal-hero.png';
@@ -36,6 +36,8 @@ export default function SignupScreen() {
   const [states, setStates] = useState<StateRef[]>([]);
   const [brands, setBrands] = useState<BrandRef[]>([]);
   const [fullName, setFullName] = useState('');
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
@@ -56,6 +58,13 @@ export default function SignupScreen() {
   const [error, setError] = useState('');
   const [dealerStep, setDealerStep] = useState(1);
   const confirmPasswordRef = useRef<HTMLInputElement>(null);
+  // Worked out from both fields on every keystroke, so editing either one (in any order) updates the check.
+  const passwordsMismatch = confirmPassword !== '' && password !== confirmPassword;
+  const passwordsMatch = confirmPassword !== '' && password === confirmPassword;
+  // The browser's own validation (Continue, Create account) blocks on the same result while the field is on screen.
+  useEffect(() => {
+    confirmPasswordRef.current?.setCustomValidity(passwordsMismatch ? 'Passwords do not match.' : '');
+  }, [passwordsMismatch, dealerStep]);
   const pending = type !== 'buyer';
 
   useEffect(() => {
@@ -73,22 +82,24 @@ export default function SignupScreen() {
   async function submit() {
     if (!terms || submitting) return;
     if (password !== confirmPassword) {
-      confirmPasswordRef.current?.setCustomValidity('Passwords do not match.');
-      confirmPasswordRef.current?.reportValidity();
+      // On the dealer form the password fields live on step 1, so go back there rather than failing silently.
+      if (type === 'dealer') setDealerStep(1);
+      setError('Your passwords do not match. Re-enter them so they are the same.');
       return;
     }
+    if (type === 'buyer' && (!firstName.trim() || !lastName.trim())) { setError('Enter your first and last name.'); return; }
     if (type === 'buyer' && !licenseFile) { setLicenseError('Upload a PDF of your driving licence.'); return; }
     setSubmitting(true);
     setError('');
     try {
-      const base = { fullName, email, phone, password, stateId, address, termsAccepted: terms, termsVersion: '2026-01' };
+      const base = { email, phone, password, stateId, address, termsAccepted: terms, termsVersion: '2026-01' };
       if (type === 'buyer') {
-        const session = await client.auth.signupBuyer({ ...base, drivingLicense: licenseFile as File });
+        const session = await client.auth.signupBuyer({ ...base, firstName: firstName.trim(), lastName: lastName.trim(), drivingLicense: licenseFile as File });
         setSession(session);
       } else if (type === 'dealer') {
-        await client.auth.signupDealer({ ...base, dealershipName, branchName, dealerLicense, website, supportedBrandIds: brandId ? [brandId] : [] });
+        await client.auth.signupDealer({ ...base, fullName, dealershipName, branchName, dealerLicense, website, supportedBrandIds: brandId ? [brandId] : [] });
       } else {
-        await client.auth.signupSupport({ ...base, extraInformation });
+        await client.auth.signupSupport({ ...base, fullName, extraInformation });
       }
       setComplete(true);
     } catch (cause) {
@@ -123,17 +134,23 @@ export default function SignupScreen() {
           {type === 'dealer' && <div className="signup-progress" aria-label={`Step ${dealerStep} of 3`}><div className="signup-progress-track"><span style={{ width: `${dealerStep / 3 * 100}%` }} /></div><div className="signup-progress-labels">{['Your account', 'Dealership', 'Location & review'].map((label, index) => <span key={label} className={dealerStep === index + 1 ? 'active' : dealerStep > index + 1 ? 'complete' : ''}><b>{index + 1}</b>{label}</span>)}</div></div>}
           <form className={`form-grid signup-form${type === 'dealer' ? ` signup-form-dealer signup-form-step-${dealerStep}` : ''}`} onSubmit={(event) => { event.preventDefault(); void submit(); }}>
             {(type !== 'dealer' || dealerStep === 1) && <>
-              <div className="field"><label htmlFor="signup-name">Full name</label><input id="signup-name" className="input" autoComplete="name" value={fullName} onChange={(event) => setFullName(event.target.value)} required /></div>
+              {type === 'buyer' ? <>
+                <div className="field"><label htmlFor="signup-first-name">First name</label><input id="signup-first-name" className="input" autoComplete="given-name" maxLength={75} value={firstName} onChange={(event) => setFirstName(event.target.value)} required /></div>
+                <div className="field"><label htmlFor="signup-last-name">Last name</label><input id="signup-last-name" className="input" autoComplete="family-name" maxLength={75} value={lastName} onChange={(event) => setLastName(event.target.value)} required /></div>
+              </> : <div className="field signup-fullname"><label htmlFor="signup-name">Full name</label><input id="signup-name" className="input" autoComplete="name" value={fullName} onChange={(event) => setFullName(event.target.value)} required /></div>}
               <div className="field"><label htmlFor="signup-email">Email address</label><input id="signup-email" className="input" type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} required /></div>
               <div className="field"><label htmlFor="signup-phone">Phone number</label><input id="signup-phone" className="input" type="tel" autoComplete="tel" pattern="^\+?[0-9 \(\)\-]{7,18}$" value={phone} onChange={(event) => setPhone(event.target.value)} required /></div>
-              <div className="field"><label htmlFor="signup-password">Create password</label><input id="signup-password" className="input" type="password" autoComplete="new-password" minLength={8} value={password} onChange={(event) => { setPassword(event.target.value); confirmPasswordRef.current?.setCustomValidity(''); }} required /></div>
-              <div className="field"><label htmlFor="signup-confirm-password">Confirm password</label><input id="signup-confirm-password" ref={confirmPasswordRef} className="input" type="password" autoComplete="new-password" minLength={8} value={confirmPassword} onChange={(event) => { setConfirmPassword(event.target.value); event.currentTarget.setCustomValidity(event.target.value === password ? '' : 'Passwords do not match.'); }} required /></div>
+              {/* Create and confirm share one row on every form, so the pair is never split across rows. */}
+              <div className="form-span signup-password-pair">
+                <div className="field"><label htmlFor="signup-password">Create password</label><input id="signup-password" className="input" type="password" autoComplete="new-password" minLength={8} value={password} onChange={(event) => setPassword(event.target.value)} required /></div>
+                <div className="field"><div className="field-label-row"><label htmlFor="signup-confirm-password">Confirm password</label><span id="signup-password-match" className={`password-match${passwordsMismatch ? ' is-mismatch' : passwordsMatch ? ' is-match' : ''}`} aria-live="polite">{passwordsMismatch ? <><AlertCircle size={14} aria-hidden="true" /><span aria-hidden="true">No match</span><span className="sr-only">Passwords do not match</span></> : passwordsMatch ? <><CheckCircle2 size={14} aria-hidden="true" /><span aria-hidden="true">Matches</span><span className="sr-only">Passwords match</span></> : null}</span></div><input id="signup-confirm-password" ref={confirmPasswordRef} className="input" type="password" autoComplete="new-password" minLength={8} value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} aria-invalid={passwordsMismatch} aria-describedby="signup-password-match" required /></div>
+              </div>
             </>}
             {type === 'dealer' && dealerStep === 2 && <>
               <div className="field"><label htmlFor="signup-dealership">Dealership name</label><input id="signup-dealership" className="input" autoComplete="organization" value={dealershipName} onChange={(event) => setDealershipName(event.target.value)} required /></div>
               <div className="field"><label htmlFor="signup-branch">Branch name</label><input id="signup-branch" className="input" autoComplete="organization-title" value={branchName} onChange={(event) => setBranchName(event.target.value)} required /></div>
               <div className="field"><label htmlFor="signup-license">Dealer licence number</label><input id="signup-license" className="input" value={dealerLicense} onChange={(event) => setDealerLicense(event.target.value)} required /></div>
-              <div className="field"><label htmlFor="signup-website">Website</label><input id="signup-website" className="input" type="url" autoComplete="url" placeholder="https://example.com…" value={website} onChange={(event) => setWebsite(event.target.value)} required /></div>
+              <div className="field"><label htmlFor="signup-website">Website <span className="muted">(optional)</span></label><input id="signup-website" className="input" type="url" autoComplete="url" placeholder="https://example.com…" value={website} onChange={(event) => setWebsite(event.target.value)} /></div>
               {stateField}
               <div className="field"><label htmlFor="signup-brand">Primary brand</label><Dropdown id="signup-brand" ariaLabel="Primary brand" align="left" value={brandId} onChange={setBrandId} options={[{ value: '', label: 'Select a primary brand' }, ...brands.map((item) => ({ value: item.id, label: item.name }))]} /></div>
             </>}

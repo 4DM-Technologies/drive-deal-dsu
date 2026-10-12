@@ -22,6 +22,7 @@ erDiagram
     profiles ||--o{ deal_chats : "sends"
     profiles ||--o{ deal_documents : "uploads"
     profiles ||--o{ support_tickets : "raises"
+    support_tickets ||--o{ support_ticket_attachments : "carries"
     profiles ||--o{ support_verifications : "applicant"
     profiles ||--o{ support_verifications : "decides"
     profiles ||--o{ error_logs : "associated user"
@@ -53,6 +54,8 @@ erDiagram
         uuid id PK
         uuid state_id FK
         text full_name
+        text first_name
+        text last_name
         text email UK
         text role
         text phone
@@ -237,6 +240,15 @@ erDiagram
         text priority
         json notes
         text rca
+    }
+
+    support_ticket_attachments {
+        uuid id PK
+        uuid ticket_id FK
+        text object_key "help-support/<buyer|dealer>-support/<profile id>/<ticket id>/<file>"
+        text file_name
+        text content_type
+        int size_bytes
     }
 
     support_verifications {

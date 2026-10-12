@@ -122,6 +122,12 @@ BUYER_STORAGE_PREFIX = "buyer"
 PERSONAL_DETAILS_FOLDER = "personal-details"
 DRIVING_LICENSE_FOLDER = "driving-licence"
 DRIVING_LICENSE_DOCUMENT_TYPE = "driving_license"
+# Help & support uploads: help-support/<buyer-support|dealer-support|staff-support>/<profile id>/<ticket id>/<file>
+HELP_SUPPORT_PREFIX = "help-support"
+HELP_SUPPORT_FOLDERS = {"buyer": "buyer-support", "dealer": "dealer-support"}
+HELP_SUPPORT_STAFF_FOLDER = "staff-support"
+SUPPORT_ATTACHMENT_MAX_BYTES = 10 * 1024 * 1024
+SUPPORT_ATTACHMENT_MAX_FILES = 3
 DRIVING_LICENSE_MAX_BYTES = 10 * 1024 * 1024
 DRIVING_LICENSE_EXTENSIONS = {
     "image/jpeg": ".jpg",

@@ -1,5 +1,6 @@
 import asyncio
 from datetime import UTC, datetime
+from secrets import token_hex
 from time import time
 from uuid import uuid4
 
@@ -19,6 +20,11 @@ from src.utils.log_flow import log_flow
 from src.utils.logger import logger
 
 
+def _verification_ticket_id(prefix: str, stamp: str) -> str:
+    """A readable verification ticket id. The random tail keeps two signups in the same second from colliding."""
+    return f"{prefix}{stamp}{token_hex(2).upper()}"
+
+
 class AuthService:
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
@@ -26,7 +32,9 @@ class AuthService:
 
     @log_flow(layer="service")
     async def signup_buyer(self, payload: BuyerSignup, driving_license: DrivingLicenseUpload) -> TokenResponse:
-        profile = await self._create_profile(payload, "buyer", is_active=True)
+        profile = await self._create_profile(
+            payload, "buyer", is_active=True, first_name=payload.first_name, last_name=payload.last_name
+        )
         storage = get_storage()
         stored_key = await self._store_driving_license(storage, profile, driving_license)
         try:
@@ -49,11 +57,15 @@ class AuthService:
             dealership_name=payload.dealership_name,
             branch_name=payload.branch_name,
             dealer_license=payload.dealer_license,
-            website=str(payload.website),
+            website=str(payload.website) if payload.website else None,
             supported_brands=payload.supported_brand_ids,
         )
         verification = SupportVerification(
-            ticket_id=f"DV{int(time())}", category="dealer", profile_id=profile.id, status="pending", notes=[]
+            ticket_id=_verification_ticket_id("DV", str(int(time()))),
+            category="dealer",
+            profile_id=profile.id,
+            status="pending",
+            notes=[],
         )
         self.session.add(verification)
         await self.repository.commit()
@@ -64,7 +76,7 @@ class AuthService:
     async def signup_support(self, payload: SupportSignup) -> dict:
         profile = await self._create_profile(payload, "support", is_active=False)
         verification = SupportVerification(
-            ticket_id=f"SA{str(int(time()))[-6:]}",
+            ticket_id=_verification_ticket_id("SA", str(int(time()))[-6:]),
             category="agent",
             profile_id=profile.id,
             status="pending",
@@ -191,6 +203,8 @@ class AuthService:
             profile=SessionProfile(
                 id=profile.id,
                 full_name=profile.full_name,
+                first_name=profile.first_name,
+                last_name=profile.last_name,
                 email=profile.email,
                 phone=profile.phone,
                 role=profile.role,

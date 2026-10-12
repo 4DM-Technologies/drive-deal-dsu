@@ -45,9 +45,11 @@ def _llm_returning(
     status: str = "success",
     image_results: list[dict[str, str]] | None = None,
 ) -> SimpleNamespace:
-    return SimpleNamespace(generate=AsyncMock(return_value=SimpleNamespace(
-        text=text, sources=sources, status=status, image_results=image_results
-    )))
+    return SimpleNamespace(
+        generate=AsyncMock(
+            return_value=SimpleNamespace(text=text, sources=sources, status=status, image_results=image_results)
+        )
+    )
 
 
 @pytest.fixture(autouse=True)
@@ -85,12 +87,16 @@ def test_vehicle_image_terms_keep_make_model_and_drop_request_details() -> None:
 
 
 async def test_image_search_uses_direct_image_results_and_caches_verified_vehicle_identity() -> None:
-    llm = _llm_returning(image_results=[{
-        "image_url": "https://media.audi.com/a3.jpg",
-        "thumbnail_url": "https://media.audi.com/a3-thumb.jpg",
-        "source_url": "https://www.audiusa.com/en/models/a3/a3/2026/overview/",
-        "caption": "2026 Audi A3 sedan exterior",
-    }])
+    llm = _llm_returning(
+        image_results=[
+            {
+                "image_url": "https://media.audi.com/a3.jpg",
+                "thumbnail_url": "https://media.audi.com/a3-thumb.jpg",
+                "source_url": "https://www.audiusa.com/en/models/a3/a3/2026/overview/",
+                "caption": "2026 Audi A3 sedan exterior",
+            }
+        ]
+    )
     outcome: dict[str, str] = {}
 
     images = await search_vehicle_images(llm, "get me the image of Audi A3", outcome=outcome)

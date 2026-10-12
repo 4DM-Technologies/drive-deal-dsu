@@ -1,11 +1,15 @@
+import asyncio
 from datetime import UTC, datetime
+from secrets import token_hex
 from time import time
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.models.marketplace import TicketCreate, TicketUpdate, VerificationDecision
-from src.repositories.schema import Profile, State, SupportTicket, SupportVerification, User
+from src.repositories.schema import Profile, State, SupportTicket, SupportTicketAttachment, SupportVerification, User
+from src.services.storage import Storage, StorageError, StorageObject, get_storage
+from src.services.support_attachments import SupportUpload, support_attachment_key
 from src.utils.exceptions import AppError, error_codes
 from src.utils.log_flow import log_flow
 from src.utils.logger import logger
@@ -19,12 +23,38 @@ class SupportService:
     @log_flow(layer="service")
     async def _ticket_dict(self, row: SupportTicket) -> dict:
         caller = await self.session.get(Profile, row.caller_id)
+        attachments = await self._attachment_map([row.id])
         return {
             **model_dict(row),
             "caller_name": caller.full_name if caller else None,
             "caller_email": caller.email if caller else None,
             "caller_role": caller.role if caller else None,
+            "attachments": attachments.get(row.id, []),
         }
+
+    async def _attachment_map(self, ticket_ids: list[str]) -> dict[str, list[dict]]:
+        """Each ticket's attachments as display metadata. Storage keys stay server-side; downloads go through a link."""
+        if not ticket_ids:
+            return {}
+        rows = (
+            await self.session.execute(
+                select(SupportTicketAttachment)
+                .where(SupportTicketAttachment.ticket_id.in_(ticket_ids))
+                .order_by(SupportTicketAttachment.created_at)
+            )
+        ).scalars()
+        result: dict[str, list[dict]] = {}
+        for row in rows:
+            result.setdefault(row.ticket_id, []).append(
+                {
+                    "id": row.id,
+                    "file_name": row.file_name,
+                    "content_type": row.content_type,
+                    "size_bytes": row.size_bytes,
+                    "created_at": row.created_at.isoformat() if row.created_at else None,
+                }
+            )
+        return result
 
     @log_flow(layer="service")
     async def _verification_dict(self, row: SupportVerification) -> dict:
@@ -76,12 +106,14 @@ class SupportService:
             statement = statement.where(SupportTicket.caller_id == actor.id)
         rows = list((await self.session.execute(statement)).scalars())
         callers = await self._profile_map({row.caller_id for row in rows})
+        attachments = await self._attachment_map([row.id for row in rows])
         return [
             {
                 **model_dict(row),
                 "caller_name": callers[row.caller_id].full_name if row.caller_id in callers else None,
                 "caller_email": callers[row.caller_id].email if row.caller_id in callers else None,
                 "caller_role": callers[row.caller_id].role if row.caller_id in callers else None,
+                "attachments": attachments.get(row.id, []),
             }
             for row in rows
         ]
@@ -91,7 +123,8 @@ class SupportService:
         category = "dealer" if actor.role == "dealer" else "customer"
         prefix = "DS" if category == "dealer" else "TIC-"
         ticket = SupportTicket(
-            ticket_id=f"{prefix}{str(int(time()))[-6:]}",
+            # The random tail keeps two reports sent in the same second from colliding.
+            ticket_id=f"{prefix}{str(int(time()))[-6:]}{token_hex(2).upper()}",
             category=category,
             caller_id=actor.id,
             **payload.model_dump(),
@@ -101,6 +134,71 @@ class SupportService:
         await self.session.refresh(ticket)
         logger.info("ticket_created", ticket_id=ticket.ticket_id, caller_id=actor.id, category=category)
         return await self._ticket_dict(ticket)
+
+    @log_flow(layer="service")
+    async def add_attachments(self, ticket_id: str, uploads: list[SupportUpload], actor: Profile) -> dict:
+        """Stores the requester's screenshots or PDFs under help-support/... and records them on the ticket."""
+        ticket = await self.session.get(SupportTicket, ticket_id)
+        if ticket is None or ticket.caller_id != actor.id:
+            raise AppError(error_codes.RESOURCE_NOT_FOUND, "Ticket not found.", 404)
+        existing = len((await self._attachment_map([ticket.id])).get(ticket.id, []))
+        # Read before any rollback below, which expires the loaded ticket.
+        ticket_uuid, public_id = ticket.id, ticket.ticket_id
+        storage = get_storage()
+        stored: list[str] = []
+        try:
+            for offset, upload in enumerate(uploads, start=1):
+                key = support_attachment_key(actor.role, actor.id, public_id, existing + offset, upload.extension)
+                item = StorageObject(key=key, content=upload.content, content_type=upload.content_type)
+                # boto3 is blocking, so the upload runs off the event loop.
+                await asyncio.to_thread(storage.put_object, item)
+                stored.append(key)
+                self.session.add(
+                    SupportTicketAttachment(
+                        ticket_id=ticket_uuid,
+                        object_key=key,
+                        file_name=upload.file_name,
+                        content_type=upload.content_type,
+                        size_bytes=len(upload.content),
+                        created_by=actor.id,
+                        updated_by=actor.id,
+                    )
+                )
+            await self.session.commit()
+        except StorageError as exc:
+            await self.session.rollback()
+            await self._discard(storage, stored)
+            logger.error("support_attachment_upload_failed", ticket_id=public_id, error=str(exc))
+            raise AppError(
+                error_codes.STORAGE_UNAVAILABLE, "We could not store your attachment right now. Please try again.", 503
+            ) from exc
+        except Exception:
+            await self.session.rollback()
+            await self._discard(storage, stored)
+            raise
+        logger.info("support_attachments_added", ticket_id=public_id, count=len(uploads))
+        await self.session.refresh(ticket)
+        return await self._ticket_dict(ticket)
+
+    @staticmethod
+    async def _discard(storage: Storage, keys: list[str]) -> None:
+        for key in keys:
+            try:
+                await asyncio.to_thread(storage.delete_object, key)
+            except StorageError as exc:
+                logger.warning("support_attachment_cleanup_failed", object_key=key, error=str(exc))
+
+    @log_flow(layer="service")
+    async def attachment_download(self, ticket_id: str, attachment_id: str, actor: Profile) -> dict:
+        """A short-lived link that saves the file, for support staff or the person who raised the ticket."""
+        ticket = await self.session.get(SupportTicket, ticket_id)
+        if ticket is None or (actor.role not in {"support", "support-admin", "admin"} and ticket.caller_id != actor.id):
+            raise AppError(error_codes.RESOURCE_NOT_FOUND, "Attachment not found.", 404)
+        attachment = await self.session.get(SupportTicketAttachment, attachment_id)
+        if attachment is None or attachment.ticket_id != ticket.id:
+            raise AppError(error_codes.RESOURCE_NOT_FOUND, "Attachment not found.", 404)
+        url = get_storage().create_download(attachment.object_key, as_attachment=True, filename=attachment.file_name)
+        return {"url": url, "file_name": attachment.file_name, "content_type": attachment.content_type}
 
     @log_flow(layer="service")
     async def update_ticket(self, ticket_id: str, payload: TicketUpdate, actor: Profile) -> dict:
