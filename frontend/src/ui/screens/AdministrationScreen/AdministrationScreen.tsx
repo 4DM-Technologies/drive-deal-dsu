@@ -1,10 +1,13 @@
 import {
   Background,
+  BaseEdge,
   Controls,
+  getSmoothStepPath,
   MarkerType,
   MiniMap,
   Position,
   ReactFlow,
+  type EdgeProps,
   type Connection,
   type Edge,
   type Node,
@@ -13,6 +16,7 @@ import '@xyflow/react/dist/style.css';
 import {
   Activity,
   AlertTriangle,
+  Brain,
   Bot,
   Check,
   ChevronDown,
@@ -108,25 +112,48 @@ const themeColorLabels: Array<{ key: ThemeColorKey; label: string; description: 
 const coreAgentKeys = ['main_agent', 'web_search_agent', 'compare'];
 const coreAgentCopy: Record<string, { label: string; description: string }> = {
   main_agent: { label: 'Shared Sera policy', description: 'Root behavior and safety guidance added to pipeline prompts.' },
-  web_search_agent: { label: 'Trusted research', description: 'Finds and extracts current vehicle evidence.' },
-  compare: { label: 'Offer comparison', description: 'Evaluates vehicles and dealer offers side by side.' },
+  web_search_agent: { label: 'Web research instructions', description: 'Rules used by the web research agent and its search tools.' },
+  compare: { label: 'Selected-offer comparison prompt', description: 'Used by the answer composer when comparing saved requests or dealer quotes.' },
 };
 const conditionLabels: Record<string, string> = {
   always: 'Always', small_talk: 'Greeting or safe direct reply', web_search: 'Explicit image or web request',
-  default: 'Default route', off_topic: 'Off-topic message', compare: 'Selected-offer compare mode',
+  default: 'Default route', off_topic: 'Off-topic message', compare: 'Vehicle comparison request',
   web_direct: 'Current or explicit web research', web_per_car: 'Catalog shortlist needs research',
   kb_miss: 'Catalog could not answer',
 };
 const conditionLabel = (condition: string) => conditionLabels[condition] ?? pretty(condition);
+const flowConditionLabels: Record<string, string> = {
+  small_talk: 'Greeting', web_search: 'Image / web', default: 'Default', off_topic: 'Off-topic',
+  compare: 'Vehicle compare', web_direct: 'Web lookup', web_per_car: 'Research', kb_miss: 'Catalog miss',
+};
+// Labels are moved into separate lanes when several branches share the same
+// part of the graph. Keep the labels attached to their edge as nodes move.
+const flowLabelLanes: Record<string, number> = {
+  'triage:small_talk': -18,
+  'triage:web_search': -22,
+  'classifier:off_topic': 18,
+  'orchestrator:compare': 26,
+  'orchestrator:web_direct': 18,
+  'kb_agent:kb_miss': -18,
+  'kb_agent:web_per_car': 18,
+  'kb_agent:default': -28,
+};
 const runtimeAgentCopy: Record<string, { label: string; description: string }> = {
   main_agent: { label: 'Classifier model', description: 'Fast intent-routing model used by the Classifier workflow step.' },
-  web_search_agent: { label: 'Web research model', description: 'Model profile for trusted vehicle research.' },
-  compare: { label: 'Offer comparison model', description: 'Model profile for selected dealer-offer comparisons.' },
+  web_search_agent: { label: 'Web research model', description: 'Model used to extract evidence from trusted vehicle sources.' },
+  compare: { label: 'Compare-mode model', description: 'Model profile used by the answer composer for selected-offer comparisons.' },
 };
 
 const presets = ['#1456b8', '#0b6b57', '#6b3fa0', '#9b3d2f', '#2e485e', '#111827', '#f2f5f8', '#fffdf8'];
 const pretty = (value: string) => value.replaceAll('_', ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
 const clone = <T,>(value: T): T => structuredClone(value);
+const applyCurrentNodeCatalog = (workflow: WorkflowDefinition, catalog: AdminCatalog['nodes']): WorkflowDefinition => ({
+  ...workflow,
+  nodes: workflow.nodes.map((node) => {
+    const currentDefinition = catalog.find((item) => item.id === node.id);
+    return currentDefinition ? { ...node, ...currentDefinition } : node;
+  }),
+});
 
 const arrangedPositions: Record<string, { x: number; y: number }> = {
   triage: { x: 220, y: 235 }, classifier: { x: 440, y: 235 }, orchestrator: { x: 660, y: 235 },
@@ -224,20 +251,50 @@ function flowNodes(workflow: WorkflowDefinition, executed: string[] = [], active
   ];
 }
 
-function flowEdges(workflow: WorkflowDefinition, executed: string[] = [], active?: string): Edge[] {
+type WorkflowEdge = Edge<{ labelOffsetY: number }>;
+
+function LabeledSmoothStepEdge(props: EdgeProps<WorkflowEdge>) {
+  const [path, labelX, labelY] = getSmoothStepPath(props);
+  const edgeOptions = {
+    ...(props.markerStart ? { markerStart: props.markerStart } : {}),
+    ...(props.markerEnd ? { markerEnd: props.markerEnd } : {}),
+    ...(props.style ? { style: props.style } : {}),
+    ...(props.interactionWidth !== undefined ? { interactionWidth: props.interactionWidth } : {}),
+    ...(props.label != null ? { label: props.label } : {}),
+    ...(props.labelStyle ? { labelStyle: props.labelStyle } : {}),
+    ...(props.labelShowBg !== undefined ? { labelShowBg: props.labelShowBg } : {}),
+    ...(props.labelBgStyle ? { labelBgStyle: props.labelBgStyle } : {}),
+    ...(props.labelBgPadding ? { labelBgPadding: props.labelBgPadding } : {}),
+    ...(props.labelBgBorderRadius !== undefined ? { labelBgBorderRadius: props.labelBgBorderRadius } : {}),
+  };
+  return <BaseEdge
+    id={props.id}
+    path={path}
+    labelX={labelX}
+    labelY={labelY + (props.data?.labelOffsetY ?? 0)}
+    {...edgeOptions}
+  />;
+}
+
+const workflowEdgeTypes = { adminLabeled: LabeledSmoothStepEdge };
+
+function flowEdges(workflow: WorkflowDefinition, executed: string[] = [], active?: string): WorkflowEdge[] {
   return workflow.edges.map((edge) => {
     const index = executed.indexOf(edge.source);
     const used = index >= 0 && executed[index + 1] === edge.target;
     const running = active === edge.target && executed.at(-1) === edge.source;
     return {
       id: edge.id, source: edge.source, target: edge.target,
-      label: edge.condition === 'always' ? undefined : conditionLabel(edge.condition), markerEnd: { type: MarkerType.ArrowClosed },
-      reconnectable: true, animated: false, type: 'smoothstep', className: running ? 'executing-edge' : used ? 'executed-edge' : '',
+      // Short condition labels clarify branches without colliding where routes converge.
+      label: edge.condition === 'always' ? undefined : (flowConditionLabels[edge.condition] ?? pretty(edge.condition)),
+      markerEnd: { type: MarkerType.ArrowClosed },
+      reconnectable: true, animated: false, type: 'adminLabeled', className: running ? 'executing-edge' : used ? 'executed-edge' : '',
+      data: { labelOffsetY: flowLabelLanes[`${edge.source}:${edge.condition}`] ?? 0 },
       style: { stroke: used || running ? 'var(--accent)' : 'var(--border-strong)', strokeWidth: used || running ? 2.6 : 1.45 },
-      labelStyle: { fill: 'var(--muted)', fontSize: 11, fontWeight: 650 },
+      labelStyle: { fill: 'var(--ink)', fontSize: 9, fontWeight: 700 },
       labelShowBg: true,
-      labelBgStyle: { fill: 'var(--raised)', fillOpacity: .94 },
-      labelBgPadding: [6, 3] as [number, number],
+      labelBgStyle: { fill: 'var(--raised)', fillOpacity: .98 },
+      labelBgPadding: [4, 2] as [number, number],
       labelBgBorderRadius: 6,
     };
   });
@@ -261,9 +318,9 @@ function WorkflowOverview() {
       detail: 'Runs beside Sera for eligible messages; this service-level path is not rewired in the graph editor.',
     },
     {
-      title: 'Compare selected offers', badge: 'Separate mode', icon: GitCompareArrows,
-      steps: ['Selected requests or quotes', 'Compare agent', 'Offer comparison'],
-      detail: 'A normal “compare these cars” question stays in Ask Sera and uses vehicle evidence.',
+      title: 'Selected-offer comparison', badge: 'Compose mode', icon: GitCompareArrows,
+      steps: ['Selected requests or quotes', 'Compare prompt', 'Answer composer'],
+      detail: 'The same composer uses compare.md for saved offers. A normal “compare these cars” question stays in Sera’s catalog and web-research flow.',
     },
   ];
 
@@ -274,6 +331,7 @@ function WorkflowOverview() {
       <ol aria-label={`${title} steps`}>{steps.map((step) => <li key={step}>{step}</li>)}</ol>
       <p>{detail}</p>
     </article>)}</div>
+    <div className="workflow-memory-note"><span aria-hidden="true"><Brain size={17} /></span><div><strong>Shared conversation memory · service-managed</strong><p>AiService loads recent chat, saved preferences, and request details before Sera runs, then saves the turn. Memory is shared context, not a separate agent.</p></div></div>
   </section>;
 }
 
@@ -288,6 +346,7 @@ function WorkflowGraph({ workflow, executed, active, running, darkMode, onConnec
   return <div className="workflow-canvas" aria-label="Sera workflow diagram"><ReactFlow
     nodes={nodes}
     edges={edges}
+    edgeTypes={workflowEdgeTypes}
     onConnect={onConnect}
     onReconnect={onReconnect}
     onNodeDragStop={(_, node) => onNodeMoved(node)}
@@ -362,7 +421,7 @@ export default function AdministrationScreen() {
     ]);
     setCatalog(nextCatalog); setWorkflowBundle(nextWorkflow); setThemeBundle(nextTheme); setPrompts(nextPrompts);
     setAudit(nextAudit); setMembers(nextMembers); setTraces(nextTraces);
-    resetWorkflowHistory(nextWorkflow.draft?.payload ?? nextWorkflow.active.payload);
+    resetWorkflowHistory(applyCurrentNodeCatalog(nextWorkflow.draft?.payload ?? nextWorkflow.active.payload, nextCatalog.nodes));
     resetThemeHistory(nextTheme.draft?.payload ?? nextTheme.active.payload);
     setWorkflowDirty(false); setPromptDirty(false); setThemeDirty(false); setLoaded(true);
   }, [resetThemeHistory, resetWorkflowHistory]);
@@ -443,7 +502,7 @@ export default function AdministrationScreen() {
   return <main className="admin-page" data-admin-theme={adminTheme}><header className="admin-hero shell"><div><div className="admin-kicker"><ShieldCheck size={15} /> Administrator control plane</div><h1>Operate Sera with guardrails.</h1><p>Configure, test, observe, version and recover every AI control surface.</p></div><div className="admin-hero-tools"><button type="button" className="admin-theme-toggle" aria-label={`Switch to ${adminTheme === 'light' ? 'dark' : 'light'} mode`} aria-pressed={adminTheme === 'dark'} onClick={() => setAdminTheme((mode) => mode === 'light' ? 'dark' : 'light')}><span className="admin-theme-toggle-icon" aria-hidden="true">{adminTheme === 'light' ? <Moon size={16} /> : <Sun size={16} />}</span><span>{adminTheme === 'light' ? 'Dark mode' : 'Light mode'}</span></button><div className="admin-runtime-status"><i /><span><strong>Runtime healthy</strong><small>Workflow v{workflowBundle.active.version} · published configuration</small></span></div></div></header><div className="admin-tabs-wrap"><nav className="admin-tabs shell" aria-label="Administration sections">{tabs.map(({ id, label, icon: Icon }) => <button key={id} className={tab === id ? 'active' : ''} onClick={() => { setTab(id); setNotice(null); }}><Icon size={16} />{label}</button>)}</nav></div><div className="shell admin-workspace">
     {notice && <div className={`admin-notice ${notice.kind}`} role="status">{notice.kind === 'success' ? <Check size={17} /> : notice.kind === 'error' ? <X size={17} /> : <CircleDot size={17} />}<span>{notice.text}</span><button onClick={() => setNotice(null)} aria-label="Dismiss message"><X size={15} /></button></div>}
     {tab === 'overview' && <Overview workflowBundle={workflowBundle} themeBundle={themeBundle} prompts={prompts} members={members} audit={audit} traces={traces} onOpen={setTab} />}
-    {tab === 'workflow' && <section className="admin-section"><WorkflowOverview /><div className="admin-section-head"><div><h2>Sera chat workflow</h2><p>Edit routes inside Ask Sera. Entry shortcuts and parallel request extraction are shown above.</p></div><div className="admin-actions"><HistoryButtons {...workflowHistory} /><button className="button button-secondary button-sm" disabled={!!busy} onClick={() => { workflowHistory.change(arrangeWorkflow); setWorkflowDirty(true); }}><LayoutGrid size={15} /> Arrange</button><button className="button button-secondary button-sm" disabled={!!busy} onClick={() => void runAction('validate', async () => { const result = await client.administration.validate('workflow', catalog.workflowKey, workflow as unknown as Record<string, unknown>); setNotice(result.valid ? { kind: 'success', text: 'Workflow is valid and safe to publish.' } : { kind: 'error', text: result.errors.join(' ') }); })}><ShieldCheck size={15} /> Validate</button><button className="button button-secondary button-sm" disabled={!!busy || !workflowDirty} onClick={() => void runAction('save-workflow', saveWorkflow)}><Save size={15} /> Save draft</button><button className="button button-primary button-sm" disabled={!!busy || !workflowBundle.draft || workflowDirty} onClick={() => void runAction('publish-workflow', async () => { await client.administration.publish('workflow', catalog.workflowKey, workflowBundle.draft!.id); await announceReload('The workflow is active for new Sera requests.'); })}><Send size={15} /> Publish</button></div></div><RevisionControls bundle={workflowBundle} type="workflow" configKey={catalog.workflowKey} busy={!!busy} onLoad={(value) => { workflowHistory.reset(value); setWorkflowDirty(true); }} onChanged={announceReload} /><div className="workflow-layout"><aside className="workflow-palette"><h3>Steps in this graph</h3><p>Connections are configurable. Executable code is fixed.</p>{catalog.nodes.map((node) => <div key={node.id} className={`palette-node ${node.type}`}><span><Code2 size={14} /></span><div><strong>{node.label}</strong><small>{node.description}</small></div></div>)}</aside><WorkflowGraph workflow={workflow} executed={executedNames} active={activeExecution} running={busy === 'workflow-preview'} darkMode={adminTheme === 'dark'} onConnect={(connection) => { if (!connection.source || !connection.target || connection.source === 'end' || connection.target === 'start') return; const condition = conditions[connection.source]?.includes('default') ? 'default' : 'always'; workflowHistory.change((current) => ({ ...current, edges: [...current.edges.filter((edge) => !(edge.source === connection.source && edge.condition === condition)), { id: `${connection.source}-${condition}-${connection.target}`, source: connection.source!, target: connection.target!, condition }] })); setWorkflowDirty(true); }} onReconnect={(oldEdge, connection) => { workflowHistory.change((current) => ({ ...current, edges: current.edges.map((edge) => edge.id === oldEdge.id ? { ...edge, source: connection.source ?? edge.source, target: connection.target ?? edge.target, condition: connection.source && connection.source !== edge.source ? (conditions[connection.source]?.includes('default') ? 'default' : 'always') : edge.condition } : edge) })); setWorkflowDirty(true); }} onNodeMoved={(node) => { if (node.id === 'start' || node.id === 'end') return; workflowHistory.change((current) => ({ ...current, nodes: current.nodes.map((item) => item.id === node.id ? { ...item, position: node.position } : item) })); setWorkflowDirty(true); }} /></div><div className="connection-editor"><div className="admin-subhead"><div><h3>Connection rules</h3><p>Keyboard and mobile editor for the same diagram.</p></div><span>{workflow.edges.length} routes</span></div><div className="connection-list">{workflow.edges.map((edge) => <div className="connection-row" key={edge.id}><span className="connection-source">{pretty(edge.source)}</span><select value={edge.condition} onChange={(event) => { workflowHistory.change((current) => ({ ...current, edges: current.edges.map((item) => item.id === edge.id ? { ...item, condition: event.target.value } : item) })); setWorkflowDirty(true); }}>{(conditions[edge.source] ?? [edge.condition]).map((condition) => <option key={condition} value={condition}>{conditionLabel(condition)}</option>)}</select><ChevronRight size={15} /><select value={edge.target} onChange={(event) => { workflowHistory.change((current) => ({ ...current, edges: current.edges.map((item) => item.id === edge.id ? { ...item, target: event.target.value } : item) })); setWorkflowDirty(true); }}>{[...workflow.nodes.map((node) => node.id), 'end'].filter((target) => target !== edge.source).map((target) => <option key={target} value={target}>{pretty(target)}</option>)}</select></div>)}</div></div><TestConsole message={previewMessage} setMessage={setPreviewMessage} busy={busy === 'workflow-preview'} onRun={() => void runAction('workflow-preview', () => runPreview(false))} preview={preview} streamedAnswer={streamedAnswer} executionFlow={executionFlow} traceId={liveTraceId} threadMode={previewThreadMode} setThreadMode={setPreviewThreadMode} threadId={previewThreadId} setThreadId={setPreviewThreadId} recentThreadIds={recentPreviewThreads} /></section>}
+    {tab === 'workflow' && <section className="admin-section"><WorkflowOverview /><div className="admin-section-head"><div><h2>Sera chat workflow</h2><p>Edit routes inside Ask Sera. Entry shortcuts and parallel request extraction are shown above.</p></div><div className="admin-actions"><HistoryButtons {...workflowHistory} /><button className="button button-secondary button-sm" disabled={!!busy} onClick={() => { workflowHistory.change(arrangeWorkflow); setWorkflowDirty(true); }}><LayoutGrid size={15} /> Arrange</button><button className="button button-secondary button-sm" disabled={!!busy} onClick={() => void runAction('validate', async () => { const result = await client.administration.validate('workflow', catalog.workflowKey, workflow as unknown as Record<string, unknown>); setNotice(result.valid ? { kind: 'success', text: 'Workflow is valid and safe to publish.' } : { kind: 'error', text: result.errors.join(' ') }); })}><ShieldCheck size={15} /> Validate</button><button className="button button-secondary button-sm" disabled={!!busy || !workflowDirty} onClick={() => void runAction('save-workflow', saveWorkflow)}><Save size={15} /> Save draft</button><button className="button button-primary button-sm" disabled={!!busy || !workflowBundle.draft || workflowDirty} onClick={() => void runAction('publish-workflow', async () => { await client.administration.publish('workflow', catalog.workflowKey, workflowBundle.draft!.id); await announceReload('The workflow is active for new Sera requests.'); })}><Send size={15} /> Publish</button></div></div><RevisionControls bundle={workflowBundle} type="workflow" configKey={catalog.workflowKey} busy={!!busy} onLoad={(value) => { workflowHistory.reset(applyCurrentNodeCatalog(value, catalog.nodes)); setWorkflowDirty(true); }} onChanged={announceReload} /><div className="workflow-layout"><aside className="workflow-palette"><h3>Steps in this graph</h3><p>Conditions and destinations are shown in Connection rules below. Executable code is fixed.</p>{catalog.nodes.map((node) => <div key={node.id} className={`palette-node ${node.type}`}><span><Code2 size={14} /></span><div><strong>{node.label}</strong><small>{node.description}</small></div></div>)}</aside><WorkflowGraph workflow={workflow} executed={executedNames} active={activeExecution} running={busy === 'workflow-preview'} darkMode={adminTheme === 'dark'} onConnect={(connection) => { if (!connection.source || !connection.target || connection.source === 'end' || connection.target === 'start') return; const condition = conditions[connection.source]?.includes('default') ? 'default' : 'always'; workflowHistory.change((current) => ({ ...current, edges: [...current.edges.filter((edge) => !(edge.source === connection.source && edge.condition === condition)), { id: `${connection.source}-${condition}-${connection.target}`, source: connection.source!, target: connection.target!, condition }] })); setWorkflowDirty(true); }} onReconnect={(oldEdge, connection) => { workflowHistory.change((current) => ({ ...current, edges: current.edges.map((edge) => edge.id === oldEdge.id ? { ...edge, source: connection.source ?? edge.source, target: connection.target ?? edge.target, condition: connection.source && connection.source !== edge.source ? (conditions[connection.source]?.includes('default') ? 'default' : 'always') : edge.condition } : edge) })); setWorkflowDirty(true); }} onNodeMoved={(node) => { if (node.id === 'start' || node.id === 'end') return; workflowHistory.change((current) => ({ ...current, nodes: current.nodes.map((item) => item.id === node.id ? { ...item, position: node.position } : item) })); setWorkflowDirty(true); }} /></div><div className="connection-editor"><div className="admin-subhead"><div><h3>Connection rules</h3><p>Set each source, condition, and destination here; the diagram stays clear and easy to follow.</p></div><span>{workflow.edges.length} routes</span></div><div className="connection-list">{workflow.edges.map((edge) => <div className="connection-row" key={edge.id}><span className="connection-source">{pretty(edge.source)}</span><select value={edge.condition} onChange={(event) => { workflowHistory.change((current) => ({ ...current, edges: current.edges.map((item) => item.id === edge.id ? { ...item, condition: event.target.value } : item) })); setWorkflowDirty(true); }}>{(conditions[edge.source] ?? [edge.condition]).map((condition) => <option key={condition} value={condition}>{conditionLabel(condition)}</option>)}</select><ChevronRight size={15} /><select value={edge.target} onChange={(event) => { workflowHistory.change((current) => ({ ...current, edges: current.edges.map((item) => item.id === edge.id ? { ...item, target: event.target.value } : item) })); setWorkflowDirty(true); }}>{[...workflow.nodes.map((node) => node.id), 'end'].filter((target) => target !== edge.source).map((target) => <option key={target} value={target}>{pretty(target)}</option>)}</select></div>)}</div></div><TestConsole message={previewMessage} setMessage={setPreviewMessage} busy={busy === 'workflow-preview'} onRun={() => void runAction('workflow-preview', () => runPreview(false))} preview={preview} streamedAnswer={streamedAnswer} executionFlow={executionFlow} traceId={liveTraceId} threadMode={previewThreadMode} setThreadMode={setPreviewThreadMode} threadId={previewThreadId} setThreadId={setPreviewThreadId} recentThreadIds={recentPreviewThreads} /></section>}
     {(tab === 'prompts' || tab === 'runtime') && <PromptStudio runtime={tab === 'runtime'} prompts={prompts} selectedPrompt={selectedPrompt!} selectedPromptKey={selectedPromptKey} setSelectedPromptKey={setSelectedPromptKey} prompt={prompt} history={promptHistory} dirty={promptDirty} setDirty={setPromptDirty} catalog={catalog} busy={!!busy} save={() => void runAction('save-prompt', savePrompt)} publish={() => void runAction('publish-prompt', async () => { await client.administration.publish('prompt', selectedPrompt!.key, selectedPrompt!.draft!.id); await announceReload(`${selectedPrompt!.label} is active for new requests.`); })} reload={announceReload} previewMessage={previewMessage} setPreviewMessage={setPreviewMessage} previewBusy={busy === 'prompt-preview'} runPreview={() => void runAction('prompt-preview', () => runPreview(true, true))} preview={preview} streamedAnswer={streamedAnswer} executionFlow={executionFlow} traceId={liveTraceId} />}
     {tab === 'theme' && <ThemeStudio theme={theme} bundle={themeBundle} catalog={catalog} busy={!!busy} history={themeHistory} dirty={themeDirty} setDirty={setThemeDirty} save={() => void runAction('save-theme', saveTheme)} publish={() => void runAction('publish-theme', async () => { await client.administration.publish('theme', catalog.themeKey, themeBundle.draft!.id); await refreshActiveTheme(true); await announceReload('The shared theme is active for every visitor.'); })} reload={announceReload} />}
     {tab === 'team' && <section className="admin-section"><div className="admin-section-head"><div><h2>Team & access</h2><p>Administrator access is managed only in this protected workspace.</p></div><span className="admin-count">{filteredMembers.length} members</span></div><label className="admin-search"><Search size={16} /><input value={teamQuery} onChange={(event) => setTeamQuery(event.target.value)} placeholder="Search by name or email" /></label><div className="team-table"><div className="team-row team-head"><span>Member</span><span>Access</span><span>Status</span><span>Last active</span></div>{filteredMembers.map((member) => <div className="team-row" key={member.id}><div className="team-person"><span>{member.name.split(' ').map((part) => part[0]).join('').slice(0, 2)}</span><div><strong>{member.name}</strong><small>{member.email}</small></div></div><div className="role-select-wrap"><select value={member.role} disabled={member.id === session?.id || busy === `member-${member.id}`} onChange={(event) => void runAction(`member-${member.id}`, async () => { const updated = await client.support.updateMemberRole(member.id, event.target.value as SupportMember['role']); setMembers((items) => items.map((item) => item.id === member.id ? updated : item)); setNotice({ kind: 'success', text: `${member.name}'s access was updated.` }); })}><option value="support">Support</option><option value="support-admin">Support administrator</option></select><ChevronDown size={14} /></div><span className={`status ${member.status === 'active' ? 'status-live' : 'status-draft'}`}>{pretty(member.status)}</span><span>{member.lastLoginAt ? new Date(member.lastLoginAt).toLocaleString() : 'Never'}</span></div>)}</div></section>}
@@ -558,5 +617,5 @@ function VersionsAudit({ workflow, theme, prompts, audit, busy, reload }: { work
 
 function Overview({ workflowBundle, themeBundle, prompts, members, audit, traces, onOpen }: { workflowBundle: AdminConfigBundle<WorkflowDefinition>; themeBundle: AdminConfigBundle<ThemeDefinition>; prompts: AdminPromptBundle[]; members: SupportMember[]; audit: AdministrationAuditEvent[]; traces: AiTrace[]; onOpen: (tab: Tab) => void }) {
   const drafts = Number(Boolean(workflowBundle.draft)) + Number(Boolean(themeBundle.draft)) + prompts.filter((item) => item.draft).length;
-  return <section className="admin-overview"><div className="admin-metrics"><article><span><GitBranch size={18} /></span><div><small>Active workflow</small><strong>Version {workflowBundle.active.version}</strong><p>{workflowBundle.active.payload.nodes.length} nodes · {workflowBundle.active.payload.edges.length} routes</p></div></article><article><span><Bot size={18} /></span><div><small>Core agents</small><strong>3</strong><p>{prompts.length} versioned instruction profiles</p></div></article><article><span><Save size={18} /></span><div><small>Unpublished work</small><strong>{drafts}</strong><p>{drafts ? 'Review before publishing' : 'Production aligned'}</p></div></article><article><span><TerminalSquare size={18} /></span><div><small>AI traces</small><strong>{traces.length}</strong><p>{traces.filter((trace) => trace.is_test).length} test runs</p></div></article></div><div className="admin-overview-grid"><div className="admin-panel"><div className="admin-subhead"><div><h2>Control surfaces</h2><p>Each surface has independent version and recovery controls.</p></div></div>{[{ tab: 'workflow' as Tab, icon: GitBranch, title: 'Workflow routing', note: 'Reconnect safe agents and tools' }, { tab: 'prompts' as Tab, icon: Bot, title: 'Agents & prompts', note: 'Core agents and advanced pipeline instructions' }, { tab: 'runtime' as Tab, icon: SlidersHorizontal, title: 'Models & runtime', note: 'Models, reasoning and response limits' }, { tab: 'theme' as Tab, icon: Palette, title: 'Semantic brand theme', note: `${themeHex(themeBundle.active.payload.primary_rgb)} primary` }, { tab: 'logs' as Tab, icon: Activity, title: 'AI observability', note: 'Tokens, latency and execution paths' }].map((item) => <button key={item.tab} onClick={() => onOpen(item.tab)}><span className="admin-panel-icon"><item.icon size={18} /></span><div><strong>{item.title}</strong><small>{item.note}</small></div><ChevronRight size={16} /></button>)}</div><div className="admin-panel"><div className="admin-subhead"><div><h2>Recent activity</h2><p>{members.length} support members · {Math.min(audit.length, 5)} latest changes</p></div><button onClick={() => onOpen('audit')}>View all</button></div><div className="overview-activity">{audit.slice(0, 5).map((event) => <button type="button" key={event.uuid} onClick={() => onOpen('audit')}><span><Clock3 size={14} /></span><div><strong>{pretty(event.action)}</strong><small>{pretty(event.resourceKey)} · {new Date(event.createdAt).toLocaleString()}</small></div><ChevronRight size={14} /></button>)}</div></div></div></section>;
+  return <section className="admin-overview"><div className="admin-metrics"><article><span><GitBranch size={18} /></span><div><small>Active workflow</small><strong>Version {workflowBundle.active.version}</strong><p>{workflowBundle.active.payload.nodes.length} nodes · {workflowBundle.active.payload.edges.length} routes</p></div></article><article><span><Bot size={18} /></span><div><small>Primary instruction profiles</small><strong>3</strong><p>Shared policy, web research, and selected-offer comparison</p></div></article><article><span><Save size={18} /></span><div><small>Unpublished work</small><strong>{drafts}</strong><p>{drafts ? 'Review before publishing' : 'Production aligned'}</p></div></article><article><span><TerminalSquare size={18} /></span><div><small>AI traces</small><strong>{traces.length}</strong><p>{traces.filter((trace) => trace.is_test).length} test runs</p></div></article></div><div className="admin-overview-grid"><div className="admin-panel"><div className="admin-subhead"><div><h2>Control surfaces</h2><p>Each surface has independent version and recovery controls.</p></div></div>{[{ tab: 'workflow' as Tab, icon: GitBranch, title: 'Workflow routing', note: 'Reconnect safe agents and tools' }, { tab: 'prompts' as Tab, icon: Bot, title: 'Agents & prompts', note: 'Primary instructions and specialist pipeline prompts' }, { tab: 'runtime' as Tab, icon: SlidersHorizontal, title: 'Models & runtime', note: 'Models, reasoning and response limits' }, { tab: 'theme' as Tab, icon: Palette, title: 'Semantic brand theme', note: `${themeHex(themeBundle.active.payload.primary_rgb)} primary` }, { tab: 'logs' as Tab, icon: Activity, title: 'AI observability', note: 'Tokens, latency and execution paths' }].map((item) => <button key={item.tab} onClick={() => onOpen(item.tab)}><span className="admin-panel-icon"><item.icon size={18} /></span><div><strong>{item.title}</strong><small>{item.note}</small></div><ChevronRight size={16} /></button>)}</div><div className="admin-panel"><div className="admin-subhead"><div><h2>Recent activity</h2><p>{members.length} support members · {Math.min(audit.length, 5)} latest changes</p></div><button onClick={() => onOpen('audit')}>View all</button></div><div className="overview-activity">{audit.slice(0, 5).map((event) => <button type="button" key={event.uuid} onClick={() => onOpen('audit')}><span><Clock3 size={14} /></span><div><strong>{pretty(event.action)}</strong><small>{pretty(event.resourceKey)} · {new Date(event.createdAt).toLocaleString()}</small></div><ChevronRight size={14} /></button>)}</div></div></div></section>;
 }

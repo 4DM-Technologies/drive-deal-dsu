@@ -5,7 +5,7 @@ import pytest
 from pydantic import ValidationError
 from sqlalchemy import delete, update
 
-from src.agents.configuration import default_theme, default_workflow
+from src.agents.configuration import NODE_CATALOG, default_theme, default_workflow
 from src.database import SessionFactory
 from src.models.administration import WorkflowPreviewRequest
 from src.repositories.schema import AdministrationAuditEvent, AiTraceSpan, ConfigurationRevision, LlmAudit
@@ -53,6 +53,18 @@ def test_default_workflow_is_valid_and_unknown_code_is_rejected() -> None:
     workflow["nodes"][0]["id"] = "arbitrary_python"
     errors = AdministrationService.validate_payload("workflow", "sera-main", workflow)
     assert any("Unknown executable nodes" in error for error in errors)
+
+
+def test_workflow_catalog_labels_composite_research_steps_as_agents() -> None:
+    nodes = {node["id"]: node for node in NODE_CATALOG}
+
+    assert nodes["kb_agent"]["type"] == "agent"
+    assert nodes["kb_agent"]["label"] == "Catalog agent"
+    assert nodes["web_search_agent"]["type"] == "agent"
+    assert nodes["web_search_agent"]["label"] == "Web research agent"
+    assert nodes["persist_cars"]["type"] == "action"
+    assert nodes["compose"]["type"] == "agent"
+    assert nodes["small_talk"]["type"] == "agent"
 
 
 def test_workflow_cycle_and_low_contrast_theme_are_rejected() -> None:

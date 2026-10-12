@@ -1042,8 +1042,9 @@ def main_agent(
     graph.add_node("small_talk", traced_node("small_talk", "agent", small_talk))
     graph.add_node("classifier", traced_node("classifier", "agent", classify))
     graph.add_node("orchestrator", traced_node("orchestrator", "agent", orchestrate))
-    graph.add_node("kb_agent", traced_node("kb_agent", "tool", knowledge))
-    graph.add_node("web_search_agent", traced_node("web_search_agent", "tool", search_web))
+    # These nodes coordinate LLM planning/extraction with actual catalog/search tools, so trace them as agents.
+    graph.add_node("kb_agent", traced_node("kb_agent", "agent", knowledge))
+    graph.add_node("web_search_agent", traced_node("web_search_agent", "agent", search_web))
     graph.add_node("persist_cars", traced_node("persist_cars", "action", persist_cars))
     graph.add_node("compose", traced_node("compose", "agent", compose))
 
