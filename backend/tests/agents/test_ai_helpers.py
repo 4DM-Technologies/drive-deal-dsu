@@ -64,21 +64,25 @@ def test_citation_parsing_never_raises_on_unexpected_input() -> None:
 def test_image_results_keep_the_direct_url_and_attribution_page() -> None:
     result = {
         "type": "web_search_call",
-        "results": [{
-            "type": "image_result",
-            "image_url": "https://media.audi.com/a3.jpg",
-            "source_website_url": "https://www.audiusa.com/a3",
-            "thumbnail_url": "https://media.audi.com/a3-thumb.jpg",
-            "caption": "Audi A3 sedan exterior",
-        }],
+        "results": [
+            {
+                "type": "image_result",
+                "image_url": "https://media.audi.com/a3.jpg",
+                "source_website_url": "https://www.audiusa.com/a3",
+                "thumbnail_url": "https://media.audi.com/a3-thumb.jpg",
+                "caption": "Audi A3 sedan exterior",
+            }
+        ],
     }
 
-    assert _extract_image_results(result) == [{
-        "image_url": "https://media.audi.com/a3.jpg",
-        "source_url": "https://www.audiusa.com/a3",
-        "thumbnail_url": "https://media.audi.com/a3-thumb.jpg",
-        "caption": "Audi A3 sedan exterior",
-    }]
+    assert _extract_image_results(result) == [
+        {
+            "image_url": "https://media.audi.com/a3.jpg",
+            "source_url": "https://www.audiusa.com/a3",
+            "thumbnail_url": "https://media.audi.com/a3-thumb.jpg",
+            "caption": "Audi A3 sedan exterior",
+        }
+    ]
 
 
 # --- is_explicit_image_search ----------------------------------------------------------------------------------
