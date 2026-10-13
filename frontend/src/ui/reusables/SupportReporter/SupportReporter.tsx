@@ -1,5 +1,6 @@
-import { Bug, CheckCircle2, DatabaseZap, KeyRound, MessageSquareText, X } from 'lucide-react';
+import { AlertTriangle, Bug, CheckCircle2, DatabaseZap, FileText, ImageIcon, KeyRound, MessageSquareText, Paperclip, X } from 'lucide-react';
 import { useState } from 'react';
+import { formatFileSize } from '@/helpers/drivingLicense';
 import { client } from '@/services/platform/client';
 import { Dropdown } from '@/ui/reusables/Dropdown/Dropdown';
 import type { Role, SupportTicketCreate, Ticket } from '@/types/domain';
@@ -10,6 +11,13 @@ const issueTypes: Array<{ value: SupportTicketCreate['issueType']; label: string
   { value: 'account_access', label: 'Account or access', description: 'Sign-in, permissions, or profile trouble', icon: KeyRound },
   { value: 'other', label: 'Something else', description: 'Questions or another kind of issue', icon: MessageSquareText },
 ];
+
+// Mirrors the API's rules (the server re-checks each file's real type), so a bad file is caught before sending.
+const MAX_FILES = 3;
+const MAX_BYTES = 10 * 1024 * 1024;
+const ACCEPTED_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
+const ACCEPT = [...ACCEPTED_TYPES, '.jpg', '.jpeg', '.png', '.webp', '.pdf'].join(',');
+const acceptable = (file: File) => ACCEPTED_TYPES.includes(file.type) || /\.(jpe?g|png|webp|pdf)$/i.test(file.name);
 
 const impactOptions: Array<{ value: SupportTicketCreate['priority']; label: string }> = [
   { value: 'low', label: 'Minor inconvenience' },
@@ -26,8 +34,21 @@ export function SupportReporter({ open, onClose, role, pageContext }: { open: bo
   const [created, setCreated] = useState<Ticket | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [files, setFiles] = useState<File[]>([]);
+  const [fileError, setFileError] = useState('');
+  const [uploadWarning, setUploadWarning] = useState('');
 
   if (!open) return null;
+
+  function addFiles(picked: File[]) {
+    setFileError('');
+    const problem = picked.find((file) => !acceptable(file)) ? 'Attach screenshots (JPG, PNG, WebP) or PDFs only.'
+      : picked.find((file) => file.size > MAX_BYTES) ? 'Each file must be 10 MB or smaller.'
+      : files.length + picked.length > MAX_FILES ? `You can attach up to ${MAX_FILES} files.` : '';
+    if (problem) { setFileError(problem); return; }
+    setFiles((current) => [...current, ...picked]);
+  }
+
 
   function close() {
     if (saving) return;
@@ -37,6 +58,9 @@ export function SupportReporter({ open, onClose, role, pageContext }: { open: bo
     setDescription('');
     setIssueType('bug');
     setPriority('medium');
+    setFiles([]);
+    setFileError('');
+    setUploadWarning('');
     onClose();
   }
 
@@ -45,7 +69,18 @@ export function SupportReporter({ open, onClose, role, pageContext }: { open: bo
     setSaving(true);
     setError('');
     try {
-      setCreated(await client.support.createTicket({ issueSummary: summary.trim(), issueDescription: description.trim(), issueType, pageContext, priority }));
+      const ticket = await client.support.createTicket({ issueSummary: summary.trim(), issueDescription: description.trim(), issueType, pageContext, priority });
+      setUploadWarning('');
+      if (files.length) {
+        // The report is already saved; a failed upload is reported on the confirmation instead of losing the report.
+        try {
+          setCreated(await client.support.uploadAttachments(ticket.id, files));
+          return;
+        } catch (cause) {
+          setUploadWarning(cause instanceof Error ? cause.message : 'Your files could not be uploaded.');
+        }
+      }
+      setCreated(ticket);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Your report could not be sent. Please try again.');
     } finally {
@@ -60,7 +95,8 @@ export function SupportReporter({ open, onClose, role, pageContext }: { open: bo
         <span className="support-success-icon"><CheckCircle2 /></span>
         <span className="eyebrow">Report received</span>
         <h2 id="support-reporter-title">We’ve got it.</h2>
-        <p>Your support team can now review the issue with the page context attached.</p>
+        <p>{created.attachments?.length ? `Your support team can now review the issue with ${created.attachments.length === 1 ? 'your file' : `your ${created.attachments.length} files`} attached.` : 'Your support team can now review the issue.'}</p>
+        {uploadWarning && <div className="inline-warning support-upload-warning" role="alert"><AlertTriangle size={16} /><span>Your report was sent, but the attachment was not: {uploadWarning} You can reply with it when support contacts you.</span></div>}
         <div className="support-ticket-reference"><span>Ticket reference</span><strong>{created.publicId}</strong><small>{created.priority} priority · status {created.status}</small></div>
         <button className="button button-primary button-wide" onClick={close}>Done</button>
       </div> : <>
@@ -69,7 +105,11 @@ export function SupportReporter({ open, onClose, role, pageContext }: { open: bo
           <fieldset><legend>What can we help with?</legend><div className="support-issue-options">{issueTypes.map(({ value, label, description: helper, icon: Icon }) => <label key={value} className={issueType === value ? 'selected' : ''}><input type="radio" name="issue-type" value={value} checked={issueType === value} onChange={() => setIssueType(value)} /><Icon size={19} /><span><strong>{label}</strong><small>{helper}</small></span></label>)}</div></fieldset>
           <div className="field"><label htmlFor="support-summary">Short title</label><input id="support-summary" className="input" value={summary} onChange={(event) => setSummary(event.target.value)} placeholder="Example: Quote totals are not updating" minLength={5} maxLength={200} required /></div>
           <div className="field support-description-field"><label htmlFor="support-description">What happened?</label><textarea id="support-description" className="input support-description" value={description} onChange={(event) => setDescription(event.target.value)} placeholder="Tell us what you expected, what you saw, and anything you already tried." maxLength={10000} required /></div>
-          <div className="field"><label htmlFor="support-priority">Impact</label><Dropdown id="support-priority" ariaLabel="Impact" align="left" placement="up" value={priority} onChange={(value) => setPriority(value as SupportTicketCreate['priority'])} options={impactOptions} /></div>
+          <div className="support-report-row">
+            <div className="field"><label htmlFor="support-priority">Impact</label><Dropdown id="support-priority" ariaLabel="Impact" align="left" placement="up" value={priority} onChange={(value) => setPriority(value as SupportTicketCreate['priority'])} options={impactOptions} /></div>
+            <div className="field"><span className="support-field-label">Screenshot or PDF <span className="muted">(optional · up to {MAX_FILES})</span></span><label className={`support-attach${files.length >= MAX_FILES ? ' is-full' : ''}`} htmlFor="support-files"><Paperclip size={16} /><span>{files.length >= MAX_FILES ? `${MAX_FILES} files added` : files.length ? 'Add another file' : 'Attach files'}</span><small>JPG, PNG, PDF · 10 MB</small><input id="support-files" type="file" multiple accept={ACCEPT} disabled={files.length >= MAX_FILES} onChange={(event) => { addFiles([...(event.target.files ?? [])]); event.target.value = ''; }} /></label></div>
+          </div>
+          {(files.length > 0 || fileError) && <div className="support-attachments">{files.map((file, index) => <span className="support-file-chip" key={`${file.name}-${index}`}>{file.type === 'application/pdf' || /\.pdf$/i.test(file.name) ? <FileText size={15} /> : <ImageIcon size={15} />}<span><strong>{file.name}</strong><small>{formatFileSize(file.size)}</small></span><button type="button" onClick={() => setFiles((current) => current.filter((_, position) => position !== index))} aria-label={`Remove ${file.name}`}><X size={14} /></button></span>)}{fileError && <span className="field-error" role="alert">{fileError}</span>}</div>}
           {error && <div className="inline-warning" role="alert">{error}</div>}
           <div className="support-report-actions"><button type="button" className="button button-ghost" onClick={close}>Cancel</button><button className="button button-primary" disabled={saving}>{saving ? 'Sending report…' : 'Send report'}</button></div>
         </form>

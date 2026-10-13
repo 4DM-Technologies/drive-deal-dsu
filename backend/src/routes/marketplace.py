@@ -136,7 +136,10 @@ async def revise_quote(
 async def accept_quote(
     quote_id: str, profile: Profile = Depends(require_roles("buyer")), session: AsyncSession = Depends(get_session)
 ):
-    return await MarketplaceService(session).accept_quote(quote_id, profile)
+    service = MarketplaceService(session)
+    result = await service.accept_quote(quote_id, profile)
+    await service.notify_chat(quote_id, "offer_accepted")
+    return result
 
 
 @router.post("/quotes/{quote_id}/decline")
@@ -193,6 +196,22 @@ async def dealer_contact(
     return await MarketplaceService(session).dealer_contact(quote_id, profile)
 
 
+@router.get("/quotes/{quote_id}/position")
+@log_flow(layer="route")
+async def quote_position(
+    quote_id: str, profile: Profile = Depends(get_current_profile), session: AsyncSession = Depends(get_session)
+):
+    return await MarketplaceService(session).quote_position(quote_id, profile)
+
+
+@router.get("/quotes/{quote_id}/buyer-contact")
+@log_flow(layer="route")
+async def buyer_contact(
+    quote_id: str, profile: Profile = Depends(get_current_profile), session: AsyncSession = Depends(get_session)
+):
+    return await MarketplaceService(session).buyer_contact(quote_id, profile)
+
+
 @router.post("/chats/{quote_id}/request-access")
 @log_flow(layer="route")
 async def request_chat(
@@ -201,7 +220,10 @@ async def request_chat(
     profile: Profile = Depends(require_roles("buyer")),
     session: AsyncSession = Depends(get_session),
 ):
-    return await MarketplaceService(session).request_chat(quote_id, payload, profile)
+    service = MarketplaceService(session)
+    result = await service.request_chat(quote_id, payload, profile)
+    await service.notify_chat(quote_id, "request_sent")
+    return result
 
 
 @router.get("/chats/requests")
@@ -218,7 +240,10 @@ async def chat_requests(
 async def accept_chat(
     quote_id: str, profile: Profile = Depends(require_roles("dealer")), session: AsyncSession = Depends(get_session)
 ):
-    return await MarketplaceService(session).accept_chat(quote_id, profile)
+    service = MarketplaceService(session)
+    result = await service.accept_chat(quote_id, profile)
+    await service.notify_chat(quote_id, "request_accepted")
+    return result
 
 
 @router.post("/chats/requests/{quote_id}/decline")
@@ -245,6 +270,7 @@ async def decline_chat(
     ]
     await session.commit()
     await session.refresh(row)
+    await service.notify_chat(quote_id, "request_declined")
     return await service.quote_dict(row)
 
 
@@ -264,7 +290,10 @@ async def send_chat(
     profile: Profile = Depends(require_roles("buyer", "dealer")),
     session: AsyncSession = Depends(get_session),
 ):
-    return await MarketplaceService(session).send_chat(quote_id, payload, profile)
+    service = MarketplaceService(session)
+    result = await service.send_chat(quote_id, payload, profile)
+    await service.notify_chat(quote_id, "message_sent")
+    return result
 
 
 @router.patch("/chats/{quote_id}/messages/{message_id}")
@@ -276,7 +305,10 @@ async def edit_chat_message(
     profile: Profile = Depends(require_roles("buyer", "dealer")),
     session: AsyncSession = Depends(get_session),
 ):
-    return await MarketplaceService(session).edit_chat_message(quote_id, message_id, payload, profile)
+    service = MarketplaceService(session)
+    result = await service.edit_chat_message(quote_id, message_id, payload, profile)
+    await service.notify_chat(quote_id, "message_edited")
+    return result
 
 
 @router.delete("/chats/{quote_id}/messages/{message_id}")
@@ -287,7 +319,10 @@ async def unsend_chat_message(
     profile: Profile = Depends(require_roles("buyer", "dealer")),
     session: AsyncSession = Depends(get_session),
 ):
-    return await MarketplaceService(session).unsend_chat_message(quote_id, message_id, profile)
+    service = MarketplaceService(session)
+    result = await service.unsend_chat_message(quote_id, message_id, profile)
+    await service.notify_chat(quote_id, "message_unsent")
+    return result
 
 
 @router.post("/chats/{quote_id}/request-negotiation")
@@ -298,7 +333,10 @@ async def request_negotiation(
     profile: Profile = Depends(require_roles("buyer")),
     session: AsyncSession = Depends(get_session),
 ):
-    return await MarketplaceService(session).request_chat(quote_id, payload, profile)
+    service = MarketplaceService(session)
+    result = await service.request_chat(quote_id, payload, profile)
+    await service.notify_chat(quote_id, "request_sent")
+    return result
 
 
 @router.post("/chats/{quote_id}/read")
@@ -316,6 +354,8 @@ async def mark_chat_read(
     for row in rows:
         row.read_at = read_at
     await session.commit()
+    # Lets the sender's screen show the read ticks without a reload.
+    await service.notify_chat(quote_id, "messages_read")
     return {"quote_id": quote_id, "read_at": read_at.isoformat()}
 
 

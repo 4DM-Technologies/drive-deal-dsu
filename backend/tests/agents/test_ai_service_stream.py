@@ -24,7 +24,14 @@ def _graph(result: dict, started: list[str], name: str, delay: float = 0.0):
 
 def _payload(message: str) -> SimpleNamespace:
     return SimpleNamespace(
-        thread_id="t1", agent="sera", message=message, request_ids=[], quote_ids=[], request_context=None
+        thread_id="t1",
+        agent="sera",
+        message=message,
+        request_ids=[],
+        quote_ids=[],
+        request_context=None,
+        preference_action=None,
+        chat_preferences=None,
     )
 
 
@@ -40,7 +47,10 @@ async def _drain(message: str, main_result: dict, main_delay: float = 0.0):
     with (
         patch("src.services.ai_service.main_agent", return_value=main),
         patch("src.services.ai_service.build_requirement_graph", return_value=requirements),
-        patch("src.services.ai_service.get_settings", return_value=SimpleNamespace(ai_disabled=False, ai_enable_web_search=True)),
+        patch(
+            "src.services.ai_service.get_settings",
+            return_value=SimpleNamespace(ai_disabled=False, ai_enable_web_search=True),
+        ),
         patch("src.services.ai_service.match_message", new=AsyncMock(return_value=MatchResult())),
         patch.object(
             AdministrationService,
@@ -49,6 +59,7 @@ async def _drain(message: str, main_result: dict, main_delay: float = 0.0):
         ),
         patch.object(AiService, "_finish_trace", new=AsyncMock()),
         patch.object(AiService, "_latest_memory", new=AsyncMock(return_value={})),
+        patch.object(AiService, "_buyer_preferences", new=AsyncMock(return_value={})),
         patch.object(AiService, "_save_checkpoint", new=AsyncMock()),
     ):
         service = AiService(session=session)
@@ -132,6 +143,8 @@ async def test_compare_chat_passes_selected_offers_to_the_agent_and_card() -> No
         request_ids=[],
         quote_ids=["q1", "q2"],
         request_context=None,
+        preference_action=None,
+        chat_preferences=None,
     )
     requirements_builder = MagicMock()
     session = AsyncMock()
@@ -140,7 +153,10 @@ async def test_compare_chat_passes_selected_offers_to_the_agent_and_card() -> No
     with (
         patch("src.services.ai_service.main_agent", return_value=SimpleNamespace(ainvoke=invoke)),
         patch("src.services.ai_service.build_requirement_graph", requirements_builder),
-        patch("src.services.ai_service.get_settings", return_value=SimpleNamespace(ai_disabled=False, ai_enable_web_search=True)),
+        patch(
+            "src.services.ai_service.get_settings",
+            return_value=SimpleNamespace(ai_disabled=False, ai_enable_web_search=True),
+        ),
         patch("src.services.ai_service.match_message", new=AsyncMock(return_value=MatchResult())),
         patch.object(
             AdministrationService,
@@ -161,8 +177,12 @@ async def test_compare_chat_passes_selected_offers_to_the_agent_and_card() -> No
 
 
 async def test_latest_memory_keeps_recent_chat_context_for_follow_up_questions() -> None:
-    latest = SimpleNamespace(checkpoint={"user": "compare both", "assistant": "Which cars?", "request_context": {"model": "K4"}})
-    previous = SimpleNamespace(checkpoint={"user": "I want a 2026 Hyundai Venue and Kia K4", "assistant": "Pick the two cars."})
+    latest = SimpleNamespace(
+        checkpoint={"user": "compare both", "assistant": "Which cars?", "request_context": {"model": "K4"}}
+    )
+    previous = SimpleNamespace(
+        checkpoint={"user": "I want a 2026 Hyundai Venue and Kia K4", "assistant": "Pick the two cars."}
+    )
     result = MagicMock()
     result.scalars.return_value.all.return_value = [latest, previous]
     session = AsyncMock()
@@ -184,7 +204,11 @@ async def test_checkpoint_keeps_request_context_when_follow_up_does_not_repeat_i
     session.add = MagicMock()
     payload = _payload("compare both")
     await AiService(session)._save_checkpoint(
-        "t1", "u1", payload, {"answer": "Here is the comparison."}, {},
+        "t1",
+        "u1",
+        payload,
+        {"answer": "Here is the comparison."},
+        {},
         {"request_context": {"brand": "Kia", "model": "K4"}, "preferences": {"transmission": "Automatic"}},
     )
 

@@ -6,16 +6,122 @@ from types import SimpleNamespace
 
 import pytest
 
-from src.agents.llm import _extract_image_results, _extract_url_citations
+from src.agents.llm import _bound_prompt, _extract_image_results, _extract_url_citations
 from src.agents.serra.graph import (
     _extract_json,
     _extract_json_array,
+    _label_matching_images,
+    _previously_found_image_names,
+    _shortlist_from_context,
     _trace_snapshot,
+    is_contextual_image_followup,
     is_explicit_image_search,
 )
-from src.services.ai_service import _is_publish_confirmation, _money_value
+from src.agents.tools import web_search as web_search_tools
+from src.agents.tools.web_search import _vehicle_image_terms
+from src.models.marketplace import AiGuidedMessage
+from src.services.ai_service import _compact_conversation_context, _is_publish_confirmation, _money_value
 
 CITATION = {"type": "url_citation", "url": "https://www.kia.com/us/seltos", "title": "Kia Seltos"}
+
+
+def test_guided_checkpoint_message_keeps_media_and_sources_on_restore() -> None:
+    message = AiGuidedMessage.model_validate(
+        {
+            "id": "assistant-1",
+            "role": "assistant",
+            "body": "Here are the photos.",
+            "media": [{"image_url": "https://img.example/car.jpg", "vehicle_name": "BMW M2"}],
+            "sources": [{"url": "https://www.example.com/car", "title": "Vehicle"}],
+        }
+    )
+
+    assert message.model_dump()["media"][0]["vehicle_name"] == "BMW M2"
+    assert message.model_dump()["sources"][0]["url"] == "https://www.example.com/car"
+
+
+def test_prompt_budget_keeps_the_instructions_and_latest_user_request() -> None:
+    prompt = "IMPORTANT INSTRUCTIONS " + ("old context " * 500) + "LATEST BUYER REQUEST: sports cars"
+
+    bounded, truncated = _bound_prompt(prompt, max_input_tokens=1024)
+
+    assert truncated is True
+    assert len(bounded) <= 1024 * 3
+    assert bounded.startswith("IMPORTANT INSTRUCTIONS")
+    assert bounded.endswith("LATEST BUYER REQUEST: sports cars")
+
+
+def test_conversation_context_is_bounded_but_keeps_the_latest_exchange() -> None:
+    context = [{"role": "assistant", "body": f"Old answer {index}: " + ("x" * 1800)} for index in range(10)]
+    context.extend(
+        [
+            {"role": "assistant", "body": "1. Chevrolet Corvette Stingray — Fast.\n2. Porsche 911 Carrera — Balanced."},
+            {"role": "user", "body": "Show me their images."},
+        ]
+    )
+
+    compacted = _compact_conversation_context(context, max_chars=3000)
+
+    assert compacted[-1]["body"] == "Show me their images."
+    assert compacted[-2]["body"].startswith("1. Chevrolet Corvette Stingray")
+    assert sum(len(str(item)) for item in compacted) <= 3000
+
+
+@pytest.mark.asyncio
+async def test_snippet_search_sends_compact_evidence_and_matches_vehicle_images(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[tuple[str, bool]] = []
+
+    async def search_items(query: str, *, limit: int, image_search: bool = False) -> list[dict[str, str]]:
+        calls.append((query, image_search))
+        if image_search:
+            return [
+                {
+                    "title": "BMW M2 Coupe front view",
+                    "url": "https://images.example/bmw-m2.jpg",
+                    "snippet": "BMW M2 Coupe exterior",
+                    "source_url": "https://www.bmwusa.com/vehicles/m-models/m2-coupe.html",
+                    "thumbnail_url": "https://images.example/bmw-m2-thumb.jpg",
+                }
+            ]
+        return [
+            {
+                "title": "Best sports cars",
+                "url": "https://www.example.com/sports-cars",
+                "snippet": "BMW M2 is a compact, rear-wheel-drive performance coupe.",
+                "source_url": "",
+                "thumbnail_url": "",
+            }
+        ]
+
+    class FakeLlm:
+        prompt = ""
+
+        async def generate(self, prompt: str, *_args, **_kwargs):
+            self.prompt = prompt
+            return SimpleNamespace(status="success", text="Top choice:\n\n1. **BMW M2** — A compact performance coupe.")
+
+    monkeypatch.setattr(web_search_tools, "_google_cse_items", search_items)
+    monkeypatch.setattr(web_search_tools, "_domain_of", lambda _url: "example.com")
+    monkeypatch.setattr(web_search_tools, "_is_excluded_domain", lambda _domain: False)
+    llm = FakeLlm()
+
+    result = await web_search_tools._google_cse_get_urls(
+        "top sports cars",
+        limit=5,
+        llm=llm,  # type: ignore[arg-type]
+        thread_id="test-thread",
+        market="US",
+        include_images=True,
+    )
+
+    assert len(llm.prompt) < 3000
+    assert "BMW M2 is a compact" in llm.prompt
+    assert result[0]["search_provider"] == "google_cse_snippets"
+    media = json.loads(result[0]["hosted_media"])
+    assert [item["vehicle_name"] for item in media] == ["BMW M2"]
+    assert any(image_search and '"BMW M2"' in query for query, image_search in calls)
 
 
 # --- _extract_url_citations ------------------------------------------------------------------------------------
@@ -64,21 +170,25 @@ def test_citation_parsing_never_raises_on_unexpected_input() -> None:
 def test_image_results_keep_the_direct_url_and_attribution_page() -> None:
     result = {
         "type": "web_search_call",
-        "results": [{
-            "type": "image_result",
-            "image_url": "https://media.audi.com/a3.jpg",
-            "source_website_url": "https://www.audiusa.com/a3",
-            "thumbnail_url": "https://media.audi.com/a3-thumb.jpg",
-            "caption": "Audi A3 sedan exterior",
-        }],
+        "results": [
+            {
+                "type": "image_result",
+                "image_url": "https://media.audi.com/a3.jpg",
+                "source_website_url": "https://www.audiusa.com/a3",
+                "thumbnail_url": "https://media.audi.com/a3-thumb.jpg",
+                "caption": "Audi A3 sedan exterior",
+            }
+        ],
     }
 
-    assert _extract_image_results(result) == [{
-        "image_url": "https://media.audi.com/a3.jpg",
-        "source_url": "https://www.audiusa.com/a3",
-        "thumbnail_url": "https://media.audi.com/a3-thumb.jpg",
-        "caption": "Audi A3 sedan exterior",
-    }]
+    assert _extract_image_results(result) == [
+        {
+            "image_url": "https://media.audi.com/a3.jpg",
+            "source_url": "https://www.audiusa.com/a3",
+            "thumbnail_url": "https://media.audi.com/a3-thumb.jpg",
+            "caption": "Audi A3 sedan exterior",
+        }
+    ]
 
 
 # --- is_explicit_image_search ----------------------------------------------------------------------------------
@@ -97,6 +207,87 @@ def test_image_results_keep_the_direct_url_and_attribution_page() -> None:
 )
 def test_image_search_needs_both_an_image_word_and_a_vehicle(message: str, expected: bool) -> None:
     assert is_explicit_image_search(message) is expected
+
+
+def test_contextual_image_followup_uses_the_last_vehicle_shortlist() -> None:
+    context = [
+        {
+            "role": "assistant",
+            "body": "Top choices:\n1. **Chevrolet Corvette Stingray** — quick.\n2. **Porsche 911 Carrera** — balanced.\n3. **Mazda MX-5 Miata** — light.",
+        }
+    ]
+
+    assert is_contextual_image_followup("with the images give me", context)
+    assert _shortlist_from_context(context) == [
+        "Chevrolet Corvette Stingray",
+        "Porsche 911 Carrera",
+        "Mazda MX-5 Miata",
+    ]
+
+
+def test_image_labels_require_full_identity_and_deduplicate_each_vehicle() -> None:
+    names = ["Chevrolet Corvette Stingray", "Ford Mustang Dark Horse"]
+    media = [
+        {
+            "image_url": "https://img.example/1.jpg",
+            "source_url": "https://media.example/corvette-stingray",
+            "alt": "Chevrolet Corvette Stingray exterior",
+        },
+        {
+            "image_url": "https://img.example/2.jpg",
+            "source_url": "https://media.example/corvette-stingray",
+            "alt": "Chevrolet Corvette Stingray front",
+        },
+        {
+            "image_url": "https://img.example/3.jpg",
+            "source_url": "https://nissanzclub.com/mustang",
+            "alt": "Ford Mustang GT",
+        },
+        {
+            "image_url": "https://img.example/4.jpg",
+            "source_url": "https://media.example/dark-horse",
+            "alt": "Ford Mustang Dark Horse",
+        },
+    ]
+
+    result = _label_matching_images(media, names)
+
+    assert [item["vehicle_name"] for item in result] == names
+    assert result[0]["alt"] == "Chevrolet Corvette Stingray exterior"
+
+
+def test_image_search_identity_keeps_vehicle_variant_words() -> None:
+    assert _vehicle_image_terms("Find photos of the 2026 Ford Mustang Dark Horse sports car") == [
+        "ford",
+        "mustang",
+        "dark",
+        "horse",
+    ]
+
+
+def test_other_image_followup_targets_only_models_without_a_verified_photo() -> None:
+    names = ["Chevrolet Corvette Stingray", "Porsche 911 Carrera", "Mazda MX-5 Miata"]
+    context = [
+        {
+            "role": "assistant",
+            "body": "I found images for Chevrolet Corvette Stingray. I couldn’t verify photos for Porsche 911 Carrera, Mazda MX-5 Miata yet.",
+            "media": [{"vehicle_name": "Chevrolet Corvette Stingray"}],
+        }
+    ]
+
+    assert _previously_found_image_names(context, names) == ["Chevrolet Corvette Stingray"]
+
+
+def test_retry_photo_followup_recognizes_new_friendly_single_photo_copy() -> None:
+    names = ["Chevrolet Corvette Stingray", "Nissan Z"]
+    context = [
+        {
+            "role": "assistant",
+            "body": "I found a matching photo for **Nissan Z**. I’m still missing photos for Chevrolet Corvette Stingray.",
+        }
+    ]
+
+    assert _previously_found_image_names(context, names) == ["Nissan Z"]
 
 
 # --- JSON extraction and trace snapshots -----------------------------------------------------------------------

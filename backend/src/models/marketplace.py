@@ -116,6 +116,8 @@ class AiChatRequest(BaseModel):
     request_ids: list[str] = Field(default_factory=list, max_length=5)
     quote_ids: list[str] = Field(default_factory=list, max_length=5, exclude=True)
     request_context: dict | None = None
+    preference_action: Literal["use_saved", "customize", "update_saved", "skip", "continue_without_saved"] | None = None
+    chat_preferences: str | None = Field(default=None, max_length=1000)
 
 
 class AiGuidedMessage(BaseModel):
@@ -124,6 +126,11 @@ class AiGuidedMessage(BaseModel):
     body: str = Field(max_length=8000)
     guided_step: str | None = Field(default=None, max_length=40)
     options: list[str] = Field(default_factory=list, max_length=30)
+    # Preserve display data when the frontend periodically snapshots a guided
+    # transcript. Without these fields Pydantic drops media and sources, so a
+    # reload silently removes images from earlier assistant replies.
+    media: list[dict[str, str]] = Field(default_factory=list, max_length=12)
+    sources: list[dict[str, str]] = Field(default_factory=list, max_length=12)
 
 
 class AiGuidedCheckpoint(BaseModel):

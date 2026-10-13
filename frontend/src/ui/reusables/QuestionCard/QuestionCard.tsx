@@ -5,6 +5,11 @@ import './QuestionCard.css';
 
 export interface QuestionCardProps {
   question: GuidedQuestion;
+  compact?: boolean;
+  showNavigation?: boolean;
+  showBackButton?: boolean;
+  progressText?: string;
+  initialSelectedValues?: string[];
   busy?: boolean;
   error?: string;
   canGoBack: boolean;
@@ -22,11 +27,11 @@ export interface QuestionCardProps {
  * Sera's guided question card: one question at a time with compact numbered options, a free-text "Something else" row,
  * Skip, a pager and a close button. Keys 1-9 pick an option, arrows move, Enter chooses and Escape closes.
  */
-export function QuestionCard({ question, busy = false, error = '', canGoBack, canGoForward, onAnswer, onOther, onSkip, onBack, onForward, onClose }: QuestionCardProps) {
+export function QuestionCard({ question, compact = false, showNavigation = true, showBackButton = false, progressText, initialSelectedValues = [], busy = false, error = '', canGoBack, canGoForward, onAnswer, onOther, onSkip, onBack, onForward, onClose }: QuestionCardProps) {
   const titleId = useId();
   const cardRef = useRef<HTMLElement>(null);
   const [highlight, setHighlight] = useState(0);
-  const [selected, setSelected] = useState<string[]>([]);
+  const [selected, setSelected] = useState<string[]>(initialSelectedValues);
   const [other, setOther] = useState('');
 
   // The parent remounts the card for each question (key), so state starts fresh; focus it so number keys work.
@@ -35,6 +40,7 @@ export function QuestionCard({ question, busy = false, error = '', canGoBack, ca
   }, []);
 
   const options = question.options;
+  const hasFooter = Boolean(question.allowOther || question.skippable || (question.multiSelect && options.length));
 
   function choose(index: number) {
     const option = options[index];
@@ -70,7 +76,7 @@ export function QuestionCard({ question, busy = false, error = '', canGoBack, ca
       if (event.key === 'Escape') { (event.target as HTMLInputElement).blur(); cardRef.current?.focus(); }
       return;
     }
-    if (event.key === 'Escape') { event.preventDefault(); onClose(); return; }
+    if (event.key === 'Escape') { event.preventDefault(); if (!busy) onClose(); return; }
     if (/^[1-9]$/.test(event.key)) { event.preventDefault(); const index = Number(event.key) - 1; setHighlight(index); choose(index); return; }
     if (event.key === 'ArrowDown') { event.preventDefault(); setHighlight((value) => Math.min(value + 1, Math.max(options.length - 1, 0))); return; }
     if (event.key === 'ArrowUp') { event.preventDefault(); setHighlight((value) => Math.max(value - 1, 0)); return; }
@@ -81,15 +87,15 @@ export function QuestionCard({ question, busy = false, error = '', canGoBack, ca
     }
   }
 
-  return <section ref={cardRef} className={`question-card${busy ? ' is-busy' : ''}`} tabIndex={-1} aria-labelledby={titleId} aria-busy={busy} onKeyDown={onKeyDown}>
+  return <section ref={cardRef} className={`question-card${compact ? ' question-card--compact' : ''}${question.multiSelect ? ' question-card--multi' : ''}${busy ? ' is-busy' : ''}`} tabIndex={-1} aria-labelledby={titleId} aria-busy={busy} onKeyDown={onKeyDown}>
     <header className="question-card-head">
       <h3 id={titleId}>{question.title}</h3>
-      <div className="question-card-nav">
+      {showNavigation ? <div className="question-card-nav">
         <button type="button" onClick={onBack} disabled={!canGoBack || busy} aria-label="Previous question"><ChevronLeft size={16} /></button>
         <span aria-live="polite">{question.index} of {question.total}</span>
         <button type="button" onClick={onForward} disabled={!canGoForward || busy} aria-label="Next question"><ChevronRight size={16} /></button>
-        <button type="button" className="question-card-close" onClick={onClose} aria-label="Close questions"><X size={16} /></button>
-      </div>
+        <button type="button" className="question-card-close" onClick={onClose} disabled={busy} aria-label="Close questions"><X size={16} /></button>
+      </div> : <div className="question-card-nav question-card-nav--compact">{showBackButton && <button type="button" onClick={onBack} disabled={busy} aria-label="Go back"><ChevronLeft size={16} /></button>}{progressText && <span>{progressText}</span>}<button type="button" className="question-card-close" onClick={onClose} disabled={busy} aria-label="Close questions"><X size={16} /></button></div>}
     </header>
     {options.length > 0 && <ul className="question-card-options" role={question.multiSelect ? 'group' : 'list'} aria-label={question.title}>
       {options.map((option, index) => {
@@ -109,15 +115,17 @@ export function QuestionCard({ question, busy = false, error = '', canGoBack, ca
         </li>;
       })}
     </ul>}
+    {!options.length && question.emptyMessage && <p className="question-card-empty">{question.emptyMessage}</p>}
     {error && <p className="question-card-alert" role="alert" aria-live="polite">{error}</p>}
-    <footer className="question-card-foot">
+    {/* Only drawn when it holds something, so a plain choice card does not end in an empty bar. */}
+    {hasFooter && <footer className="question-card-foot">
       {question.allowOther && <form className="question-other" onSubmit={(event) => { event.preventDefault(); submitOther(); }}>
         <span className="question-option-key" aria-hidden="true"><Pencil size={14} /></span>
         <input value={other} onChange={(event) => setOther(event.target.value)} placeholder={options.length ? 'Something else' : question.otherPlaceholder} aria-label={question.otherPlaceholder} disabled={busy} />
       </form>}
-      {question.multiSelect && <button type="button" className="button button-primary button-sm" onClick={submitMulti} disabled={busy || (!selected.length && !other.trim())}>Continue</button>}
+      {question.multiSelect && options.length > 0 && <button type="button" className="button button-primary button-sm" onClick={submitMulti} disabled={busy || (!selected.length && !other.trim())}>Continue</button>}
       {question.skippable && <button type="button" className="question-skip" onClick={onSkip} disabled={busy}>Skip</button>}
       {!question.skippable && question.allowOther && !options.length && <button type="button" className="button button-primary button-sm" onClick={submitOther} disabled={busy || !other.trim()}>Continue</button>}
-    </footer>
+    </footer>}
   </section>;
 }

@@ -30,6 +30,13 @@ async def app_error_handler(request: Request, exc: AppError) -> JSONResponse:
     )
 
 
+def _serializable(error: dict) -> dict:
+    # A custom validator's ValueError rides along in ``ctx`` and cannot be written as JSON, so it is sent as text.
+    if "ctx" in error:
+        return {**error, "ctx": {key: str(value) for key, value in error["ctx"].items()}}
+    return error
+
+
 async def validation_error_handler(request: Request, exc: RequestValidationError) -> JSONResponse:
     return JSONResponse(
         status_code=422,
@@ -37,7 +44,7 @@ async def validation_error_handler(request: Request, exc: RequestValidationError
             "error": {
                 "code": error_codes.VALIDATION_ERROR,
                 "message": "The request contains invalid data.",
-                "details": exc.errors(),
+                "details": [_serializable(error) for error in exc.errors()],
                 "request_id": _request_id(request),
             }
         },

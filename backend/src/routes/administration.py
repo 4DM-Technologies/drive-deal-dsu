@@ -161,6 +161,12 @@ async def trace_history(
     return await AdministrationService(session).trace_history(limit)
 
 
+@router.get("/administration/traces/summary")
+@log_flow(layer="route")
+async def trace_summary(_: Profile = Depends(admin_profile), session: AsyncSession = Depends(get_session)):
+    return await AdministrationService(session).trace_summary()
+
+
 @router.get("/administration/traces/{trace_id}")
 @log_flow(layer="route")
 async def trace_detail(

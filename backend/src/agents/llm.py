@@ -44,6 +44,23 @@ def _safe_trace_value(value: Any, *, limit: int = 20_000) -> str:
     return scrub_secrets(str(value))[:limit]
 
 
+def _bound_prompt(prompt: str, max_input_tokens: int) -> tuple[str, bool]:
+    """Apply a conservative character proxy to app-authored prompt text.
+
+    This cannot cap provider-added hosted-search context. It prevents oversized local history
+    or evidence blocks from silently exceeding the configured app prompt budget; three characters
+    per token is intentionally conservative for the mostly-English/JSON prompts used here.
+    """
+    max_chars = max(1024, max(1, max_input_tokens) * 3)
+    if len(prompt) <= max_chars:
+        return prompt, False
+    marker = "\n[…middle of prompt omitted to stay within the app input budget…]\n"
+    available = max_chars - len(marker)
+    head = int(available * 0.68)
+    tail = available - head
+    return f"{prompt[:head]}{marker}{prompt[-tail:]}", True
+
+
 def _extract_url_citations(value: Any, *, _depth: int = 0, _seen: set[int] | None = None) -> list[dict[str, str]]:
     """Extract hosted web-search URL annotations from SDK event objects without depending on SDK internals."""
     if value is None or _depth > 5:
@@ -86,6 +103,7 @@ class LlmResult:
     status: str = "success"
     error: str | None = None
     image_results: list[dict[str, str]] | None = None
+    usage_reported: bool = False
 
 
 def _extract_image_results(value: Any, *, _depth: int = 0, _seen: set[int] | None = None) -> list[dict[str, str]]:
@@ -132,6 +150,7 @@ class LlmClient:
         self.settings = get_settings()
         self.timeout_seconds = timeout_seconds or self.settings.ai_request_timeout_seconds
         self._credential_source = "deterministic"
+        self.call_count = 0
 
     async def _resolve_client(self) -> AsyncOpenAI | None:
         timeout_seconds = getattr(self, "timeout_seconds", self.settings.ai_request_timeout_seconds)
@@ -173,12 +192,15 @@ class LlmClient:
         transient_retries: int = _TRANSIENT_RETRIES,
     ) -> LlmResult:
         started = perf_counter()
+        prompt_original_chars = len(prompt)
+        prompt, prompt_truncated = _bound_prompt(prompt, self.settings.ai_max_input_tokens)
         client = await self._resolve_client()
         status = "fallback"
         provider = "deterministic"
         model_name = "drivedeal-dev-fallback"
         error_message = None
         if client:
+            self.call_count += 1
             provider = "openai" if self._credential_source == "api_key" else self._credential_source
             model_name = model or self.settings.openai_model
             try:
@@ -232,14 +254,24 @@ class LlmClient:
                         "provider": provider,
                         "prompt_version": prompt_version,
                         "input": _safe_trace_value(prompt),
+                        "prompt_char_count": len(prompt),
+                        "prompt_original_char_count": prompt_original_chars,
+                        "prompt_truncated_to_app_budget": prompt_truncated,
+                        "prompt_token_estimate_chars_div_3": (len(prompt) + 2) // 3,
+                        "app_input_token_limit": self.settings.ai_max_input_tokens,
+                        "app_prompt_char_budget": max(1024, max(1, self.settings.ai_max_input_tokens) * 3),
                         "output": _safe_trace_value(result.text),
-                        "llm_called": True,
+                        "llm_called": client is not None,
                         "reasoning_effort": reasoning_effort or self.settings.openai_reasoning_effort,
                         "max_output_tokens": max_output_tokens or self.settings.ai_max_output_tokens,
                         "attempt_count": result.attempts,
                         "error": error_message,
                         "result_status": result.status,
+                        "usage_reported": result.usage_reported,
                         "tool_requested": bool(tools),
+                        "provider_input_may_include_tool_context": bool(
+                            tools and any(tool.get("type") == "web_search" for tool in tools)
+                        ),
                         "tool_choice": tool_choice,
                         "citation_count": len(result.sources or []),
                         "image_result_count": len(result.image_results or []),
@@ -254,14 +286,25 @@ class LlmClient:
             provider=provider,
             model=model_name,
             status=status,
+            llm_called=client is not None,
             input_tokens=result.input_tokens,
             output_tokens=result.output_tokens,
             latency_ms=elapsed,
             reasoning_effort=reasoning_effort or self.settings.openai_reasoning_effort,
             tool_requested=bool(tools),
+            prompt_char_count=len(prompt),
+            prompt_original_char_count=prompt_original_chars,
+            prompt_truncated_to_app_budget=prompt_truncated,
+            prompt_token_estimate_chars_div_3=(len(prompt) + 2) // 3,
+            app_input_token_limit=self.settings.ai_max_input_tokens,
+            app_prompt_char_budget=max(1024, max(1, self.settings.ai_max_input_tokens) * 3),
+            provider_input_may_include_tool_context=bool(
+                tools and any(tool.get("type") == "web_search" for tool in tools)
+            ),
             tool_choice=tool_choice,
             citation_count=len(result.sources or []),
             image_result_count=len(result.image_results or []),
+            usage_reported=result.usage_reported,
             prompt_version=prompt_version,
             prompt_excerpt=_safe_error_value(prompt, limit=200),
         )
@@ -315,6 +358,7 @@ class LlmClient:
                 text = ""
                 input_tokens = 0
                 output_tokens = 0
+                usage_reported = False
                 sources: list[dict[str, str]] = []
                 image_results: list[dict[str, str]] = []
                 async for event in stream:
@@ -323,6 +367,7 @@ class LlmClient:
                         text += event.delta
                     elif event_type == "response.completed":
                         usage = getattr(event.response, "usage", None)
+                        usage_reported = usage is not None
                         input_tokens = getattr(usage, "input_tokens", 0) or 0
                         output_tokens = getattr(usage, "output_tokens", 0) or 0
                         sources.extend(_extract_url_citations(getattr(event, "response", None)))
@@ -338,6 +383,7 @@ class LlmClient:
                     attempt,
                     list(deduped.values()),
                     image_results=list(deduped_images.values()),
+                    usage_reported=usage_reported,
                 )
             except BadRequestError as exc:
                 detail = _safe_error_value(str(exc)).lower()

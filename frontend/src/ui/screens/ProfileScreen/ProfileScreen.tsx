@@ -11,6 +11,8 @@ export default function ProfileScreen() {
   const session = useDemoStore((state) => state.session);
   const setSession = useDemoStore((state) => state.setSession);
   const [fullName, setFullName] = useState(session?.fullName ?? '');
+  const [firstName, setFirstName] = useState(session?.firstName ?? '');
+  const [lastName, setLastName] = useState(session?.lastName ?? '');
   const [phone, setPhone] = useState(session?.phone ?? '');
   const [address, setAddress] = useState(session?.address ?? '');
   const [branchName, setBranchName] = useState(session?.branchName ?? '');
@@ -28,7 +30,7 @@ export default function ProfileScreen() {
   const isDealer = session?.role === 'dealer';
   const [prefsLoading, setPrefsLoading] = useState(isBuyer);
   const dirty = JSON.stringify(draft) !== JSON.stringify(saved);
-  const profileDirty = useMemo(() => session ? (fullName !== session.fullName || phone !== (session.phone ?? '') || address !== (session.address ?? '') || branchName !== (session.branchName ?? '') || website !== (session.website ?? '')) : false, [address, branchName, fullName, phone, session, website]);
+  const profileDirty = useMemo(() => session ? ((isBuyer ? firstName !== (session.firstName ?? '') || lastName !== (session.lastName ?? '') : fullName !== session.fullName) || phone !== (session.phone ?? '') || address !== (session.address ?? '') || branchName !== (session.branchName ?? '') || website !== (session.website ?? '')) : false, [address, branchName, firstName, fullName, isBuyer, lastName, phone, session, website]);
 
   useEffect(() => {
     void client.auth.me().then(setSession).catch(() => undefined);
@@ -42,6 +44,8 @@ export default function ProfileScreen() {
   if (session !== syncedSession) {
     setSyncedSession(session);
     setFullName(session?.fullName ?? '');
+    setFirstName(session?.firstName ?? '');
+    setLastName(session?.lastName ?? '');
     setPhone(session?.phone ?? '');
     setAddress(session?.address ?? '');
     setBranchName(session?.branchName ?? '');
@@ -65,11 +69,13 @@ export default function ProfileScreen() {
   }
 
   async function saveProfile() {
-    if (!fullName.trim()) { setProfileError('Enter your full name.'); return; }
+    if (isBuyer ? !firstName.trim() : !fullName.trim()) { setProfileError(isBuyer ? 'Enter your first name.' : 'Enter your full name.'); return; }
     setSavingProfile(true);
     setProfileError('');
     try {
-      const updated = await client.profiles.update({ fullName: fullName.trim(), phone: phone.trim(), address: address.trim(), ...(isDealer ? { branchName: branchName.trim(), website: website.trim() } : {}) });
+      // Buyers send the name parts and the API rebuilds the display name from them.
+      const name = isBuyer ? { firstName: firstName.trim(), lastName: lastName.trim() || null } : { fullName: fullName.trim() };
+      const updated = await client.profiles.update({ ...name, phone: phone.trim(), address: address.trim(), ...(isDealer ? { branchName: branchName.trim(), website: website.trim() } : {}) });
       // PATCH /profiles/me returns no subscription block, so keep the plan we already have.
       setSession({ ...updated, subscription: updated.subscription ?? session?.subscription ?? null });
       setProfileSaved(true);
@@ -105,7 +111,10 @@ export default function ProfileScreen() {
     <div className="profile-layout"><main className="profile-main">
       <section className="card profile-panel"><div className="profile-section-head"><div><span className="eyebrow">Personal details</span><h2>Contact information</h2><p>Used for account security and marketplace communication.</p></div></div>
         <form className="profile-form" onSubmit={(event) => { event.preventDefault(); void saveProfile(); }}>
-          <div className="field"><label htmlFor="profile-name">Full name</label><div className="input-with-icon"><UserRound /><input id="profile-name" name="name" className="input" autoComplete="name" value={fullName} onChange={(event) => setFullName(event.target.value)} required /></div></div>
+          {isBuyer ? <>
+            <div className="field"><label htmlFor="profile-first-name">First name</label><div className="input-with-icon"><UserRound /><input id="profile-first-name" name="given-name" className="input" autoComplete="given-name" maxLength={75} value={firstName} onChange={(event) => setFirstName(event.target.value)} required /></div></div>
+            <div className="field"><label htmlFor="profile-last-name">Last name</label><div className="input-with-icon"><UserRound /><input id="profile-last-name" name="family-name" className="input" autoComplete="family-name" maxLength={75} value={lastName} onChange={(event) => setLastName(event.target.value)} /></div></div>
+          </> : <div className="field"><label htmlFor="profile-name">Full name</label><div className="input-with-icon"><UserRound /><input id="profile-name" name="name" className="input" autoComplete="name" value={fullName} onChange={(event) => setFullName(event.target.value)} required /></div></div>}
           <div className="field"><label htmlFor="profile-email">Email address</label><div className="input-with-icon"><Mail /><input id="profile-email" name="email" className="input" value={session.email} type="email" autoComplete="email" readOnly /></div><small>Contact support to change your sign-in email.</small></div>
           <div className="field"><label htmlFor="profile-phone">Phone number</label><div className="input-with-icon"><Phone /><input id="profile-phone" name="tel" className="input" type="tel" autoComplete="tel" value={phone} onChange={(event) => setPhone(event.target.value)} placeholder="(469) 555-0142" /></div></div>
           <div className="field"><label htmlFor="profile-address">Location or mailing address</label><div className="input-with-icon"><MapPin /><input id="profile-address" name="street-address" className="input" autoComplete="street-address" value={address} onChange={(event) => setAddress(event.target.value)} placeholder="Frisco, TX" /></div></div>

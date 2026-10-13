@@ -122,6 +122,12 @@ BUYER_STORAGE_PREFIX = "buyer"
 PERSONAL_DETAILS_FOLDER = "personal-details"
 DRIVING_LICENSE_FOLDER = "driving-licence"
 DRIVING_LICENSE_DOCUMENT_TYPE = "driving_license"
+# Help & support uploads: help-support/<buyer-support|dealer-support|staff-support>/<profile id>/<ticket id>/<file>
+HELP_SUPPORT_PREFIX = "help-support"
+HELP_SUPPORT_FOLDERS = {"buyer": "buyer-support", "dealer": "dealer-support"}
+HELP_SUPPORT_STAFF_FOLDER = "staff-support"
+SUPPORT_ATTACHMENT_MAX_BYTES = 10 * 1024 * 1024
+SUPPORT_ATTACHMENT_MAX_FILES = 3
 DRIVING_LICENSE_MAX_BYTES = 10 * 1024 * 1024
 DRIVING_LICENSE_EXTENSIONS = {
     "image/jpeg": ".jpg",
@@ -171,9 +177,15 @@ class Settings(BaseSettings):
     ai_disabled: bool = False
     # Off by default: Sera answers vehicle questions from the catalog tables. Set true to allow live web research.
     ai_enable_web_search: bool = False
+    # Approximate cap for app-authored prompt text. Hosted search may add provider-side
+    # evidence beyond this cap; that total is reported separately in the trace.
     ai_max_input_tokens: int = 8_000
     ai_max_output_tokens: int = 1_800
     ai_request_timeout_seconds: float = 45
+    # Optional snippet-first search provider. When configured, Sera passes only short
+    # search snippets into the model instead of provider-crawled page context.
+    google_api_key: str | None = None
+    google_cse_id: str | None = None
     web_search_max_results: int = 5
     web_search_market: str = "US"
     web_search_request_timeout_seconds: int = 8

@@ -1,4 +1,4 @@
-from sqlalchemy import func, select, update
+from sqlalchemy import case, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.repositories.schema import (
@@ -123,6 +123,31 @@ class AdministrationRepository:
     async def traces(self, limit: int = 100) -> list[AiTrace]:
         rows = await self.session.execute(select(AiTrace).order_by(AiTrace.created_at.desc()).limit(limit))
         return list(rows.scalars())
+
+    @log_flow(layer="repository")
+    async def trace_totals(self) -> dict[str, int]:
+        """Totals over every stored trace; the history list is capped, these are not."""
+        unfinished_or_ok = ("success", "running")
+        row = (
+            await self.session.execute(
+                select(
+                    func.count(AiTrace.id),
+                    func.coalesce(func.sum(case((AiTrace.is_test.is_(True), 1), else_=0)), 0),
+                    func.coalesce(func.sum(AiTrace.input_tokens), 0),
+                    func.coalesce(func.sum(AiTrace.output_tokens), 0),
+                    func.coalesce(func.avg(AiTrace.duration_ms), 0),
+                    func.coalesce(func.sum(case((AiTrace.status.notin_(unfinished_or_ok), 1), else_=0)), 0),
+                )
+            )
+        ).one()
+        return {
+            "total_traces": int(row[0]),
+            "test_runs": int(row[1]),
+            "input_tokens": int(row[2]),
+            "output_tokens": int(row[3]),
+            "average_duration_ms": round(float(row[4])),
+            "failed": int(row[5]),
+        }
 
     @log_flow(layer="repository")
     async def trace(self, trace_id: str) -> tuple[AiTrace | None, list[AiTraceSpan], list[LlmAudit]]:

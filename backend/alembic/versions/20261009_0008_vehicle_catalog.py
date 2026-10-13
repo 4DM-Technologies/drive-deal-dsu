@@ -1,7 +1,11 @@
 """Vehicle catalog: makes, model families and per-year variants.
 
-Revision ID: 20261009_0008
-Revises: 20261006_0007
+Revision ID: 20261009_0008b
+Revises: 20261009_0008
+
+This shipped with the same revision id as the buyer-documents migration, which left Alembic with two heads.
+It now runs after that migration under its own id. Every step skips tables that already exist, so a database
+that recorded either migration under the old shared id upgrades cleanly.
 """
 
 from collections.abc import Sequence
@@ -10,8 +14,8 @@ import sqlalchemy as sa
 
 from alembic import op
 
-revision: str = "20261009_0008"
-down_revision: str | None = "20261006_0007"
+revision: str = "20261009_0008b"
+down_revision: str | None = "20261009_0008"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

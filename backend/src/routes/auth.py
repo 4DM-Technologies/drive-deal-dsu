@@ -32,7 +32,8 @@ class ResetPasswordRequest(BaseModel):
 
 @log_flow(layer="route")
 async def buyer_signup_form(
-    full_name: str = Form(),
+    first_name: str = Form(),
+    last_name: str = Form(),
     email: str = Form(),
     phone: str = Form(),
     password: str = Form(),
@@ -44,7 +45,8 @@ async def buyer_signup_form(
     """Reads the buyer signup fields from the multipart form and applies the same rules as the JSON models."""
     try:
         return BuyerSignup(
-            full_name=full_name,
+            first_name=first_name,
+            last_name=last_name,
             email=email,
             phone=phone,
             password=password,

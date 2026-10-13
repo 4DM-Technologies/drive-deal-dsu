@@ -1,4 +1,5 @@
 from datetime import UTC, datetime
+from decimal import Decimal
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -16,6 +17,7 @@ from src.repositories.marketplace_repository import MarketplaceRepository
 from src.repositories.schema import Brand, BuyerRequest, DealChat, DealQuote, Profile
 from src.services.billing_service import BillingService
 from src.services.community_guidelines import violates_chat_guidelines
+from src.services.websocket_manager import manager
 from src.settings import MARKETPLACE_DEAL_FLOW
 from src.utils.exceptions import AppError, error_codes
 from src.utils.log_flow import log_flow
@@ -55,6 +57,11 @@ class MarketplaceService:
             "buyer_area": request.buyer_area if request else None,
             "buyer_viewed": self._buyer_viewed(row),
         }
+
+    @staticmethod
+    def _buyer_first_name(buyers: dict[str, Profile], request: BuyerRequest | None) -> str | None:
+        buyer = buyers.get(request.buyer_id) if request else None
+        return buyer.first_name if buyer else None
 
     @staticmethod
     def _buyer_viewed(row: DealQuote) -> bool:
@@ -182,6 +189,12 @@ class MarketplaceService:
         dealers = await self._profile_map({row.dealer_id for row in rows})
         requests_by_id = await self._request_map({row.buyer_request_id for row in rows})
         brands = await self._brand_map({request.brand_id for request in requests_by_id.values()})
+        # Dealers see each buyer's first name on their quote list (a client requirement); nothing else about the buyer.
+        buyers = (
+            await self._profile_map({request.buyer_id for request in requests_by_id.values()})
+            if actor.role == "dealer"
+            else {}
+        )
 
         def to_dict(row: DealQuote) -> dict:
             dealer = dealers.get(row.dealer_id)
@@ -197,6 +210,7 @@ class MarketplaceService:
                 "body_type": request.body_type if request else None,
                 "buyer_area": request.buyer_area if request else None,
                 "buyer_viewed": self._buyer_viewed(row),
+                **({"buyer_first_name": self._buyer_first_name(buyers, request)} if actor.role == "dealer" else {}),
             }
 
         result = [to_dict(row) for row in rows]
@@ -298,6 +312,65 @@ class MarketplaceService:
                 "phone": dealer.phone,
                 "email": dealer.email,
             },
+        }
+
+    @log_flow(layer="service")
+    async def notify_chat(self, quote_id: str, event: str) -> None:
+        """Tells both people in a conversation, on every open tab, that it changed so their screens refetch it.
+
+        The frame carries no message content: clients reload the thread through the normal, permission-checked API.
+        Delivery is best effort and never fails the request that made the change.
+        """
+        quote = await self.session.get(DealQuote, quote_id)
+        if quote is None:
+            return
+        frame = {"type": "chat.updated", "quote_id": quote_id, "event": event}
+        for profile_id in {quote.buyer_id, quote.dealer_id}:
+            await manager.send(profile_id, frame)
+
+    @log_flow(layer="service")
+    async def quote_position(self, quote_id: str, actor: Profile) -> dict:
+        """Where a dealer's offer ranks among the offers still in play on the same request.
+
+        Dealers cannot list each other's quotes, so the ranking happens here and only the rank and the price gaps
+        leave the server, never another dealer's identity. Lowest out-the-door total leads; on a tie the earlier
+        quote leads. Withdrawn, expired, declined and accepted offers are not competing, and for those ``rank`` is null.
+        """
+        quote = await self._quote(quote_id)
+        if actor.role not in {"support", "support-admin", "admin"}:
+            self._require_owner(quote.dealer_id, actor.id)
+        competing = [
+            row
+            for row in await self.repository.quotes_for_request(quote.buyer_request_id)
+            if row.status in {"pending", "negotiating"}
+        ]
+        index = next((i for i, row in enumerate(competing) if row.id == quote.id), None)
+        if index is None:
+            return {"quote_id": quote.id, "rank": None, "total": len(competing), "lead_by": None, "behind_by": None}
+        own = Decimal(quote.final_price)
+        runner_up = competing[1] if index == 0 and len(competing) > 1 else None
+        return {
+            "quote_id": quote.id,
+            "rank": index + 1,
+            "total": len(competing),
+            # Leading: how far below the next offer. Behind: how far above the leading offer.
+            "lead_by": str(Decimal(runner_up.final_price) - own) if runner_up else None,
+            "behind_by": str(own - Decimal(competing[0].final_price)) if index > 0 else None,
+        }
+
+    @log_flow(layer="service")
+    async def buyer_contact(self, quote_id: str, actor: Profile) -> dict:
+        """The buyer's first name and phone for the dealer's chat header, behind the same gate as ``dealer_contact``."""
+        quote = await self._quote(quote_id)
+        self._require_party(quote, actor)
+        if quote.status != "accepted" and quote.chat_request_status != "accepted":
+            raise AppError(
+                error_codes.DEALER_CONTACT_WITHHELD, "Buyer contact remains private until the contact gate opens.", 403
+            )
+        buyer = await self.session.get(Profile, quote.buyer_id)
+        return {
+            "contact_available": True,
+            "buyer": {"id": buyer.id, "first_name": buyer.first_name, "phone": buyer.phone},
         }
 
     @log_flow(layer="service")

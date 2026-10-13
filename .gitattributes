@@ -6,7 +6,7 @@
 # so this class of bug would first appear on EC2 rather than in CI.
 
 # Let git detect text vs binary, and normalize text to LF in the repository.
-* text=auto
+* text=auto eol=lf
 
 # ---------------------------------------------------------------------------
 # Must be LF in the working tree on EVERY platform, because Linux consumes them.

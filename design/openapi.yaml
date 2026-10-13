@@ -4863,17 +4863,24 @@ components:
     BuyerSignupRequest:
       type: object
       required:
-      - full_name
+      - first_name
+      - last_name
       - email
       - phone
       - password
       - terms_accepted
       properties:
-        full_name:
+        first_name:
           type: string
           minLength: 1
-          maxLength: 120
-          example: Adithyaa Anand
+          maxLength: 75
+          description: Trimmed. The profile's full_name becomes "first_name last_name".
+          example: Adithyaa
+        last_name:
+          type: string
+          minLength: 1
+          maxLength: 75
+          example: Anand
         email:
           type: string
           format: email
@@ -5356,6 +5363,15 @@ components:
           $ref: '#/components/schemas/Role'
         full_name:
           type: string
+          description: Display name. For buyers it is always "first_name last_name".
+        first_name:
+          type: string
+          nullable: true
+          description: Buyers only. Buyers who signed up before the name split hold their whole name here.
+        last_name:
+          type: string
+          nullable: true
+          description: Buyers only; null for buyers from before the name split.
         email:
           type: string
           format: email
@@ -5456,12 +5472,21 @@ components:
       type: object
       description: |-
         All keys optional (PATCH). Omitted keys are unchanged; an explicit
-        `null` clears a nullable field.
+        `null` clears a nullable field. Sending `first_name` or `last_name` also
+        rewrites `full_name` to "first_name last_name"; a blank `last_name` clears it.
       properties:
         full_name:
           type: string
           minLength: 1
           maxLength: 120
+        first_name:
+          type: string
+          minLength: 1
+          maxLength: 75
+        last_name:
+          type: string
+          maxLength: 75
+          nullable: true
         phone:
           type: string
           pattern: ^\+?[1-9]\d{6,14}$
