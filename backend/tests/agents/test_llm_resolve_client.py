@@ -56,3 +56,55 @@ async def test_resolve_client_is_none_when_no_credential_available(monkeypatch: 
 
     assert resolved is None
     assert client._credential_source == "deterministic"
+
+
+async def test_resolve_client_reuses_one_client_while_the_credential_is_unchanged(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(llm_module, "_shared_clients", {})
+    monkeypatch.setattr(llm_module, "get_cached_access_token", AsyncMock(return_value="cached-token"))
+
+    first = await _client()._resolve_client()
+    second = await _client()._resolve_client()
+
+    assert first is second
+
+
+async def test_resolve_client_builds_a_new_client_when_the_token_changes(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(llm_module, "_shared_clients", {})
+    monkeypatch.setattr(llm_module, "get_cached_access_token", AsyncMock(side_effect=["old-token", "new-token"]))
+
+    first = await _client()._resolve_client()
+    second = await _client()._resolve_client()
+
+    assert first is not second
+    assert second.api_key == "new-token"
+
+
+async def test_resolve_client_keeps_separate_clients_per_timeout(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(llm_module, "_shared_clients", {})
+    monkeypatch.setattr(llm_module, "get_cached_access_token", AsyncMock(return_value="cached-token"))
+
+    normal = await _client()._resolve_client()
+    short = await _client(ai_request_timeout_seconds=4)._resolve_client()
+
+    assert normal is not short
+    assert short.timeout == 4
+
+
+async def test_warm_up_is_skipped_when_ai_is_disabled(monkeypatch: pytest.MonkeyPatch) -> None:
+    resolve = AsyncMock()
+    monkeypatch.setattr(LlmClient, "_resolve_client", resolve)
+
+    await llm_module.warm_up_provider()
+
+    resolve.assert_not_awaited()
+
+
+async def test_warm_up_never_raises(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        llm_module, "get_settings", lambda: SimpleNamespace(ai_disabled=False, ai_request_timeout_seconds=45)
+    )
+    monkeypatch.setattr(LlmClient, "_resolve_client", AsyncMock(side_effect=RuntimeError("S3 unreachable")))
+
+    await llm_module.warm_up_provider()

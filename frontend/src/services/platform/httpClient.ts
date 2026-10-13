@@ -255,10 +255,10 @@ function guidedActionToBody(action: GuidedActionInput): Record<string, unknown> 
   return { type: 'answer', question_id: action.questionId, values: action.values ?? [], text: action.text ?? null };
 }
 
-async function* streamAi(input: { message: string; threadId?: string; agent?: 'sera-agent' | 'compare-agent'; requestIds?: string[]; quoteIds?: string[]; requestContext?: Record<string, string>; preferenceAction?: 'use_saved' | 'customize' | 'update_saved' | 'skip' | 'continue_without_saved'; chatPreferences?: string; signal?: AbortSignal }): AsyncIterable<AiStreamEvent> {
+async function* streamAi(input: { message: string; threadId?: string; agent?: 'sera-agent' | 'compare-agent'; requestIds?: string[]; quoteIds?: string[]; requestContext?: Record<string, string>; preferenceAction?: 'use_saved' | 'customize' | 'update_saved' | 'skip' | 'continue_without_saved'; chatPreferences?: string; entryMode?: 'ask' | 'guided'; signal?: AbortSignal }): AsyncIterable<AiStreamEvent> {
   const response = await fetch(`${baseUrl}/ai/chat`, {
     method: 'POST', headers: { 'content-type': 'application/json', ...(token() ? { authorization: `Bearer ${token()}` } : {}) },
-    body: JSON.stringify({ message: input.message, thread_id: input.threadId, agent: input.agent ?? 'sera-agent', request_ids: input.requestIds ?? [], quote_ids: input.quoteIds ?? [], request_context: input.requestContext ?? null, preference_action: input.preferenceAction ?? null, chat_preferences: input.chatPreferences ?? null }),
+    body: JSON.stringify({ message: input.message, thread_id: input.threadId, agent: input.agent ?? 'sera-agent', request_ids: input.requestIds ?? [], quote_ids: input.quoteIds ?? [], request_context: input.requestContext ?? null, preference_action: input.preferenceAction ?? null, chat_preferences: input.chatPreferences ?? null, entry_mode: input.entryMode ?? null }),
     ...(input.signal ? { signal: input.signal } : {}),
   });
   if (!response.ok || !response.body) throw new Error('Sera is temporarily unavailable.');

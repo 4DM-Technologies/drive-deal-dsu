@@ -1,3 +1,4 @@
+import asyncio
 import os
 import time
 from collections.abc import AsyncIterator
@@ -7,6 +8,7 @@ from fastapi import FastAPI
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 
+from src.agents.llm import warm_up_provider
 from src.database import SessionFactory, create_schema, dispose_engine
 from src.middleware.request_context import RequestContextMiddleware
 from src.routes import (
@@ -109,6 +111,7 @@ def _configure_langsmith() -> None:
 async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     """Emits the full startup and shutdown lifecycle so a bad boot shows up in the log, not a blank terminal."""
     started_at = time.perf_counter()
+    warm_up_task: asyncio.Task | None = None
     logger.info("app_starting", app_env=settings.app_env, api_prefix=settings.api_prefix)
     configure_logging()
     log_startup_configuration()
@@ -120,6 +123,8 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
             synced = await AdministrationService(session).sync_code_baselines()
             logger.info("developer_configuration_synced", revision_count=len(synced))
         logger.info("app_ready", startup_duration_ms=round((time.perf_counter() - started_at) * 1000, 3))
+        # In the background so it never delays startup; it only spares the first Sera request a cold start.
+        warm_up_task = asyncio.create_task(warm_up_provider())
         yield
     except Exception as exc:
         logger.exception(
@@ -130,6 +135,8 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
         )
         raise
     finally:
+        if warm_up_task and not warm_up_task.done():
+            warm_up_task.cancel()
         logger.info("app_shutting_down", uptime_ms=round((time.perf_counter() - started_at) * 1000, 3))
         await dispose_engine()
 

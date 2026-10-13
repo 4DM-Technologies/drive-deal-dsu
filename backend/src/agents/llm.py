@@ -6,10 +6,19 @@ from dataclasses import dataclass
 from time import perf_counter
 from typing import Any
 
-from openai import APIConnectionError, APIError, APIStatusError, APITimeoutError, AsyncOpenAI, BadRequestError
+import httpx
+from openai import (
+    APIConnectionError,
+    APIError,
+    APIStatusError,
+    APITimeoutError,
+    AsyncOpenAI,
+    AuthenticationError,
+    BadRequestError,
+)
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.auth.codex_oauth import get_cached_access_token
+from src.auth.codex_oauth import forget_cached_access_token, get_cached_access_token
 from src.repositories.schema import AiTrace, AiTraceSpan, LlmAudit
 from src.settings import CODEX_DIRECT_BASE_URL, CODEX_DIRECT_USER_AGENT, get_settings
 from src.utils.log_flow import scrub_secrets
@@ -22,6 +31,24 @@ _models_without_reasoning_effort: set[str] = set()
 # request") are retried this many times before falling back. Rate limits, auth errors and timeouts are not.
 _TRANSIENT_RETRIES = 2
 _TRANSIENT_BACKOFF_SECONDS = 0.5
+# One AsyncOpenAI client per endpoint and timeout, reused while the credential and event loop stay the same.
+# Reuse keeps the HTTPS connection to the provider open between calls; a new client per call paid a fresh TLS
+# handshake (0.6-1.2s measured against the Codex backend) on every classifier, planner and compose call.
+_shared_clients: dict[tuple[str | None, float], tuple[asyncio.AbstractEventLoop, str, AsyncOpenAI]] = {}
+
+
+def _shared_client(
+    credential: str, *, timeout: float, base_url: str | None = None, headers: dict[str, str] | None = None
+) -> AsyncOpenAI:
+    loop = asyncio.get_running_loop()
+    key = (base_url, timeout)
+    with _capability_lock:
+        cached = _shared_clients.get(key)
+        if cached and cached[0] is loop and cached[1] == credential:
+            return cached[2]
+        client = AsyncOpenAI(api_key=credential, base_url=base_url, default_headers=headers, timeout=timeout)
+        _shared_clients[key] = (loop, credential, client)
+        return client
 
 
 def _is_transient(exc: APIError) -> bool:
@@ -166,14 +193,14 @@ class LlmClient:
         if not credential:
             return None
         if self._credential_source == "api_key":
-            return AsyncOpenAI(api_key=credential, timeout=timeout_seconds)
+            return _shared_client(credential, timeout=timeout_seconds)
         # A ChatGPT-OAuth-sourced credential is only valid against ChatGPT's own backend, not the
         # public OpenAI API - different base URL, and Cloudflare blocks the SDK's default User-Agent.
-        return AsyncOpenAI(
-            api_key=credential,
-            base_url=CODEX_DIRECT_BASE_URL,
-            default_headers={"User-Agent": CODEX_DIRECT_USER_AGENT},
+        return _shared_client(
+            credential,
             timeout=timeout_seconds,
+            base_url=CODEX_DIRECT_BASE_URL,
+            headers={"User-Agent": CODEX_DIRECT_USER_AGENT},
         )
 
     async def generate(
@@ -217,6 +244,9 @@ class LlmClient:
                 )
                 status = "success"
             except Exception as exc:
+                if isinstance(exc, AuthenticationError) and self._credential_source == "chatgpt_oauth_cache":
+                    # The token held in memory was rejected; read it again from the store on the next call.
+                    forget_cached_access_token()
                 error_message = _safe_error_value(str(exc), limit=2000)
                 logger.warning("llm_provider_fallback", task_type=task_type, provider=provider, error=error_message)
                 result = LlmResult(self._fallback(prompt, task_type), status="provider_fallback", error=error_message)
@@ -442,3 +472,31 @@ class LlmClient:
                     "### Sources\n" + "\n".join(links) + "\n\nTry the search again in a few minutes."
                 )
         return "I can help narrow the vehicle, explain ownership trade-offs, compare itemized offers, and prepare an editable buyer request. Tell me your preferred model, budget, location, and timing to start."
+
+
+async def warm_up_provider() -> None:
+    """Fetch the model credential and open the provider connection when the API starts, so the first buyer
+    request does not pay the cold token read and TLS handshake. Never raises: a failure only means the first
+    request warms up instead."""
+    started = perf_counter()
+    try:
+        # Only the credential is resolved here; no database work happens, so no session is needed.
+        llm = LlmClient(None)  # type: ignore[arg-type]
+        if llm.settings.ai_disabled:
+            return
+        client = await llm._resolve_client()
+        if client is None:
+            logger.info("llm_warm_up_skipped", reason="no_credential")
+            return
+        try:
+            # Any response, even a 404, leaves the pooled keep-alive connection open for the next call.
+            await client.with_options(max_retries=0, timeout=10).get("/models", cast_to=httpx.Response)
+        except APIError:
+            pass
+        logger.info(
+            "llm_warm_up_completed",
+            credential_source=llm._credential_source,
+            duration_ms=round((perf_counter() - started) * 1000, 3),
+        )
+    except Exception as exc:
+        logger.warning("llm_warm_up_failed", error=_safe_error_value(str(exc), limit=200))

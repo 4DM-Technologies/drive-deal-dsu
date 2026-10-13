@@ -22,22 +22,44 @@ def _graph(result: dict, started: list[str], name: str, delay: float = 0.0):
     return SimpleNamespace(ainvoke=ainvoke)
 
 
-def _payload(message: str) -> SimpleNamespace:
+def _payload(message: str, **overrides) -> SimpleNamespace:
     return SimpleNamespace(
-        thread_id="t1",
-        agent="sera",
-        message=message,
-        request_ids=[],
-        quote_ids=[],
-        request_context=None,
-        preference_action=None,
-        chat_preferences=None,
+        **{
+            "thread_id": "t1",
+            "agent": "sera",
+            "message": message,
+            "request_ids": [],
+            "quote_ids": [],
+            "request_context": None,
+            "preference_action": None,
+            "chat_preferences": None,
+            "entry_mode": None,
+            **overrides,
+        }
     )
 
 
-async def _drain(message: str, main_result: dict, main_delay: float = 0.0):
+async def _drain(
+    message: str,
+    main_result: dict,
+    main_delay: float = 0.0,
+    *,
+    memory: dict | None = None,
+    saved_preferences: dict | None = None,
+    states: list[dict] | None = None,
+    match_mock: AsyncMock | None = None,
+    **payload_overrides,
+):
     started: list[str] = []
     main = _graph(main_result, started, "main", main_delay)
+    if states is not None:
+        record = main.ainvoke
+
+        async def ainvoke(state):
+            states.append(state)
+            return await record(state)
+
+        main = SimpleNamespace(ainvoke=ainvoke)
     requirements = _graph(
         {"requirements": {"budget": 40000}, "suggested_questions": ["q"]}, started, "requirements", 5.0
     )
@@ -51,20 +73,21 @@ async def _drain(message: str, main_result: dict, main_delay: float = 0.0):
             "src.services.ai_service.get_settings",
             return_value=SimpleNamespace(ai_disabled=False, ai_enable_web_search=True),
         ),
-        patch("src.services.ai_service.match_message", new=AsyncMock(return_value=MatchResult())),
+        patch("src.services.ai_service.match_message", new=match_mock or AsyncMock(return_value=MatchResult())),
         patch.object(
             AdministrationService,
             "runtime_bundle",
             new=AsyncMock(return_value={"version": "test", "workflow": {}, "prompts": {}, "agent_profiles": {}}),
         ),
         patch.object(AiService, "_finish_trace", new=AsyncMock()),
-        patch.object(AiService, "_latest_memory", new=AsyncMock(return_value={})),
-        patch.object(AiService, "_buyer_preferences", new=AsyncMock(return_value={})),
+        patch.object(AiService, "_latest_memory", new=AsyncMock(return_value=memory or {})),
+        patch.object(AiService, "_buyer_preferences", new=AsyncMock(return_value=saved_preferences or {})),
         patch.object(AiService, "_save_checkpoint", new=AsyncMock()),
     ):
         service = AiService(session=session)
         started_at = time.perf_counter()
-        events = [event async for event in service.stream_chat(_payload(message), SimpleNamespace(id="u1"))]
+        payload = _payload(message, **payload_overrides)
+        events = [event async for event in service.stream_chat(payload, SimpleNamespace(id="u1"))]
     return started, events, time.perf_counter() - started_at
 
 
@@ -145,6 +168,7 @@ async def test_compare_chat_passes_selected_offers_to_the_agent_and_card() -> No
         request_context=None,
         preference_action=None,
         chat_preferences=None,
+        entry_mode=None,
     )
     requirements_builder = MagicMock()
     session = AsyncMock()
@@ -215,6 +239,153 @@ async def test_checkpoint_keeps_request_context_when_follow_up_does_not_repeat_i
     saved = session.add.call_args.args[0].checkpoint
     assert saved["request_context"] == {"brand": "Kia", "model": "K4"}
     assert saved["preferences"] == {"transmission": "Automatic"}
+
+
+SAVED = {"body_type": "SUV", "fuel_type": "Hybrid"}
+
+
+def _preference_cards(events: list[dict]) -> list[dict]:
+    return [event for event in events if event.get("kind") == "preference"]
+
+
+@pytest.mark.parametrize("message", ["best sports cars", "Is a hybrid SUV worth it for a family?"])
+async def test_ask_mode_offers_saved_preferences_on_first_vehicle_question(message: str) -> None:
+    started, events, _ = await _drain(
+        message, {"route": "advice", "answer": "x"}, saved_preferences=SAVED, entry_mode="ask"
+    )
+
+    assert len(_preference_cards(events)) == 1
+    assert started == []
+
+
+async def test_preferences_card_is_not_offered_again_in_the_same_chat() -> None:
+    started, events, _ = await _drain(
+        "recommend a family SUV",
+        {"route": "advice", "answer": "Here are options."},
+        memory={"entry_mode": "ask", "preference_prompted": True},
+        saved_preferences=SAVED,
+    )
+
+    assert not _preference_cards(events)
+    assert "main" in started
+
+
+@pytest.mark.parametrize("entry_mode", [None, "guided"])
+async def test_preferences_card_is_never_offered_outside_ask_mode(entry_mode: str | None) -> None:
+    _, events, _ = await _drain(
+        "best sports cars", {"route": "advice", "answer": "x"}, saved_preferences=SAVED, entry_mode=entry_mode
+    )
+
+    assert not _preference_cards(events)
+
+
+@pytest.mark.parametrize("message", ["hey sera", "how are you"])
+async def test_preferences_card_is_not_offered_on_a_greeting(message: str) -> None:
+    _, events, _ = await _drain(
+        message, {"route": "small_talk", "answer": "Hi!"}, saved_preferences=SAVED, entry_mode="ask"
+    )
+
+    assert not _preference_cards(events)
+
+
+async def test_stored_entry_mode_wins_over_the_request() -> None:
+    _, events, _ = await _drain(
+        "best sports cars",
+        {"route": "advice", "answer": "x"},
+        memory={"entry_mode": "guided"},
+        saved_preferences=SAVED,
+        entry_mode="ask",
+    )
+
+    assert not _preference_cards(events)
+
+
+async def test_use_saved_choice_applies_to_later_questions_in_the_chat() -> None:
+    states: list[dict] = []
+    await _drain(
+        "what about a hybrid SUV?",
+        {"route": "advice", "answer": "x"},
+        memory={"entry_mode": "ask", "preference_prompted": True, "preference_action": "use_saved"},
+        saved_preferences=SAVED,
+        states=states,
+    )
+
+    assert states[0]["preferences"] == SAVED
+
+
+async def test_checkpoint_remembers_the_card_was_offered_and_the_buyer_choice() -> None:
+    session = AsyncMock()
+    session.add = MagicMock()
+    service = AiService(session)
+
+    await service._save_checkpoint(
+        "t1", "u1", _payload("best sports cars", entry_mode="ask"), {"route": "preference_choice"}, {}, {}
+    )
+    offered = session.add.call_args.args[0].checkpoint
+    assert offered["preference_prompted"] is True
+    assert offered["entry_mode"] == "ask"
+
+    await service._save_checkpoint(
+        "t1", "u1", _payload("Use my saved preferences.", preference_action="use_saved"), {"answer": "x"}, {}, offered
+    )
+    chosen = session.add.call_args.args[0].checkpoint
+    assert chosen["preference_action"] == "use_saved"
+    assert chosen["preference_prompted"] is True
+
+    await service._save_checkpoint("t1", "u1", _payload("and a cheaper one?"), {"answer": "y"}, {}, chosen)
+    later = session.add.call_args.args[0].checkpoint
+    assert later["preference_action"] == "use_saved"
+    assert later["preference_prompted"] is True
+    assert later["entry_mode"] == "ask"
+
+
+EARLIER_QUESTION = {"role": "user", "body": "i crashed my audi, how can i get insurance"}
+
+
+async def test_no_cards_after_the_first_question() -> None:
+    match = AsyncMock(return_value=MatchResult())
+    started, events, _ = await _drain(
+        "my audi is 35K, will i be able to buy a home for that same amount",
+        {"route": "off_topic", "answer": "That's outside what I can help with."},
+        memory={"entry_mode": "ask", "conversation_context": [EARLIER_QUESTION]},
+        saved_preferences=SAVED,
+        match_mock=match,
+    )
+
+    assert started == ["main"]
+    match.assert_not_awaited()
+    assert not any(event["type"] == "card" for event in events)
+
+
+async def test_greetings_do_not_use_up_the_first_question() -> None:
+    _, events, _ = await _drain(
+        "best family SUV under 40k",
+        {"route": "advice", "answer": "x"},
+        memory={"entry_mode": "ask", "conversation_context": [{"role": "user", "body": "hi"}]},
+        saved_preferences=SAVED,
+    )
+
+    assert len(_preference_cards(events)) == 1
+
+
+async def test_preference_button_continues_the_first_question_with_its_cards() -> None:
+    match = AsyncMock(return_value=MatchResult())
+    started, _, _ = await _drain(
+        "Use my saved preferences for this chat.",
+        {"route": "advice", "answer": "x"},
+        memory={
+            "entry_mode": "ask",
+            "preference_prompted": True,
+            "active_request": "best family SUV under 40k",
+            "conversation_context": [{"role": "user", "body": "best family SUV under 40k"}],
+        },
+        saved_preferences=SAVED,
+        match_mock=match,
+        preference_action="use_saved",
+    )
+
+    assert sorted(started) == ["main", "requirements"]
+    match.assert_awaited_once()
 
 
 async def test_delete_thread_removes_only_an_owned_chat() -> None:
