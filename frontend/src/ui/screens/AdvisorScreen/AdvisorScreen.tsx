@@ -319,6 +319,9 @@ export default function AdvisorScreen() {
   const [guidedStep, setGuidedStep] = useState<GuidedStep | null>(null);
   // The start option clicked on this screen; "Ask Sera a question" sends no message, so it is remembered here.
   const [startChoice, setStartChoice] = useState<string | null>(null);
+  // How the open chat was started, sent with each message. The server stores it with the thread and only offers
+  // the saved-preferences card in chats started with "Ask Sera a question".
+  const entryModeRef = useRef<'ask' | 'guided' | undefined>(undefined);
   const [preferenceQuestionCard, setPreferenceQuestionCard] = useState<import('@/types/domain').GuidedQuestion | null>(null);
   const [preferenceStage, setPreferenceStage] = useState<PreferenceStage>('choice');
   const [preferenceEdit, setPreferenceEdit] = useState<PreferenceEdit | null>(null);
@@ -446,6 +449,7 @@ export default function AdvisorScreen() {
     lastSentQueryRef.current = '';
     const isGeneratingThisThread = streamingThreadIdRef.current === id;
     restoredImageQueryRef.current = '';
+    entryModeRef.current = undefined;
     setImageAttempt(0);
     threadIdRef.current = id;
     if (!isGeneratingThisThread) {
@@ -691,6 +695,7 @@ export default function AdvisorScreen() {
     lastSentQueryRef.current = '';
     guidedCancelledRef.current = false;
     restoredImageQueryRef.current = '';
+    entryModeRef.current = undefined;
     setImageAttempt(0);
     guidedOwnedThreadRef.current = true;
     completedCompareRef.current = false;
@@ -710,6 +715,7 @@ export default function AdvisorScreen() {
 
   function chooseStartOption(value: string) {
     setStartChoice(value);
+    entryModeRef.current = value === 'Ask Sera a question' ? 'ask' : 'guided';
     if (value === 'I know the car I want') beginGuidedFlow('known');
     else if (value === 'Help me choose') beginGuidedFlow('explore');
     else {
@@ -1118,7 +1124,7 @@ export default function AdvisorScreen() {
     const requestContext = !isCompare && draft
       ? { ...draft, ...(publishedRequestId ? { publishedRequestId } : {}) }
       : undefined;
-    for await (const event of client.ai.chat({ message: text, threadId: runThreadId, agent: isCompare ? 'compare-agent' : 'sera-agent', requestIds, quoteIds, ...(requestContext ? { requestContext } : {}), ...(resolvedPreference ? { preferenceAction: resolvedPreference.action, ...(resolvedPreference.chatPreferences ? { chatPreferences: resolvedPreference.chatPreferences } : {}) } : {}), signal: controller.signal })) {
+    for await (const event of client.ai.chat({ message: text, threadId: runThreadId, agent: isCompare ? 'compare-agent' : 'sera-agent', requestIds, quoteIds, ...(requestContext ? { requestContext } : {}), ...(resolvedPreference ? { preferenceAction: resolvedPreference.action, ...(resolvedPreference.chatPreferences ? { chatPreferences: resolvedPreference.chatPreferences } : {}) } : {}), ...(entryModeRef.current ? { entryMode: entryModeRef.current } : {}), signal: controller.signal })) {
         if (controller.signal.aborted || activeRunRef.current !== run) break;
         if (event.type === 'status') showStatus(event.label || activity[event.phase]);
         if (event.type === 'token') { showStatus(''); updateStreamTranscript(runThreadId, (items) => items.map((item) => item.id === assistantId ? { ...item, body: item.body + event.text } : item)); }

@@ -481,6 +481,10 @@ async def _hosted_get_urls(
         "when the source clearly supports it. Do not include inline citation placeholders, empty parentheses, a "
         "long caveat, or inline citation placeholders; the app displays source links separately. If images were requested, "
         "prefer one attributable photo per named vehicle and do not substitute similar models. "
+        "Deal&Drive serves US buyers only: if the buyer asks about buying or using a vehicle outside the United "
+        "States (a non-US city, state or country such as Chennai, India, London or Toronto), do not list vehicles "
+        "or give advice for that market; reply in one friendly sentence that Deal&Drive currently serves buyers in "
+        "the US and offer to help if they are shopping in the US. "
         f"Market: {market}. Buyer request: {query}"
     )
     web_search_tool: dict[str, object] = {"type": "web_search", "search_context_size": "low"}

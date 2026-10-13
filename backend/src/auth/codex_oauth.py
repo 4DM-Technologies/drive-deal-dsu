@@ -18,6 +18,7 @@ import time
 import urllib.parse
 import uuid
 import webbrowser
+from functools import lru_cache
 from typing import Any
 
 import httpx
@@ -84,7 +85,9 @@ from src.settings import (
 from src.utils.logger import logger
 
 
+@lru_cache(maxsize=1)
 def _state_store() -> CodexOAuthS3Store:
+    # Built once: creating a boto3 client is slow, and it is safe to share across threads.
     return CodexOAuthS3Store.from_settings()
 
 
@@ -410,7 +413,33 @@ async def _refresh_async(tokens: dict, *, persist_refresh_token: bool = True) ->
     return refreshed
 
 
+# The access token last read or refreshed by this process. A running server re-reads S3 only when this copy
+# nears expiry or is older than _MEMORY_TOKEN_MAX_AGE_SECONDS, instead of downloading it on every model call.
+_MEMORY_TOKEN_MAX_AGE_SECONDS = 300
+_memory_token: dict[str, Any] = {}
+
+
+def forget_cached_access_token() -> None:
+    _memory_token.clear()
+
+
 async def get_cached_access_token() -> str | None:
+    """The current access token, served from process memory while it is fresh; see _load_access_token."""
+    token = _memory_token.get("access_token")
+    if (
+        token
+        and time.monotonic() - _memory_token["loaded_at"] < _MEMORY_TOKEN_MAX_AGE_SECONDS
+        and not _token_near_expiry(_memory_token)
+    ):
+        return token
+    token = await _load_access_token()
+    _memory_token.clear()
+    if token:
+        _memory_token.update(access_token=token, loaded_at=time.monotonic())
+    return token
+
+
+async def _load_access_token() -> str | None:
     """Non-interactive credential source for the running API server.
 
     Prefers the durable secret in `CODEX_OAUTH_REFRESH_TOKEN` (env) if set — this is the source of

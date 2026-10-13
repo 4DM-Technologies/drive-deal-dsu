@@ -250,11 +250,24 @@ class AiService:
             return
         preference_control = payload.preference_action in {"use_saved", "customize", "skip"}
         continuing_original = preference_control and bool(memory.get("active_request"))
+        # Cards (saved preferences, the guided picker and the request draft) belong to the buyer's first question
+        # in a chat; every later message gets a plain answer. Greetings do not count as that first question, and a
+        # preference-card button continues it.
+        first_question = continuing_original or not any(
+            item.get("role") == "user" and not is_direct_reply(str(item.get("body") or ""))
+            for item in memory.get("conversation_context", [])
+        )
+        # The saved-preferences card is only offered in a chat started with "Ask Sera a question". The thread's
+        # stored entry mode wins over the request's.
+        entry_mode = memory.get("entry_mode") or payload.entry_mode
         if (
             payload.agent != "compare-agent"
             and payload.preference_action is None
+            and entry_mode == "ask"
+            and first_question
+            and not memory.get("preference_prompted")
             and not memory.get("active_request")
-            and self._is_recommendation_request(payload.message)
+            and not is_direct_reply(payload.message)
         ):
             yield {"type": "status", "phase": "classifying", "label": "Checking saved preferences"}
             saved_preferences = await self._buyer_preferences(buyer.id)
@@ -375,7 +388,7 @@ class AiService:
         # Guided question card. A message naming a catalog vehicle with buying intent ("I want a BMW M3") opens the
         # card. When nothing else was asked, the card is the whole reply: a template sentence and no LLM call.
         guided_step: GuidedStep | None = None
-        if payload.agent != "compare-agent" and not explicit_web_search:
+        if payload.agent != "compare-agent" and not explicit_web_search and first_question:
             match = await match_message(self.session, effective_message)
             if match.opens_card and not match.has_question:
                 guided_step = await GuidedPlanner(self.session).from_match(match)
@@ -402,9 +415,10 @@ class AiService:
         if payload.agent == "compare-agent":
             main_result = await main_task
             requirement_result = {}
-        elif is_direct_reply(effective_message) or explicit_web_search or guided_step is not None:
+        elif is_direct_reply(effective_message) or explicit_web_search or guided_step is not None or not first_question:
             # Greetings and explicit research requests are handled entirely by the main graph. Neither contains
             # a buyer requirement to extract, so starting the requirements graph would add latency and UI cards.
+            # After the first question no request-draft card is shown, so the graph is not started either.
             main_result = await main_task
             requirement_result: dict = {}
         else:
@@ -689,6 +703,9 @@ class AiService:
                     "published_request": previous.get("published_request"),
                     "published_request_id": payload.guided_state.get("publishedRequestId"),
                     "request_context": payload.request_context or previous.get("request_context"),
+                    "preference_action": previous.get("preference_action"),
+                    "preference_prompted": bool(previous.get("preference_prompted")),
+                    "entry_mode": previous.get("entry_mode"),
                     "guided_messages": messages,
                     "guided_state": payload.guided_state,
                 },
@@ -804,37 +821,6 @@ class AiService:
         }
         return values
 
-    @staticmethod
-    def _is_recommendation_request(message: str) -> bool:
-        text = message.casefold()
-        asks_for_recommendations = any(
-            phrase in text
-            for phrase in (
-                "recommend",
-                "suggest",
-                "help me choose",
-                "looking for",
-                "find me",
-                "show me",
-                "shortlist",
-                "cross-shop",
-            )
-        )
-        vehicle_context = bool(
-            re.search(r"\b(?:cars?|vehicles?|suvs?|trucks?|sedans?|sports? cars?|coupes?|roadsters?|models?)\b", text)
-        )
-        ranked_vehicle_list = bool(
-            re.search(
-                r"\b(?:top\s+(?:\d+\s+)?(?:cars?|vehicles?|suvs?|trucks?|sedans?|sports cars?|coupes?|roadsters?)|best\s+(?:cars?|vehicles?|suvs?|trucks?|sedans?|sports cars?|coupes?|roadsters?))\b",
-                text,
-            )
-        )
-        return (
-            (asks_for_recommendations and vehicle_context)
-            or ranked_vehicle_list
-            or is_sports_car_recommendation(message)
-        )
-
     @log_flow(layer="service")
     async def _save_checkpoint(
         self,
@@ -859,6 +845,12 @@ class AiService:
             else memory.get("active_request")
         )
         user_message = None if is_control else payload.message
+        # The buyer's answer to the preferences card holds for the rest of the chat, so it is never asked again.
+        preference_decision = (
+            payload.preference_action
+            if payload.preference_action in {"use_saved", "customize", "skip", "continue_without_saved"}
+            else memory.get("preference_action")
+        )
         self.session.add(
             ConversationHistory(
                 thread_id=thread_id,
@@ -880,7 +872,9 @@ class AiService:
                     or (memory.get("published_request") or {}).get("id"),
                     "request_context": payload.request_context or memory.get("request_context"),
                     "active_request": active_request,
-                    "preference_action": None,
+                    "preference_action": preference_decision,
+                    "preference_prompted": preference_choice or bool(memory.get("preference_prompted")),
+                    "entry_mode": memory.get("entry_mode") or payload.entry_mode,
                     "chat_preferences": payload.chat_preferences
                     if payload.preference_action == "customize"
                     else memory.get("chat_preferences"),

@@ -118,6 +118,8 @@ class AiChatRequest(BaseModel):
     request_context: dict | None = None
     preference_action: Literal["use_saved", "customize", "update_saved", "skip", "continue_without_saved"] | None = None
     chat_preferences: str | None = Field(default=None, max_length=1000)
+    # How the buyer started this chat. Saved with the thread; only "ask" chats offer the saved-preferences card.
+    entry_mode: Literal["ask", "guided"] | None = None
 
 
 class AiGuidedMessage(BaseModel):

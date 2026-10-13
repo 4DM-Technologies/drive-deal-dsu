@@ -98,7 +98,7 @@ export interface DriveDealClient {
     taxRate(stateCode: string): Promise<{ stateCode: string; rate: string }>;
   };
   ai: {
-    chat(input: { message: string; threadId?: string; agent?: 'sera-agent' | 'compare-agent'; requestIds?: string[]; quoteIds?: string[]; requestContext?: Record<string, string>; preferenceAction?: 'use_saved' | 'customize' | 'update_saved' | 'skip' | 'continue_without_saved'; chatPreferences?: string; signal?: AbortSignal }): AsyncIterable<AiStreamEvent>;
+    chat(input: { message: string; threadId?: string; agent?: 'sera-agent' | 'compare-agent'; requestIds?: string[]; quoteIds?: string[]; requestContext?: Record<string, string>; preferenceAction?: 'use_saved' | 'customize' | 'update_saved' | 'skip' | 'continue_without_saved'; chatPreferences?: string; entryMode?: 'ask' | 'guided'; signal?: AbortSignal }): AsyncIterable<AiStreamEvent>;
     guidedNext(answers: GuidedAnswers, action: GuidedActionInput): Promise<GuidedStepResult>;
     vehicleImages(query: string): Promise<{ items: Array<{ image_url: string; thumbnail_url?: string; source_url: string; source_name?: string; alt?: string }>; status: 'found' | 'not_found' | 'unavailable' }>;
     saveGuidedCheckpoint(input: { threadId: string; messages: Array<{ id: string; role: 'user' | 'assistant'; body: string; guidedStep?: string | undefined; options?: string[] | undefined }>; guidedState: Record<string, unknown>; requestContext: Record<string, string> | null }): Promise<void>;
