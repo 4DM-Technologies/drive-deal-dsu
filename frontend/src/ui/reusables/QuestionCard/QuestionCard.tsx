@@ -40,6 +40,7 @@ export function QuestionCard({ question, compact = false, showNavigation = true,
   }, []);
 
   const options = question.options;
+  const hasFooter = Boolean(question.allowOther || question.skippable || (question.multiSelect && options.length));
 
   function choose(index: number) {
     const option = options[index];
@@ -116,7 +117,8 @@ export function QuestionCard({ question, compact = false, showNavigation = true,
     </ul>}
     {!options.length && question.emptyMessage && <p className="question-card-empty">{question.emptyMessage}</p>}
     {error && <p className="question-card-alert" role="alert" aria-live="polite">{error}</p>}
-    <footer className="question-card-foot">
+    {/* Only drawn when it holds something, so a plain choice card does not end in an empty bar. */}
+    {hasFooter && <footer className="question-card-foot">
       {question.allowOther && <form className="question-other" onSubmit={(event) => { event.preventDefault(); submitOther(); }}>
         <span className="question-option-key" aria-hidden="true"><Pencil size={14} /></span>
         <input value={other} onChange={(event) => setOther(event.target.value)} placeholder={options.length ? 'Something else' : question.otherPlaceholder} aria-label={question.otherPlaceholder} disabled={busy} />
@@ -124,6 +126,6 @@ export function QuestionCard({ question, compact = false, showNavigation = true,
       {question.multiSelect && options.length > 0 && <button type="button" className="button button-primary button-sm" onClick={submitMulti} disabled={busy || (!selected.length && !other.trim())}>Continue</button>}
       {question.skippable && <button type="button" className="question-skip" onClick={onSkip} disabled={busy}>Skip</button>}
       {!question.skippable && question.allowOther && !options.length && <button type="button" className="button button-primary button-sm" onClick={submitOther} disabled={busy || !other.trim()}>Continue</button>}
-    </footer>
+    </footer>}
   </section>;
 }

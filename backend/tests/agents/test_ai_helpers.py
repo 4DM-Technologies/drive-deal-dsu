@@ -52,10 +52,7 @@ def test_prompt_budget_keeps_the_instructions_and_latest_user_request() -> None:
 
 
 def test_conversation_context_is_bounded_but_keeps_the_latest_exchange() -> None:
-    context = [
-        {"role": "assistant", "body": f"Old answer {index}: " + ("x" * 1800)}
-        for index in range(10)
-    ]
+    context = [{"role": "assistant", "body": f"Old answer {index}: " + ("x" * 1800)} for index in range(10)]
     context.extend(
         [
             {"role": "assistant", "body": "1. Chevrolet Corvette Stingray — Fast.\n2. Porsche 911 Carrera — Balanced."},
@@ -71,7 +68,9 @@ def test_conversation_context_is_bounded_but_keeps_the_latest_exchange() -> None
 
 
 @pytest.mark.asyncio
-async def test_snippet_search_sends_compact_evidence_and_matches_vehicle_images(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_snippet_search_sends_compact_evidence_and_matches_vehicle_images(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     calls: list[tuple[str, bool]] = []
 
     async def search_items(query: str, *, limit: int, image_search: bool = False) -> list[dict[str, str]]:
@@ -229,10 +228,26 @@ def test_contextual_image_followup_uses_the_last_vehicle_shortlist() -> None:
 def test_image_labels_require_full_identity_and_deduplicate_each_vehicle() -> None:
     names = ["Chevrolet Corvette Stingray", "Ford Mustang Dark Horse"]
     media = [
-        {"image_url": "https://img.example/1.jpg", "source_url": "https://media.example/corvette-stingray", "alt": "Chevrolet Corvette Stingray exterior"},
-        {"image_url": "https://img.example/2.jpg", "source_url": "https://media.example/corvette-stingray", "alt": "Chevrolet Corvette Stingray front"},
-        {"image_url": "https://img.example/3.jpg", "source_url": "https://nissanzclub.com/mustang", "alt": "Ford Mustang GT"},
-        {"image_url": "https://img.example/4.jpg", "source_url": "https://media.example/dark-horse", "alt": "Ford Mustang Dark Horse"},
+        {
+            "image_url": "https://img.example/1.jpg",
+            "source_url": "https://media.example/corvette-stingray",
+            "alt": "Chevrolet Corvette Stingray exterior",
+        },
+        {
+            "image_url": "https://img.example/2.jpg",
+            "source_url": "https://media.example/corvette-stingray",
+            "alt": "Chevrolet Corvette Stingray front",
+        },
+        {
+            "image_url": "https://img.example/3.jpg",
+            "source_url": "https://nissanzclub.com/mustang",
+            "alt": "Ford Mustang GT",
+        },
+        {
+            "image_url": "https://img.example/4.jpg",
+            "source_url": "https://media.example/dark-horse",
+            "alt": "Ford Mustang Dark Horse",
+        },
     ]
 
     result = _label_matching_images(media, names)

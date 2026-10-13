@@ -1,5 +1,5 @@
 /* eslint-disable react-refresh/only-export-components -- response formatting helpers are exported for focused tests */
-import { ArrowUp, CheckCircle2, FileCheck2, History, Menu, MoreHorizontal, Pencil, Plus, Sparkles, Square, Trash2, Trophy, X } from 'lucide-react';
+import { ArrowUp, Check, CheckCircle2, FileCheck2, History, Menu, MoreHorizontal, Pencil, Plus, Sparkles, Square, Trash2, Trophy, X } from 'lucide-react';
 import { Children, cloneElement, isValidElement, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ComponentProps, ReactElement, ReactNode } from 'react';
 import { createPortal } from 'react-dom';
@@ -27,8 +27,9 @@ type CompareMode = 'requests' | 'dealers';
 type CompareSelection = { requestIds?: string[]; quoteIds?: string[] };
 type GuidedStep = 'start' | 'card' | 'review' | 'complete';
 
-export function shouldShowAdvisorComposer(step: GuidedStep | null): boolean {
-  return step === null || step === 'complete';
+/** The composer hides while Sera waits on a card (a guided step or a saved-preferences choice); cards carry their own text box. */
+export function shouldShowAdvisorComposer(step: GuidedStep | null, awaitingChoice = false): boolean {
+  return !awaitingChoice && (step === null || step === 'complete');
 }
 
 type AdvisorResponseAction = { label: string; prompt: string };
@@ -207,8 +208,79 @@ export function normalizeRequestDraft(payload: unknown): RequestDraft | null {
   return Object.keys(draft).length ? draft : null;
 }
 
+/**
+ * The messages to show for a chat the server already has. The browser's local copy is only a recovery backup and can be
+ * stale (it is not updated while Sera is replying), so it never replaces the server's conversation: only its opening
+ * greeting, which the server does not store, is kept in front of the server's messages.
+ */
+export function mergeLocalGreeting(local: AiMessage[] | undefined, server: AiMessage[]): AiMessage[] {
+  if (!server.length) return local ?? [];
+  const firstBuyerMessage = (local ?? []).findIndex((message) => message.role === 'user');
+  const opening = (firstBuyerMessage === -1 ? local ?? [] : (local ?? []).slice(0, firstBuyerMessage))
+    .filter((message) => message.role === 'assistant' && !server.some((item) => item.id === message.id || item.body === message.body));
+  return [...opening, ...server];
+}
+
 export function hasGuidedHistoryOptions(options: string[] | undefined): boolean {
   return (options?.length ?? 0) > 0;
+}
+
+/**
+ * Which offered option the buyer picked, read from the message they sent next ("Help me choose a car" for "Help me choose"),
+ * so the choice still shows after a chat is reopened. Falls back to a choice remembered on this screen.
+ */
+export function chosenGuidedOption(options: string[] | undefined, nextUserMessage: string | undefined, remembered?: string | null): string | null {
+  if (!options?.length) return null;
+  const reply = nextUserMessage?.trim().toLowerCase();
+  const matched = reply ? options.find((option) => reply === option.toLowerCase() || reply.startsWith(option.toLowerCase())) : undefined;
+  return matched ?? (remembered && options.includes(remembered) ? remembered : null);
+}
+
+/** The pieces of a mounted Ask Sera screen that a reply in flight updates. */
+interface LiveView {
+  setStatus: (label: string) => void;
+  setMessages: (messages: AiMessage[]) => void;
+  setStreaming: (streaming: boolean) => void;
+  setStreamingThreadId: (id: string | null) => void;
+  setActiveAssistantId: (id: string | null) => void;
+  setThreadId: (id: string) => void;
+  showThreadInUrl: (id: string) => void;
+  refreshThreads: () => Promise<void>;
+  setDraft: (draft: RequestDraft | null) => void;
+  setPostGate: (gate: ReturnType<typeof postingGate>) => void;
+  setPublished: (published: boolean) => void;
+  setPublishedRequestId: (id: string | null) => void;
+  setCompare: (compare: CompareDraft | null) => void;
+  setSources: (sources: VehicleSource[]) => void;
+  setMedia: (media: VehicleMedia[]) => void;
+  setGuidedStep: (step: GuidedStep | null) => void;
+  openCard: (payload: unknown) => void;
+  closeCard: () => void;
+  askPreference: (question: import('@/types/domain').GuidedQuestion) => void;
+  subscription: { canCreate: boolean } | null | undefined;
+}
+
+/**
+ * Sera's reply in flight, kept outside the screen so it survives leaving Ask Sera: the request keeps running, and when
+ * the buyer comes back the screen picks up the status, the partial answer and Stop. While no Ask Sera screen is mounted
+ * (`liveViewRef` is null) the reply only updates these holders, so it never touches another page or changes the address.
+ */
+const liveRunHolders = {
+  abortControllerRef: { current: null as AbortController | null },
+  activeRunRef: { current: 0 },
+  streamingThreadIdRef: { current: null as string | null },
+  activeAssistantIdRef: { current: null as string | null },
+  liveStatusRef: { current: '' },
+  streamedMessagesByThreadRef: { current: {} as Record<string, AiMessage[]> },
+  responseUiByThreadRef: { current: {} as Record<string, ThreadResponseUi> },
+  /** The chat the mounted screen is showing; undefined when Ask Sera is not on screen. */
+  threadIdRef: { current: undefined as string | undefined },
+  liveViewRef: { current: null as LiveView | null },
+};
+
+/** The same holders for every Ask Sera screen instance, so a reply in flight is shared across visits. */
+function useLiveRun() {
+  return liveRunHolders;
 }
 
 export default function AdvisorScreen() {
@@ -224,11 +296,11 @@ export default function AdvisorScreen() {
   const [threadLoading, setThreadLoading] = useState(false);
   const [input, setInput] = useState(params.get('prompt') === 'compare' || initialSelected.length ? 'Compare these dealer offers' : params.get('prompt') === 'request' ? 'Show my request draft' : '');
   const [status, setStatus] = useState('');
-  const [streaming, setStreaming] = useState(false);
+  const [streaming, setStreaming] = useState(() => liveRunHolders.streamingThreadIdRef.current !== null);
   const [activeAssistantId, setActiveAssistantId] = useState<string | null>(null);
   const [stopped, setStopped] = useState(false);
   const [threadId, setThreadId] = useState<string>();
-  const [streamingThreadId, setStreamingThreadId] = useState<string | null>(null);
+  const [streamingThreadId, setStreamingThreadId] = useState<string | null>(() => liveRunHolders.streamingThreadIdRef.current);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [compareOpen, setCompareOpen] = useState(initialSelected.length > 0);
   const [compareMode, setCompareMode] = useState<CompareMode>(initialSelected.length >= 2 ? 'requests' : 'dealers');
@@ -245,6 +317,8 @@ export default function AdvisorScreen() {
   // Sera attaches the buyer's posting gate to each request preview; a blocked buyer sees an upgrade prompt instead of the post button.
   const [postGate, setPostGate] = useState<ReturnType<typeof postingGate>>(null);
   const [guidedStep, setGuidedStep] = useState<GuidedStep | null>(null);
+  // The start option clicked on this screen; "Ask Sera a question" sends no message, so it is remembered here.
+  const [startChoice, setStartChoice] = useState<string | null>(null);
   const [preferenceQuestionCard, setPreferenceQuestionCard] = useState<import('@/types/domain').GuidedQuestion | null>(null);
   const [preferenceStage, setPreferenceStage] = useState<PreferenceStage>('choice');
   const [preferenceEdit, setPreferenceEdit] = useState<PreferenceEdit | null>(null);
@@ -261,15 +335,10 @@ export default function AdvisorScreen() {
   const [deletingThreadId, setDeletingThreadId] = useState<string | null>(null);
   const [threadActionError, setThreadActionError] = useState('');
   const endRef = useRef<HTMLDivElement>(null);
-  const abortControllerRef = useRef<AbortController | null>(null);
-  const threadIdRef = useRef(threadId);
+  // Shared across visits (see useLiveRun), so a reply started before leaving Ask Sera is still tracked on return.
+  const { abortControllerRef, activeRunRef, streamingThreadIdRef, activeAssistantIdRef, liveStatusRef, streamedMessagesByThreadRef, responseUiByThreadRef, threadIdRef, liveViewRef } = useLiveRun();
   const displayedMessagesRef = useRef(messages);
-  const streamingThreadIdRef = useRef<string | null>(null);
-  const streamedMessagesByThreadRef = useRef<Record<string, AiMessage[]>>({});
-  const responseUiByThreadRef = useRef<Record<string, ThreadResponseUi>>({});
   const threadOpenRunRef = useRef(0);
-  const activeRunRef = useRef(0);
-  const activeAssistantIdRef = useRef<string | null>(null);
   const activeGuidedQueryRef = useRef('');
   const dismissedGuidedQueryRef = useRef('');
   const lastSentQueryRef = useRef('');
@@ -292,7 +361,7 @@ export default function AdvisorScreen() {
     const current = streamedMessagesByThreadRef.current[id] ?? (threadIdRef.current === id ? displayedMessagesRef.current : []);
     const next = update(current);
     streamedMessagesByThreadRef.current[id] = next;
-    if (threadIdRef.current === id) setMessages(next);
+    if (threadIdRef.current === id) liveViewRef.current?.setMessages(next);
   }
   const showDraft = useCallback((result: Record<string, string>) => {
     restoredImageQueryRef.current = '';
@@ -336,7 +405,7 @@ export default function AdvisorScreen() {
     setStreamingThreadId(null);
     setStatus('');
     setStopped(showNotice);
-  }, []);
+  }, [abortControllerRef, activeAssistantIdRef, activeRunRef, streamingThreadIdRef]);
 
   const streamGreeting = useCallback(() => {
     ++greetingRunRef.current;
@@ -344,11 +413,20 @@ export default function AdvisorScreen() {
     setMessages([{ id, role: 'assistant', body: greeting, guidedStep: 'start', options: START_OPTIONS }]);
   }, []);
 
-  const restoreGuidedFlow = useCallback((id: string) => {
+  // `serverMessages` is the conversation the server returned, when it did; the local copy then only adds the greeting.
+  const restoreGuidedFlow = useCallback((id: string, serverMessages: AiMessage[] = []) => {
     try {
       const saved = window.localStorage.getItem(`sera-guided-${session?.id}-${id}`);
       if (!saved) { setGuidedStep(null); setPublishedRequestId(null); setPublished(false); return; }
       const flow = JSON.parse(saved) as { guidedStep?: unknown; draft?: RequestDraft | null; messages?: AiMessage[]; publishedRequestId?: string | null; cardAnswers?: GuidedAnswers | null };
+      if (serverMessages.length) {
+        setMessages(mergeLocalGreeting(flow.messages, serverMessages));
+        setGuidedStep(null);
+        setDraft(flow.draft ?? null);
+        setPublishedRequestId(flow.publishedRequestId ?? null);
+        setPublished(Boolean(flow.publishedRequestId));
+        return;
+      }
       const step = normalizeGuidedStep(flow.guidedStep);
       setGuidedStep(step);
       setDraft(flow.draft ?? null);
@@ -383,6 +461,10 @@ export default function AdvisorScreen() {
         guidedOwnedThreadRef.current = true;
         setThreadId(id);
         setMessages(streamedMessagesByThreadRef.current[id] ?? []);
+        setStreaming(true);
+        setStreamingThreadId(id);
+        setActiveAssistantId(activeAssistantIdRef.current);
+        setStatus(liveStatusRef.current);
         const responseUi = responseUiByThreadRef.current[id];
         setDraft(responseUi?.draft ?? null);
         setCompare(responseUi?.compare ?? null);
@@ -423,7 +505,7 @@ export default function AdvisorScreen() {
             requestContext: thread.requestContext ?? null,
           });
         } else {
-          restoreGuidedFlow(thread.id);
+          restoreGuidedFlow(thread.id, thread.messages);
           try {
             const localFlow = JSON.parse(window.localStorage.getItem(`sera-guided-${session?.id}-${id}`) ?? 'null') as { draft?: RequestDraft | null } | null;
             restoredImageQueryRef.current = vehicleImageQuery(localFlow?.draft);
@@ -464,7 +546,7 @@ export default function AdvisorScreen() {
     } finally {
       if (threadOpenRunRef.current === openRun) setThreadLoading(false);
     }
-  }, [card, restoreGuidedFlow, session, setParams, streamGreeting]);
+  }, [activeAssistantIdRef, card, liveStatusRef, responseUiByThreadRef, restoreGuidedFlow, session, setParams, streamGreeting, streamedMessagesByThreadRef, streamingThreadIdRef, threadIdRef]);
 
   // This is an intentional mount-only bootstrap; each function owns cancellation/error handling.
   useEffect(() => {
@@ -472,7 +554,7 @@ export default function AdvisorScreen() {
     void refreshThreads();
     void client.requests.list().then(setRequests).catch(() => setRequests([]));
     void client.quotes.list().then(setQuotes).catch(() => setQuotes([]));
-    const initialThread = params.get('thread');
+    const initialThread = params.get('thread') ?? streamingThreadIdRef.current;
     if (initialThread) void openThread(initialThread);
     else {
       const id = initialThreadIdRef.current ?? createId();
@@ -586,7 +668,7 @@ export default function AdvisorScreen() {
       }
     }).finally(() => { if (active) setImageLoading(false); });
     return () => { active = false; };
-  }, [draft, imageAttempt, session?.id, threadId]);
+  }, [draft, imageAttempt, responseUiByThreadRef, session?.id, threadId, threadIdRef]);
   // A route change or browser tab switch must not abort a response. Explicit Stop and thread deletion still cancel it.
 
   // The compare panel is a modal drawer: focus it when it opens and let Escape close it.
@@ -627,6 +709,7 @@ export default function AdvisorScreen() {
   }
 
   function chooseStartOption(value: string) {
+    setStartChoice(value);
     if (value === 'I know the car I want') beginGuidedFlow('known');
     else if (value === 'Help me choose') beginGuidedFlow('explore');
     else {
@@ -1006,6 +1089,8 @@ export default function AdvisorScreen() {
     const runThreadId = threadIdRef.current ?? createId();
     threadIdRef.current = runThreadId;
     if (!threadId) setThreadId(runThreadId);
+    // Show a new chat at the top of the list straight away; the server's list replaces it once Sera finishes.
+    setThreads((items) => items.some((item) => item.id === runThreadId) ? items : [{ id: runThreadId, type: 'sera', title: text.slice(0, 72), updatedAt: new Date().toISOString(), messages: [] }, ...items]);
     const run = ++activeRunRef.current;
     const controller = new AbortController();
     abortControllerRef.current = controller;
@@ -1021,6 +1106,9 @@ export default function AdvisorScreen() {
     if (threadIdRef.current === runThreadId) setMessages(transcript);
     // Only a confirmed picker selection invokes the saved-offer comparison agent. Natural questions such as
     // "compare BMW and Audi" stay in Sera's normal knowledge-backed conversation, even if old selections exist.
+    // The loop below can outlive this screen: it updates the mounted Ask Sera screen, if any, never this closure's.
+    const view = () => liveViewRef.current;
+    const showStatus = (label: string) => { liveStatusRef.current = label; view()?.setStatus(label); };
     const isCompare = Boolean(comparison) || (compareOpen && canCompare);
     completedCompareRef.current = isCompare;
     if (isCompare && guidedStep) { card.close(); setGuidedStep(null); }
@@ -1032,34 +1120,33 @@ export default function AdvisorScreen() {
       : undefined;
     for await (const event of client.ai.chat({ message: text, threadId: runThreadId, agent: isCompare ? 'compare-agent' : 'sera-agent', requestIds, quoteIds, ...(requestContext ? { requestContext } : {}), ...(resolvedPreference ? { preferenceAction: resolvedPreference.action, ...(resolvedPreference.chatPreferences ? { chatPreferences: resolvedPreference.chatPreferences } : {}) } : {}), signal: controller.signal })) {
         if (controller.signal.aborted || activeRunRef.current !== run) break;
-        if (event.type === 'status') setStatus(event.label || activity[event.phase]);
-        if (event.type === 'token') { setStatus(''); updateStreamTranscript(runThreadId, (items) => items.map((item) => item.id === assistantId ? { ...item, body: item.body + event.text } : item)); }
+        if (event.type === 'status') showStatus(event.label || activity[event.phase]);
+        if (event.type === 'token') { showStatus(''); updateStreamTranscript(runThreadId, (items) => items.map((item) => item.id === assistantId ? { ...item, body: item.body + event.text } : item)); }
         if (event.type === 'card' && event.kind === 'requestPreview') {
           const nextDraft = normalizeRequestDraft(event.payload);
           const responseUi: ThreadResponseUi = responseUiByThreadRef.current[runThreadId] ?? {};
           const nextGate = postingGate(event.payload);
           responseUiByThreadRef.current[runThreadId] = { ...responseUi, draft: nextDraft, postGate: nextGate, published: Boolean(event.payload && typeof event.payload === 'object' && (event.payload as Record<string, unknown>).status === 'open') };
           if (threadIdRef.current === runThreadId) {
-            setDraft(nextDraft);
-            setPostGate(nextGate);
-            if (responseUiByThreadRef.current[runThreadId]?.published) setPublished(true);
+            view()?.setDraft(nextDraft);
+            view()?.setPostGate(nextGate);
+            if (responseUiByThreadRef.current[runThreadId]?.published) view()?.setPublished(true);
           }
         }
         if (event.type === 'card' && event.kind === 'compare') {
           responseUiByThreadRef.current[runThreadId] = { ...responseUiByThreadRef.current[runThreadId], compare: event.payload as CompareDraft };
-          if (threadIdRef.current === runThreadId) setCompare(event.payload as CompareDraft);
+          if (threadIdRef.current === runThreadId) view()?.setCompare(event.payload as CompareDraft);
         }
         if (event.type === 'card' && event.kind === 'preference') {
           const preferencePayload = (event.payload as Record<string, unknown> | null) ?? {};
           const question = preferenceChoiceQuestion(preferencePayload.preferences, Boolean(preferencePayload.updated));
           responseUiByThreadRef.current[runThreadId] = { ...responseUiByThreadRef.current[runThreadId], preferenceQuestion: question, preferenceSnapshot: (preferencePayload.preferences as Record<string, unknown>) ?? {}, preferenceUpdated: Boolean(preferencePayload.updated), sources: [], media: [] };
-          if (threadIdRef.current === runThreadId) { setSources([]); setMedia([]); }
-          beginPreferenceQuestion('choice', question);
+          if (threadIdRef.current === runThreadId) { view()?.setSources([]); view()?.setMedia([]); view()?.askPreference(question); }
         }
         if (event.type === 'card' && event.kind === 'question') {
           if (dismissedGuidedQueryRef.current === text) {
-            card.close();
-            setGuidedStep(null);
+            view()?.closeCard();
+            view()?.setGuidedStep(null);
             continue;
           }
           const existingUi: ThreadResponseUi = responseUiByThreadRef.current[runThreadId] ?? {};
@@ -1068,33 +1155,33 @@ export default function AdvisorScreen() {
             activeGuidedQueryRef.current = text;
             guidedCancelledRef.current = false;
             guidedOwnedThreadRef.current = true;
-            if (!published) { setDraft(null); setPublishedRequestId(null); }
-            if (session?.subscription) setPostGate({ allowed: session.subscription.canCreate, reason: session.subscription.canCreate ? null : gateReasonFor(session.subscription) });
-            setGuidedStep('card');
-            card.open(event.payload);
+            if (!published) { view()?.setDraft(null); view()?.setPublishedRequestId(null); }
+            if (session?.subscription) view()?.setPostGate({ allowed: session.subscription.canCreate, reason: session.subscription.canCreate ? null : gateReasonFor(session.subscription) });
+            view()?.setGuidedStep('card');
+            view()?.openCard(event.payload);
           }
         }
         if (event.type === 'media') {
           const items = event.items as VehicleMedia[];
           responseUiByThreadRef.current[runThreadId] = { ...responseUiByThreadRef.current[runThreadId], media: items };
           updateStreamTranscript(runThreadId, (messages) => messages.map((item) => item.id === assistantId ? { ...item, media: items } : item));
-          if (threadIdRef.current === runThreadId) setMedia(items);
+          if (threadIdRef.current === runThreadId) view()?.setMedia(items);
         }
         if (event.type === 'sources') {
           const items = event.items as VehicleSource[];
           responseUiByThreadRef.current[runThreadId] = { ...responseUiByThreadRef.current[runThreadId], sources: items };
           updateStreamTranscript(runThreadId, (messages) => messages.map((item) => item.id === assistantId ? { ...item, sources: items } : item));
-          if (threadIdRef.current === runThreadId) setSources(items);
+          if (threadIdRef.current === runThreadId) view()?.setSources(items);
         }
         if (event.type === 'error') {
-          setStatus('');
+          showStatus('');
           updateStreamTranscript(runThreadId, (items) => items.map((item) => item.id === assistantId ? { ...item, body: item.body || `## I hit a problem\n${event.message || 'Please try sending that message again.'}` } : item));
         }
         if (event.type === 'done') {
-          setStatus('');
-          if (threadIdRef.current === runThreadId) setThreadId(event.threadId);
-          if (threadIdRef.current === runThreadId) setParams({ thread: event.threadId }, { replace: true });
-          await refreshThreads();
+          showStatus('');
+          // Only a mounted Ask Sera screen showing this chat follows it in the address; elsewhere nothing moves.
+          if (threadIdRef.current === runThreadId) { view()?.setThreadId(event.threadId); view()?.showThreadInUrl(event.threadId); }
+          await view()?.refreshThreads();
         }
       }
     } catch {
@@ -1105,13 +1192,31 @@ export default function AdvisorScreen() {
         abortControllerRef.current = null;
         activeAssistantIdRef.current = null;
         streamingThreadIdRef.current = null;
-        setActiveAssistantId(null);
-        setStreamingThreadId(null);
-        setStreaming(false);
-        setStatus('');
+        showStatus('');
+        view()?.setActiveAssistantId(null);
+        view()?.setStreamingThreadId(null);
+        view()?.setStreaming(false);
+        // Reopen the finished chat from the server if the buyer is looking at it again after leaving Ask Sera.
+        if (!view()) delete streamedMessagesByThreadRef.current[runThreadId];
       }
     }
   }
+
+  // This screen is the one a reply in flight updates, with its current closures; leaving Ask Sera hands back to none.
+  // Re-registered after every render on purpose, so the reply always calls this screen's latest closures.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    liveViewRef.current = {
+      setStatus, setMessages, setStreaming, setStreamingThreadId, setActiveAssistantId, setThreadId,
+      showThreadInUrl: (id) => setParams({ thread: id }, { replace: true }),
+      refreshThreads, setDraft, setPostGate, setPublished, setPublishedRequestId, setCompare, setSources, setMedia, setGuidedStep,
+      openCard: (payload) => card.open(payload),
+      closeCard: () => card.close(),
+      askPreference: (question) => beginPreferenceQuestion('choice', question),
+      subscription: session?.subscription,
+    };
+  });
+  useEffect(() => () => { liveViewRef.current = null; threadIdRef.current = undefined; }, [liveViewRef, threadIdRef]);
 
   // Keep the card's hand-off to Sera pointing at the latest send(); it closes over current state.
   useEffect(() => { sendRef.current = (text: string) => { void send(text, undefined, true); }; });
@@ -1119,7 +1224,7 @@ export default function AdvisorScreen() {
   // “Something else” field handles free text; showing the general composer here
   // creates two competing reply paths. The composer returns after publish or
   // when the user explicitly chooses Ask Sera a question (guidedStep === null).
-  const showComposer = shouldShowAdvisorComposer(guidedStep);
+  const showComposer = shouldShowAdvisorComposer(guidedStep, Boolean(preferenceQuestionCard));
   const showSuggestedPrompts = !streaming && !guidedStep && messages.length === 0;
   const latestAssistantId = [...messages].reverse().find((message) => message.role === 'assistant')?.id;
 
@@ -1138,7 +1243,7 @@ export default function AdvisorScreen() {
         <div className="advisor-scroll" aria-live="polite">
           <div className="advisor-day">Today</div>
           {streaming && streamingThreadId !== threadId && <p className="advisor-background-stream" role="status">Sera is finishing a reply in another chat. It will be saved there automatically.</p>}
-          {threadLoading ? <div className="advisor-loading"><SerraLoader size={56} label="Opening this chat" /></div> : messages.map((message) => {
+          {threadLoading ? <div className="advisor-loading"><SerraLoader size={32} label="Opening this chat" /></div> : messages.map((message, messageIndex) => {
             const showStatus = message.id === activeAssistantId && !message.body && Boolean(status);
             const messageMedia = message.media ?? (message.id === latestAssistantId ? media : []);
             const vehicleImages = [...new Map(messageMedia.map((item) => [
@@ -1166,7 +1271,10 @@ export default function AdvisorScreen() {
                 {message.role === 'assistant' && message.id === latestAssistantId && !streaming && advisorResponseActions(message.body).length > 0 && <nav className="advisor-response-actions" aria-label="Suggested follow-up questions">
                   {advisorResponseActions(message.body).map((action) => <button type="button" key={action.label} onClick={() => void send(action.prompt)}>{action.label}</button>)}
                 </nav>}
-                {message.role === 'assistant' && hasGuidedHistoryOptions(message.options) && guidedStep !== 'start' && <div className="guided-history-options" aria-label="Options Sera offered">{message.options?.map((option) => <span key={option}>{option}</span>)}</div>}
+                {message.role === 'assistant' && hasGuidedHistoryOptions(message.options) && guidedStep !== 'start' && (() => {
+                  const chosen = chosenGuidedOption(message.options, messages.slice(messageIndex + 1).find((item) => item.role === 'user')?.body, startChoice);
+                  return <div className="guided-history-options" aria-label="Options Sera offered">{message.options?.map((option) => <span key={option} className={option === chosen ? 'is-chosen' : undefined}>{option === chosen && <Check size={12} aria-hidden="true" />}{option}{option === chosen && <span className="sr-only"> (your choice)</span>}</span>)}</div>;
+                })()}
               </div>
             </article>;
           })}

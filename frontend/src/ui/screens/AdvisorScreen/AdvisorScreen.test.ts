@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { advisorResponseActions, hasGuidedHistoryOptions, normalizeRequestDraft, shouldShowAdvisorComposer } from './AdvisorScreen';
+import { advisorResponseActions, chosenGuidedOption, hasGuidedHistoryOptions, mergeLocalGreeting, normalizeRequestDraft, shouldShowAdvisorComposer } from './AdvisorScreen';
 
 describe('shouldShowAdvisorComposer', () => {
   it('keeps the standard composer out of the guided HITL and review steps', () => {
@@ -12,6 +12,12 @@ describe('shouldShowAdvisorComposer', () => {
   it('shows the composer for open chat and after the request is posted', () => {
     expect(shouldShowAdvisorComposer(null)).toBe(true);
     expect(shouldShowAdvisorComposer('complete')).toBe(true);
+  });
+
+  it('hides the composer while a saved-preferences choice is waiting for an answer', () => {
+    expect(shouldShowAdvisorComposer(null, true)).toBe(false);
+    expect(shouldShowAdvisorComposer('complete', true)).toBe(false);
+    expect(shouldShowAdvisorComposer(null, false)).toBe(true);
   });
 });
 
@@ -66,5 +72,45 @@ describe('normalizeRequestDraft', () => {
       model: 'X3',
       mustHaves: 'AWD, heated seats',
     });
+  });
+});
+
+describe('chosenGuidedOption', () => {
+  const options = ['I know the car I want', 'Help me choose', 'Ask Sera a question'];
+
+  it('reads the choice from the message the buyer sent next', () => {
+    expect(chosenGuidedOption(options, 'I know the car I want')).toBe('I know the car I want');
+    expect(chosenGuidedOption(options, 'Help me choose a car')).toBe('Help me choose');
+  });
+
+  it('falls back to the remembered click when the reply does not name an option', () => {
+    expect(chosenGuidedOption(options, 'what is the safest SUV?', 'Ask Sera a question')).toBe('Ask Sera a question');
+    expect(chosenGuidedOption(options, undefined, 'Ask Sera a question')).toBe('Ask Sera a question');
+  });
+
+  it('highlights nothing when there is no choice to show', () => {
+    expect(chosenGuidedOption(options, 'what is the safest SUV?')).toBeNull();
+    expect(chosenGuidedOption(options, undefined, 'Something else')).toBeNull();
+    expect(chosenGuidedOption(undefined, 'Help me choose a car')).toBeNull();
+  });
+});
+
+describe('mergeLocalGreeting', () => {
+  const greeting = { id: 'g', role: 'assistant' as const, body: 'Hi, I’m Sera', guidedStep: 'start' as const, options: ['Ask Sera a question'] };
+  const hey = { id: 's-0-user', role: 'user' as const, body: 'hey' };
+  const reply = { id: 's-0-assistant', role: 'assistant' as const, body: 'Hi! What can I help with?' };
+
+  it('keeps the server conversation when the local copy is stale (saved before the buyer typed)', () => {
+    expect(mergeLocalGreeting([greeting], [hey, reply])).toEqual([greeting, hey, reply]);
+  });
+
+  it('keeps only the local greeting, never stale local messages after it', () => {
+    const staleLocal = [greeting, { id: 'u', role: 'user' as const, body: 'hey' }, { id: 'a', role: 'assistant' as const, body: '' }];
+    expect(mergeLocalGreeting(staleLocal, [hey, reply])).toEqual([greeting, hey, reply]);
+  });
+
+  it('falls back to the local copy only when the server has nothing', () => {
+    expect(mergeLocalGreeting([greeting], [])).toEqual([greeting]);
+    expect(mergeLocalGreeting(undefined, [hey])).toEqual([hey]);
   });
 });
