@@ -182,6 +182,7 @@ const verificationToDomain = (row: Record<string, unknown>): Verification => ({
   ...(row.website == null ? {} : { website: String(row.website) }),
   supportedBrands: (row.supported_brands as string[] | undefined) ?? [],
   proofDocuments: (row.proof_docs as string[] | undefined) ?? [],
+  documents: ((row.documents as Array<Record<string, unknown>> | undefined) ?? []).map((item) => ({ id: String(item.id), documentType: String(item.document_type), label: String(item.label ?? 'Supporting document'), fileName: String(item.file_name), contentType: String(item.content_type), sizeBytes: Number(item.size_bytes) })),
   termsAccepted: Boolean(row.terms_accepted),
   ...(row.terms_version == null ? {} : { termsVersion: String(row.terms_version) }),
   ...(row.terms_accepted_at == null ? {} : { termsAcceptedAt: String(row.terms_accepted_at) }),
@@ -353,7 +354,15 @@ export const httpClient: DriveDealClient = {
       return profileToSession(response.profile);
     },
     signupDealer: async (input) => {
-      await request('/auth/signup/dealer', { method: 'POST', body: JSON.stringify({ ...signupBody(input as unknown as Record<string, unknown>), dealership_name: input.dealershipName, branch_name: input.branchName, dealer_license: input.dealerLicense, website: input.website?.trim() || null, supported_brand_ids: input.supportedBrandIds }) });
+      // The Motor Vehicle Dealer License travels with the application as multipart; the API stores it privately for review.
+      const form = new FormData();
+      const fields = { ...signupBody(input as unknown as Record<string, unknown>), dealership_name: input.dealershipName, branch_name: input.branchName, dealer_license: input.dealerLicense, website: input.website?.trim() || null };
+      for (const [name, value] of Object.entries(fields)) {
+        if (value !== null && value !== undefined && value !== '') form.append(name, String(value));
+      }
+      input.supportedBrandIds.forEach((brandId) => form.append('supported_brand_ids', brandId));
+      form.append('motor_vehicle_dealer_license', input.motorVehicleDealerLicense);
+      await request('/auth/signup/dealer', { method: 'POST', body: form });
       return { pending: true as const };
     },
     signupSupport: async (input) => {
@@ -487,6 +496,11 @@ export const httpClient: DriveDealClient = {
     decide: async (id, decision, reason) => {
       const path = decision === 'approved' ? 'approve' : decision === 'denied' ? 'deny' : 'reject';
       return verificationToDomain(await request(`/verifications/${id}/${path}`, { method: 'POST', body: JSON.stringify({ reason }) }));
+    },
+    documentLink: async (verificationId, documentId) => {
+      const row = await request<{ url: string; file_name: string }>(`/verifications/${verificationId}/documents/${documentId}/download`);
+      // S3 links are absolute; the local storage driver returns an API path, which must resolve against the API host.
+      return { url: new URL(row.url, baseUrl).toString(), fileName: row.file_name };
     },
   },
   reference: {

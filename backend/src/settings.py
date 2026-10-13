@@ -122,6 +122,13 @@ BUYER_STORAGE_PREFIX = "buyer"
 PERSONAL_DETAILS_FOLDER = "personal-details"
 DRIVING_LICENSE_FOLDER = "driving-licence"
 DRIVING_LICENSE_DOCUMENT_TYPE = "driving_license"
+# Each dealer's documents: <bucket>/dealer/<dealer id>/personal-details/dealer-documents/<file>.
+# The Motor Vehicle Dealer License is the one document a dealer must supply when applying; it is PDF only.
+DEALER_STORAGE_PREFIX = "dealer"
+DEALER_DOCUMENTS_FOLDER = "dealer-documents"
+DEALER_LICENSE_FILE_STEM = "motor-vehicle-dealer-license"
+DEALER_LICENSE_DOCUMENT_TYPE = "motor_vehicle_dealer_license"
+DEALER_LICENSE_MAX_BYTES = 10 * 1024 * 1024
 # Help & support uploads: help-support/<buyer-support|dealer-support|staff-support>/<profile id>/<ticket id>/<file>
 HELP_SUPPORT_PREFIX = "help-support"
 HELP_SUPPORT_FOLDERS = {"buyer": "buyer-support", "dealer": "dealer-support"}

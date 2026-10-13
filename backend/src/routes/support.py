@@ -140,6 +140,17 @@ async def verifications(
     return await SupportService(session).list_verifications()
 
 
+@router.get("/verifications/{verification_id}/documents/{document_id}/download")
+@log_flow(layer="route")
+async def verification_document(
+    verification_id: str,
+    document_id: str,
+    profile: Profile = Depends(require_roles("support", "support-admin", "admin")),
+    session: AsyncSession = Depends(get_session),
+):
+    return await SupportService(session).verification_document_download(verification_id, document_id)
+
+
 @router.post("/verifications/{verification_id}/approve")
 @log_flow(layer="route")
 async def approve(

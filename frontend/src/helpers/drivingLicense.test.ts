@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DRIVING_LICENSE_ACCEPT, drivingLicenseProblem, formatFileSize } from '@/helpers/drivingLicense';
+import { DEALER_LICENSE_ACCEPT, DRIVING_LICENSE_ACCEPT, dealerLicenseProblem, drivingLicenseProblem, formatFileSize } from '@/helpers/drivingLicense';
 
 const file = (name: string, type: string, size = 2048) => ({ name, type, size });
 
@@ -42,5 +42,22 @@ describe('formatFileSize', () => {
 describe('DRIVING_LICENSE_ACCEPT', () => {
   it('limits the file picker to PDFs, by MIME type and extension', () => {
     expect(DRIVING_LICENSE_ACCEPT).toBe('application/pdf,.pdf');
+  });
+});
+
+describe('dealerLicenseProblem', () => {
+  it('accepts only a PDF of the Motor Vehicle Dealer License', () => {
+    expect(dealerLicenseProblem(file('mvd-license.pdf', 'application/pdf'))).toBeNull();
+    expect(dealerLicenseProblem(file('MVD-LICENSE.PDF', ''))).toBeNull();
+    expect(dealerLicenseProblem(file('mvd-license.png', 'image/png'))).toBe('Upload your Motor Vehicle Dealer License as a PDF file.');
+  });
+
+  it('rejects empty and oversized files', () => {
+    expect(dealerLicenseProblem(file('mvd-license.pdf', 'application/pdf', 0))).toMatch(/empty/);
+    expect(dealerLicenseProblem(file('mvd-license.pdf', 'application/pdf', 10 * 1024 * 1024 + 1))).toMatch(/over 10 MB/);
+  });
+
+  it('offers only PDFs in the file picker', () => {
+    expect(DEALER_LICENSE_ACCEPT).toBe('application/pdf,.pdf');
   });
 });

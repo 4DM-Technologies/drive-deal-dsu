@@ -7,13 +7,25 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.models.marketplace import TicketCreate, TicketUpdate, VerificationDecision
-from src.repositories.schema import Profile, State, SupportTicket, SupportTicketAttachment, SupportVerification, User
+from src.repositories.schema import (
+    DealerDocument,
+    Profile,
+    State,
+    SupportTicket,
+    SupportTicketAttachment,
+    SupportVerification,
+    User,
+)
+from src.services.dealer_license import DOCUMENT_LABEL as DEALER_LICENSE_LABEL
 from src.services.storage import Storage, StorageError, StorageObject, get_storage
 from src.services.support_attachments import SupportUpload, support_attachment_key
+from src.settings import DEALER_LICENSE_DOCUMENT_TYPE
 from src.utils.exceptions import AppError, error_codes
 from src.utils.log_flow import log_flow
 from src.utils.logger import logger
 from src.utils.serialization import model_dict
+
+DOCUMENT_LABELS = {DEALER_LICENSE_DOCUMENT_TYPE: DEALER_LICENSE_LABEL}
 
 
 class SupportService:
@@ -61,7 +73,34 @@ class SupportService:
         profile = await self.session.get(Profile, row.profile_id)
         state = await self.session.get(State, profile.state_id) if profile and profile.state_id else None
         decider = await self.session.get(Profile, row.decided_by) if row.decided_by else None
-        return self._verification_payload(row, profile, state, decider)
+        documents = await self._dealer_document_map({row.profile_id})
+        return self._verification_payload(row, profile, state, decider, documents.get(row.profile_id, []))
+
+    async def _dealer_document_map(self, profile_ids: set[str]) -> dict[str, list[dict]]:
+        """Each applicant's signup documents as display metadata. Keys stay server-side; viewing goes through a link."""
+        if not profile_ids:
+            return {}
+        rows = (
+            await self.session.execute(
+                select(DealerDocument)
+                .where(DealerDocument.profile_id.in_(profile_ids))
+                .order_by(DealerDocument.created_at)
+            )
+        ).scalars()
+        result: dict[str, list[dict]] = {}
+        for row in rows:
+            result.setdefault(row.profile_id, []).append(
+                {
+                    "id": row.id,
+                    "document_type": row.document_type,
+                    "label": DOCUMENT_LABELS.get(row.document_type, "Supporting document"),
+                    "file_name": row.file_name,
+                    "content_type": row.content_type,
+                    "size_bytes": row.size_bytes,
+                    "created_at": row.created_at.isoformat() if row.created_at else None,
+                }
+            )
+        return result
 
     @staticmethod
     def _verification_payload(
@@ -69,9 +108,11 @@ class SupportService:
         profile: Profile | None,
         state: State | None,
         decider: Profile | None,
+        documents: list[dict] | None = None,
     ) -> dict:
         return {
             **model_dict(row),
+            "documents": documents or [],
             "profile_name": profile.full_name if profile else None,
             "business_name": profile.dealership_name if profile else None,
             "state": state.name if state else None,
@@ -234,15 +275,28 @@ class SupportService:
             state_rows = (await self.session.execute(select(State).where(State.id.in_(state_ids)))).scalars()
             states = {row.id: row for row in state_rows}
         deciders = await self._profile_map({row.decided_by for row in rows if row.decided_by})
+        documents = await self._dealer_document_map({row.profile_id for row in rows})
         return [
             self._verification_payload(
                 row,
                 profiles.get(row.profile_id),
                 states.get(profiles[row.profile_id].state_id) if row.profile_id in profiles else None,
                 deciders.get(row.decided_by) if row.decided_by else None,
+                documents.get(row.profile_id, []),
             )
             for row in rows
         ]
+
+    @log_flow(layer="service")
+    async def verification_document_download(self, verification_id: str, document_id: str) -> dict:
+        """A short-lived link that opens an applicant's signup document in the browser, for support review."""
+        verification = await self.session.get(SupportVerification, verification_id)
+        document = await self.session.get(DealerDocument, document_id)
+        if verification is None or document is None or document.profile_id != verification.profile_id:
+            raise AppError(error_codes.RESOURCE_NOT_FOUND, "Document not found.", 404)
+        url = get_storage().create_download(document.object_key)
+        logger.info("verification_document_opened", verification_id=verification.id, document_id=document.id)
+        return {"url": url, "file_name": document.file_name, "content_type": document.content_type}
 
     @log_flow(layer="service")
     async def decide_verification(self, verification_id: str, payload: VerificationDecision, actor: Profile) -> dict:

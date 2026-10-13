@@ -111,6 +111,24 @@ class BuyerDocument(AuditMixin, Base):
     size_bytes: Mapped[int] = mapped_column(Integer, nullable=False)
 
 
+class DealerDocument(AuditMixin, Base):
+    """A document a dealer supplied when applying, such as the Motor Vehicle Dealer License.
+
+    The file itself lives in private storage; only its object key and descriptive metadata are stored here.
+    Support staff review it on the dealer's verification before approving the account.
+    """
+
+    __tablename__ = "dealer_documents"
+    __table_args__ = (UniqueConstraint("profile_id", "document_type", name="uq_dealer_documents_profile_type"),)
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
+    profile_id: Mapped[str] = mapped_column(ForeignKey("profiles.id", ondelete="CASCADE"), nullable=False, index=True)
+    document_type: Mapped[str] = mapped_column(String(40), nullable=False)
+    object_key: Mapped[str] = mapped_column(String(1024), nullable=False)
+    file_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    content_type: Mapped[str] = mapped_column(String(100), nullable=False)
+    size_bytes: Mapped[int] = mapped_column(Integer, nullable=False)
+
+
 class User(AuditMixin, Base):
     __tablename__ = "users"
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)

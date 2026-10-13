@@ -28,6 +28,7 @@ erDiagram
     profiles ||--o{ error_logs : "associated user"
     profiles ||--o{ payments : "pays"
     profiles ||--o{ buyer_documents : "supplies"
+    profiles ||--o{ dealer_documents : "applies with"
     buyer_requests ||--o{ deal_quotes : "receives"
     buyer_requests ||--o{ buyer_request_views : "viewed by"
     deal_quotes ||--o{ deal_chats : "conversation"
@@ -100,6 +101,19 @@ erDiagram
     %% One row per (profile_id, document_type); the file itself is a private S3 object at object_key,
     %% e.g. buyer/<profile id>/personal-details/driving-licence/driving-licence.<ext>.
     buyer_documents {
+        uuid id PK
+        uuid profile_id FK
+        text document_type
+        text object_key
+        text file_name
+        text content_type
+        int size_bytes
+    }
+
+    %% A dealer's application documents, reviewed by support before the account is approved. One row per
+    %% (profile_id, document_type); the file is a private S3 object at object_key, e.g. the Motor Vehicle Dealer
+    %% License at dealer/<profile id>/personal-details/dealer-documents/motor-vehicle-dealer-license.pdf.
+    dealer_documents {
         uuid id PK
         uuid profile_id FK
         text document_type

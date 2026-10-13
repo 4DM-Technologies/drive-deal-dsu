@@ -90,6 +90,7 @@ export interface DriveDealClient {
   verifications: {
     list(): Promise<Verification[]>;
     decide(id: string, decision: 'approved' | 'denied' | 'rejected', reason: string): Promise<Verification>;
+    documentLink(verificationId: string, documentId: string): Promise<{ url: string; fileName: string }>;
   };
   reference: {
     states(): Promise<StateRef[]>;

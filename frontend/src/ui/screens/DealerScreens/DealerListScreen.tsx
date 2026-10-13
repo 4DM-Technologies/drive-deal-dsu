@@ -1,8 +1,9 @@
-import { ArrowRight, Clock3, MapPin, MessageCircle, Search } from 'lucide-react';
+import { ArrowRight, Clock3, MapPin, MessageCircle, Search, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import type { MouseEvent as ReactMouseEvent } from 'react';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { formatMoney } from '@/helpers/currency';
+import { ACTIVE_QUOTE_STATUSES } from '@/helpers/quoteStatus';
 import { DEFAULT_FEED_FILTERS, FRIENDLY_TIMELINE, activeFilterCount, filterFeed, type FeedFilters } from '@/helpers/feedFilters';
 import { client } from '@/services/platform/client';
 import { useDemoStore } from '@/services/platform/demoStore';
@@ -22,6 +23,7 @@ export default function DealerListScreen() {
   const [filters, setFilters] = useState<FeedFilters>(DEFAULT_FEED_FILTERS);
   const [quoteSearch, setQuoteSearch] = useState('');
   const [loadedPath, setLoadedPath] = useState('');
+  const [searchParams, setSearchParams] = useSearchParams();
   const dealsOnly = path === '/deals' || path === '/orders';
   const loaded = loadedPath === path;
 
@@ -50,11 +52,15 @@ export default function DealerListScreen() {
   const showBuyerView = !dealsOnly && session?.role !== 'buyer';
   const dealerQuotes = showBuyerView;
   const terms = quoteSearch.trim().toLowerCase().split(/\s+/).filter(Boolean);
-  const mine = dealsOnly || terms.length === 0 ? quotes : quotes.filter((quote) => {
+  // `?status=active` (the dashboard's "Active quotes" card) narrows the list to offers still in play.
+  const activeOnly = !dealsOnly && searchParams.get('status') === 'active';
+  const inScope = activeOnly ? quotes.filter((quote) => ACTIVE_QUOTE_STATUSES.includes(quote.status)) : quotes;
+  const clearActiveOnly = () => setSearchParams((params) => { params.delete('status'); return params; }, { replace: true });
+  const mine = dealsOnly || terms.length === 0 ? inScope : inScope.filter((quote) => {
     const haystack = [quote.brand, quote.model, quote.buyerFirstName, quote.yearMin, quote.yearMax, quote.bodyType, quote.buyerArea, quote.status, quote.finalPrice, formatMoney(quote.finalPrice)].filter(Boolean).join(' ').toLowerCase();
     return terms.every((term) => haystack.includes(term));
   });
-  return <div className="shell page-content"><div className="page-heading"><div><span className="eyebrow">{dealsOnly ? session?.role === 'buyer' ? 'Your orders' : 'Won business' : 'Dealer quotes'}</span><h1>{dealsOnly ? session?.role === 'buyer' ? 'Orders moving forward' : 'Deals in progress' : 'Your active offers'}</h1><p>{dealsOnly ? 'Track the accepted quote through paperwork, funding, dispatch, and delivery.' : 'Monitor your position, expiry, and open conversations from one place.'}</p></div>{!dealsOnly && <label className="search-field quotes-search"><Search size={17} /><input type="search" value={quoteSearch} onChange={(event) => setQuoteSearch(event.target.value)} placeholder="Search vehicle, area, status or price" aria-label="Search your quotes" /></label>}</div><section className="card"><div className="table-wrap"><table className={`data-table${dealerQuotes ? ' dealer-quotes-table' : ''}`}><thead><tr><th>Vehicle request</th>{dealerQuotes && <th>Buyer</th>}<th>{session?.role === 'buyer' ? 'Dealer' : 'Buyer area'}</th><th>Out-the-door</th>{!dealsOnly && <th>Status</th>}{showBuyerView && <th>Buyer view</th>}<th>Conversation</th>{!dealerQuotes && <th />}</tr></thead><tbody>{mine.map((quote) => {
+  return <div className="shell page-content"><div className="page-heading"><div><span className="eyebrow">{dealsOnly ? session?.role === 'buyer' ? 'Your orders' : 'Won business' : 'Dealer quotes'}</span><h1>{dealsOnly ? session?.role === 'buyer' ? 'Orders moving forward' : 'Deals in progress' : 'Your active offers'}</h1><p>{dealsOnly ? 'Track the accepted quote through paperwork, funding, dispatch, and delivery.' : 'Monitor your position, expiry, and open conversations from one place.'}</p></div>{!dealsOnly && <label className="search-field quotes-search"><Search size={17} /><input type="search" value={quoteSearch} onChange={(event) => setQuoteSearch(event.target.value)} placeholder="Search vehicle, area, status or price" aria-label="Search your quotes" /></label>}</div>{activeOnly && <div className="active-filter"><span>Showing active quotes · pending or negotiating</span><button type="button" onClick={clearActiveOnly} aria-label="Show all quotes"><X size={13} /></button></div>}<section className="card"><div className="table-wrap"><table className={`data-table${dealerQuotes ? ' dealer-quotes-table' : ''}`}><thead><tr><th>Vehicle request</th>{dealerQuotes && <th>Buyer</th>}<th>{session?.role === 'buyer' ? 'Dealer' : 'Buyer area'}</th><th>Out-the-door</th>{!dealsOnly && <th>Status</th>}{showBuyerView && <th>Buyer view</th>}<th>Conversation</th>{!dealerQuotes && <th />}</tr></thead><tbody>{mine.map((quote) => {
             const viewHref = dealsOnly ? `/${session?.role === 'buyer' ? 'orders' : 'deals'}/${quote.id}` : `/quotes/${quote.id}`;
             // The row itself is a mouse convenience on top of a real link (the vehicle name on the Quotes page, "View"
             // elsewhere), which stays the keyboard/screen-reader way in - a click on an inner link or button keeps its own destination.
@@ -64,5 +70,5 @@ export default function DealerListScreen() {
             };
             const vehicle = quote.brand ? `${quote.brand} ${quote.model}` : 'Vehicle request';
             return <tr key={quote.id} className="row-clickable" onClick={goToRow}><td><strong>{dealerQuotes ? <Link className="row-link" to={viewHref}>{vehicle}</Link> : vehicle}</strong><small>{quote.brand ? [`${quote.yearMin}–${quote.yearMax}`, quote.bodyType].filter(Boolean).join(' · ') : ''}</small></td>{dealerQuotes && <td>{quote.buyerFirstName ? <span className="buyer-name">{quote.buyerFirstName}</span> : <span className="muted">—</span>}</td>}<td>{session?.role === 'buyer' ? quote.dealerName : <span className="table-place"><MapPin size={13} /> {quote.buyerArea ?? 'Buyer area'}</span>}</td><td><strong className="price">{formatMoney(quote.finalPrice)}</strong></td>{!dealsOnly && <td><StatusBadge status={quote.status} /></td>}{showBuyerView && <td><BuyerViewBadge viewed={quote.buyerViewed} /></td>}<td>{quote.contactAvailable ? <Link to={`/chat/${quote.id}`} className="button button-secondary button-sm"><MessageCircle size={15} /> Open chat</Link> : quote.chatRequestStatus === 'pending' ? <Link to="/chat/requests" className="button button-secondary button-sm"><Clock3 size={15} /> Buyer waiting</Link> : <span className="muted">Not opened</span>}</td>{!dealerQuotes && <td><Link className="button button-ghost button-sm" to={viewHref}>View <ArrowRight size={15} /></Link></td>}</tr>;
-          })}</tbody></table></div>{mine.length === 0 && quotes.length > 0 && !dealsOnly && <EmptyState title="No quotes match your search" description="Try a vehicle, area, status or price." />}{quotes.length === 0 && <EmptyState title={dealsOnly ? 'No accepted deals yet' : 'No quotes yet'} description={dealsOnly ? 'Accepted offers will appear here for fulfillment tracking.' : 'Open the buyer feed to send your first quote.'} />}</section></div>;
+          })}</tbody></table></div>{mine.length === 0 && quotes.length > 0 && !dealsOnly && (activeOnly && terms.length === 0 ? <EmptyState title="No active quotes right now" description="Every offer has been accepted, declined or has expired." action={<div className="empty-action"><button type="button" className="button button-secondary" onClick={clearActiveOnly}>Show all quotes</button></div>} /> : <EmptyState title="No quotes match your search" description="Try a vehicle, area, status or price." />)}{quotes.length === 0 && <EmptyState title={dealsOnly ? 'No accepted deals yet' : 'No quotes yet'} description={dealsOnly ? 'Accepted offers will appear here for fulfillment tracking.' : 'Open the buyer feed to send your first quote.'} />}</section></div>;
 }

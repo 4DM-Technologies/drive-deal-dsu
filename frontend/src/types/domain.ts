@@ -256,6 +256,15 @@ export interface SupportTicketCreate {
   priority: 'low' | 'medium' | 'high' | 'urgent';
 }
 
+export interface VerificationDocument {
+  id: string;
+  documentType: string;
+  label: string;
+  fileName: string;
+  contentType: string;
+  sizeBytes: number;
+}
+
 export interface Verification {
   id: string;
   ticketId: string;
@@ -274,6 +283,8 @@ export interface Verification {
   supportedBrands?: string[];
   address?: string;
   proofDocuments?: string[];
+  /** Files the applicant supplied (such as the Motor Vehicle Dealer License); opened through a short-lived link. */
+  documents?: VerificationDocument[];
   termsAccepted?: boolean;
   termsVersion?: string;
   termsAcceptedAt?: string;
@@ -319,6 +330,8 @@ export interface DealerSignupInput extends SignupInput {
   dealerLicense: string;
   website?: string | null;
   supportedBrandIds: string[];
+  /** PDF of the dealership's Motor Vehicle Dealer License; sent with the application and stored privately. */
+  motorVehicleDealerLicense: File;
 }
 
 export interface SupportSignupInput extends SignupInput {

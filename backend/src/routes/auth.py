@@ -11,6 +11,7 @@ from src.models.auth import BuyerSignup, DealerSignup, LoginRequest, RefreshRequ
 from src.repositories.schema import Profile, User
 from src.services.auth_service import AuthService
 from src.services.billing_service import BillingService
+from src.services.dealer_license import read_dealer_license
 from src.services.driving_license import read_driving_license
 from src.utils.exceptions import AppError, error_codes
 from src.utils.log_flow import log_flow
@@ -56,8 +57,7 @@ async def buyer_signup_form(
             terms_version=terms_version,
         )
     except ValidationError as exc:
-        errors = exc.errors(include_url=False, include_context=False, include_input=False)
-        raise RequestValidationError([{**error, "loc": ("body", *error["loc"])} for error in errors]) from exc
+        raise _form_validation_error(exc) from exc
 
 
 @router.post("/signup/buyer", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
@@ -72,10 +72,59 @@ async def signup_buyer(
     return await AuthService(session).signup_buyer(payload, upload)
 
 
+def _form_validation_error(exc: ValidationError) -> RequestValidationError:
+    """Reports model errors against the form body, the same shape FastAPI uses for JSON bodies."""
+    errors = exc.errors(include_url=False, include_context=False, include_input=False)
+    return RequestValidationError([{**error, "loc": ("body", *error["loc"])} for error in errors])
+
+
+@log_flow(layer="route")
+async def dealer_signup_form(
+    full_name: str = Form(),
+    email: str = Form(),
+    phone: str = Form(),
+    password: str = Form(),
+    state_id: str = Form(),
+    terms_accepted: bool = Form(),
+    terms_version: str = Form(),
+    dealership_name: str = Form(),
+    branch_name: str = Form(),
+    dealer_license: str = Form(),
+    supported_brand_ids: list[str] = Form(default_factory=list),
+    address: str | None = Form(None),
+    website: str | None = Form(None),
+) -> DealerSignup:
+    """Reads the dealer application fields from the multipart form and applies the same rules as the JSON model."""
+    try:
+        return DealerSignup(
+            full_name=full_name,
+            email=email,
+            phone=phone,
+            password=password,
+            state_id=state_id,
+            address=address or None,
+            terms_accepted=terms_accepted,
+            terms_version=terms_version,
+            dealership_name=dealership_name,
+            branch_name=branch_name,
+            dealer_license=dealer_license,
+            website=website,
+            supported_brand_ids=supported_brand_ids,
+        )
+    except ValidationError as exc:
+        raise _form_validation_error(exc) from exc
+
+
 @router.post("/signup/dealer", status_code=status.HTTP_202_ACCEPTED)
 @log_flow(layer="route")
-async def signup_dealer(payload: DealerSignup, session: AsyncSession = Depends(get_session)):
-    return await AuthService(session).signup_dealer(payload)
+async def signup_dealer(
+    payload: DealerSignup = Depends(dealer_signup_form),
+    motor_vehicle_dealer_license: UploadFile | None = File(None),
+    session: AsyncSession = Depends(get_session),
+):
+    """Submits a dealer application from a multipart form: the fields plus a ``motor_vehicle_dealer_license`` PDF."""
+    upload = await read_dealer_license(motor_vehicle_dealer_license)
+    return await AuthService(session).signup_dealer(payload, upload)
 
 
 @router.post("/signup/support", status_code=status.HTTP_202_ACCEPTED)
