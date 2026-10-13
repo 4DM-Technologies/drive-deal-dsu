@@ -11,13 +11,17 @@ import { Reveal } from '@/ui/reusables/Reveal/Reveal';
 import { StatusBadge } from '@/ui/reusables/StatusBadge/StatusBadge';
 import { TrialBanner } from '@/ui/reusables/TrialBanner/TrialBanner';
 import type { BuyerRequest, Quote } from '@/types/domain';
+import { ACTIVE_QUOTE_STATUSES } from '@/helpers/quoteStatus';
 import { previewQuery, useEffectiveSession } from '@/ui/navigations/previewSession';
 
-/** `live` makes the icon beat in that colour, for a number that is changing in real time. */
-type Stat = { label: string; value: string | number; note: string; icon: LucideIcon; live?: 'red' | 'blue' };
+/** `live` makes the icon beat in that colour, for a number that is changing in real time. `to` makes the card open that page. */
+type Stat = { label: string; value: string | number; note: string; icon: LucideIcon; live?: 'red' | 'blue'; to?: string };
 
 function StatGrid({ items }: { items: Stat[] }) {
-  return <div className="grid grid-4">{items.map(({ label, value, note, icon: Icon, live }, index) => <Reveal key={label} delay={index * .05}><article className="card stat-card dashboard-stat"><div className="stat-label">{label}<Icon size={17} className={live ? `stat-icon-live ${live}` : ''} /></div><div className="stat-value price">{value}</div><span className="stat-note">{note}</span></article></Reveal>)}</div>;
+  return <div className="grid grid-4">{items.map(({ label, value, note, icon: Icon, live, to }, index) => {
+    const body = <><div className="stat-label">{label}<Icon size={17} className={live ? `stat-icon-live ${live}` : ''} /></div><div className="stat-value price">{value}</div><span className="stat-note">{note}</span></>;
+    return <Reveal key={label} delay={index * .05}>{to ? <Link to={to} className="card card-hover stat-card dashboard-stat stat-card-link" aria-label={`${label}: ${value}. ${note}`}>{body}</Link> : <article className="card stat-card dashboard-stat">{body}</article>}</Reveal>;
+  })}</div>;
 }
 
 export default function HomeScreen() {
@@ -46,10 +50,10 @@ export default function HomeScreen() {
     const myQuotes = quotes;
     const accepted = myQuotes.filter((quote) => quote.status === 'accepted');
     const stats: Stat[] = [
-      { label: 'Live requests', value: mine.filter((item) => item.status === 'open').length, note: 'Receiving dealer offers', icon: Radio, live: 'blue' },
-      { label: 'Dealer offers', value: myQuotes.length, note: 'Across all requests', icon: Tag },
-      { label: 'Open conversations', value: myQuotes.filter((item) => item.contactAvailable || item.chatRequestStatus === 'pending').length, note: 'Quote-linked and private', icon: MessageCircle },
-      { label: 'Orders moving', value: accepted.length, note: 'Contact is open', icon: Trophy },
+      { label: 'Live requests', value: mine.filter((item) => item.status === 'open').length, note: 'Receiving dealer offers', icon: Radio, live: 'blue', to: '/requests?status=open' },
+      { label: 'Dealer offers', value: myQuotes.length, note: 'Across all requests', icon: Tag, to: '/requests?offers=1' },
+      { label: 'Open conversations', value: myQuotes.filter((item) => item.contactAvailable || item.chatRequestStatus === 'pending').length, note: 'Quote-linked and private', icon: MessageCircle, to: '/chat' },
+      { label: 'Orders moving', value: accepted.length, note: 'Contact is open', icon: Trophy, to: '/orders' },
     ];
     return <div className="shell page-content dashboard-page">
       <Reveal><div className="dashboard-welcome"><div><span className="eyebrow">Buyer workspace · Updated now</span><h1>Good afternoon, {session.fullName.split(' ')[0]}.</h1><p>Your requests are working in the background. Here’s what changed and what deserves your attention.</p></div><div className="dashboard-actions"><Link className="button button-primary" to="/requests/new"><FileText size={17} /> Start a request</Link></div></div></Reveal>
@@ -68,10 +72,10 @@ export default function HomeScreen() {
     .slice(0, 4);
   const acceptedQuotes = mine.filter((item) => item.status === 'accepted');
   const stats: Stat[] = [
-    { label: 'Matched requests', value: liveRequests.length, note: 'Open buyer demand', icon: Radio, live: 'red' },
-    { label: 'Active quotes', value: mine.filter((item) => ['pending', 'negotiating'].includes(item.status)).length, note: 'Across nearby buyers', icon: FileText },
-    { label: 'Open requests', value: liveRequests.length, note: 'Across your market', icon: Clock3 },
-    { label: 'Deals won', value: acceptedQuotes.length, note: 'Accepted offers', icon: Trophy },
+    { label: 'Matched requests', value: liveRequests.length, note: 'Open buyer demand', icon: Radio, live: 'red', to: '/feed' },
+    { label: 'Active quotes', value: mine.filter((item) => ACTIVE_QUOTE_STATUSES.includes(item.status)).length, note: 'Across nearby buyers', icon: FileText, to: '/quotes?status=active' },
+    { label: 'Open requests', value: liveRequests.length, note: 'Across your market', icon: Clock3, to: '/feed' },
+    { label: 'Deals won', value: acceptedQuotes.length, note: 'Accepted offers', icon: Trophy, to: '/deals' },
   ];
   return <div className="shell page-content dashboard-page">
     <TrialBanner subscription={session.subscription ?? null} onUpgrade={() => navigate(`/billing${previewSearch}`)} />

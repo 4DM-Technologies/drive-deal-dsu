@@ -392,7 +392,26 @@ h1, h2, h3, .display { font-family: 'Manrope', 'DM Sans', sans-serif; letter-spa
 .signup-form { margin-top: 1.5rem; }
 /* The State/brand dropdowns take the inputs' vertical padding so every box in a row is the same height. */
 .signup-form.form-grid .dropdown-trigger { padding-block: .75rem; }
-.signup-complete { text-align: center; padding: 3rem; }
+/* Pending-approval card: every gap scales with the window height so the whole card fits without scrolling. */
+.signup-complete { --complete-gap: clamp(1rem, 3vh, 1.75rem); max-width: 520px; display: flex; flex-direction: column; align-items: center; text-align: center; padding: clamp(1.5rem, 4.5vh, 2.75rem) clamp(1.25rem, 4vw, 2.75rem); }
+.signup-complete-icon { width: clamp(48px, 7.5vh, 60px); aspect-ratio: 1; margin-bottom: clamp(.75rem, 2.2vh, 1.15rem); display: grid; place-items: center; border-radius: 50%; background: var(--success-soft); color: var(--success); box-shadow: 0 0 0 7px color-mix(in srgb, var(--success-soft) 55%, transparent); }
+.signup-complete-icon svg { width: 46%; height: 46%; }
+.signup-complete .eyebrow { margin-bottom: .45rem; }
+/* Two classes deep so the shorter-window .signup-chooser h1 sizing cannot shrink or re-space it. */
+.signup-chooser .signup-complete h1 { margin: 0 0 .6rem; font-size: clamp(1.5rem, min(2.6vw, 4.4vh), 2rem); line-height: 1.15; text-wrap: balance; }
+.signup-complete-lead { max-width: 46ch; margin: 0; line-height: 1.55; text-wrap: pretty; }
+.signup-complete-steps { width: 100%; margin: var(--complete-gap) 0 0; padding: var(--complete-gap) 0 0; display: grid; gap: 1rem; list-style: none; text-align: left; border-top: 1px solid var(--border); }
+.signup-complete-steps li { display: grid; grid-template-columns: 26px minmax(0, 1fr); gap: .7rem; align-items: start; }
+.signup-complete-steps b { width: 26px; height: 26px; display: grid; place-items: center; border-radius: 50%; background: var(--accent-soft); color: var(--accent); font-size: .78rem; }
+.signup-complete-steps strong { display: block; font-size: .9rem; line-height: 1.35; }
+.signup-complete-steps small { display: block; margin-top: .2rem; color: var(--muted); font-size: .8rem; line-height: 1.45; overflow-wrap: anywhere; }
+.signup-complete-action { min-width: 210px; margin-top: var(--complete-gap); }
+/* Wide enough for a row: the three steps sit side by side, which keeps the card short. */
+@media (min-width: 760px) {
+  .signup-complete:has(.signup-complete-steps) { max-width: 780px; }
+  .signup-complete-lead { max-width: 58ch; }
+  .signup-complete-steps { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1.5rem; }
+}
 .success-icon { background: var(--success-soft); color: var(--success); }
 .public-footer { border-top: 1px solid var(--border); padding: 2rem 0; }
 .public-footer .shell { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 1rem; color: var(--muted); font-size: .83rem; }
@@ -960,6 +979,9 @@ h1, h2, h3, .display { font-family: 'Manrope', 'DM Sans', sans-serif; letter-spa
 .evidence-list small { margin-top: .12rem; color: var(--muted); font-size: .68rem; }
 .evidence-list .evidence-empty { border-color: #ead8ae; background: var(--warning-soft); }
 .evidence-list .evidence-empty > svg { color: var(--warning); }
+.evidence-list .evidence-document > span { flex: 1; min-width: 0; }
+.evidence-list .evidence-document small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.evidence-list .evidence-document .button { flex: none; }
 .verification-history { display: grid; }
 .verification-history > div { position: relative; display: grid; grid-template-columns: 16px minmax(0, 1fr); gap: .6rem; padding-bottom: .8rem; }
 .verification-history > div::before { content: ''; position: absolute; left: 5px; top: 10px; bottom: -2px; width: 1px; background: var(--border); }

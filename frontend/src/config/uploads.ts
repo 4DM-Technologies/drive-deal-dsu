@@ -5,3 +5,11 @@ export const DRIVING_LICENSE_UPLOAD = Object.freeze({
   extensions: ['.pdf'],
   formatsLabel: 'PDF',
 });
+
+/** The Motor Vehicle Dealer License a dealer attaches to their application. PDF only; the API re-checks the file's own signature. */
+export const DEALER_LICENSE_UPLOAD = Object.freeze({
+  maxBytes: 10 * 1024 * 1024,
+  mimeTypes: ['application/pdf'],
+  extensions: ['.pdf'],
+  formatsLabel: 'PDF',
+});

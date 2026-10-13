@@ -2,8 +2,8 @@ import { AlertCircle, ArrowRight, Building2, CheckCircle2, FileUp, UserRound } f
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import heroImage from '@/assets/vehicles/drivedeal-hero.png';
-import { DRIVING_LICENSE_UPLOAD } from '@/config/uploads';
-import { DRIVING_LICENSE_ACCEPT, drivingLicenseProblem, formatFileSize } from '@/helpers/drivingLicense';
+import { DEALER_LICENSE_UPLOAD, DRIVING_LICENSE_UPLOAD } from '@/config/uploads';
+import { DEALER_LICENSE_ACCEPT, DRIVING_LICENSE_ACCEPT, dealerLicenseProblem, drivingLicenseProblem, formatFileSize } from '@/helpers/drivingLicense';
 import { client } from '@/services/platform/client';
 import { useDemoStore } from '@/services/platform/demoStore';
 import { Brand } from '@/ui/reusables/Brand/Brand';
@@ -52,6 +52,8 @@ export default function SignupScreen() {
   const [extraInformation, setExtraInformation] = useState('');
   const [licenseFile, setLicenseFile] = useState<File | null>(null);
   const [licenseError, setLicenseError] = useState('');
+  const [dealerLicenseFile, setDealerLicenseFile] = useState<File | null>(null);
+  const [dealerLicenseError, setDealerLicenseError] = useState('');
   const [terms, setTerms] = useState(false);
   const [complete, setComplete] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -79,6 +81,13 @@ export default function SignupScreen() {
     if (!problem) setLicenseFile(file);
   }
 
+  function pickDealerLicense(file: File | undefined) {
+    if (!file) return;
+    const problem = dealerLicenseProblem(file);
+    setDealerLicenseError(problem ?? '');
+    if (!problem) setDealerLicenseFile(file);
+  }
+
   async function submit() {
     if (!terms || submitting) return;
     if (password !== confirmPassword) {
@@ -89,6 +98,7 @@ export default function SignupScreen() {
     }
     if (type === 'buyer' && (!firstName.trim() || !lastName.trim())) { setError('Enter your first and last name.'); return; }
     if (type === 'buyer' && !licenseFile) { setLicenseError('Upload a PDF of your driving licence.'); return; }
+    if (type === 'dealer' && !dealerLicenseFile) { setDealerStep(2); setDealerLicenseError('Upload a PDF of your Motor Vehicle Dealer License.'); return; }
     setSubmitting(true);
     setError('');
     try {
@@ -97,7 +107,7 @@ export default function SignupScreen() {
         const session = await client.auth.signupBuyer({ ...base, firstName: firstName.trim(), lastName: lastName.trim(), drivingLicense: licenseFile as File });
         setSession(session);
       } else if (type === 'dealer') {
-        await client.auth.signupDealer({ ...base, fullName, dealershipName, branchName, dealerLicense, website, supportedBrandIds: brandId ? [brandId] : [] });
+        await client.auth.signupDealer({ ...base, fullName, dealershipName, branchName, dealerLicense, website, supportedBrandIds: brandId ? [brandId] : [], motorVehicleDealerLicense: dealerLicenseFile as File });
       } else {
         await client.auth.signupSupport({ ...base, fullName, extraInformation });
       }
@@ -116,13 +126,41 @@ export default function SignupScreen() {
       setError('Select a state and primary brand to continue.');
       return;
     }
+    if (dealerStep === 2 && !dealerLicenseFile) {
+      setDealerLicenseError('Upload a PDF of your Motor Vehicle Dealer License to continue.');
+      return;
+    }
     setDealerStep((current) => Math.min(3, current + 1));
   }
 
   const stateField = <div className="field"><label htmlFor="signup-state">State</label><Dropdown id="signup-state" ariaLabel="State" align="left" placement="auto" value={stateId} onChange={setStateId} options={[{ value: '', label: 'Select a state' }, ...states.map((item) => ({ value: item.id, label: item.name }))]} /></div>;
   const missingChoice = !stateId || (type === 'dealer' && !brandId);
 
-  if (complete) return <main className="auth-panel signup-chooser"><div className="auth-card card card-pad signup-complete"><div className="empty-icon success-icon"><CheckCircle2 /></div><h1>{pending ? `Your ${type} account is pending approval.` : 'Your buyer account is ready.'}</h1><p className="muted">{pending ? 'Our team reviews every request. You will receive an email when access is approved.' : 'Create your first vehicle request and start receiving dealer offers.'}</p><button className="button button-primary" onClick={() => pending ? navigate(`/login?role=${type}`) : navigate('/home')}>{pending ? 'Back to sign in' : 'Open my dashboard'} <ArrowRight size={17} /></button></div></main>;
+  if (complete) {
+    const nextSteps = type === 'dealer'
+      ? [
+        { title: 'We review your application', detail: 'Our team checks your dealership details and Motor Vehicle Dealer License.' },
+        { title: 'You get an email', detail: `We will write to ${email} as soon as a decision is made.` },
+        { title: 'Sign in and start quoting', detail: 'Once approved, respond to buyer requests with transparent offers.' },
+      ]
+      : [
+        { title: 'We review your request', detail: 'Our team checks your details and verification note.' },
+        { title: 'You get an email', detail: `We will write to ${email} as soon as a decision is made.` },
+        { title: 'Sign in to the support workspace', detail: 'Once approved, your access is ready to use.' },
+      ];
+    return <main className="auth-panel signup-chooser">
+      <div className="auth-card card card-pad signup-complete">
+        <div className="signup-complete-icon" aria-hidden="true"><CheckCircle2 /></div>
+        <span className="eyebrow">{pending ? 'Application received' : 'Account created'}</span>
+        <h1>{pending ? `Your ${type} account is pending approval.` : 'Your buyer account is ready.'}</h1>
+        <p className="muted signup-complete-lead">{pending ? 'Thanks for applying. Every request is reviewed by a person to keep the marketplace trustworthy.' : 'Create your first vehicle request and start receiving dealer offers.'}</p>
+        {pending && <ol className="signup-complete-steps" aria-label="What happens next">
+          {nextSteps.map((step, index) => <li key={step.title}><b>{index + 1}</b><span><strong>{step.title}</strong><small>{step.detail}</small></span></li>)}
+        </ol>}
+        <button className="button button-primary signup-complete-action" onClick={() => pending ? navigate(`/login?role=${type}`) : navigate('/home')}>{pending ? 'Back to sign in' : 'Open my dashboard'} <ArrowRight size={17} /></button>
+      </div>
+    </main>;
+  }
 
   return (
     <main className="auth-page">
@@ -153,6 +191,16 @@ export default function SignupScreen() {
               <div className="field"><label htmlFor="signup-website">Website <span className="muted">(optional)</span></label><input id="signup-website" className="input" type="url" autoComplete="url" placeholder="https://example.com…" value={website} onChange={(event) => setWebsite(event.target.value)} /></div>
               {stateField}
               <div className="field"><label htmlFor="signup-brand">Primary brand</label><Dropdown id="signup-brand" ariaLabel="Primary brand" align="left" value={brandId} onChange={setBrandId} options={[{ value: '', label: 'Select a primary brand' }, ...brands.map((item) => ({ value: item.id, label: item.name }))]} /></div>
+              <div className="field form-span">
+                <label htmlFor="motor-vehicle-dealer-license">Motor Vehicle Dealer License <span className="muted">(PDF only)</span></label>
+                <label className={`upload-zone compact${dealerLicenseFile ? ' has-file' : ''}`} htmlFor="motor-vehicle-dealer-license">
+                  {dealerLicenseFile ? <CheckCircle2 /> : <FileUp />}
+                  <span><strong>{dealerLicenseFile ? dealerLicenseFile.name : 'Upload your Motor Vehicle Dealer License'}</strong><small>{dealerLicenseFile ? `${formatFileSize(dealerLicenseFile.size)} · click to choose a different PDF` : `The state-issued license for this dealership · ${DEALER_LICENSE_UPLOAD.formatsLabel} · up to ${DEALER_LICENSE_UPLOAD.maxBytes / 1024 / 1024} MB · reviewed privately by our team`}</small></span>
+                  <input id="motor-vehicle-dealer-license" type="file" accept={DEALER_LICENSE_ACCEPT} aria-describedby={dealerLicenseError ? 'motor-vehicle-dealer-license-error' : undefined} onChange={(event) => { pickDealerLicense(event.target.files?.[0]); event.target.value = ''; }} />
+                  {dealerLicenseFile && <button type="button" className="upload-remove" onClick={() => { setDealerLicenseFile(null); setDealerLicenseError(''); }} aria-label={`Remove ${dealerLicenseFile.name}`}>Remove</button>}
+                </label>
+                {dealerLicenseError && <span id="motor-vehicle-dealer-license-error" className="field-error" role="alert">{dealerLicenseError}</span>}
+              </div>
             </>}
             {type === 'dealer' && dealerStep === 3 && <>
               <div className="field form-span signup-address"><label htmlFor="signup-address">Business address</label><input id="signup-address" className="input" autoComplete="street-address" value={address} onChange={(event) => setAddress(event.target.value)} required /></div>

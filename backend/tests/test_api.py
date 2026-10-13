@@ -1,4 +1,5 @@
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 from uuid import uuid4
 
 import pytest
@@ -8,7 +9,7 @@ from starlette.websockets import WebSocketDisconnect
 from main import app
 from src.services.storage.s3_storage import S3Storage
 from src.settings import get_settings
-from tests.demo_data import IDS, PNG_BYTES
+from tests.demo_data import IDS, PDF_BYTES, PNG_BYTES
 
 
 def login(client: TestClient, email: str) -> dict[str, str]:
@@ -398,7 +399,7 @@ def test_ticket_creation_update_and_password_reset_contract() -> None:
         )
 
 
-def test_signup_refresh_and_pending_account_flows() -> None:
+def test_signup_refresh_and_pending_account_flows(local_uploads: Path) -> None:
     with TestClient(app) as client:
         suffix = uuid4().hex[:8]
         common = {
@@ -424,7 +425,8 @@ def test_signup_refresh_and_pending_account_flows() -> None:
 
         dealer = client.post(
             "/api/v1/auth/signup/dealer",
-            json={
+            files={"motor_vehicle_dealer_license": ("dealer-license.pdf", PDF_BYTES, "application/pdf")},
+            data={
                 **common,
                 "email": f"dealer-{suffix}@example.com",
                 "dealership_name": "Fresh Motors",
@@ -434,7 +436,7 @@ def test_signup_refresh_and_pending_account_flows() -> None:
                 "supported_brand_ids": [IDS["ford"]],
             },
         )
-        assert dealer.status_code == 202
+        assert dealer.status_code == 202, dealer.text
         pending_login = client.post(
             "/api/v1/auth/login", json={"email": f"dealer-{suffix}@example.com", "password": "secure-demo-password"}
         )

@@ -111,6 +111,8 @@ STATE_ROWS = [
 
 # The smallest thing the driving-licence upload accepts as a PNG: only the file signature is checked.
 PNG_BYTES = b"\x89PNG\r\n\x1a\n" + b"\x00" * 32
+# The smallest thing the dealer licence upload accepts as a PDF: only the file signature is checked.
+PDF_BYTES = b"%PDF-1.7\n1 0 obj\n<<>>\nendobj\n%%EOF\n"
 
 IDS = {
     "tx": "00000000-0000-4000-8000-000000000044",

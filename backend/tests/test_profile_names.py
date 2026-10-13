@@ -1,9 +1,10 @@
+from pathlib import Path
 from uuid import uuid4
 
 from fastapi.testclient import TestClient
 
 from main import app
-from tests.demo_data import IDS, PNG_BYTES
+from tests.demo_data import IDS, PDF_BYTES, PNG_BYTES
 
 SIGNUP_URL = "/api/v1/auth/signup/buyer"
 
@@ -110,7 +111,7 @@ def test_dealer_gets_buyer_first_name_and_phone_only_once_contact_opens() -> Non
         assert client.get(f"/api/v1/quotes/{opened[0]['id']}/buyer-contact", headers=other_dealer).status_code == 404
 
 
-def test_dealer_signup_website_is_optional_but_still_checked_when_given() -> None:
+def test_dealer_signup_website_is_optional_but_still_checked_when_given(local_uploads: Path) -> None:
     def dealer(**website: str) -> dict:
         suffix = uuid4().hex[:8]
         return {
@@ -120,7 +121,7 @@ def test_dealer_signup_website_is_optional_but_still_checked_when_given() -> Non
             "password": "secure-demo-password",
             "state_id": IDS["tx"],
             "address": "Dallas, TX",
-            "terms_accepted": True,
+            "terms_accepted": "true",
             "terms_version": "2026-09-30",
             "dealership_name": "Rajesh Motors",
             "branch_name": "Dallas",
@@ -129,10 +130,12 @@ def test_dealer_signup_website_is_optional_but_still_checked_when_given() -> Non
             **website,
         }
 
+    def apply(client: TestClient, fields: dict) -> int:
+        licence = {"motor_vehicle_dealer_license": ("licence.pdf", PDF_BYTES, "application/pdf")}
+        return client.post("/api/v1/auth/signup/dealer", data=fields, files=licence).status_code
+
     with TestClient(app) as client:
-        assert client.post("/api/v1/auth/signup/dealer", json=dealer()).status_code == 202
-        assert client.post("/api/v1/auth/signup/dealer", json=dealer(website="  ")).status_code == 202
-        assert (
-            client.post("/api/v1/auth/signup/dealer", json=dealer(website="https://rajesh.example")).status_code == 202
-        )
-        assert client.post("/api/v1/auth/signup/dealer", json=dealer(website="not a url")).status_code == 422
+        assert apply(client, dealer()) == 202
+        assert apply(client, dealer(website="  ")) == 202
+        assert apply(client, dealer(website="https://rajesh.example")) == 202
+        assert apply(client, dealer(website="not a url")) == 422

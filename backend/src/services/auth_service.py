@@ -10,11 +10,18 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.auth.security import create_token, decode_token, hash_password, token_hash, verify_password
 from src.models.auth import BuyerSignup, DealerSignup, LoginRequest, SessionProfile, SupportSignup, TokenResponse
 from src.repositories.auth_repository import AuthRepository
-from src.repositories.schema import BuyerDocument, Profile, SupportVerification, User
+from src.repositories.schema import BuyerDocument, DealerDocument, Profile, SupportVerification, User
 from src.services.billing_service import BillingService
+from src.services.dealer_license import DOCUMENT_LABEL as DEALER_LICENSE_LABEL
+from src.services.dealer_license import DealerLicenseUpload, dealer_license_key
 from src.services.driving_license import DrivingLicenseUpload, driving_license_key
 from src.services.storage import Storage, StorageError, StorageObject, get_storage
-from src.settings import DEFAULT_TERMS_VERSION, DRIVING_LICENSE_DOCUMENT_TYPE, get_settings
+from src.settings import (
+    DEALER_LICENSE_DOCUMENT_TYPE,
+    DEFAULT_TERMS_VERSION,
+    DRIVING_LICENSE_DOCUMENT_TYPE,
+    get_settings,
+)
 from src.utils.exceptions import AppError, error_codes
 from src.utils.log_flow import log_flow
 from src.utils.logger import logger
@@ -36,7 +43,19 @@ class AuthService:
             payload, "buyer", is_active=True, first_name=payload.first_name, last_name=payload.last_name
         )
         storage = get_storage()
-        stored_key = await self._store_driving_license(storage, profile, driving_license)
+        stored_key = await self._store_document(
+            storage,
+            BuyerDocument(
+                profile_id=profile.id,
+                document_type=DRIVING_LICENSE_DOCUMENT_TYPE,
+                object_key=driving_license_key(profile.id, driving_license.extension),
+                file_name=driving_license.file_name,
+                content_type=driving_license.content_type,
+                size_bytes=driving_license.size_bytes,
+            ),
+            driving_license.content,
+            "driving licence",
+        )
         try:
             response = self._tokens(profile, True)
             profile.user.refresh_token_hash = token_hash(response.refresh_token)
@@ -49,7 +68,7 @@ class AuthService:
         return response
 
     @log_flow(layer="service")
-    async def signup_dealer(self, payload: DealerSignup) -> dict:
+    async def signup_dealer(self, payload: DealerSignup, dealer_license: DealerLicenseUpload) -> dict:
         profile = await self._create_profile(
             payload,
             "dealer",
@@ -67,9 +86,35 @@ class AuthService:
             status="pending",
             notes=[],
         )
+        storage = get_storage()
+        stored_key = await self._store_document(
+            storage,
+            DealerDocument(
+                profile_id=profile.id,
+                document_type=DEALER_LICENSE_DOCUMENT_TYPE,
+                object_key=dealer_license_key(profile.id),
+                file_name=dealer_license.file_name,
+                content_type=dealer_license.content_type,
+                size_bytes=dealer_license.size_bytes,
+            ),
+            dealer_license.content,
+            DEALER_LICENSE_LABEL,
+        )
+        verification.proof_docs = [stored_key]
         self.session.add(verification)
-        await self.repository.commit()
-        logger.info("dealer_signup", profile_id=profile.id, role="dealer", verification_id=verification.ticket_id)
+        try:
+            await self.repository.commit()
+        except Exception:
+            # The application was not saved, so the licence must not be left behind in storage.
+            await self._discard_stored_object(storage, stored_key)
+            raise
+        logger.info(
+            "dealer_signup",
+            profile_id=profile.id,
+            role="dealer",
+            verification_id=verification.ticket_id,
+            dealer_license_key=stored_key,
+        )
         return {"status": "pending", "verification_id": verification.ticket_id, "email": profile.email}
 
     @log_flow(layer="service")
@@ -159,39 +204,35 @@ class AuthService:
         return profile
 
     @log_flow(layer="service")
-    async def _store_driving_license(
-        self, storage: Storage, profile: Profile, driving_license: DrivingLicenseUpload
+    async def _store_document(
+        self, storage: Storage, document: BuyerDocument | DealerDocument, content: bytes, label: str
     ) -> str:
-        key = driving_license_key(profile.id, driving_license.extension)
-        item = StorageObject(key=key, content=driving_license.content, content_type=driving_license.content_type)
+        """Writes the file to private storage, then records ``document`` for the pending commit; returns its key."""
+        item = StorageObject(key=document.object_key, content=content, content_type=document.content_type)
         try:
             # boto3 is blocking, so the upload runs off the event loop.
             await asyncio.to_thread(storage.put_object, item)
         except StorageError as exc:
-            logger.error("driving_license_upload_failed", profile_id=profile.id, error=str(exc))
+            logger.error(
+                "signup_document_upload_failed",
+                profile_id=document.profile_id,
+                document_type=document.document_type,
+                error=str(exc),
+            )
             raise AppError(
                 error_codes.STORAGE_UNAVAILABLE,
-                "We could not store your driving licence right now. Please try again in a moment.",
+                f"We could not store your {label} right now. Please try again in a moment.",
                 503,
             ) from exc
-        self.session.add(
-            BuyerDocument(
-                profile_id=profile.id,
-                document_type=DRIVING_LICENSE_DOCUMENT_TYPE,
-                object_key=key,
-                file_name=driving_license.file_name,
-                content_type=driving_license.content_type,
-                size_bytes=driving_license.size_bytes,
-            )
-        )
-        return key
+        self.session.add(document)
+        return document.object_key
 
     @log_flow(layer="service")
     async def _discard_stored_object(self, storage: Storage, key: str) -> None:
         try:
             await asyncio.to_thread(storage.delete_object, key)
         except StorageError as exc:
-            logger.warning("driving_license_cleanup_failed", object_key=key, error=str(exc))
+            logger.warning("signup_document_cleanup_failed", object_key=key, error=str(exc))
 
     @log_flow(layer="service")
     def _tokens(self, profile: Profile, is_active: bool) -> TokenResponse:
