@@ -125,3 +125,57 @@ async def test_requirement_extraction_falls_back_when_the_model_fails() -> None:
     assert result["requirements"]["brand"] == "Ford"
     assert result["requirements"]["budget_max"] == "40000"
     assert result["missing_fields"]
+
+
+async def _run_selection(llm_text: str, requirements: dict) -> tuple[dict, str]:
+    state = {
+        "message": "I'm good with the first one, post a request",
+        "requirements": requirements,
+        "thread_id": "t1",
+        "vehicle_selection": True,
+        "conversation_context": [
+            {"role": "user", "body": "compare the Toyota Camry and Honda Accord"},
+            {"role": "assistant", "body": "1. Toyota Camry - more efficient. 2. Honda Accord - roomier."},
+        ],
+    }
+    with (
+        patch(
+            "src.agents.requirements._reference_data", new=AsyncMock(return_value=(["Ford", "Toyota", "Honda"], STATES))
+        ),
+        patch("src.agents.llm.LlmClient.generate", new=AsyncMock(return_value=_FakeLlmResult(llm_text))) as generate,
+    ):
+        result = await gather_requirements_from_message(AsyncMock(), state)
+    return result, generate.await_args.args[0]
+
+
+async def test_selection_builds_the_draft_for_the_chosen_car_and_keeps_location() -> None:
+    result, prompt = await _run_selection(
+        '{"brand":"Toyota","model_name":"Camry","body_type":"Sedan","buyer_area":null,"state":null,"timeline":null,"budget_max":null}',
+        {
+            "brand": "Honda",
+            "model": "Accord",
+            "trim": "Sport",
+            "buyer_area": "Austin",
+            "state": "Texas",
+            "timeline": "ASAP",
+        },
+    )
+
+    assert result["requirements"]["brand"] == "Toyota"
+    assert result["requirements"]["model"] == "Camry"
+    # The earlier car's details do not leak into the new request; where and when the buyer is buying are kept.
+    assert "trim" not in result["requirements"]
+    assert result["requirements"]["buyer_area"] == "Austin"
+    assert result["requirements"]["timeline"] == "ASAP"
+    assert "VEHICLE SELECTION" in prompt
+    assert "compare the Toyota Camry and Honda Accord" in prompt
+
+
+async def test_selection_ignores_a_brand_outside_the_allowed_list() -> None:
+    result, _ = await _run_selection(
+        '{"brand":"Lucid","model_name":"Air","body_type":null,"buyer_area":null,"state":null,"timeline":null,"budget_max":null}',
+        {"buyer_area": "Austin", "state": "Texas"},
+    )
+
+    assert "brand" not in result["requirements"]
+    assert result["requirements"]["model"] == "Air"

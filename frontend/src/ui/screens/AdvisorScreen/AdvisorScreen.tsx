@@ -60,7 +60,10 @@ type PreferenceStage = 'choice' | 'customize' | 'field' | 'update-field' | 'valu
 type PreferenceEdit = 'must-add' | 'avoid-add' | 'must-remove' | 'avoid-remove' | 'remove-saved' | 'body-type' | 'fuel-type' | 'budget-max';
 const START_OPTIONS = ['I know the car I want', 'Help me choose', 'Ask Sera a question'];
 const HIDDEN_DRAFT_FIELDS = new Set(['stateId', 'brandId']);
-const DRAFT_LABELS: Record<string, string> = { mustHaves: 'Must-haves', fuelType: 'Fuel', transmission: 'Transmission', drivetrain: 'Drivetrain', additionalInformation: 'Additional details', bodyType: 'Body style', budgetMin: 'Budget from', budgetMax: 'Budget up to', years: 'Model year' };
+const EDITABLE_DRAFT_FIELDS = ['area', 'timeline', 'budget'];
+// Needed before the request can be sent; an empty one reads "Add before sending" instead of "No preference".
+const REQUIRED_DRAFT_FIELDS = new Set(['brand', 'model', 'area', 'timeline']);
+const DRAFT_LABELS: Record<string, string> = { mustHaves: 'Must-haves', fuelType: 'Fuel', transmission: 'Transmission', drivetrain: 'Drivetrain', additionalInformation: 'Additional details', bodyType: 'Body style', budgetMin: 'Budget from', budgetMax: 'Budget up to', years: 'Model year', area: 'City', timeline: 'Timeline', budget: 'Budget (optional)' };
 const IMAGE_CACHE_PREFIX = 'sera-vehicle-image:';
 
 function preferenceQuestion(id: string, title: string, labels: Array<[string, string, string?]>, allowOther = false, placeholder = 'Type a preference', multiSelect = false, emptyMessage?: string): import('@/types/domain').GuidedQuestion {
@@ -183,6 +186,13 @@ function Answer({ body }: { body: string }) {
   }}>{body}</Markdown></div>;
 }
 
+/** "$45,000" / "45k" / "45000" from the card's free-text budget field as a plain number string, or null. */
+export function parseBudget(value: string | undefined): string | null {
+  const match = (value ?? '').replace(/[$,\s]/g, '').match(/^(\d+(?:\.\d+)?)(k)?$/i);
+  if (!match) return null;
+  return String(Math.round(Number(match[1]) * (match[2] ? 1000 : 1)));
+}
+
 export function normalizeRequestDraft(payload: unknown): RequestDraft | null {
   if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return null;
   const card = payload as Record<string, unknown>;
@@ -205,7 +215,10 @@ export function normalizeRequestDraft(payload: unknown): RequestDraft | null {
     if (typeof value === 'string' || typeof value === 'number') draft[label] = String(value);
     else if (Array.isArray(value) && value.every((item) => typeof item === 'string')) draft[label] = value.join(', ');
   }
-  return Object.keys(draft).length ? draft : null;
+  if (!Object.keys(draft).length) return null;
+  // Always offer these on the card so the buyer can fill them in while editing; budget stays optional.
+  for (const key of EDITABLE_DRAFT_FIELDS) draft[key] ??= '';
+  return draft;
 }
 
 /**
@@ -796,7 +809,7 @@ export default function AdvisorScreen() {
         trim: draft.trim || null,
         drivetrain: draft.drivetrain || null,
         budgetMin: draft.budgetMin || null,
-        budgetMax: draft.budgetMax || null,
+        budgetMax: draft.budgetMax || parseBudget(draft.budget),
         buyerArea: area,
         searchRadiusMiles: 50,
         timeline,
@@ -1137,6 +1150,12 @@ export default function AdvisorScreen() {
             view()?.setDraft(nextDraft);
             view()?.setPostGate(nextGate);
             if (responseUiByThreadRef.current[runThreadId]?.published) view()?.setPublished(true);
+            else if (nextDraft) {
+              // A new card for another car after one was already sent: show it as a fresh, sendable request.
+              view()?.setPublished(false);
+              view()?.setPublishedRequestId(null);
+              view()?.setGuidedStep(null);
+            }
           }
         }
         if (event.type === 'card' && event.kind === 'compare') {
@@ -1308,7 +1327,7 @@ export default function AdvisorScreen() {
             </section>}
             {guidedStep === 'review' && !imageLoading && imageSearchStatus === 'not_found' && draft.brand && draft.model && draft.model !== 'Open to recommendations' && <div className="guided-image-fallback" role="status"><span>No usable reference photo turned up for this vehicle. You can continue without one.</span><button type="button" className="guided-back" onClick={() => setImageAttempt((attempt) => attempt + 1)}>Try again</button></div>}
             {guidedStep === 'review' && !imageLoading && imageSearchStatus === 'unavailable' && <div className="guided-image-fallback" role="status"><span>Image search is temporarily unavailable. You can continue with your request.</span><button type="button" className="guided-back" onClick={() => setImageAttempt((attempt) => attempt + 1)}>Retry search</button></div>}
-            <div className="request-preview-grid">{Object.entries(draft).filter(([key]) => !HIDDEN_DRAFT_FIELDS.has(key)).map(([key, value]) => <label key={key}><span>{DRAFT_LABELS[key] ?? key.replace(/([A-Z])/g, ' $1')}</span>{editing ? <input value={value} onChange={(event) => setDraft({ ...draft, [key]: event.target.value })} /> : <strong>{value || 'No preference'}</strong>}</label>)}</div>
+            <div className="request-preview-grid">{Object.entries(draft).filter(([key]) => !HIDDEN_DRAFT_FIELDS.has(key)).map(([key, value]) => <label key={key}><span>{DRAFT_LABELS[key] ?? key.replace(/([A-Z])/g, ' $1')}</span>{editing ? <input value={value} onChange={(event) => setDraft({ ...draft, [key]: event.target.value })} /> : <strong>{value || (REQUIRED_DRAFT_FIELDS.has(key) ? 'Add before sending' : 'No preference')}</strong>}</label>)}</div>
             {postBlocked && <UpgradePrompt reason={postGate?.reason ?? 'request_limit_reached'} role="buyer" />}
             {guidedStep === 'complete' || published ? <div className="result-card-actions"><p><CheckCircle2 size={16} /> Request sent to matching dealers.</p><Link className="button button-primary button-sm" to={publishedRequestId ? `/requests/${publishedRequestId}` : '/requests'}>Track Request</Link></div> : <div className="result-card-actions"><p><CheckCircle2 size={16} /> Nothing is posted until you confirm.</p><button className="button button-primary button-sm" onClick={() => void publishDraftRequest()} disabled={published || publishingRequest || postBlocked}><FileCheck2 size={16} /> {publishingRequest ? 'Publishing…' : 'Send to matching dealers'}</button></div>}
             {publishError && <p className="inline-warning" role="alert">{publishError}</p>}

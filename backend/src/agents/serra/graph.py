@@ -719,8 +719,10 @@ def main_agent(
         prompt = (
             "Classify the buyer's message as exactly one of: advice, compare, requirements, off_topic.\n"
             "- compare: comparing two or more specific vehicles, quotes or offers.\n"
-            "- requirements: the buyer describes a vehicle they want to BUY, or asks to search for one or draft a "
-            "buyer request. A car the buyer already owns, is selling or has crashed is never requirements.\n"
+            "- requirements: the buyer describes a vehicle they want to BUY, asks to search for one or draft a "
+            "buyer request, or settles on a vehicle discussed earlier in the conversation (\"I'm good with the "
+            'Camry", "let\'s go with the second one", "post a request for car A"). A car the buyer already owns, '
+            "is selling or has crashed is never requirements.\n"
             "- advice: a question about BUYING a vehicle: choosing, comparing, pricing, financing or insuring a car "
             'the buyer plans to buy, the safety of cars they are considering ("what if I die in a car accident?" '
             "is advice about safety), trading in their current car toward a new purchase, and their Deal&Drive "

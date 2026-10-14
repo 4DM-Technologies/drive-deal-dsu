@@ -25,6 +25,7 @@ class AgentState(TypedDict, total=False):
     requirements: dict[str, Any]
     missing_fields: list[str]
     suggested_questions: list[dict[str, Any]]
+    vehicle_selection: bool
     comparison_rows: list[dict[str, Any]]
     answer: str
     direct_web_answer: bool
