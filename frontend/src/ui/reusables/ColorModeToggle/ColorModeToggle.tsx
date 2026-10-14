@@ -1,14 +1,15 @@
 import { Moon, Sun } from 'lucide-react';
-import { useColorMode } from '@/services/platform/colorMode';
+import type { ColorMode } from '@/services/platform/colorMode';
 
-/** Switches the support workspace between light and dark. `drawer` is the full-width row in the mobile menu. */
-export function ColorModeToggle({ variant = 'header' }: { variant?: 'header' | 'drawer' }) {
-  const { mode, toggle } = useColorMode();
+export function ColorModeToggle({ mode, onToggle }: { mode: ColorMode; onToggle: () => void }) {
   const dark = mode === 'dark';
+  const Icon = dark ? Moon : Sun;
   return (
-    <button type="button" className={`support-help-trigger color-mode-toggle ${variant === 'header' ? 'desktop-header-action' : 'color-mode-toggle-drawer'}`} aria-pressed={dark} aria-label={`Switch to ${dark ? 'light' : 'dark'} mode`} onClick={toggle}>
-      {dark ? <Sun size={17} /> : <Moon size={17} />}
-      <span>{dark ? 'Light mode' : 'Dark mode'}</span>
+    <button type="button" className="theme-toggle" role="switch" aria-label="Dark theme" aria-checked={dark}
+      title={`Switch to ${dark ? 'light' : 'dark'} theme`} onClick={onToggle}>
+      <Icon size={17} aria-hidden="true" />
+      <span className="theme-toggle-label">{dark ? 'Dark' : 'Light'}</span>
+      <span className="theme-toggle-track" aria-hidden="true"><span /></span>
     </button>
   );
 }

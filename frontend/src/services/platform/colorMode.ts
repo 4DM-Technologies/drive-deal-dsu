@@ -3,17 +3,17 @@ import { BROWSER_STORAGE_KEYS } from '@/config/browser';
 
 export type ColorMode = 'light' | 'dark';
 
-/** Dark mode belongs to the support workspace; buyers and dealers always get the light interface. */
-export const COLOR_MODE_ROLES: readonly string[] = ['support', 'support-admin', 'admin'];
+/** One personal preference shared by every authenticated workspace. */
+export const COLOR_MODE_ROLES: readonly string[] = ['buyer', 'dealer', 'support', 'support-admin', 'admin'];
 
 const KEY = BROWSER_STORAGE_KEYS.colorMode;
 const listeners = new Set<() => void>();
 
 function read(): ColorMode {
   try {
-    return window.localStorage.getItem(KEY) === 'dark' ? 'dark' : 'light';
+    return window.localStorage.getItem(KEY) === 'light' ? 'light' : 'dark';
   } catch {
-    return 'light';
+    return 'dark';
   }
 }
 
@@ -28,12 +28,12 @@ export function setColorMode(next: ColorMode): void {
 function subscribe(listener: () => void): () => void {
   listeners.add(listener);
   // Another tab switching mode updates this one too.
-  const onStorage = (event: StorageEvent) => { if (event.key === KEY) { current = read(); listener(); } };
+  const onStorage = (event: StorageEvent) => { if (event.key === KEY || event.key === null) { current = read(); listener(); } };
   window.addEventListener('storage', onStorage);
   return () => { listeners.delete(listener); window.removeEventListener('storage', onStorage); };
 }
 
 export function useColorMode(): { mode: ColorMode; toggle: () => void } {
-  const mode = useSyncExternalStore(subscribe, () => current, () => 'light' as ColorMode);
+  const mode = useSyncExternalStore(subscribe, () => current, () => 'dark' as ColorMode);
   return { mode, toggle: () => setColorMode(mode === 'dark' ? 'light' : 'dark') };
 }

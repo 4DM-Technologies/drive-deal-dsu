@@ -1,7 +1,7 @@
 import { AlertCircle, ArrowRight, Building2, CheckCircle2, FileUp, UserRound } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import heroImage from '@/assets/vehicles/drivedeal-hero.png';
+import heroImage from '@/assets/vehicles/campaign-coupe.webp';
 import { DEALER_LICENSE_UPLOAD, DRIVING_LICENSE_UPLOAD } from '@/config/uploads';
 import { DEALER_LICENSE_ACCEPT, DRIVING_LICENSE_ACCEPT, dealerLicenseProblem, drivingLicenseProblem, formatFileSize } from '@/helpers/drivingLicense';
 import { client } from '@/services/platform/client';
@@ -164,7 +164,7 @@ export default function SignupScreen() {
 
   return (
     <main className="auth-page">
-      <section className="auth-art"><img src={heroImage} alt="Blue sedan on an open road" /><div className="auth-art-copy"><span className="eyebrow auth-eyebrow">{type === 'buyer' ? 'Your next car starts here' : type === 'dealer' ? 'Turn demand into deals' : 'Protected operational access'}</span><h2>{type === 'buyer' ? 'Describe the car. Let the right offer find you.' : type === 'dealer' ? 'Meet buyers already ready to decide.' : 'Support access is reviewed by a person.'}</h2></div></section>
+      <section className="auth-art"><img src={heroImage} alt="" width="1774" height="887" /><div className="auth-art-copy"><span className="eyebrow auth-eyebrow">{type === 'buyer' ? 'Your next car starts here' : type === 'dealer' ? 'Turn demand into deals' : 'Protected operational access'}</span><h2>{type === 'buyer' ? 'Describe the car. Let the right offer find you.' : type === 'dealer' ? 'Meet buyers already ready to decide.' : 'Support access is reviewed by a person.'}</h2></div></section>
       <section className="auth-panel">
         <div className={`auth-card${type === 'dealer' ? ' auth-card-wide' : ''}`}>
           <div className="auth-brand-row"><Link to="/"><Brand /></Link></div>
@@ -220,7 +220,7 @@ export default function SignupScreen() {
                 {licenseError && <span className="field-error" role="alert">{licenseError}</span>}
               </div>
             </>}
-            {type === 'support' && <><div className="field"><label htmlFor="signup-address">Location address</label><input id="signup-address" className="input" value={address} onChange={(event) => setAddress(event.target.value)} required /></div>{stateField}<div className="field form-span"><label>Verification note <span className="muted">(optional)</span></label><textarea className="textarea" rows={3} value={extraInformation} onChange={(event) => setExtraInformation(event.target.value)} placeholder="Add anything that helps us verify your request" /></div></>}
+            {type === 'support' && <><div className="field"><label htmlFor="signup-address">Location address</label><input id="signup-address" className="input" value={address} onChange={(event) => setAddress(event.target.value)} required /></div>{stateField}<div className="field form-span"><label htmlFor="signup-note">Verification note <span className="muted">(optional)</span></label><textarea id="signup-note" className="textarea" rows={3} value={extraInformation} onChange={(event) => setExtraInformation(event.target.value)} placeholder="Add anything that helps us verify your request" /></div></>}
             {type !== 'dealer' && <label className="checkbox-row form-span"><input type="checkbox" checked={terms} onChange={(event) => setTerms(event.target.checked)} required /><span>I agree to Deal&amp;Drive’s <Link to="/terms" target="_blank">Terms of Service</Link> and <Link to="/privacy" target="_blank">Privacy Policy</Link>.</span></label>}
             {error && <div className="inline-warning form-span" role="alert">{error}</div>}
             {type === 'dealer' ? <div className="signup-step-actions form-span">{dealerStep > 1 && <button type="button" className="button button-secondary" onClick={() => { setError(''); setDealerStep((current) => current - 1); }}>Back</button>}{dealerStep < 3 ? <button type="button" className="button button-primary" onClick={(event) => advanceDealerStep(event.currentTarget.form!)}>Continue <ArrowRight size={17} /></button> : <button className="button button-primary" disabled={!terms || submitting || missingChoice}>{submitting ? 'Submitting…' : 'Submit for review'} <ArrowRight size={17} /></button>}</div> : <button className="button button-primary form-span" disabled={!terms || submitting || missingChoice}>{submitting ? 'Submitting…' : type === 'buyer' ? 'Create buyer account' : 'Submit for review'} <ArrowRight size={17} /></button>}
@@ -231,3 +231,5 @@ export default function SignupScreen() {
     </main>
   );
 }
+
+

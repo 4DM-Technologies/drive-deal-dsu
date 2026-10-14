@@ -1,7 +1,7 @@
 import { ArrowLeft, ArrowRight, Building2, ChevronDown, Headphones, LockKeyhole, ShieldCheck, UserRound } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
-import heroImage from '@/assets/vehicles/drivedeal-hero.png';
+import heroImage from '@/assets/vehicles/campaign-coupe.webp';
 import { client } from '@/services/platform/client';
 import { useDemoStore } from '@/services/platform/demoStore';
 import { Brand } from '@/ui/reusables/Brand/Brand';
@@ -76,7 +76,7 @@ export default function LoginScreen() {
 
   return (
     <main className="auth-page">
-      <section className="auth-art"><img src={heroImage} alt="Blue sedan on an open road" /><div className="auth-art-copy"><span className="eyebrow auth-eyebrow">A calmer way to buy</span><h2>Real dealer offers.<br />One clear decision.</h2><p>Create one request, compare itemized prices, and keep your contact details private until you choose.</p><div className="auth-proof"><ShieldCheck size={18} /> Buyer-controlled contact and AI-assisted comparisons</div></div></section>
+      <section className="auth-art"><img src={heroImage} alt="" width="1774" height="887" /><div className="auth-art-copy"><span className="eyebrow auth-eyebrow">A calmer way to buy</span><h2>Real dealer offers.<br />One clear decision.</h2><p>Create one request, compare itemized prices, and keep your contact details private until you choose.</p><div className="auth-proof"><ShieldCheck size={18} /> Buyer-controlled contact and AI-assisted comparisons</div></div></section>
       <section className="auth-panel">
         <div className="auth-card">
           <Link to="/" aria-label="Deal&Drive landing page"><Brand /></Link>
@@ -102,3 +102,4 @@ export default function LoginScreen() {
     </main>
   );
 }
+

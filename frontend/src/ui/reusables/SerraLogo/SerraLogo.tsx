@@ -49,7 +49,7 @@ export function SerraLogo({ size = 48, animated = true, title = 'Sera', classNam
       <span className="serra-logo-sheen" style={{ clipPath: `url(#${clipId})` }} />
       <svg className="serra-logo-rims" viewBox="0 0 320 320" preserveAspectRatio="xMidYMid meet" aria-hidden="true" focusable="false">
         <defs>
-          <linearGradient id={rimId} x1="0" y1="0" x2="0.4" y2="1"><stop offset="0" stopColor="#E8F0FC" /><stop offset="0.4" stopColor="#4A8DF0" /><stop offset="1" stopColor="#0D438F" /></linearGradient>
+          <linearGradient id={rimId} x1="0" y1="0" x2="0.4" y2="1"><stop offset="0" stopColor="var(--ink)" /><stop offset="0.4" stopColor="var(--accent)" /><stop offset="1" stopColor="var(--accent-deep)" /></linearGradient>
           <radialGradient id={specId} cx="35%" cy="26%" r="55%"><stop offset="0" stopColor="#fff" stopOpacity=".8" /><stop offset="0.55" stopColor="#fff" stopOpacity=".1" /><stop offset="1" stopColor="#fff" stopOpacity="0" /></radialGradient>
           <clipPath id={clipSvgId} clipPathUnits="userSpaceOnUse">
             {PETALS.map((petal) => <rect key={petal.x + '-' + petal.y} x={petal.x} y={petal.y} width="104" height="104" rx="36" transform={`rotate(45 ${petal.cx} ${petal.cy})`} />)}
@@ -58,7 +58,7 @@ export function SerraLogo({ size = 48, animated = true, title = 'Sera', classNam
         <g fill="none">
           {PETALS.map((petal) => <g key={petal.x + '-' + petal.y} transform={`rotate(45 ${petal.cx} ${petal.cy})`}>
             <rect x={petal.x} y={petal.y} width="104" height="104" rx="36" stroke={`url(#${rimId})`} strokeWidth="1.5" vectorEffect="non-scaling-stroke" />
-            <rect x={petal.x + 2} y={petal.y + 2} width="100" height="100" rx="34" stroke="#E8F0FC" strokeOpacity=".5" strokeWidth=".75" vectorEffect="non-scaling-stroke" />
+            <rect x={petal.x + 2} y={petal.y + 2} width="100" height="100" rx="34" stroke="var(--ink)" strokeOpacity=".5" strokeWidth=".75" vectorEffect="non-scaling-stroke" />
           </g>)}
           <g clipPath={`url(#${clipSvgId})`}>
             {SPECULARS.map((spec) => <ellipse key={spec.cx + '-' + spec.cy} cx={spec.cx} cy={spec.cy} rx="30" ry="14" fill={`url(#${specId})`} />)}

@@ -1,0 +1,45 @@
+/* Hallmark · genre: atmospheric · macrostructure: Editorial split · design-system: design.md · designed-as-app */
+.utility-page { min-height: 100dvh; background: var(--bg); }
+.utility-card { max-width: 640px; border-top: 1px solid var(--border); padding-top: 28px; }.utility-status { display: grid; place-items: center; width: 64px; height: 64px; margin-block: 56px 28px; border: 1px solid var(--accent); color: var(--accent); }.utility-card h1 { font-size: clamp(40px,6vw,64px); }.utility-card p { margin-bottom: 32px; }
+.auth-page { min-height: 100dvh; display: grid; grid-template-columns: minmax(0,.9fr) minmax(460px,1.1fr); }
+.auth-art { position: sticky; top: 0; height: 100dvh; background: #111; overflow: hidden; }
+.auth-art img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: 71% center; }
+.auth-art::after { content: ''; position: absolute; inset: 0; background: linear-gradient(180deg, rgb(0 0 0 / .2), rgb(0 0 0 / .85)); }
+.auth-art-copy { position: absolute; z-index: 1; bottom: 64px; inset-inline: clamp(28px,4vw,64px); color: white; }
+.auth-art-copy h2 { font-family: var(--font-display); text-transform: uppercase; font-size: clamp(44px,4.5vw,76px); line-height: 1.02; }
+.auth-art-copy p { color: #c5c5c7; font-size: 13px; }
+.auth-proof { display: flex; gap: 12px; align-items: center; padding-top: 24px; margin-top: 24px; border-top: 1px solid rgb(255 255 255 / .25); font-size: 11px; color: #d1d1d1; }
+.auth-panel { min-height: 100dvh; display: flex; justify-content: center; align-items: center; padding: 56px clamp(24px,4vw,64px); background: var(--bg); }
+.auth-card { width: min(100%,520px); }
+.auth-card-wide { width: min(100%,660px); }
+.auth-title { margin-block: 44px 28px; }
+.auth-title h1 { font-size: clamp(40px,4vw,56px); margin: 8px 0 16px; }
+.auth-title p { font-size: 12px; }
+.auth-form { gap: 20px; }
+.role-switcher { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 8px; margin-bottom: 28px; }
+.role-switcher button { display: flex; align-items: center; gap: 12px; padding: 16px; min-height: 70px; text-align: left; border: 1px solid var(--border); background: var(--surface); border-radius: 4px; }
+.role-switcher button.active { border-color: var(--accent); background: var(--accent-soft); }
+.role-switcher strong, .role-switcher small { display: block; }.role-switcher strong { font-size: 12px; }.role-switcher small { color: var(--muted); font-size: 9px; margin-top: 4px; }
+.role-switcher svg { color: var(--accent); }
+.auth-alternate { font-size: 11px; text-align: center; margin-top: 28px; color: var(--muted); }
+.auth-alternate a { color: var(--accent); }
+.team-access-note { display: flex; align-items: center; gap: 12px; padding: 16px; border-left: 2px solid var(--accent); background: var(--surface); margin-bottom: 24px; }
+.team-access-note strong, .team-access-note small { display: block; }.team-access-note small { color: var(--muted); }
+.demo-access { margin-top: 28px; border-top: 1px solid var(--border); padding-top: 16px; font-size: 11px; }
+.demo-access summary { display: flex; align-items: center; justify-content: space-between; cursor: pointer; color: var(--muted); min-height: 44px; }
+.demo-access summary > span { display: flex; gap: 8px; align-items: center; }
+.demo-buttons { display: flex; flex-wrap: wrap; gap: 8px; }.demo-buttons button { padding: 10px; border: 1px solid var(--border); background: var(--surface); min-height: 44px; }
+.signup-chooser { background: var(--bg); padding-block: 64px; }.signup-card { max-width: 960px; width: 100%; }.signup-card > .eyebrow { display: block; margin-top: 48px; }
+.signup-card h1 { max-width: 720px; margin-top: 12px; }.signup-choices { margin-top: 36px; }
+.signup-choice { padding: 32px; min-height: 300px; display: flex; flex-direction: column; border-top: 2px solid var(--accent); }
+.signup-choice h2 { font-size: 32px; margin: 32px 0 16px; }.signup-choice p { font-size: 13px; }.signup-choice > span { color: var(--accent); display: flex; justify-content: space-between; margin-top: auto; font-size: 12px; padding-top: 24px; }
+.step-number { color: var(--accent); }
+.signup-password-pair { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 16px; }.signup-fullname { grid-column: 1 / -1; }
+.password-match { display: inline-flex; align-items: center; gap: 4px; min-height: 18px; font-size: 9px; }.password-match.is-mismatch { color: var(--danger); }.password-match.is-match { color: var(--success); }
+.signup-progress { margin-bottom: 28px; }.signup-progress-track { height: 2px; background: var(--border); }.signup-progress-track span { display: block; height: 100%; background: var(--accent); }
+.signup-progress-labels { display: flex; justify-content: space-between; gap: 12px; padding-top: 16px; font-size: 10px; color: var(--muted); }.signup-progress-labels span { display: flex; align-items: center; gap: 8px; }.signup-progress-labels b { display: grid; place-items: center; width: 24px; height: 24px; border: 1px solid var(--border); }.signup-progress-labels .active { color: var(--accent); }.signup-progress-labels .complete { color: var(--success); }
+.signup-step-actions { display: flex; justify-content: end; gap: 12px; }
+.signup-complete { padding: 40px; max-width: 760px; }.signup-complete h1 { margin-top: 20px; }.signup-complete-icon { color: var(--success); margin-bottom: 24px; }.signup-complete-icon svg { width: 40px; height: 40px; }.signup-complete-steps { list-style: none; padding: 0; display: grid; gap: 20px; margin: 32px 0; }.signup-complete-steps li { display: flex; align-items: start; gap: 16px; }.signup-complete-steps b { color: var(--accent); }.signup-complete-steps strong, .signup-complete-steps small { display: block; }.signup-complete-steps small { color: var(--muted); margin-top: 6px; }
+.legal-page { max-width: 1200px; display: grid; grid-template-columns: 280px 1fr; gap: 64px; padding-top: 64px; }.legal-intro { position: sticky; top: 40px; align-self: start; }.legal-document { padding-top: 24px; }.legal-document > section { padding-block: 28px; border-top: 1px solid var(--border); }.legal-document p { color: var(--muted); }
+@media (max-width: 1023px) { .auth-page { grid-template-columns: 1fr; }.auth-art { position: relative; height: 360px; }.auth-art-copy { bottom: 32px; }.auth-art-copy h2 { font-size: 44px; max-width: 600px; }.auth-art-copy p, .auth-proof { display: none; }.auth-panel { min-height: auto; padding-block: 40px; }.signup-chooser { min-height: 100dvh; }.legal-page { grid-template-columns: 1fr; gap: 20px; }.legal-intro { position: static; } }
+@media (max-width: 600px) { .auth-art { height: 260px; }.auth-art-copy h2 { font-size: 38px; }.auth-title { margin-top: 32px; }.role-switcher button { padding: 12px; gap: 8px; }.role-switcher small { font-size: 8px; }.signup-password-pair { grid-template-columns: 1fr; }.signup-progress-labels { gap: 8px; font-size: 8px; }.signup-progress-labels span { gap: 4px; }.signup-complete { padding: 24px; }.signup-choice { min-height: 260px; } }

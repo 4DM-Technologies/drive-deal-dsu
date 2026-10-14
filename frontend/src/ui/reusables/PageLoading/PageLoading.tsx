@@ -6,7 +6,7 @@ export function SerraLoader({ size = 64, label = 'Loading' }: { size?: number; l
   return <span className="serra-loader" role="status" aria-label={label} style={{ width: frame, height: frame }}>
     <svg className="serra-loader-ring" viewBox="0 0 100 100" aria-hidden="true" focusable="false">
       <defs>
-        <linearGradient id="serra-loader-arc" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor="#1765d5" /><stop offset="1" stopColor="#70a8ff" /></linearGradient>
+        <linearGradient id="serra-loader-arc" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor="var(--accent)" /><stop offset="1" stopColor="var(--ink)" /></linearGradient>
       </defs>
       <circle className="serra-loader-track" cx="50" cy="50" r="46" />
       <circle className="serra-loader-arc" cx="50" cy="50" r="46" pathLength="100" />

@@ -4,7 +4,7 @@ export const BROWSER_STORAGE_KEYS = Object.freeze({
   session: 'deal-and-drive-demo-v4',
   activeTheme: 'drivedeal.activeTheme',
   seraWidgetDismissed: 'drivedeal.sera-widget-dismissed',
-  // Kept from when only the Administrator page had dark mode, so an earlier choice carries over.
+  // Shared workspace preference; keep the original key to preserve earlier choices.
   colorMode: 'drivedeal.admin.color-mode',
 });
 

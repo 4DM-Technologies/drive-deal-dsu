@@ -1,14 +1,11 @@
 import { AnimatePresence, motion } from 'motion/react';
 import { BriefcaseBusiness, CircleQuestionMark, ClipboardCheck, Eye, FileText, Gauge, Headphones, Home, LogOut, Menu, MessageCircle, PackageCheck, ScrollText, Search, ShieldCheck, TicketCheck, UserRound, Users, WalletCards, X } from 'lucide-react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { useEffect, useState } from 'react';
+import { useEffect, useLayoutEffect, useState } from 'react';
 import type { ComponentType } from 'react';
 import { planDetailLine } from '@/helpers/plans';
 import { planLabel } from '@/helpers/subscription';
-import { ColorModeToggle } from '@/ui/reusables/ColorModeToggle/ColorModeToggle';
 import { SerraIcon } from '@/ui/reusables/Icons/SerraIcon';
-import { COLOR_MODE_ROLES, useColorMode } from '@/services/platform/colorMode';
-import './darkTheme.css';
 import { SerraWidget } from '@/ui/reusables/SerraWidget/SerraWidget';
 import { Brand } from '@/ui/reusables/Brand/Brand';
 import { ProfileMenu } from '@/ui/reusables/ProfileMenu/ProfileMenu';
@@ -17,8 +14,11 @@ import { SupportReporter } from '@/ui/reusables/SupportReporter/SupportReporter'
 import type { Role } from '@/types/domain';
 import { previewQuery, useEffectiveSession } from '@/ui/navigations/previewSession';
 import { BROWSER_STORAGE_KEYS, WORKSPACE_VIEW_QUERY_PARAMETER } from '@/config/browser';
+import { useColorMode } from '@/services/platform/colorMode';
+import { setWorkspaceColorMode } from '@/services/platform/theme';
+import { ColorModeToggle } from '@/ui/reusables/ColorModeToggle/ColorModeToggle';
 
-/** Sera's flat mark as a nav icon, coloured like the line icons beside it (muted at rest, blue when its page is open). It fills its whole box, so it is drawn only a little larger than they are. */
+/** Sera's flat mark follows the same semantic colors as the navigation icons. */
 function SeraNavIcon({ size = 16 }: { size?: number }) {
   return <SerraIcon className="nav-sera-icon" size={size + 2} />;
 }
@@ -52,7 +52,6 @@ const links: Record<Role, Array<{ to: string; label: string; icon: ComponentType
 
 export function AppShell() {
   const session = useEffectiveSession();
-  const accountSession = useDemoStore((state) => state.session);
   const sidebarOpen = useDemoStore((state) => state.sidebarOpen);
   const setSidebarOpen = useDemoStore((state) => state.setSidebarOpen);
   const logout = useDemoStore((state) => state.logout);
@@ -64,15 +63,19 @@ export function AppShell() {
   const previewSearch = previewQuery(location.search);
   const previewPath = (path: string) => `${path}${previewSearch}`;
   const [supportOpen, setSupportOpen] = useState(false);
-  // Dark mode is the support workspace's: the real account decides, so read-only previews and the theme preview stay light.
-  const { mode: colorMode } = useColorMode();
-  const showColorMode = !!accountSession && COLOR_MODE_ROLES.includes(accountSession.role) && !isThemePreview;
-  const dark = showColorMode && colorMode === 'dark' && !workspaceView;
+  const { mode, toggle } = useColorMode();
+  const hasSession = !!session;
+  useLayoutEffect(() => {
+    if (!hasSession || isThemePreview) return;
+    setWorkspaceColorMode(mode);
+    return () => setWorkspaceColorMode(null);
+  }, [hasSession, isThemePreview, mode]);
   useEffect(() => {
-    if (!dark) return undefined;
-    document.documentElement.dataset.uiTheme = 'dark';
-    return () => { delete document.documentElement.dataset.uiTheme; };
-  }, [dark]);
+    if (!sidebarOpen) return;
+    const close = (event: KeyboardEvent) => { if (event.key === 'Escape') setSidebarOpen(false); };
+    document.addEventListener('keydown', close);
+    return () => document.removeEventListener('keydown', close);
+  }, [sidebarOpen, setSidebarOpen]);
   // Switching conversations (/chat/:quoteId) is not a page change: keep the same page instance so nothing remounts or re-animates.
   const pageKey = /^\/chat\/(?!requests$)[^/]+$/.test(location.pathname) ? '/chat' : location.pathname;
   useEffect(() => { window.scrollTo({ top: 0, left: 0 }); }, [pageKey]);
@@ -85,6 +88,7 @@ export function AppShell() {
   const roleHome = ['support', 'support-admin', 'admin'].includes(session.role) ? '/support' : '/home';
   const signOut = () => {
     if (isThemePreview) return;
+    setSidebarOpen(false);
     window.localStorage.removeItem(BROWSER_STORAGE_KEYS.accessToken);
     window.localStorage.removeItem(BROWSER_STORAGE_KEYS.refreshToken);
     logout();
@@ -92,29 +96,33 @@ export function AppShell() {
   };
 
   return (
-    <div className="page">
+    <div className="page app-frame">
+      <a className="skip-link" href="#workspace-main">Skip to workspace</a>
+      <aside className="workspace-rail" aria-label="Workspace navigation">
+        <NavLink className="rail-brand" to={previewPath(roleHome)} aria-label="Deal&Drive home"><Brand /></NavLink>
+        <div className="rail-context"><span className="eyebrow">Your workspace</span><strong>{session.role.replace('-', ' ')}</strong></div>
+        <nav className="rail-links" aria-label="Primary navigation">{nav.map(({ to, label, icon: Icon }) => <NavLink key={to} to={previewPath(to)} className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}><Icon size={18} /><span>{label}</span><span className="rail-arrow" aria-hidden="true">↗</span></NavLink>)}</nav>
+        <div className="rail-bottom">{showAccount && <NavLink className="rail-account" to="/account"><WalletCards size={18} /><span><strong>Account</strong><small>{subscription ? planLabel(subscription) : 'Plan & billing'}</small></span></NavLink>}<div className="rail-signature">Dealers compete.<br /><strong>You decide.</strong></div></div>
+      </aside>
       <header className="topbar">
         <div className="shell topbar-inner">
           <NavLink to={previewPath(roleHome)} aria-label={`Deal&Drive ${session.role} home`}><Brand /></NavLink>
-          <nav className="main-nav" aria-label="Primary navigation">
-            {nav.map(({ to, label, icon: Icon }) => <NavLink key={to} to={previewPath(to)} className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}><Icon size={16} />{label}</NavLink>)}
-          </nav>
+          <div className="workspace-breadcrumb"><span>Deal&amp;Drive</span><i>/</i><strong>{nav.find((item) => location.pathname === item.to || location.pathname.startsWith(`${item.to}/`))?.label ?? (location.pathname === '/account' ? 'Account' : location.pathname === '/billing' ? 'Billing' : 'Workspace')}</strong></div>
           <div className="topbar-actions">
-            {showColorMode && <ColorModeToggle />}
+            {!isThemePreview && <ColorModeToggle mode={mode} onToggle={toggle} />}
             {(session.role === 'buyer' || session.role === 'dealer') && <button className="support-help-trigger desktop-header-action" onClick={() => setSupportOpen(true)} aria-label="Open help and support"><CircleQuestionMark size={18} /><span>Help</span></button>}
             <ProfileMenu session={session} previewSearch={previewSearch} showAccount={showAccount} signOutDisabled={isThemePreview} onSignOut={signOut} />
-            <button className="button button-ghost mobile-menu" onClick={() => setSidebarOpen(!sidebarOpen)} aria-label="Open menu"><Menu /></button>
+            <button className="button button-ghost mobile-menu" onClick={() => setSidebarOpen(!sidebarOpen)} aria-label="Open menu" aria-expanded={sidebarOpen}><Menu /></button>
           </div>
         </div>
       </header>
       {workspaceView && <div className="workspace-view-banner"><div className="shell"><Eye size={17} /><span><strong>{workspaceView === 'buyer' ? 'Buyer' : 'Dealer'} workspace · read only</strong><small>You can inspect the experience and marketplace data. Sensitive and write operations remain disabled.</small></span><button type="button" onClick={() => navigate('/support')}>Return to Support</button></div></div>}
       <AnimatePresence>
         {sidebarOpen && (
-          <motion.div style={{ position: 'fixed', inset: 0, zIndex: 70, background: 'rgba(16,35,63,.28)' }} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setSidebarOpen(false)}>
-            <motion.nav className="mobile-nav-drawer" style={{ width: 'min(340px,88vw)', height: '100%', padding: '1rem', background: 'var(--raised)', marginLeft: 'auto' }} initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }} transition={{ duration: .25 }} onClick={(event) => event.stopPropagation()}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}><Brand /><button className="button button-ghost" onClick={() => setSidebarOpen(false)}><X /></button></div>
+          <motion.div style={{ position: 'fixed', inset: 0, zIndex: 70, background: 'rgb(0 0 0 / .75)' }} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setSidebarOpen(false)}>
+            <motion.nav className="mobile-nav-drawer" role="dialog" aria-modal="true" aria-label="Workspace menu" style={{ width: 'min(340px,88vw)', height: '100%', padding: '1rem', background: 'var(--raised)', marginLeft: 'auto' }} initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }} transition={{ duration: .25 }} onClick={(event) => event.stopPropagation()}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}><Brand /><button className="button button-ghost" onClick={() => setSidebarOpen(false)} aria-label="Close navigation"><X /></button></div>
               <div className="mobile-nav-links">{nav.map(({ to, label, icon: Icon }) => <NavLink key={to} to={previewPath(to)} onClick={() => setSidebarOpen(false)} className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}><Icon size={17} />{label}</NavLink>)}</div>
-              {showColorMode && <ColorModeToggle variant="drawer" />}
               <div className="mobile-nav-account">
                 <button type="button" onClick={() => { navigate(previewPath('/profiles')); setSidebarOpen(false); }}><span className="avatar">{session.avatarInitials}</span><span><strong>{session.fullName}</strong><small>Profile</small></span></button>
                 {showAccount && <button type="button" onClick={() => { navigate('/account'); setSidebarOpen(false); }}><WalletCards size={18} /><span><strong>Account</strong><small>{subscription ? `${planLabel(subscription)} · ${planDetailLine(subscription)}` : 'Your plan and billing'}</small></span></button>}
@@ -125,7 +133,7 @@ export function AppShell() {
           </motion.div>
         )}
       </AnimatePresence>
-      <motion.main key={pageKey} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: .18 }} onClickCapture={(event) => { if (!workspaceView) return; const anchor = (event.target as HTMLElement).closest('a'); if (!anchor || anchor.target || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return; const target = new URL(anchor.href, window.location.origin); if (target.origin !== window.location.origin || target.searchParams.has(WORKSPACE_VIEW_QUERY_PARAMETER)) return; event.preventDefault(); target.searchParams.set(WORKSPACE_VIEW_QUERY_PARAMETER, workspaceView); navigate(`${target.pathname}${target.search}${target.hash}`); }}>
+      <motion.main className="workspace-main" id="workspace-main" tabIndex={-1} key={pageKey} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: .15 }} onClickCapture={(event) => { if (!workspaceView) return; const anchor = (event.target as HTMLElement).closest('a'); if (!anchor || anchor.target || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return; const target = new URL(anchor.href, window.location.origin); if (target.origin !== window.location.origin || target.searchParams.has(WORKSPACE_VIEW_QUERY_PARAMETER)) return; event.preventDefault(); target.searchParams.set(WORKSPACE_VIEW_QUERY_PARAMETER, workspaceView); navigate(`${target.pathname}${target.search}${target.hash}`); }}>
         <Outlet />
       </motion.main>
       {session.role === 'buyer' && location.pathname !== '/chatbot' && <SerraWidget />}
