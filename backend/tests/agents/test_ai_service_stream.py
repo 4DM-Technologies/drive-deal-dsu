@@ -48,6 +48,8 @@ async def _drain(
     saved_preferences: dict | None = None,
     states: list[dict] | None = None,
     match_mock: AsyncMock | None = None,
+    requirement_output: dict | None = None,
+    requirement_states: list[dict] | None = None,
     **payload_overrides,
 ):
     started: list[str] = []
@@ -61,8 +63,19 @@ async def _drain(
 
         main = SimpleNamespace(ainvoke=ainvoke)
     requirements = _graph(
-        {"requirements": {"budget": 40000}, "suggested_questions": ["q"]}, started, "requirements", 5.0
+        requirement_output or {"requirements": {"budget": 40000}, "suggested_questions": ["q"]},
+        started,
+        "requirements",
+        0.0 if requirement_output else 5.0,
     )
+    if requirement_states is not None:
+        record_requirements = requirements.ainvoke
+
+        async def requirements_ainvoke(state):
+            requirement_states.append(state)
+            return await record_requirements(state)
+
+        requirements = SimpleNamespace(ainvoke=requirements_ainvoke)
     session = AsyncMock()
     session.add = MagicMock()
 
@@ -386,6 +399,73 @@ async def test_preference_button_continues_the_first_question_with_its_cards() -
 
     assert sorted(started) == ["main", "requirements"]
     match.assert_awaited_once()
+
+
+COMPARED_CARS = {
+    "entry_mode": "ask",
+    "preference_prompted": True,
+    "requirements": {"brand": "Honda", "model": "Accord", "buyer_area": "Austin", "state": "Texas"},
+    "conversation_context": [
+        {"role": "user", "body": "compare the Toyota Camry and Honda Accord"},
+        {"role": "assistant", "body": "The Camry is more efficient; the Accord has more rear legroom."},
+    ],
+}
+
+
+async def test_settling_on_a_car_later_in_the_chat_shows_an_editable_request_card() -> None:
+    requirement_states: list[dict] = []
+    started, events, _ = await _drain(
+        "I'm good with the Camry, post a request for it",
+        {"route": "requirements", "answer": "Great choice - your request is ready below."},
+        memory=COMPARED_CARS,
+        requirement_output={
+            "requirements": {"brand": "Toyota", "model": "Camry", "buyer_area": "Austin", "state": "Texas"},
+            "missing_fields": ["timeline"],
+            "suggested_questions": [{"field": "timeline"}],
+        },
+        requirement_states=requirement_states,
+    )
+
+    assert started == ["main", "requirements"]
+    assert requirement_states[0]["vehicle_selection"] is True
+    card = next(event for event in events if event.get("kind") == "requestPreview")
+    assert card["payload"]["model"] == "Camry"
+    assert card["payload"]["confirmation_required"] is True
+    assert "questions" not in card["payload"]
+
+
+async def test_ordinary_later_question_still_gets_no_request_card() -> None:
+    started, events, _ = await _drain(
+        "which one has better rear seats?",
+        {"route": "advice", "answer": "The Accord."},
+        memory=COMPARED_CARS,
+        requirement_output={"requirements": {"brand": "Toyota"}},
+    )
+
+    assert started == ["main"]
+    assert not any(event["type"] == "card" for event in events)
+
+
+async def test_a_new_request_card_replaces_the_request_already_posted() -> None:
+    session = AsyncMock()
+    session.add = MagicMock()
+    posted = {"published_request": {"id": "r1"}, "published_request_id": "r1"}
+
+    await AiService(session)._save_checkpoint(
+        "t1",
+        "u1",
+        _payload("I'm good with the Camry"),
+        {"answer": "x", "route": "requirements"},
+        {"requirements": {"brand": "Toyota", "model": "Camry"}, "vehicle_selection": True},
+        posted,
+    )
+    saved = session.add.call_args.args[0].checkpoint
+    assert saved["published_request"] is None
+    assert saved["published_request_id"] is None
+    assert saved["requirements"] == {"brand": "Toyota", "model": "Camry"}
+
+    await AiService(session)._save_checkpoint("t1", "u1", _payload("thanks"), {"answer": "y"}, {}, posted)
+    assert session.add.call_args.args[0].checkpoint["published_request_id"] == "r1"
 
 
 async def test_delete_thread_removes_only_an_owned_chat() -> None:

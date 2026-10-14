@@ -13,6 +13,22 @@ from src.repositories.schema import Brand, State
 from src.utils.logger import logger
 
 REQUIRED = ["brand", "model", "buyer_area", "state", "timeline"]
+# Fields describing the vehicle itself. When the buyer settles on a car later in a chat, these are rebuilt for that
+# car so an earlier draft's vehicle does not leak into the new request; location and timing are kept.
+VEHICLE_FIELDS = (
+    "brand",
+    "model",
+    "model_name",
+    "years",
+    "year_min",
+    "year_max",
+    "trim",
+    "body_type",
+    "fuel_type",
+    "drivetrain",
+    "transmission",
+    "color",
+)
 
 # Only used by the synchronous entry point (no session, e.g. unit tests). The graph node reads the real
 # brands table instead, so this list is a fallback and not a second source of truth.
@@ -62,6 +78,7 @@ STATE_CODE_RE = re.compile(r"(?:,\s*|\b(?:in|near|around|from|to)\s+)([A-Z]{2})\
 class ExtractedRequirements(BaseModel):
     """Structured output contract for the LLM pass. Free-text replies are never trusted directly."""
 
+    brand: str | None = None
     model_name: str | None = None
     body_type: str | None = None
     buyer_area: str | None = None
@@ -142,6 +159,18 @@ def gather_requirements(state: AgentState) -> AgentState:
     return _finish(current, step)
 
 
+def _conversation_block(state: AgentState) -> str:
+    """The recent buyer and Sera messages, so a follow-up such as "I'm good with car A" can be resolved."""
+    turns = [
+        f"{item['role'].upper()}: {str(item['body'])[:600]}"
+        for item in state.get("conversation_context") or []
+        if isinstance(item, dict) and item.get("role") in {"user", "assistant"} and item.get("body")
+    ][-8:]
+    if not turns:
+        return ""
+    return '<conversation_context trust="untrusted">\n' + "\n".join(turns) + "\n</conversation_context>\n\n"
+
+
 async def _llm_extract(
     llm: LlmClient,
     state: AgentState,
@@ -158,17 +187,27 @@ async def _llm_extract(
     Runs only while REQUIRED fields are still missing, and any failure falls back to the deterministic
     result rather than failing the turn - the requirements card is advisory, not the answer itself."""
     valid_states = {state_row["name"].lower(): state_row["name"] for state_row in states}
+    valid_brands = {brand.lower(): brand for brand in brands}
     state_lines = ", ".join(f"{row['name']} ({row['code']})" for row in states)
+    selection = (
+        "VEHICLE SELECTION: the buyer is settling on one vehicle discussed in the conversation (for example "
+        '"I\'m good with the Camry" or "post a request for the second one"). Work out which vehicle they mean '
+        "from the conversation and return its brand and model_name.\n"
+        if state.get("vehicle_selection")
+        else ""
+    )
     prompt = (
         f"{load_prompt('requirements.md', prompt_overrides)}\n\n"
         f"ALLOWED BRANDS: {', '.join(brands)}\n"
         f"US STATES AND CODES: {state_lines}\n"
         f"ALREADY CAPTURED (do not repeat): {current}\n"
         f"STILL MISSING: {', '.join(missing)}\n"
-        "Reply with ONLY a JSON object using the keys model_name, body_type, buyer_area, state, timeline, "
-        "budget_max. Use null for anything the buyer did not say. state must be one of the full state names "
-        "listed above, resolved from whatever city or region the buyer mentioned. Do not guess and do not "
-        "invent a model the buyer did not name.\n\n"
+        f"{selection}"
+        "Reply with ONLY a JSON object using the keys brand, model_name, body_type, buyer_area, state, timeline, "
+        "budget_max. Use null for anything the buyer did not say. brand must be one of the allowed brands. state "
+        "must be one of the full state names listed above, resolved from whatever city or region the buyer "
+        "mentioned. Do not guess and do not invent a model the buyer did not name.\n\n"
+        f"{_conversation_block(state)}"
         f'<buyer_message trust="untrusted">\n{state.get("message", "")}\n</buyer_message>'
     )
     try:
@@ -189,6 +228,7 @@ async def _llm_extract(
         return {}
 
     values = extracted.model_dump()
+    values["brand"] = valid_brands.get(str(values.get("brand") or "").lower())
     if values.get("state") and valid_states.get(str(values["state"]).lower()):
         values["state"] = valid_states[str(values["state"]).lower()]
     else:
@@ -210,6 +250,9 @@ async def gather_requirements_from_message(
     step = log_agent_step("requirements", "gather", state)
     text = state.get("message", "")
     current = dict(state.get("requirements", {}))
+    selection = bool(state.get("vehicle_selection"))
+    if selection:
+        current = {key: value for key, value in current.items() if key not in VEHICLE_FIELDS}
     try:
         brands, states = await _reference_data(session)
     except Exception as exc:
@@ -232,8 +275,9 @@ async def gather_requirements_from_message(
                 agent_profile,
             )
             for key, value in enriched.items():
-                # Never clobber a value the deterministic pass already trusted.
-                if value and not current.get(key):
+                # Never clobber a value the deterministic pass already trusted, except the chosen vehicle on a
+                # selection turn: the conversation decides which car it is, not a brand word in the message.
+                if value and (not current.get(key) or (selection and key in VEHICLE_FIELDS)):
                     current[key] = value
         except Exception as exc:  # pragma: no cover - defensive, _llm_extract already swallows
             logger.warning(

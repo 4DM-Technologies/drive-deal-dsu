@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { advisorResponseActions, chosenGuidedOption, hasGuidedHistoryOptions, mergeLocalGreeting, normalizeRequestDraft, shouldShowAdvisorComposer } from './AdvisorScreen';
+import { advisorResponseActions, chosenGuidedOption, hasGuidedHistoryOptions, mergeLocalGreeting, normalizeRequestDraft, parseBudget, shouldShowAdvisorComposer } from './AdvisorScreen';
 
 describe('shouldShowAdvisorComposer', () => {
   it('keeps the standard composer out of the guided HITL and review steps', () => {
@@ -71,7 +71,30 @@ describe('normalizeRequestDraft', () => {
       brand: 'BMW',
       model: 'X3',
       mustHaves: 'AWD, heated seats',
+      area: '',
+      timeline: '',
+      budget: '',
     });
+  });
+
+  it('keeps values the buyer already gave for the always-editable fields', () => {
+    expect(normalizeRequestDraft({ brand: 'Toyota', model: 'Camry', buyer_area: 'Austin', timeline: 'ASAP', budget_max: '32000' })).toEqual({
+      brand: 'Toyota', model: 'Camry', area: 'Austin', timeline: 'ASAP', budget: '32000',
+    });
+  });
+});
+
+describe('parseBudget', () => {
+  it('reads the common ways a buyer types a budget', () => {
+    expect(parseBudget('$45,000')).toBe('45000');
+    expect(parseBudget('45k')).toBe('45000');
+    expect(parseBudget('32500')).toBe('32500');
+  });
+
+  it('leaves an empty or unreadable budget out of the request', () => {
+    expect(parseBudget('')).toBeNull();
+    expect(parseBudget(undefined)).toBeNull();
+    expect(parseBudget('around forty')).toBeNull();
   });
 });
 

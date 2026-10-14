@@ -461,6 +461,17 @@ class AiService:
                 else:
                     await requirement_session.commit()
                 await requirement_session.close()
+        if not first_question and payload.agent != "compare-agent" and main_result.get("route") == "requirements":
+            # The buyer settled on a car later in the chat ("I'm good with car A"). This is the one card allowed
+            # after the first question: an editable request for that car, built from the conversation.
+            yield {"type": "status", "phase": "composing", "label": "Preparing your request"}
+            requirement_result = await build_requirement_graph(
+                self.session,
+                prompt_overrides=runtime["prompts"],
+                prompt_version=runtime["version"],
+                agent_profiles=runtime["agent_profiles"],
+            ).ainvoke({**state, "vehicle_selection": True})
+            requirement_result["vehicle_selection"] = True
         if main_result.get("sources") and not explicit_web_search:
             yield {"type": "status", "phase": "crawling", "label": "Searching trusted sources"}
         yield {"type": "status", "phase": "composing", "label": "Preparing response"}
@@ -473,6 +484,18 @@ class AiService:
         gate = await self.posting_gate(buyer)
         if guided_step is not None and main_result.get("route") not in DIRECT_REPLY_ROUTES:
             yield {"type": "card", "kind": "question", "payload": guided_step.model_dump()}
+        elif requirement_result.get("vehicle_selection") and requirement_result.get("requirements"):
+            # Shown even with fields missing: the buyer fills in anything else (such as city) on the card itself.
+            yield {
+                "type": "card",
+                "kind": "requestPreview",
+                "payload": {
+                    **requirement_result["requirements"],
+                    "confirmation_required": True,
+                    "posting_allowed": gate["posting_allowed"],
+                    "posting_reason": gate["posting_reason"],
+                },
+            }
         elif not requirement_result.get("missing_fields") and requirement_result.get("requirements"):
             yield {
                 "type": "card",
@@ -845,6 +868,7 @@ class AiService:
             else memory.get("active_request")
         )
         user_message = None if is_control else payload.message
+        new_draft = bool(requirements.get("vehicle_selection"))
         # The buyer's answer to the preferences card holds for the rest of the chat, so it is never asked again.
         preference_decision = (
             payload.preference_action
@@ -866,8 +890,14 @@ class AiService:
                     "questions": requirements.get("suggested_questions", []),
                     "preferences": main.get("preferences") or memory.get("preferences", {}),
                     "preferences_pending": main.get("preferences_pending", memory.get("preferences_pending", False)),
-                    "published_request": main.get("published_request") or memory.get("published_request"),
-                    "published_request_id": memory.get("published_request_id")
+                    # A new request card for another car replaces the one already posted, so "post it" sends the
+                    # new car instead of returning the earlier request.
+                    "published_request": None
+                    if new_draft
+                    else main.get("published_request") or memory.get("published_request"),
+                    "published_request_id": None
+                    if new_draft
+                    else memory.get("published_request_id")
                     or (main.get("published_request") or {}).get("id")
                     or (memory.get("published_request") or {}).get("id"),
                     "request_context": payload.request_context or memory.get("request_context"),
