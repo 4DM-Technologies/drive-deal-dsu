@@ -4,6 +4,8 @@ import type { KeyboardEvent } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { relativeTime } from '@/helpers/dateTime';
 import { CHAT_GUIDELINES_NOTICE, violatesChatGuidelines } from '@/helpers/communityGuidelines';
+import { revealWithinScrollArea } from '@/helpers/scrollWithin';
+import { useKeyboardScrollReset } from '@/helpers/useKeyboardScrollReset';
 import { client } from '@/services/platform/client';
 import { useDemoStore } from '@/services/platform/demoStore';
 import { useChatUpdates } from '@/services/platform/realtime';
@@ -42,6 +44,7 @@ export default function ChatScreen() {
   const endRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  useKeyboardScrollReset();
   // Bumped to refetch the open thread or the whole list when the other person changes something.
   const [threadVersion, setThreadVersion] = useState(0);
   const [listVersion, setListVersion] = useState(0);
@@ -148,7 +151,7 @@ export default function ChatScreen() {
   useEffect(() => {
     const switched = scrolledFor.current !== effectiveId;
     scrolledFor.current = effectiveId;
-    endRef.current?.scrollIntoView({ behavior: switched ? 'auto' : 'smooth', block: 'nearest' });
+    revealWithinScrollArea(endRef.current, switched ? 'auto' : 'smooth');
   }, [effectiveId, thread.length, lastMessageId]);
 
   // Choosing Edit puts the message in the composer: focus it, and make sure the highlighted message is on screen.
@@ -157,7 +160,7 @@ export default function ChatScreen() {
     const field = inputRef.current;
     field?.focus();
     field?.setSelectionRange(field.value.length, field.value.length);
-    scrollRef.current?.querySelector(`[data-message-id="${CSS.escape(editingMessageId)}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    revealWithinScrollArea(scrollRef.current?.querySelector<HTMLElement>(`[data-message-id="${CSS.escape(editingMessageId)}"]`));
   }, [editingMessageId]);
 
   // The composer grows with the message (up to a few lines, then scrolls) instead of staying a fixed single-line box.
