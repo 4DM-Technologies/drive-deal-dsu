@@ -9,7 +9,9 @@ import remarkGfm from 'remark-gfm';
 import { formatMoney } from '@/helpers/currency';
 import { relativeTime } from '@/helpers/dateTime';
 import { createId } from '@/helpers/ids';
+import { revealWithinScrollArea } from '@/helpers/scrollWithin';
 import { gateReasonFor, postingGate } from '@/helpers/subscription';
+import { useKeyboardScrollReset } from '@/helpers/useKeyboardScrollReset';
 import { client } from '@/services/platform/client';
 import { useDemoStore } from '@/services/platform/demoStore';
 import { CompareIcon } from '@/ui/reusables/Icons/CompareIcon';
@@ -683,7 +685,8 @@ export default function AdvisorScreen() {
     document.addEventListener('keydown', closeOnEscape);
     return () => document.removeEventListener('keydown', closeOnEscape);
   }, [compareOpen]);
-  useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }, [messages, status, draft, compare]);
+  useEffect(() => { revealWithinScrollArea(endRef.current); }, [messages, status, draft, compare]);
+  useKeyboardScrollReset();
 
   function newChat() {
     ++threadOpenRunRef.current;
