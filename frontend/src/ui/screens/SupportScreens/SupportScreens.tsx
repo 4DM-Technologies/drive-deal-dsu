@@ -53,8 +53,12 @@ export default function SupportScreens() {
     if (reviews) setVerifications((current) => sameRows(current, reviews) ? current : reviews);
     if (queue || reviews) setRefreshedAt(new Date());
   }, []);
-  const refresh = useCallback(() => Promise.all([client.support.queue().catch(() => null), client.verifications.list().catch(() => null)])
-    .then(([queue, reviews]) => applyQueues({ queue, reviews })), [applyQueues]);
+  const needsTickets = path === '/support' || path === '/tickets' || path === '/help-support' || Boolean(ticketId);
+  const needsVerifications = path === '/support' || path === '/verifications';
+  const refresh = useCallback(() => Promise.all([
+    needsTickets ? client.support.queue().catch(() => null) : Promise.resolve(null),
+    needsVerifications ? client.verifications.list().catch(() => null) : Promise.resolve(null),
+  ]).then(([queue, reviews]) => applyQueues({ queue, reviews })), [applyQueues, needsTickets, needsVerifications]);
 
   // Every visit to a support page reads the queues afresh, so a card and the list it opens agree.
   useEffect(() => { void refresh().then(() => setLoaded(true)); }, [refresh, path]);

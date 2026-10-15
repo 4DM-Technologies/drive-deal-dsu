@@ -9,12 +9,19 @@ import { parseSubscription } from '@/helpers/subscription';
 import { ApiError } from '@/services/platform/apiError';
 
 const baseUrl = environment.apiBaseUrl;
+const inFlightReads = new Map<string, Promise<unknown>>();
+// Login returns the profile for the access token it just issued. Remember that token for this
+// page lifetime so the route guard can use that authenticated response instead of immediately
+// requesting the same profile from /auth/me. A hard reload clears this marker and still validates.
+let freshlyAuthenticatedToken: string | null = null;
 
 const token = () => window.localStorage.getItem(BROWSER_STORAGE_KEYS.accessToken);
 const clearTokens = () => {
+  freshlyAuthenticatedToken = null;
   window.localStorage.removeItem(BROWSER_STORAGE_KEYS.accessToken);
   window.localStorage.removeItem(BROWSER_STORAGE_KEYS.refreshToken);
 };
+export const hasFreshLoginSession = () => Boolean(token() && token() === freshlyAuthenticatedToken);
 const workspaceView = () => {
   const value = new URLSearchParams(window.location.search).get(WORKSPACE_VIEW_QUERY_PARAMETER);
   return value === 'buyer' || value === 'dealer' ? value : null;
@@ -32,21 +39,37 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   if (workspaceView() && !['GET', 'HEAD'].includes(method)) {
     throw new Error('This support workspace view is read-only. Return to Support operations to make account or marketplace changes.');
   }
-  const response = await fetch(`${baseUrl}${path}`, {
-    ...init,
-    headers: {
-      // A multipart body needs the browser to set its own content-type, which carries the form boundary.
-      ...(init?.body instanceof FormData ? {} : { 'content-type': 'application/json' }),
-      ...(token() ? { authorization: `Bearer ${token()}` } : {}),
-      ...init?.headers,
-    },
-  });
-  if (!response.ok) {
-    if (response.status === 401) clearTokens();
-    const body = await response.json().catch(() => null);
-    throw ApiError.fromResponse(response.status, body);
+  // React StrictMode deliberately replays mount effects in development. Share overlapping
+  // read requests so that replay (or two components asking for the same resource together)
+  // produces one HTTP request. Mutations and abortable reads are never shared.
+  const readKey = ['GET', 'HEAD'].includes(method) && !init?.signal ? `${method}:${path}:${token() ?? ''}` : null;
+  const existing = readKey ? inFlightReads.get(readKey) : undefined;
+  if (existing) return existing as Promise<T>;
+
+  const pending = (async () => {
+    const response = await fetch(`${baseUrl}${path}`, {
+      ...init,
+      headers: {
+        // A multipart body needs the browser to set its own content-type, which carries the form boundary.
+        ...(init?.body instanceof FormData ? {} : { 'content-type': 'application/json' }),
+        ...(token() ? { authorization: `Bearer ${token()}` } : {}),
+        ...init?.headers,
+      },
+    });
+    if (!response.ok) {
+      if (response.status === 401) clearTokens();
+      const body = await response.json().catch(() => null);
+      throw ApiError.fromResponse(response.status, body);
+    }
+    return response.status === 204 ? undefined : response.json();
+  })();
+
+  if (readKey) inFlightReads.set(readKey, pending);
+  try {
+    return await pending as T;
+  } finally {
+    if (readKey && inFlightReads.get(readKey) === pending) inFlightReads.delete(readKey);
   }
-  return response.status === 204 ? (undefined as T) : response.json();
 }
 
 async function download(path: string, fallbackFilename: string): Promise<{ filename: string; size: number }> {
@@ -339,6 +362,7 @@ export const httpClient: DriveDealClient = {
     login: async (email, password) => {
       const response = await request<{ access_token: string; refresh_token: string; profile: Record<string, unknown> }>('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) });
       storeTokens(response);
+      freshlyAuthenticatedToken = response.access_token;
       return profileToSession(response.profile);
     },
     me: async () => profileToSession(await request('/auth/me')),

@@ -34,7 +34,7 @@ export default function FeedDetailScreen() {
   const [existingQuote, setExistingQuote] = useState<Quote | null>(null);
 
   useEffect(() => { void client.feed.get(requestId).then(setRequest).catch(() => setRequest(null)); }, [requestId]);
-  useEffect(() => { void client.quotes.list().then((rows) => setExistingQuote(rows.find((quote) => quote.requestId === requestId) ?? null)).catch(() => undefined); }, [requestId]);
+  useEffect(() => { void client.quotes.list(requestId).then((rows) => setExistingQuote(rows[0] ?? null)).catch(() => undefined); }, [requestId]);
   const images = useMemo(() => imageFiles.map((file) => ({ file, url: URL.createObjectURL(file) })), [imageFiles]);
   useEffect(() => () => images.forEach(({ url }) => URL.revokeObjectURL(url)), [images]);
   const tax = useMemo(() => vehiclePrice ? (Number(vehiclePrice) * .0625).toFixed(2) : '', [vehiclePrice]);

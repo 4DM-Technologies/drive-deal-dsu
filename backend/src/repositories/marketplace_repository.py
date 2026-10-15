@@ -117,10 +117,11 @@ class MarketplaceRepository:
         return list(result.scalars())
 
     @log_flow(layer="repository")
-    async def quotes_for_dealer(self, dealer_id: str) -> list[DealQuote]:
-        result = await self.session.execute(
-            select(DealQuote).where(DealQuote.dealer_id == dealer_id).order_by(DealQuote.created_at.desc())
-        )
+    async def quotes_for_dealer(self, dealer_id: str, request_id: str | None = None) -> list[DealQuote]:
+        statement = select(DealQuote).where(DealQuote.dealer_id == dealer_id)
+        if request_id:
+            statement = statement.where(DealQuote.buyer_request_id == request_id)
+        result = await self.session.execute(statement.order_by(DealQuote.created_at.desc()))
         return list(result.scalars())
 
     @log_flow(layer="repository")

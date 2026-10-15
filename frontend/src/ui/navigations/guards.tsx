@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { useEffect, useState } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { client } from '@/services/platform/client';
+import { hasFreshLoginSession } from '@/services/platform/httpClient';
 import { useDemoStore } from '@/services/platform/demoStore';
 import { FullScreenLoader } from '@/ui/reusables/PageLoading/PageLoading';
 import type { Role } from '@/types/domain';
@@ -12,11 +13,15 @@ export function RequireSession({ children }: { children: ReactNode }) {
   const session = useDemoStore((state) => state.session);
   const setSession = useDemoStore((state) => state.setSession);
   const location = useLocation();
-  const [checked, setChecked] = useState(() => !window.localStorage.getItem(BROWSER_STORAGE_KEYS.accessToken));
+  const [checked, setChecked] = useState(() => {
+    const token = window.localStorage.getItem(BROWSER_STORAGE_KEYS.accessToken);
+    return !token || hasFreshLoginSession();
+  });
 
   useEffect(() => {
     const token = window.localStorage.getItem(BROWSER_STORAGE_KEYS.accessToken);
     if (!token) return;
+    if (hasFreshLoginSession()) return;
     let active = true;
     void client.auth.me().then((fresh) => { if (active) setSession(fresh); }).catch(() => {
       window.localStorage.removeItem(BROWSER_STORAGE_KEYS.accessToken);

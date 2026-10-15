@@ -177,7 +177,7 @@ class MarketplaceService:
     @log_flow(layer="service")
     async def list_quotes(self, actor: Profile, request_id: str | None = None) -> list[dict]:
         if actor.role == "dealer":
-            rows = await self.repository.quotes_for_dealer(actor.id)
+            rows = await self.repository.quotes_for_dealer(actor.id, request_id)
         elif request_id:
             request = await self._request(request_id)
             self._require_owner(request.buyer_id, actor.id)

@@ -28,7 +28,6 @@ export default function ChatScreen() {
   const navigate = useNavigate();
   const session = useDemoStore((state) => state.session);
   const [quotes, setQuotes] = useState<Quote[]>([]);
-  const [requestMap, setRequestMap] = useState<Record<string, BuyerRequest>>({});
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [chatActivityByQuoteId, setChatActivityByQuoteId] = useState<Record<string, ChatMessage[]>>({});
   const [isNarrowViewport, setIsNarrowViewport] = useState(() => typeof window !== 'undefined' && window.matchMedia('(max-width: 720px)').matches);
@@ -61,15 +60,9 @@ export default function ChatScreen() {
     void client.quotes.list().then(async (rows) => {
       const available = rows.filter((quote) => quote.contactAvailable || quote.chatRequestStatus === 'pending');
       setQuotes(available);
-      const ids = [...new Set(available.map((row) => row.requestId))];
-      const lookup = session?.role === 'buyer' ? client.requests.get : client.feed.get;
-      const [entries, activityEntries] = await Promise.all([
-        Promise.all(ids.map(async (requestId) => { try { return [requestId, await lookup(requestId)] as const; } catch { return null; } })),
-        Promise.all(available.filter((row) => row.contactAvailable).map(async (row) => {
+      const activityEntries = await Promise.all(available.filter((row) => row.contactAvailable).map(async (row) => {
           try { return [row.id, await client.chats.list(row.id)] as const; } catch { return [row.id, []] as const; }
-        })),
-      ]);
-      setRequestMap(Object.fromEntries(entries.filter((entry): entry is readonly [string, BuyerRequest] => entry !== null)));
+        }));
       setChatActivityByQuoteId(Object.fromEntries(activityEntries));
       setLoaded(true);
     }).catch(() => setLoaded(true));
@@ -80,7 +73,6 @@ export default function ChatScreen() {
   const effectiveId = quoteId || activeId || available[0]?.id || '';
 
   const quote = available.find((item) => item.id === effectiveId);
-  const request = quote ? requestMap[quote.requestId] : undefined;
 
   // The other party's phone comes from the contact endpoints, which only answer once the contact gate is open:
   // a buyer sees the dealer's number, a dealer sees the buyer's.
@@ -141,7 +133,7 @@ export default function ChatScreen() {
     return () => { window.clearInterval(thread); window.clearInterval(list); };
   }, [live, contactIds]);
 
-  const filtered = available.filter((item) => { const itemRequest = requestMap[item.requestId]; return `${itemRequest?.brand} ${itemRequest?.model} ${item.dealerName}`.toLowerCase().includes(search.toLowerCase()); })
+  const filtered = available.filter((item) => `${item.brand} ${item.model} ${item.dealerName}`.toLowerCase().includes(search.toLowerCase()))
     .sort((a, b) => new Date(chatActivityByQuoteId[b.id]?.at(-1)?.createdAt ?? b.createdAt).getTime() - new Date(chatActivityByQuoteId[a.id]?.at(-1)?.createdAt ?? a.createdAt).getTime());
   const thread = useMemo(() => quote?.contactAvailable ? messages : [], [messages, quote?.contactAvailable]);
   const scrolledFor = useRef('');
@@ -250,19 +242,18 @@ export default function ChatScreen() {
   return <div className="shell page-content chat-page">
     <section className={`card chat-layout chat-layout-modern${mobileThreadOpen ? ' mobile-thread-open' : ' mobile-list-open'}`} aria-label="Conversations">
       <aside className="chat-list"><div className="chat-list-head"><span><strong>Messages</strong><small>{available.length} conversations</small></span><label className="chat-search"><Search size={15} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search conversations" /></label></div>{filtered.map((item) => {
-        const itemRequest = requestMap[item.requestId];
         const activity = chatActivityByQuoteId[item.id] ?? [];
         const latest = activity.at(-1);
         const unreadCount = activity.filter((message) => message.senderId !== session?.id && !message.read).length;
         const preview = latest ? (latest.unsent ? 'Message removed' : `${latest.senderId === session?.id ? 'You: ' : ''}${latest.body}`)
           : item.chatRequestStatus === 'pending' ? isDealer ? 'Buyer asked to negotiate' : 'Waiting for dealer response' : 'Conversation started';
         const activityTime = latest?.createdAt ?? item.createdAt;
-        return <button className={`chat-item ${item.id === effectiveId ? 'active' : ''} ${unreadCount ? 'has-unread' : ''}`} key={item.id} onClick={() => chooseConversation(item.id)} aria-label={`${formatVehicle(itemRequest?.brand, itemRequest?.model)}, ${isDealer ? ['buyer', item.buyerFirstName, itemRequest?.area && `in ${itemRequest.area}`].filter(Boolean).join(' ') : item.dealerName}. ${preview}${unreadCount ? `, ${unreadCount} unread` : ''}`}>
-          <span className="chat-item-copy"><span className="chat-item-title-row"><strong>{formatVehicle(itemRequest?.brand, itemRequest?.model)}</strong><time dateTime={activityTime}>{relativeTime(activityTime)}</time></span><small>{isDealer ? <><span className="chat-item-person">{item.buyerFirstName ?? 'Buyer'}</span>{itemRequest?.area ? ` · ${itemRequest.area}` : ''}</> : item.dealerName}</small><span className="chat-item-preview-row"><p>{preview}</p>{unreadCount > 0 && <span className="chat-unread-count" aria-label={`${unreadCount} unread messages`}>{unreadCount > 99 ? '99+' : unreadCount}</span>}</span></span>
+        return <button className={`chat-item ${item.id === effectiveId ? 'active' : ''} ${unreadCount ? 'has-unread' : ''}`} key={item.id} onClick={() => chooseConversation(item.id)} aria-label={`${formatVehicle(item.brand, item.model)}, ${isDealer ? ['buyer', item.buyerFirstName, item.buyerArea && `in ${item.buyerArea}`].filter(Boolean).join(' ') : item.dealerName}. ${preview}${unreadCount ? `, ${unreadCount} unread` : ''}`}>
+          <span className="chat-item-copy"><span className="chat-item-title-row"><strong>{formatVehicle(item.brand, item.model)}</strong><time dateTime={activityTime}>{relativeTime(activityTime)}</time></span><small>{isDealer ? <><span className="chat-item-person">{item.buyerFirstName ?? 'Buyer'}</span>{item.buyerArea ? ` · ${item.buyerArea}` : ''}</> : item.dealerName}</small><span className="chat-item-preview-row"><p>{preview}</p>{unreadCount > 0 && <span className="chat-unread-count" aria-label={`${unreadCount} unread messages`}>{unreadCount > 99 ? '99+' : unreadCount}</span>}</span></span>
         </button>;
       })}<p className="chat-list-note"><ShieldCheck size={15} /><span>Every conversation stays attached to one quote, so price and decisions remain clear.</span></p></aside>
-      <main className="chat-thread">{quote && <><header className="chat-thread-head"><button type="button" className="chat-mobile-back" onClick={showConversationList} aria-label="Back to conversations"><ArrowLeft size={19} /></button><span className="chat-thread-title"><strong>{formatVehicle(request?.brand, request?.model)}</strong><small>{isDealer ? <span className="chat-thread-person">{quote.buyerFirstName ? <><b>{quote.buyerFirstName}</b> · Buyer</> : 'Buyer'}</span> : <span>{quote.dealerName}</span>}<span className="chat-thread-status">{quote.contactAvailable ? 'Open conversation' : 'Awaiting dealer approval'} · Quote attached</span></small></span><span className="chat-thread-actions">{contactPhone && <a className="chat-phone" href={`tel:${contactPhone}`} aria-label={`Call the ${isDealer ? 'buyer' : 'dealer'} on ${contactPhone}`}><Phone size={15} />{formatPhone(contactPhone)}</a>}<Link className="button button-secondary button-sm" to={`/quotes/${quote.id}`}>View offer</Link></span></header>
-        {quote.contactAvailable ? <><div className="chat-scroll" ref={scrollRef} aria-live="polite"><div className="chat-context"><MessageCircle size={18} /><span><strong>Conversation linked to {formatVehicle(request?.brand, request?.model)}.</strong><small>Offer changes remain visible in the quote history.</small></span></div>{thread.map((message) => {
+      <main className="chat-thread">{quote && <><header className="chat-thread-head"><button type="button" className="chat-mobile-back" onClick={showConversationList} aria-label="Back to conversations"><ArrowLeft size={19} /></button><span className="chat-thread-title"><strong>{formatVehicle(quote.brand, quote.model)}</strong><small>{isDealer ? <span className="chat-thread-person">{quote.buyerFirstName ? <><b>{quote.buyerFirstName}</b> · Buyer</> : 'Buyer'}</span> : <span>{quote.dealerName}</span>}<span className="chat-thread-status">{quote.contactAvailable ? 'Open conversation' : 'Awaiting dealer approval'} · Quote attached</span></small></span><span className="chat-thread-actions">{contactPhone && <a className="chat-phone" href={`tel:${contactPhone}`} aria-label={`Call the ${isDealer ? 'buyer' : 'dealer'} on ${contactPhone}`}><Phone size={15} />{formatPhone(contactPhone)}</a>}<Link className="button button-secondary button-sm" to={`/quotes/${quote.id}`}>View offer</Link></span></header>
+        {quote.contactAvailable ? <><div className="chat-scroll" ref={scrollRef} aria-live="polite"><div className="chat-context"><MessageCircle size={18} /><span><strong>Conversation linked to {formatVehicle(quote.brand, quote.model)}.</strong><small>Offer changes remain visible in the quote history.</small></span></div>{thread.map((message) => {
           const mine = message.senderId === session?.id;
           const editing = message.id === editingMessageId;
           return <div key={message.id} data-message-id={message.id} className={`chat-message-row ${mine ? 'mine' : ''} ${editing ? 'editing' : ''} ${activeMessageId === message.id ? 'actions-visible' : ''}`} onClick={(event) => { if ((event.target as HTMLElement).closest('.chat-message-menu')) return; setActiveMessageId(mine && !message.unsent ? message.id : ''); }}>
