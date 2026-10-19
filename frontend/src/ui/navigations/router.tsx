@@ -23,6 +23,7 @@ const ChatRequestsScreen = lazy(() => import('@/ui/screens/ChatScreen/ChatScreen
 const SupportScreens = lazy(() => import('@/ui/screens/SupportScreens/SupportScreens'));
 const AdvisorScreen = lazy(() => import('@/ui/screens/AdvisorScreen/AdvisorScreen'));
 const AdministrationScreen = lazy(() => import('@/ui/screens/AdministrationScreen/AdministrationScreen'));
+const ConversationSessionScreen = lazy(() => import('@/ui/screens/AdministrationScreen/ConversationSessionScreen'));
 const ProfileScreen = lazy(() => import('@/ui/screens/ProfileScreen/ProfileScreen'));
 const AccountScreen = lazy(() => import('@/ui/screens/AccountScreen/AccountScreen'));
 const BillingScreen = lazy(() => import('@/ui/screens/BillingScreen/BillingScreen'));
@@ -78,6 +79,7 @@ export const router = createBrowserRouter([{ errorElement: <RouteErrorScreen />,
     { path: '/verifications', element: <RequireRole roles={['support','support-admin','admin']}><SupportScreens /></RequireRole> },
     { path: '/support-members', element: <RequireRole roles={['support','support-admin','admin']}><SupportScreens /></RequireRole> },
     { path: '/support-administration', element: <RequireRole roles={['support-admin','admin']}><AdministrationScreen /></RequireRole> },
+    { path: '/support-administration/sessions/:threadId', element: <RequireRole roles={['support-admin','admin']}><ConversationSessionScreen /></RequireRole> },
   ]},
   { path: '*', element: <NotFoundScreen /> },
 ] }]);

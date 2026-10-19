@@ -1,6 +1,6 @@
 import type { DriveDealClient, AiStreamEvent } from '@/services/generated/client';
 import type { GuidedActionInput, GuidedAnswers, GuidedOption, GuidedStepResult } from '@/types/domain';
-import type { ActiveTheme, AdministrationAuditEvent, AdminCatalog, AdminConfigBundle, AdminConfigType, AdminPromptBundle, AdminRevision, AiMessage, AiThread, AiTrace, AiTraceSummary, BrandRef, BuyerRequest, CarCreateInput, ChatMessage, DealDocument, InventoryCar, PromptDefinition, Quote, Session, StateRef, SupportMember, Ticket, Verification, WorkflowDefinition, WorkflowPreview, WorkflowPreviewStreamEvent, PaymentReceipt } from '@/types/domain';
+import type { ActiveTheme, AdministrationAuditEvent, AdminCatalog, AdminConfigBundle, AdminConfigType, AdminPromptBundle, AdminRevision, AiMessage, AiThread, AiTrace, AiTraceSession, AiTraceSummary, BrandRef, BuyerRequest, CarCreateInput, ChatMessage, DealDocument, InventoryCar, PromptDefinition, Quote, Session, StateRef, SupportMember, Ticket, Verification, WorkflowDefinition, WorkflowPreview, WorkflowPreviewStreamEvent, PaymentReceipt } from '@/types/domain';
 import driveDealHero from '@/assets/vehicles/drivedeal-hero.png';
 import { BROWSER_STORAGE_KEYS, WORKSPACE_VIEW_QUERY_PARAMETER } from '@/config/browser';
 import { environment } from '@/config/environment';
@@ -580,6 +580,7 @@ export const httpClient: DriveDealClient = {
     traces: async () => request<AiTrace[]>('/administration/traces'),
     traceSummary: async () => request<AiTraceSummary>('/administration/traces/summary'),
     trace: async (id) => request<AiTrace>(`/administration/traces/${encodeURIComponent(id)}`),
+    session: async (threadId) => request<AiTraceSession>(`/administration/sessions/${encodeURIComponent(threadId)}`),
     exportConfiguration: async (format) => download(`/administration/export?format=${format}`, `deal-drive-config.${format === 'yaml' ? 'yaml' : 'json'}`),
     preview: async (message, options) => request<WorkflowPreview>('/administration/workflow/preview', { method: 'POST', body: JSON.stringify({ message, thread_id: options?.threadId ?? null, revision_id: options?.revisionId ?? null, workflow_payload: options?.workflow ?? null, prompt_key: options?.promptKey ?? null, prompt_payload: options?.prompt ?? null }) }),
     previewStream: streamWorkflowPreview,

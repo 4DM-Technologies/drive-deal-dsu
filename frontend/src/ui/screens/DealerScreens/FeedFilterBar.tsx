@@ -1,4 +1,4 @@
-import { Car, Clock3, MapPin, RotateCcw, Route, Search, Tag, Truck, type LucideIcon } from 'lucide-react';
+import { CarFront, Clock3, MapPin, RotateCcw, Route, Search, Shapes, Tag, type LucideIcon } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { ALL, ANY_DISTANCE, DEFAULT_FEED_FILTERS, FRIENDLY_TIMELINE, TIMELINE_ORDER, activeFilterCount, facetOptions, updateFeedFilters, type FeedFacet, type FeedFilters } from '@/helpers/feedFilters';
 import { Dropdown } from '@/ui/reusables/Dropdown/Dropdown';
@@ -31,9 +31,9 @@ export function FeedFilterBar({ requests, filters, onChange }: FeedFilterBarProp
     <label className="search-field"><Search size={17} /><input type="search" value={filters.search} onChange={(event) => set({ search: event.target.value })} placeholder="Search cars or areas" aria-label="Search buyer requests" /></label>
     <div className="feed-filters" role="group" aria-label="Filter buyer requests">
       <Field icon={MapPin} active={filters.area !== ALL}><Dropdown ariaLabel="Filter by area" align="left" value={filters.area} onChange={(area) => set({ area })} options={choices('area', 'All areas')} /></Field>
-      <Field icon={Car} active={filters.brand !== ALL}><Dropdown ariaLabel="Filter by brand" align="left" value={filters.brand} onChange={(brand) => set({ brand })} options={choices('brand', 'All brands')} /></Field>
+      <Field icon={CarFront} active={filters.brand !== ALL}><Dropdown ariaLabel="Filter by brand" align="left" value={filters.brand} onChange={(brand) => set({ brand })} options={choices('brand', 'All brands')} /></Field>
       <Field icon={Tag} active={filters.model !== ALL}><Dropdown ariaLabel="Filter by model" align="left" value={filters.model} onChange={(model) => set({ model })} options={choices('model', 'All models', modelLabel)} /></Field>
-      <Field icon={Truck} active={filters.bodyType !== ALL}><Dropdown ariaLabel="Filter by body type" align="left" value={filters.bodyType} onChange={(bodyType) => set({ bodyType })} options={choices('bodyType', 'All types')} /></Field>
+      <Field icon={Shapes} active={filters.bodyType !== ALL}><Dropdown ariaLabel="Filter by body type" align="left" value={filters.bodyType} onChange={(bodyType) => set({ bodyType })} options={choices('bodyType', 'All types')} /></Field>
       <Field icon={Clock3} active={filters.timeline !== ALL}><Dropdown ariaLabel="Filter by buying timeline" align="right" value={filters.timeline} onChange={(timeline) => set({ timeline })} options={choices('timeline', 'Any timing', (value) => FRIENDLY_TIMELINE[value as BuyerRequest['timeline']] ?? value, TIMELINE_ORDER)} /></Field>
       <Field icon={Route} active={filters.distance !== DEFAULT_FEED_FILTERS.distance}><Dropdown ariaLabel="Maximum distance" align="right" value={filters.distance} onChange={(distance) => set({ distance })} options={DISTANCES} /></Field>
     </div>
