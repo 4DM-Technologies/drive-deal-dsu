@@ -32,12 +32,37 @@ class SupportService:
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
 
+    async def _name_note_authors(self, note_lists: list[list[dict]]) -> list[list[dict]]:
+        """Adds ``actor_name`` to every note written by a person, so timelines show who it was, not their id.
+
+        Names are looked up when the notes are read, so older notes get them too and a renamed user shows the
+        current name.
+        """
+        actor_ids = {
+            note["actor_id"]
+            for notes in note_lists
+            for note in notes or []
+            if isinstance(note, dict) and note.get("actor_id")
+        }
+        names = {profile_id: profile.full_name for profile_id, profile in (await self._profile_map(actor_ids)).items()}
+        return [
+            [
+                {**note, "actor_name": names[note["actor_id"]]}
+                if isinstance(note, dict) and note.get("actor_id") in names
+                else note
+                for note in notes or []
+            ]
+            for notes in note_lists
+        ]
+
     @log_flow(layer="service")
     async def _ticket_dict(self, row: SupportTicket) -> dict:
         caller = await self.session.get(Profile, row.caller_id)
         attachments = await self._attachment_map([row.id])
+        [notes] = await self._name_note_authors([row.notes])
         return {
             **model_dict(row),
+            "notes": notes,
             "caller_name": caller.full_name if caller else None,
             "caller_email": caller.email if caller else None,
             "caller_role": caller.role if caller else None,
@@ -74,7 +99,11 @@ class SupportService:
         state = await self.session.get(State, profile.state_id) if profile and profile.state_id else None
         decider = await self.session.get(Profile, row.decided_by) if row.decided_by else None
         documents = await self._dealer_document_map({row.profile_id})
-        return self._verification_payload(row, profile, state, decider, documents.get(row.profile_id, []))
+        [notes] = await self._name_note_authors([row.notes])
+        return {
+            **self._verification_payload(row, profile, state, decider, documents.get(row.profile_id, [])),
+            "notes": notes,
+        }
 
     async def _dealer_document_map(self, profile_ids: set[str]) -> dict[str, list[dict]]:
         """Each applicant's signup documents as display metadata. Keys stay server-side; viewing goes through a link."""
@@ -148,15 +177,17 @@ class SupportService:
         rows = list((await self.session.execute(statement)).scalars())
         callers = await self._profile_map({row.caller_id for row in rows})
         attachments = await self._attachment_map([row.id for row in rows])
+        named_notes = await self._name_note_authors([row.notes for row in rows])
         return [
             {
                 **model_dict(row),
+                "notes": notes,
                 "caller_name": callers[row.caller_id].full_name if row.caller_id in callers else None,
                 "caller_email": callers[row.caller_id].email if row.caller_id in callers else None,
                 "caller_role": callers[row.caller_id].role if row.caller_id in callers else None,
                 "attachments": attachments.get(row.id, []),
             }
-            for row in rows
+            for row, notes in zip(rows, named_notes, strict=True)
         ]
 
     @log_flow(layer="service")
@@ -276,15 +307,19 @@ class SupportService:
             states = {row.id: row for row in state_rows}
         deciders = await self._profile_map({row.decided_by for row in rows if row.decided_by})
         documents = await self._dealer_document_map({row.profile_id for row in rows})
+        named_notes = await self._name_note_authors([row.notes for row in rows])
         return [
-            self._verification_payload(
-                row,
-                profiles.get(row.profile_id),
-                states.get(profiles[row.profile_id].state_id) if row.profile_id in profiles else None,
-                deciders.get(row.decided_by) if row.decided_by else None,
-                documents.get(row.profile_id, []),
-            )
-            for row in rows
+            {
+                **self._verification_payload(
+                    row,
+                    profiles.get(row.profile_id),
+                    states.get(profiles[row.profile_id].state_id) if row.profile_id in profiles else None,
+                    deciders.get(row.decided_by) if row.decided_by else None,
+                    documents.get(row.profile_id, []),
+                ),
+                "notes": notes,
+            }
+            for row, notes in zip(rows, named_notes, strict=True)
         ]
 
     @log_flow(layer="service")

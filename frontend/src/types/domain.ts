@@ -291,7 +291,7 @@ export interface Verification {
   decidedAt?: string;
   decidedByName?: string;
   decisionReason?: string;
-  history?: Array<{ at: string; decision?: string; reason?: string; note?: string; actorId?: string }>;
+  history?: Array<{ at: string; decision?: string; reason?: string; note?: string; actorId?: string; actorName?: string }>;
 }
 
 export interface StateRef {
