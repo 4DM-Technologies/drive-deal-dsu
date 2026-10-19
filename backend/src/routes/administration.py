@@ -25,6 +25,7 @@ from src.models.administration import (
 )
 from src.repositories.schema import AiTrace, AiTraceSpan, ConversationHistory, LlmAudit, Profile
 from src.services.administration_service import AdministrationService, serialize_trace_spans
+from src.services.trace_status import llm_failure
 from src.utils.exceptions import AppError, error_codes
 from src.utils.log_flow import log_flow
 
@@ -177,6 +178,17 @@ async def trace_detail(
     return await AdministrationService(session).trace_detail(trace_id)
 
 
+@router.get("/administration/sessions/{thread_id}")
+@log_flow(layer="route")
+async def conversation_session(
+    thread_id: str,
+    _: Profile = Depends(admin_profile),
+    session: AsyncSession = Depends(get_session),
+):
+    """Every trace in one conversation, oldest first, with Sera's replies and session totals."""
+    return await AdministrationService(session).conversation_session(thread_id)
+
+
 @router.get("/administration/export")
 @log_flow(layer="route")
 async def export_configuration(
@@ -323,12 +335,14 @@ async def _finalize_preview(
         )
     ).scalar_one_or_none()
     await session.rollback()  # previews never retain KB inserts, cars, profile changes, or raw LLM audits
+    failure = llm_failure(spans)
     trace = AiTrace(
         id=trace_id,
         thread_id=state["thread_id"],
         user_id=actor_id,
         query=payload.message,
-        status="success",
+        status="failed" if failure else "success",
+        error_message=failure,
         is_test=True,
         route=result.get("route"),
         model_name=model_name,

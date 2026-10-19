@@ -531,3 +531,60 @@ button.trace-row.selected { background: var(--accent-soft); box-shadow: inset 3p
   .admin-page *, .workflow-canvas * { scroll-behavior: auto !important; }
   .admin-flow-node.executing, .live-stage-indicator, .typing-caret, .react-flow__edge.executing-edge path, .trace-detail-loading > span { animation: none !important; }
 }
+
+/* ---------- Trace drawer: session line and actions ---------- */
+.trace-drawer > header { align-items: flex-start; }
+.trace-drawer-title { min-width: 0; }
+.trace-drawer-session { display: flex; flex-wrap: wrap; align-items: center; gap: .35rem .55rem; margin-top: .6rem; }
+.trace-drawer header .trace-drawer-session-label { padding: .12rem .45rem; border-radius: 999px; background: var(--accent-soft); color: var(--accent); font-size: .62rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
+.trace-drawer-session strong { font-size: .8rem; color: var(--ink); }
+.trace-drawer-actions { flex: none; display: flex; align-items: center; gap: .4rem; }
+.trace-drawer header .trace-drawer-actions .button { white-space: nowrap; }
+/* Accent-tinted so the way into the whole conversation stands out from the drawer's neutral controls. */
+.trace-drawer header .trace-conversation-link { border: 1px solid color-mix(in srgb, var(--accent) 32%, transparent); background: var(--accent-soft); color: var(--accent); box-shadow: none; }
+.trace-drawer header .trace-conversation-link:hover { border-color: color-mix(in srgb, var(--accent) 32%, transparent); background: var(--accent-soft); color: var(--accent); box-shadow: none; transform: none; }
+.trace-drawer header .trace-conversation-link:focus-visible { outline: 3px solid color-mix(in srgb, var(--accent) 35%, transparent); outline-offset: 2px; }
+.trace-drawer header .trace-drawer-close { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 9px; color: var(--muted); }
+.trace-drawer header .trace-drawer-close:hover { background: var(--surface); color: var(--ink); }
+
+/* The thread id, copyable; long ids wrap instead of widening the drawer. */
+.thread-id-chip { display: inline-flex; align-items: center; gap: .35rem; max-width: 100%; padding: .2rem .45rem; border: 1px solid var(--border); border-radius: 7px; background: var(--surface); color: var(--muted); cursor: pointer; }
+.thread-id-chip:hover { border-color: var(--border-strong); color: var(--ink); }
+.thread-id-chip code { min-width: 0; overflow-wrap: anywhere; font-size: .68rem; text-align: left; }
+.trace-drawer header .thread-id-chip { align-self: center; border: 1px solid var(--border); background: var(--surface); }
+
+/* ---------- Conversation session page ---------- */
+.session-back { display: inline-flex; align-items: center; gap: .35rem; justify-self: start; color: var(--accent); font-size: .8rem; font-weight: 700; text-decoration: none; }
+.session-back:hover { text-decoration: underline; }
+.session-page .admin-section-head h2 { margin-top: .3rem; }
+.session-meta { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); border: 1px solid var(--border); border-radius: 14px; background: var(--raised); overflow: hidden; }
+.session-meta > div { display: flex; align-items: flex-start; gap: .65rem; min-width: 0; padding: .85rem; }
+.session-meta > div + div { border-left: 1px solid var(--border); }
+.session-meta > div > svg { flex: none; margin-top: .1rem; color: var(--accent); }
+.session-meta span { display: grid; gap: .15rem; min-width: 0; }
+.session-meta small { color: var(--muted); font-size: .66rem; }
+.session-meta strong { font-size: .86rem; }
+.session-meta .thread-id-chip { justify-self: start; margin-top: .1rem; }
+.session-trace-table .trace-row { align-items: start; }
+.session-turn { display: grid; grid-template-columns: 26px minmax(0, 1fr); gap: .6rem; min-width: 0; }
+.session-turn > b { display: grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; background: var(--accent-soft); color: var(--accent); font-size: .72rem; }
+.session-turn > span { min-width: 0; }
+.session-turn em { display: -webkit-box; margin-top: .4rem; overflow: hidden; color: var(--ink); font-size: .74rem; font-style: normal; line-height: 1.45; -webkit-line-clamp: 2; -webkit-box-orient: vertical; white-space: normal; }
+.session-turn em.is-empty { color: var(--subtle); font-style: italic; }
+.session-empty { margin: 0; padding: 1rem; color: var(--muted); font-size: .8rem; text-align: center; }
+@media (max-width: 720px) {
+  .session-meta { grid-template-columns: 1fr; }
+  .session-meta > div + div { border-left: 0; border-top: 1px solid var(--border); }
+  .trace-drawer > header { flex-wrap: wrap; }
+}
+
+/* A failed trace says so first, with the provider's error, before the step-by-step detail. */
+.trace-failure-banner { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: .65rem; margin-top: 1rem; padding: .8rem .9rem; border: 1px solid color-mix(in srgb, var(--danger) 26%, var(--border)); border-radius: 11px; background: var(--danger-soft); color: var(--danger); }
+.trace-failure-banner > svg { margin-top: .1rem; }
+.trace-failure-banner strong { display: block; font-size: .8rem; }
+.trace-failure-banner p { margin: .2rem 0 0; color: var(--ink); font-size: .74rem; }
+.trace-failure-banner code { display: block; margin-top: .45rem; font-size: .68rem; line-height: 1.45; overflow-wrap: anywhere; white-space: pre-wrap; color: var(--danger); }
+
+/* Trace tables: the status badge is a plain centred label, without the leading dot. */
+.trace-row > .status { justify-content: center; text-align: center; }
+.trace-row > .status::before { display: none; }

@@ -718,9 +718,15 @@ h1, h2, h3, .display { font-family: 'Manrope', 'DM Sans', sans-serif; letter-spa
 .mobile-offer > div small { display: block; color: var(--muted); }
 .mobile-offer .button { grid-column: 1/-1; }
 .best-offer-card > h2 { font-size: 2.1rem; margin: .45rem 0; }
-.privacy-note { display: flex; gap: .75rem; margin-top: 1rem; color: var(--accent); }
-.privacy-note h3 { margin: 0; }
-.privacy-note p { color: var(--muted); margin: .35rem 0 0; }
+.privacy-note { display: flex; align-items: flex-start; gap: .85rem; margin-top: 1rem; color: var(--accent); }
+/* The icon sits in a fixed tile so long text beside it can never squeeze it down to a dot. */
+.privacy-note > svg { flex: none; width: 40px; height: 40px; padding: 9px; border-radius: 11px; background: var(--accent-soft); color: var(--accent); }
+.privacy-note h3 { margin: .1rem 0 0; font-size: 1rem; line-height: 1.3; }
+.privacy-note p { color: var(--muted); margin: .3rem 0 0; line-height: 1.5; }
+/* Dealer quote form aside: icon tile, then heading and formula with even spacing. */
+.quote-total-guide > svg { display: block; width: 40px; height: 40px; padding: 9px; margin-bottom: .85rem; border-radius: 11px; background: var(--accent-soft); color: var(--accent); }
+.quote-total-guide > h3 { margin: 0 0 .4rem; font-size: 1.05rem; line-height: 1.3; }
+.quote-total-guide > p { margin: 0 0 .5rem; line-height: 1.55; }
 .modal-backdrop { position: fixed; inset: 0; z-index: 100; display: grid; place-items: center; padding: 1rem; background: rgba(16,35,63,.42); backdrop-filter: blur(6px); }
 .modal-card { position: relative; width: min(560px,100%); max-height: calc(100dvh - 2rem); overflow: auto; padding: clamp(1.25rem,4vw,2rem); border-radius: 22px; background: var(--raised); box-shadow: var(--shadow-lg); }
 .modal-card h2 { font-size: 1.5rem; margin: .4rem 0 .5rem; }
@@ -1183,10 +1189,14 @@ h1, h2, h3, .display { font-family: 'Manrope', 'DM Sans', sans-serif; letter-spa
 .upload-preview { display: grid; grid-template-columns: repeat(4,1fr); gap: .5rem; }
 .upload-preview img { width: 100%; aspect-ratio: 4/3; object-fit: cover; border-radius: 9px; }
 .uploaded-file { display: flex; align-items: center; gap: .4rem; color: var(--success); font-size: .8rem; }
-.quote-total-bar { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 1rem; border-radius: 14px; background: var(--navy); color: white; }
+.quote-total-bar { display: flex; align-items: center; justify-content: space-between; gap: 1.25rem; min-height: 92px; padding: 1rem 1rem 1rem 1.35rem; border-radius: 14px; background: var(--navy); color: white; }
+.quote-total-bar > span { flex: 1; min-width: 0; display: grid; gap: .3rem; }
 .quote-total-bar span small, .quote-total-bar span strong { display: block; }
-.quote-total-bar span small { color: rgba(255,255,255,.65); }
-.quote-total-bar span strong { font-size: 2rem; }
+.quote-total-bar span small { color: rgba(255,255,255,.65); font-size: .74rem; letter-spacing: .02em; }
+.quote-total-bar span strong { font-size: 2rem; line-height: 1.1; }
+/* Before a price is entered: a quiet one-line hint instead of the large total figure. */
+.quote-total-bar .quote-total-empty { font-style: normal; font-size: 1rem; font-weight: 600; line-height: 1.35; color: rgba(255,255,255,.88); }
+.quote-total-bar .button { flex: none; white-space: nowrap; }
 .spec-list.single { grid-template-columns: 1fr !important; }
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
 

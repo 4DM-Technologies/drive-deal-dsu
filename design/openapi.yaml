@@ -3390,6 +3390,63 @@ paths:
         '401': { $ref: '#/components/responses/unauthorized' }
         '403': { $ref: '#/components/responses/forbidden' }
         '404': { $ref: '#/components/responses/not_found' }
+  /administration/sessions/{thread_id}:
+    get:
+      summary: Replay one conversation turn by turn
+      description: |-
+        Support-admin/admin only. Every AI trace recorded for one conversation
+        (`ai_traces.thread_id`), oldest first, with Sera's reply to each turn
+        (`reply_preview`, one line, up to 280 characters; null when no reply was
+        saved), the user, and totals for the session. `title` is the name the
+        buyer sees in their Sera sidebar; admin test runs are named
+        "Workflow preview". Open any turn with GET /administration/traces/{trace_id},
+        whose response also carries `session: { thread_id, title }`.
+      operationId: getAdministrationSession
+      tags: [Administration]
+      parameters:
+      - name: thread_id
+        in: path
+        required: true
+        schema: { type: string, maxLength: 80 }
+      responses:
+        '200':
+          description: The conversation's turns, user and totals
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [thread_id, title, type, type_label, totals, traces]
+                properties:
+                  thread_id: { type: string }
+                  title: { type: string, example: 'Buying request: Toyota Camry' }
+                  type: { type: string, enum: [sera, compare, preview] }
+                  type_label: { type: string, example: Ask Sera }
+                  user:
+                    type: object
+                    nullable: true
+                    properties:
+                      id: { type: string, format: uuid }
+                      name: { type: string }
+                      email: { type: string, format: email }
+                      role: { type: string }
+                  started_at: { type: string, format: date-time, nullable: true }
+                  last_activity_at: { type: string, format: date-time, nullable: true }
+                  totals:
+                    type: object
+                    properties:
+                      turns: { type: integer }
+                      input_tokens: { type: integer }
+                      output_tokens: { type: integer }
+                      average_duration_ms: { type: integer }
+                      failed: { type: integer }
+                  traces:
+                    type: array
+                    description: Oldest first. Each item is a trace summary plus `reply_preview`.
+                    items:
+                      type: object
+        '401': { $ref: '#/components/responses/unauthorized' }
+        '403': { $ref: '#/components/responses/forbidden' }
+        '404': { $ref: '#/components/responses/not_found' }
   /administration/export:
     get:
       summary: Download a repository-safe configuration snapshot

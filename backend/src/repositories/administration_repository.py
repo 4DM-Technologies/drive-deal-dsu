@@ -7,7 +7,9 @@ from src.repositories.schema import (
     AiTraceSpan,
     ConfigurationDefault,
     ConfigurationRevision,
+    ConversationHistory,
     LlmAudit,
+    Profile,
 )
 from src.utils.log_flow import log_flow
 
@@ -148,6 +150,28 @@ class AdministrationRepository:
             "average_duration_ms": round(float(row[4])),
             "failed": int(row[5]),
         }
+
+    @log_flow(layer="repository")
+    async def session_traces(self, thread_id: str) -> list[AiTrace]:
+        """Every trace recorded in one conversation, oldest first, so the session reads turn by turn."""
+        rows = await self.session.execute(
+            select(AiTrace).where(AiTrace.thread_id == thread_id).order_by(AiTrace.created_at, AiTrace.id)
+        )
+        return list(rows.scalars())
+
+    @log_flow(layer="repository")
+    async def session_checkpoints(self, thread_id: str) -> list[ConversationHistory]:
+        """The saved turns of one conversation (user message and Sera's answer), oldest first."""
+        rows = await self.session.execute(
+            select(ConversationHistory)
+            .where(ConversationHistory.thread_id == thread_id)
+            .order_by(ConversationHistory.created_at, ConversationHistory.checkpoint_id)
+        )
+        return list(rows.scalars())
+
+    @log_flow(layer="repository")
+    async def profile(self, profile_id: str | None) -> Profile | None:
+        return await self.session.get(Profile, profile_id) if profile_id else None
 
     @log_flow(layer="repository")
     async def trace(self, trace_id: str) -> tuple[AiTrace | None, list[AiTraceSpan], list[LlmAudit]]:

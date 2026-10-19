@@ -1,6 +1,6 @@
 import type { DriveDealClient, AiStreamEvent } from '@/services/generated/client';
 import type { GuidedActionInput, GuidedAnswers, GuidedOption, GuidedStepResult } from '@/types/domain';
-import type { ActiveTheme, AdministrationAuditEvent, AdminCatalog, AdminConfigBundle, AdminConfigType, AdminPromptBundle, AdminRevision, AiMessage, AiThread, AiTrace, AiTraceSummary, BrandRef, BuyerRequest, CarCreateInput, ChatMessage, DealDocument, InventoryCar, PromptDefinition, Quote, Session, StateRef, SupportMember, Ticket, Verification, WorkflowDefinition, WorkflowPreview, WorkflowPreviewStreamEvent, PaymentReceipt } from '@/types/domain';
+import type { ActiveTheme, AdministrationAuditEvent, AdminCatalog, AdminConfigBundle, AdminConfigType, AdminPromptBundle, AdminRevision, AiMessage, AiThread, AiTrace, AiTraceSession, AiTraceSummary, BrandRef, BuyerRequest, CarCreateInput, ChatMessage, DealDocument, InventoryCar, PromptDefinition, Quote, Session, StateRef, SupportMember, Ticket, Verification, WorkflowDefinition, WorkflowPreview, WorkflowPreviewStreamEvent, PaymentReceipt } from '@/types/domain';
 import driveDealHero from '@/assets/vehicles/drivedeal-hero.png';
 import { BROWSER_STORAGE_KEYS, WORKSPACE_VIEW_QUERY_PARAMETER } from '@/config/browser';
 import { environment } from '@/config/environment';
@@ -183,9 +183,10 @@ const ticketToDomain = (row: Record<string, unknown>): Ticket => ({
   priority: row.priority as Ticket['priority'],
   createdAt: String(row.created_at),
   updatedAt: String(row.updated_at ?? row.created_at),
-  ...(row.notes ? { notes: (row.notes as Array<{ at?: string; ts?: string; actor_id?: string; agent?: string; note?: string; text?: string }>).map((entry) => ({
+  ...(row.notes ? { notes: (row.notes as Array<{ at?: string; ts?: string; actor_id?: string; actor_name?: string; agent?: string; note?: string; text?: string }>).map((entry) => ({
     at: entry.at ?? entry.ts ?? String(row.updated_at ?? row.created_at),
-    author: entry.actor_id ?? entry.agent ?? 'Support team',
+    // The API names whoever wrote the note; an id it cannot resolve is never shown as a name.
+    author: entry.actor_name ?? entry.agent ?? (entry.actor_id ? 'Support team member' : 'Support team'),
     body: entry.note ?? entry.text ?? 'Case updated.',
   })) } : {}),
   ...(row.rca == null ? {} : { rca: String(row.rca) }),
@@ -211,9 +212,10 @@ const verificationToDomain = (row: Record<string, unknown>): Verification => ({
   ...(row.terms_accepted_at == null ? {} : { termsAcceptedAt: String(row.terms_accepted_at) }),
   ...(row.decided_at == null ? {} : { decidedAt: String(row.decided_at) }),
   ...(row.decided_by_name == null ? {} : { decidedByName: String(row.decided_by_name) }),
-  history: ((row.notes as Array<{ at?: string; ts?: string; actor_id?: string; agent?: string; decision?: string; reason?: string; note?: string; text?: string }> | undefined) ?? []).map((entry) => ({
+  history: ((row.notes as Array<{ at?: string; ts?: string; actor_id?: string; actor_name?: string; agent?: string; decision?: string; reason?: string; note?: string; text?: string }> | undefined) ?? []).map((entry) => ({
     at: entry.at ?? entry.ts ?? String(row.updated_at ?? row.created_at),
     ...(entry.actor_id || entry.agent ? { actorId: entry.actor_id ?? entry.agent } : {}),
+    ...(entry.actor_name ? { actorName: entry.actor_name } : {}),
     ...(entry.decision ? { decision: entry.decision } : {}),
     ...(entry.reason ? { reason: entry.reason } : {}),
     ...(entry.note || entry.text ? { note: entry.note ?? entry.text } : {}),
@@ -580,6 +582,7 @@ export const httpClient: DriveDealClient = {
     traces: async () => request<AiTrace[]>('/administration/traces'),
     traceSummary: async () => request<AiTraceSummary>('/administration/traces/summary'),
     trace: async (id) => request<AiTrace>(`/administration/traces/${encodeURIComponent(id)}`),
+    session: async (threadId) => request<AiTraceSession>(`/administration/sessions/${encodeURIComponent(threadId)}`),
     exportConfiguration: async (format) => download(`/administration/export?format=${format}`, `deal-drive-config.${format === 'yaml' ? 'yaml' : 'json'}`),
     preview: async (message, options) => request<WorkflowPreview>('/administration/workflow/preview', { method: 'POST', body: JSON.stringify({ message, thread_id: options?.threadId ?? null, revision_id: options?.revisionId ?? null, workflow_payload: options?.workflow ?? null, prompt_key: options?.promptKey ?? null, prompt_payload: options?.prompt ?? null }) }),
     previewStream: streamWorkflowPreview,

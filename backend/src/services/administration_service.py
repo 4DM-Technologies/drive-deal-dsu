@@ -22,11 +22,80 @@ from src.agents.configuration import (
 from src.agents.prompts import PROMPT_ROOT
 from src.models.administration import PromptDefinition, ThemeDefinition, WorkflowDefinition
 from src.repositories.administration_repository import AdministrationRepository
-from src.repositories.schema import AdministrationAuditEvent, ConfigurationDefault, ConfigurationRevision
+from src.repositories.schema import (
+    AdministrationAuditEvent,
+    AiTrace,
+    ConfigurationDefault,
+    ConfigurationRevision,
+    ConversationHistory,
+)
 from src.settings import get_settings
 from src.utils.exceptions import AppError, error_codes
 from src.utils.log_flow import log_flow
 from src.utils.serialization import model_dict
+
+PREVIEW_SESSION_TITLE = "Workflow preview"
+REPLY_PREVIEW_CHARS = 280
+SESSION_TYPE_LABELS = {"sera": "Ask Sera", "compare": "Offer comparison", "preview": "Workflow preview"}
+
+
+def session_title(checkpoints: list[ConversationHistory], traces: list[AiTrace]) -> str:
+    """The name the buyer sees for this chat in their Sera sidebar: the newest saved turn's title."""
+    for checkpoint in reversed(checkpoints):
+        title = (checkpoint.metadata_json or {}).get("title")
+        if title:
+            return str(title)
+    if traces and all(trace.is_test for trace in traces):
+        return PREVIEW_SESSION_TITLE
+    return (traces[0].query[:72] if traces else "") or "Sera chat"
+
+
+def session_type(checkpoints: list[ConversationHistory], traces: list[AiTrace]) -> str:
+    if checkpoints:
+        return checkpoints[-1].thread_type
+    return "preview" if traces and all(trace.is_test for trace in traces) else "sera"
+
+
+def reply_by_trace(traces: list[AiTrace], checkpoints: list[ConversationHistory]) -> dict[str, str]:
+    """Sera's saved answer for each trace.
+
+    Turns saved since the link was added carry their trace id. Older turns are matched to the first unclaimed turn
+    saved at or after the trace started whose user message is the trace's query.
+    """
+    replies: dict[str, str] = {}
+    claimed: set[str] = set()
+    for checkpoint in checkpoints:
+        trace_id = (checkpoint.metadata_json or {}).get("trace_id")
+        answer = (checkpoint.checkpoint or {}).get("assistant")
+        if trace_id and answer:
+            replies[str(trace_id)] = str(answer)
+            claimed.add(checkpoint.checkpoint_id)
+    for trace in traces:
+        if trace.id in replies:
+            continue
+        for checkpoint in checkpoints:
+            data = checkpoint.checkpoint or {}
+            if (
+                checkpoint.checkpoint_id not in claimed
+                and not (checkpoint.metadata_json or {}).get("trace_id")
+                and data.get("assistant")
+                and (data.get("user") or "").strip() == trace.query.strip()
+                and checkpoint.created_at
+                and trace.created_at
+                and checkpoint.created_at >= trace.created_at
+            ):
+                replies[trace.id] = str(data["assistant"])
+                claimed.add(checkpoint.checkpoint_id)
+                break
+    return replies
+
+
+def reply_preview(answer: str | None) -> str | None:
+    """Sera's answer flattened to one short line (markdown headings dropped) for the session table."""
+    if not answer:
+        return None
+    text = " ".join(answer.replace("#", " ").split())
+    return text if len(text) <= REPLY_PREVIEW_CHARS else f"{text[: REPLY_PREVIEW_CHARS - 1].rstrip()}…"
 
 
 def serialize_trace_spans(spans: list, llm_calls: list) -> list[dict[str, Any]]:
@@ -517,7 +586,41 @@ class AdministrationService:
         trace, spans, llm_calls = await self.repository.trace(trace_id)
         if trace is None:
             raise AppError(error_codes.RESOURCE_NOT_FOUND, "AI trace not found.", 404)
-        return {**model_dict(trace), "spans": serialize_trace_spans(spans, llm_calls)}
+        session = None
+        if trace.thread_id:
+            checkpoints = await self.repository.session_checkpoints(trace.thread_id)
+            session = {"thread_id": trace.thread_id, "title": session_title(checkpoints, [trace])}
+        return {**model_dict(trace), "session": session, "spans": serialize_trace_spans(spans, llm_calls)}
+
+    @log_flow(layer="service")
+    async def conversation_session(self, thread_id: str) -> dict[str, Any]:
+        """One conversation, turn by turn: each trace with Sera's reply, plus who it was and session totals."""
+        traces = await self.repository.session_traces(thread_id)
+        if not traces:
+            raise AppError(error_codes.RESOURCE_NOT_FOUND, "No AI traces were recorded for this conversation.", 404)
+        checkpoints = await self.repository.session_checkpoints(thread_id)
+        replies = reply_by_trace(traces, checkpoints)
+        user = await self.repository.profile(next((trace.user_id for trace in traces if trace.user_id), None))
+        kind = session_type(checkpoints, traces)
+        return {
+            "thread_id": thread_id,
+            "title": session_title(checkpoints, traces),
+            "type": kind,
+            "type_label": SESSION_TYPE_LABELS.get(kind, kind.replace("_", " ").title()),
+            "user": {"id": user.id, "name": user.full_name, "email": user.email, "role": user.role} if user else None,
+            "started_at": traces[0].created_at.isoformat() if traces[0].created_at else None,
+            "last_activity_at": traces[-1].created_at.isoformat() if traces[-1].created_at else None,
+            "totals": {
+                "turns": len(traces),
+                "input_tokens": sum(trace.input_tokens for trace in traces),
+                "output_tokens": sum(trace.output_tokens for trace in traces),
+                "average_duration_ms": round(sum(trace.duration_ms for trace in traces) / len(traces)),
+                "failed": sum(1 for trace in traces if trace.status not in {"success", "running"}),
+            },
+            "traces": [
+                {**model_dict(trace), "reply_preview": reply_preview(replies.get(trace.id))} for trace in traces
+            ],
+        }
 
     @log_flow(layer="service")
     async def export_snapshot(self) -> dict[str, Any]:

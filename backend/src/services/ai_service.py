@@ -28,6 +28,7 @@ from src.models.guided import GuidedStep
 from src.models.marketplace import AiChatRequest, AiGuidedCheckpoint, CompareRequest, RequestCreate
 from src.repositories.schema import (
     AiTrace,
+    AiTraceSpan,
     Brand,
     BuyerRequest,
     ConversationHistory,
@@ -42,6 +43,7 @@ from src.services.catalog.matcher import MatchResult, match_message
 from src.services.catalog.planner import GuidedPlanner, opening_message
 from src.services.catalog.queries import CatalogQueries
 from src.services.marketplace_service import MarketplaceService
+from src.services.trace_status import llm_failure
 from src.settings import get_settings
 from src.utils.exceptions import AppError, error_codes
 from src.utils.log_flow import log_flow
@@ -380,7 +382,13 @@ class AiService:
                 yield {"type": "card", "kind": "requestPreview", "payload": published_request}
                 await self._finish_trace(trace, main_result, trace_started)
                 await self._save_checkpoint(
-                    thread_id, buyer.id, payload, main_result, {"requirements": state.get("requirements", {})}, memory
+                    thread_id,
+                    buyer.id,
+                    payload,
+                    main_result,
+                    {"requirements": state.get("requirements", {})},
+                    memory,
+                    trace_id=trace.id,
                 )
                 await self.session.commit()
                 yield {"type": "done", "threadId": thread_id, "messagesUsed": 1, "expandedUi": False}
@@ -399,7 +407,9 @@ class AiService:
                     if guided_step is not None:
                         yield {"type": "card", "kind": "question", "payload": guided_step.model_dump()}
                     await self._finish_trace(trace, main_result, trace_started)
-                    await self._save_checkpoint(thread_id, buyer.id, payload, main_result, {}, memory)
+                    await self._save_checkpoint(
+                        thread_id, buyer.id, payload, main_result, {}, memory, trace_id=trace.id
+                    )
                     await self.session.commit()
                     yield {"type": "done", "threadId": thread_id, "messagesUsed": 1, "expandedUi": False}
                     return
@@ -523,7 +533,9 @@ class AiService:
         if main_result.get("media"):
             yield {"type": "media", "items": main_result["media"]}
         await self._finish_trace(trace, main_result, trace_started)
-        await self._save_checkpoint(thread_id, buyer.id, payload, main_result, requirement_result, memory)
+        await self._save_checkpoint(
+            thread_id, buyer.id, payload, main_result, requirement_result, memory, trace_id=trace.id
+        )
         await self.session.commit()
         yield {"type": "done", "threadId": thread_id, "messagesUsed": 1, "expandedUi": False}
 
@@ -648,7 +660,17 @@ class AiService:
                 select(LlmAudit.model_name).where(LlmAudit.thread_id == trace.id).order_by(LlmAudit.id.desc()).limit(1)
             )
         ).scalar_one_or_none()
-        trace.status = "success"
+        spans = (
+            await self.session.execute(
+                select(AiTraceSpan.kind, AiTraceSpan.status, AiTraceSpan.name, AiTraceSpan.details)
+                .where(AiTraceSpan.trace_id == trace.id)
+                .order_by(AiTraceSpan.sequence, AiTraceSpan.created_at)
+            )
+        ).mappings()
+        # A model call that errored (rate limit, auth, outage) fails the trace, even though a fallback reply was sent.
+        failure = llm_failure(spans)
+        trace.status = "failed" if failure else "success"
+        trace.error_message = failure
         trace.route = result.get("route")
         trace.model_name = models
         trace.input_tokens = int(usage[0] or 0)
@@ -853,6 +875,7 @@ class AiService:
         main: dict,
         requirements: dict,
         memory: dict | None = None,
+        trace_id: str | None = None,
     ) -> None:
         memory = memory or {}
         controls = {"use_saved", "customize", "update_saved", "skip"}
@@ -916,6 +939,8 @@ class AiService:
                     )[:72],
                     "agent": payload.agent,
                     "saved_at": datetime.now(UTC).isoformat(),
+                    # Links this turn to its AI trace, so administrators can read Sera's reply beside the trace.
+                    **({"trace_id": trace_id} if trace_id else {}),
                 },
             )
         )

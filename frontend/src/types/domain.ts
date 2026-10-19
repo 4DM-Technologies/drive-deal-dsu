@@ -291,7 +291,7 @@ export interface Verification {
   decidedAt?: string;
   decidedByName?: string;
   decisionReason?: string;
-  history?: Array<{ at: string; decision?: string; reason?: string; note?: string; actorId?: string }>;
+  history?: Array<{ at: string; decision?: string; reason?: string; note?: string; actorId?: string; actorName?: string }>;
 }
 
 export interface StateRef {
@@ -580,6 +580,23 @@ export interface AiTrace {
   configuration_version: string;
   created_at: string;
   spans?: AiTraceSpan[];
+  /** The conversation this trace belongs to (trace detail only). */
+  session?: { thread_id: string; title: string } | null;
+  /** Sera's reply to this query, flattened to one line (session view only). */
+  reply_preview?: string | null;
+}
+
+/** Every trace of one conversation, oldest first, with the person and totals for that session. */
+export interface AiTraceSession {
+  thread_id: string;
+  title: string;
+  type: string;
+  type_label: string;
+  user: { id: string; name: string; email: string; role: Role } | null;
+  started_at: string | null;
+  last_activity_at: string | null;
+  totals: { turns: number; input_tokens: number; output_tokens: number; average_duration_ms: number; failed: number };
+  traces: AiTrace[];
 }
 
 export type PlanName = 'premium' | 'trial' | 'free';
