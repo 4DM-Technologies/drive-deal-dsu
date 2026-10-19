@@ -11,7 +11,7 @@ import { ThreadIdChip, TraceDrawer } from './TraceDrawer';
 const pretty = (value: string) => value.replaceAll('_', ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
 const LOGS_PATH = '/support-administration?tab=logs';
 
-/** Every turn of one Sera conversation, oldest first. Each row opens the same trace drawer as the AI logs tab. */
+/** Every message of one Sera conversation, newest first. Each row opens the same trace drawer as the AI logs tab. */
 export default function ConversationSessionScreen() {
   const { threadId = '' } = useParams();
   // The result remembers which thread it belongs to, so a new thread id shows the loader instead of stale turns.
@@ -47,7 +47,8 @@ export default function ConversationSessionScreen() {
   }
 
   const terms = query.trim().toLowerCase();
-  const turns = session.traces.map((trace, index) => ({ trace, turn: index + 1 }));
+  // The API returns the conversation oldest first; number each message in that order, then show the newest on top.
+  const turns = session.traces.map((trace, index) => ({ trace, turn: index + 1 })).reverse();
   const visible = terms ? turns.filter(({ trace }) => `${trace.query} ${trace.reply_preview ?? ''} ${trace.route} ${trace.model_name} ${trace.status}`.toLowerCase().includes(terms)) : turns;
   const { totals } = session;
   const when = (value: string | null) => value ? new Date(value).toLocaleString() : '—';
