@@ -466,6 +466,7 @@ def _trace_snapshot(value: dict | None, *, output: bool = False) -> dict:
             "web_results",
             "car_specs",
             "search_provider",
+            "named_model_missing",
         )
         if output
         else (
@@ -736,6 +737,9 @@ def main_agent(
             "- Deal&Drive serves US buyers only. A question about buying or using a vehicle outside the United States "
             "(a non-US city, state or country such as Chennai, India, London or Toronto) is off_topic. A US purchase "
             'that only mentions another place ("I\'m moving from Chennai to Texas") is still advice.\n'
+            "- News about a car or brand a buyer could purchase - a new or upcoming model, a launch or reveal event, "
+            'recalls - is advice ("tell me about the new Tesla car event"). A speculative concept no buyer can '
+            'purchase ("a flying car") is off_topic.\n'
             "Greetings, thanks and questions addressed to you by name are already handled before this step; "
             "if one reaches you anyway, answer advice rather than off_topic.\n"
             "Reply with that single lowercase word and nothing else.\n\n"
@@ -818,6 +822,18 @@ def main_agent(
             message = " ".join([*prior_buyer_messages, message])
         trace_id = state.get("trace_id") or state.get("thread_id")
         hints = await match_message(session, message)
+        if hints.make and hints.unknown_model and not compare and get_settings().ai_enable_web_search:
+            # The buyer named a model the catalog does not have under that brand ("Tesla Roadster"). Answering from
+            # the catalog would describe a different car, so look the named car up online instead.
+            named = f"{hints.make.name} {hints.unknown_model.title()}"
+            logger.info("agent_catalog_model_missing", thread_id=state.get("thread_id"), vehicle=named)
+            return {
+                "mode": "web_direct",
+                "named_model_missing": named,
+                "kb_searched": True,
+                "kb_results_relevant": False,
+                "step": step,
+            }
         plan = shortcut_plan(message, hints)
         plan_source = "shortcut"
         if plan is None:
@@ -880,6 +896,8 @@ def main_agent(
 
     async def after_kb(state: AgentState) -> str:
         web_enabled = get_settings().ai_enable_web_search
+        if web_enabled and state.get("named_model_missing"):
+            return configured_target("kb_agent", "kb_miss", "web_search_agent")
         if web_enabled and state.get("mode") == "web_per_car" and state.get("car_names"):
             return configured_target("kb_agent", "web_per_car", "web_search_agent")
         if (

@@ -227,6 +227,64 @@ async def test_kb_miss_does_not_escalate_when_the_catalog_has_the_model(catalog,
     get_urls.assert_not_awaited()
 
 
+async def test_a_named_model_missing_from_the_catalog_is_looked_up_online(catalog, web_on) -> None:
+    """ "Tesla Roadster" with no Tesla Roadster in the catalog goes straight to web research, never to a catalog
+    answer about a different car."""
+    from types import SimpleNamespace
+
+    catalog["match"].return_value = MatchResult(make=SimpleNamespace(name="Tesla"), unknown_model="roadster")
+    responses = [
+        _FakeLlmResult("advice"),  # classifier
+        _FakeLlmResult('{"mode": "kb_only", "reasoning": "a specific model"}'),  # orchestrator
+    ]
+    get_urls = AsyncMock(
+        return_value=[
+            {
+                "url": "https://www.tesla.com/roadster",
+                "title": "Roadster | Tesla",
+                "hosted_answer": "The Tesla Roadster is an upcoming electric sports car from Tesla.",
+                "hosted_sources": '[{"title": "Roadster | Tesla", "url": "https://www.tesla.com/roadster"}]',
+            }
+        ]
+    )
+    with (
+        patch("src.agents.llm.LlmClient.generate", new=AsyncMock(side_effect=responses)),
+        patch("src.agents.serra.graph.get_urls", new=get_urls),
+    ):
+        result = await main_agent(session=AsyncMock()).ainvoke(
+            {"user_id": "u1", "thread_id": "t1", "message": "tell me about the tesla roadster"}
+        )
+
+    catalog["tools"].assert_not_called()
+    get_urls.assert_awaited_once()
+    assert result["named_model_missing"] == "Tesla Roadster"
+    assert "Tesla Roadster" in result["answer"]
+
+
+async def test_a_named_model_missing_from_the_catalog_stays_offline_when_web_search_is_off(catalog) -> None:
+    from types import SimpleNamespace
+
+    catalog["match"].return_value = MatchResult(make=SimpleNamespace(name="Tesla"), unknown_model="roadster")
+    responses = [
+        _FakeLlmResult("advice"),
+        _FakeLlmResult('{"mode": "kb_only", "reasoning": "a specific model"}'),
+        _FakeLlmResult('{"calls": [{"tool": "list_models", "args": {"make": "Tesla"}}]}'),
+        _FakeLlmResult("The catalog has no Tesla Roadster."),
+    ]
+    get_urls = AsyncMock()
+    with (
+        patch("src.agents.llm.LlmClient.generate", new=AsyncMock(side_effect=responses)),
+        patch("src.agents.serra.graph.get_urls", new=get_urls),
+    ):
+        result = await main_agent(session=AsyncMock()).ainvoke(
+            {"user_id": "u1", "thread_id": "t1", "message": "tell me about the tesla roadster"}
+        )
+
+    get_urls.assert_not_awaited()
+    catalog["tools"].assert_awaited_once()
+    assert result["answer"] == "The catalog has no Tesla Roadster."
+
+
 async def test_explicit_tesla_search_goes_directly_to_web_research(web_on) -> None:
     """An explicit online vehicle search skips classifier and orchestrator, then composes the crawled evidence."""
     graph = main_agent(session=AsyncMock())
