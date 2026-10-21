@@ -192,6 +192,74 @@ DETAIL_WORDS = frozenset(
         "for",
     }
 )
+# Words that follow a brand without naming a model ("Tesla cars", "Toyota lineup", "Tesla event").
+NOT_MODEL_WORDS = frozenset(
+    {
+        "cars",
+        "vehicles",
+        "models",
+        "lineup",
+        "brand",
+        "suv",
+        "suvs",
+        "truck",
+        "trucks",
+        "sedan",
+        "sedans",
+        "coupe",
+        "coupes",
+        "hatchback",
+        "van",
+        "vans",
+        "ev",
+        "evs",
+        "hybrid",
+        "hybrids",
+        "electric",
+        "price",
+        "prices",
+        "pricing",
+        "cost",
+        "costs",
+        "deal",
+        "deals",
+        "dealer",
+        "dealers",
+        "dealership",
+        "lease",
+        "financing",
+        "warranty",
+        "recall",
+        "recalls",
+        "event",
+        "events",
+        "news",
+        "launch",
+        "latest",
+        "upcoming",
+        "announced",
+        "unveiled",
+        "owners",
+        "quality",
+        "service",
+        "stock",
+        "is",
+        "are",
+        "was",
+        "has",
+        "have",
+        "vs",
+        "versus",
+        "from",
+        "near",
+        "at",
+        "or",
+        "and",
+        "but",
+        "if",
+        "s",
+    }
+)
 
 
 def _tokens(text: str) -> list[str]:
@@ -309,6 +377,9 @@ class MatchResult:
     timeline: str | None = None
     filters: dict[str, str] = field(default_factory=dict)
     must_haves: list[str] = field(default_factory=list)
+    # A model word the buyer wrote after the brand that the catalog does not have under it ("roadster" in
+    # "Tesla Roadster"), so Sera can look it up online instead of answering about a different car.
+    unknown_model: str | None = None
 
     @property
     def has_vehicle(self) -> bool:
@@ -425,6 +496,44 @@ def _find_models(
     return [(model, span) for model, span, scoped in kept if scoped or span not in scoped_spans]
 
 
+def _could_be_model_name(token: str) -> bool:
+    """A word after a brand that may name a model ("Tesla Roadster"), rather than an ordinary word ("Tesla cars")."""
+    return (
+        len(token) >= 2
+        and not token.isdigit()
+        and token not in FILLER_WORDS
+        and token not in DETAIL_WORDS
+        and token not in NOT_MODEL_WORDS
+        and not QUESTION_WORDS_RE.fullmatch(token)
+    )
+
+
+def _keep_named_make(
+    tokens: list[str], makes: dict[str, tuple[int, int]], models: list[tuple[ModelEntry, tuple[int, int]]]
+) -> tuple[list[tuple[ModelEntry, tuple[int, int]]], str | None]:
+    """Keep the brand the buyer named, and report a model word the catalog does not have under it.
+
+    A model of another brand written straight after the named brand ("Tesla Roadster" when only a MINI Roadster is
+    in the catalog) is that brand's model the catalog lacks, so it must not swap the brand. Models elsewhere in the
+    message ("X5 vs Audi Q7") are untouched.
+    """
+    if not makes:
+        return models, None
+    make_ends = {end for _, end in makes.values()}
+    kept: list[tuple[ModelEntry, tuple[int, int]]] = []
+    unknown: str | None = None
+    for model, span in models:
+        if model.make_slug not in makes and span[0] in make_ends:
+            unknown = unknown or " ".join(tokens[span[0] : span[1]])
+            continue
+        kept.append((model, span))
+    if unknown is None and len(makes) == 1 and not any(model.make_slug in makes for model, _ in kept):
+        ((_, end),) = makes.values()
+        if end < len(tokens) and _could_be_model_name(tokens[end]):
+            unknown = tokens[end]
+    return kept, unknown
+
+
 def match_text(text: str, index: CatalogIndex) -> MatchResult:
     tokens = _tokens(text)
     phrases = _phrases(tokens)
@@ -434,6 +543,7 @@ def match_text(text: str, index: CatalogIndex) -> MatchResult:
         if slug in makes and generic_use.search(text):
             del makes[slug]
     models = _find_models(tokens, phrases, index, set(makes))
+    models, result.unknown_model = _keep_named_make(tokens, makes, models)
     used = set()
     for _, (start, end) in makes.items():
         used.update(range(start, end))

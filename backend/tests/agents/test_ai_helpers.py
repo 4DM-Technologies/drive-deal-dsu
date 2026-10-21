@@ -17,7 +17,6 @@ from src.agents.serra.graph import (
     is_contextual_image_followup,
     is_explicit_image_search,
 )
-from src.agents.tools import web_search as web_search_tools
 from src.agents.tools.web_search import _vehicle_image_terms
 from src.models.marketplace import AiGuidedMessage
 from src.services.ai_service import _compact_conversation_context, _is_publish_confirmation, _money_value
@@ -65,66 +64,6 @@ def test_conversation_context_is_bounded_but_keeps_the_latest_exchange() -> None
     assert compacted[-1]["body"] == "Show me their images."
     assert compacted[-2]["body"].startswith("1. Chevrolet Corvette Stingray")
     assert sum(len(str(item)) for item in compacted) <= 3000
-
-
-@pytest.mark.asyncio
-async def test_snippet_search_sends_compact_evidence_and_matches_vehicle_images(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    calls: list[tuple[str, bool]] = []
-
-    async def search_items(query: str, *, limit: int, image_search: bool = False) -> list[dict[str, str]]:
-        calls.append((query, image_search))
-        if image_search:
-            return [
-                {
-                    "title": "BMW M2 Coupe front view",
-                    "url": "https://images.example/bmw-m2.jpg",
-                    "snippet": "BMW M2 Coupe exterior",
-                    "source_url": "https://www.bmwusa.com/vehicles/m-models/m2-coupe.html",
-                    "thumbnail_url": "https://images.example/bmw-m2-thumb.jpg",
-                }
-            ]
-        return [
-            {
-                "title": "Best sports cars",
-                "url": "https://www.example.com/sports-cars",
-                "snippet": "BMW M2 is a compact, rear-wheel-drive performance coupe.",
-                "source_url": "",
-                "thumbnail_url": "",
-            }
-        ]
-
-    class FakeLlm:
-        prompt = ""
-
-        async def generate(self, prompt: str, *_args, **_kwargs):
-            self.prompt = prompt
-            return SimpleNamespace(status="success", text="Top choice:\n\n1. **BMW M2** — A compact performance coupe.")
-
-    monkeypatch.setattr(web_search_tools, "_google_cse_items", search_items)
-    monkeypatch.setattr(web_search_tools, "_domain_of", lambda _url: "example.com")
-    monkeypatch.setattr(web_search_tools, "_is_excluded_domain", lambda _domain: False)
-    llm = FakeLlm()
-
-    result = await web_search_tools._google_cse_get_urls(
-        "top sports cars",
-        limit=5,
-        llm=llm,  # type: ignore[arg-type]
-        thread_id="test-thread",
-        market="US",
-        include_images=True,
-    )
-
-    assert len(llm.prompt) < 3000
-    assert "BMW M2 is a compact" in llm.prompt
-    assert result[0]["search_provider"] == "google_cse_snippets"
-    media = json.loads(result[0]["hosted_media"])
-    assert [item["vehicle_name"] for item in media] == ["BMW M2"]
-    assert any(image_search and '"BMW M2"' in query for query, image_search in calls)
-
-
-# --- _extract_url_citations ------------------------------------------------------------------------------------
 
 
 def test_citations_are_found_in_nested_sdk_payloads() -> None:

@@ -192,3 +192,28 @@ async def test_chat_opens_the_card_without_any_llm_call(catalog, monkeypatch) ->
     assert cards[0]["payload"]["question"]["id"] == "variant"
     assert "M3" in "".join(event["text"] for event in events if event["type"] == "token")
     assert events[-1]["type"] == "done"
+
+
+@pytest.mark.parametrize(
+    ("message", "make", "model", "unknown"),
+    [
+        # A model of another brand written after the named brand must not swap the brand.
+        ("tell me about the audi rav4", "Audi", None, "rav4"),
+        ("tell me about the toyota supra", "Toyota", None, "supra"),
+        ("toyota rav4", "Toyota", "RAV4", None),
+        ("tell me about new toyota cars", "Toyota", None, None),
+        ("is toyota reliable", "Toyota", None, None),
+    ],
+)
+async def test_the_named_brand_wins_and_a_missing_model_is_reported(catalog, message, make, model, unknown) -> None:
+    async with catalog() as session:
+        match = await match_message(session, message)
+    assert match.make is not None and match.make.name == make
+    assert (match.model.name if match.model else None) == model
+    assert match.unknown_model == unknown
+
+
+async def test_models_elsewhere_in_the_message_still_count(catalog) -> None:
+    async with catalog() as session:
+        match = await match_message(session, "X5 vs Audi Q7")
+    assert {(make.name, found.name) for make, found in match.candidates} == {("BMW", "X5"), ("Audi", "Q7")}

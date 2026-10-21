@@ -189,10 +189,6 @@ class Settings(BaseSettings):
     ai_max_input_tokens: int = 8_000
     ai_max_output_tokens: int = 1_800
     ai_request_timeout_seconds: float = 45
-    # Optional snippet-first search provider. When configured, Sera passes only short
-    # search snippets into the model instead of provider-crawled page context.
-    google_api_key: str | None = None
-    google_cse_id: str | None = None
     web_search_max_results: int = 5
     web_search_market: str = "US"
     web_search_request_timeout_seconds: int = 8
