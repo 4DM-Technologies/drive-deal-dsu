@@ -1,7 +1,8 @@
-import { ArrowRight, Eye, FilePlus2, History, MapPin, MessageSquareQuote, Search, TrendingDown, X } from 'lucide-react';
+import { ArrowRight, BellRing, CalendarDays, CircleAlert, Eye, FilePlus2, History, MapPin, MessageSquareQuote, RotateCw, Search, TrendingDown, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { formatMoney } from '@/helpers/currency';
+import { formatLongDate } from '@/helpers/dateTime';
 import { client } from '@/services/platform/client';
 import { PageLoading } from '@/ui/reusables/PageLoading/PageLoading';
 import { EmptyState } from '@/ui/reusables/EmptyState/EmptyState';
@@ -46,10 +47,22 @@ export default function RequestsScreen() {
   const clearOffersOnly = () => updateParams((params) => params.delete('offers'));
   const [search, setSearch] = useState('');
   const [loaded, setLoaded] = useState(false);
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<{ id: string; message: string } | null>(null);
 
   useEffect(() => {
     void Promise.all([client.requests.list().then(setRequests).catch(() => setRequests([])), client.quotes.list().then(setQuotes).catch(() => setQuotes([]))]).then(() => setLoaded(true));
   }, []);
+
+  /** Reminds dealers about an unquoted brief, or reopens one that closed for getting no quotes. */
+  const sendBackToDealers = (request: BuyerRequest, action: 'notify' | 'repush') => {
+    setBusyId(request.id); setActionError(null);
+    const call = action === 'notify' ? client.requests.notifyDealers(request.id) : client.requests.repush(request.id);
+    void call
+      .then((updated) => setRequests((rows) => rows.map((row) => (row.id === updated.id ? updated : row))))
+      .catch((error: unknown) => setActionError({ id: request.id, message: error instanceof Error ? error.message : 'Something went wrong. Please try again.' }))
+      .finally(() => setBusyId(null));
+  };
 
   const offerCount = (request: BuyerRequest) => request.quoteCount || quotes.filter((quote) => quote.requestId === request.id).length;
   const items = requests
@@ -62,7 +75,31 @@ export default function RequestsScreen() {
     {withOffersOnly && <div className="active-filter"><span>Showing requests with dealer offers</span><button type="button" onClick={clearOffersOnly} aria-label="Show requests with or without offers"><X size={13} /></button></div>}
     {items.length === 0 ? <div className="card">{withOffersOnly && filter === 'all' && !search ? <EmptyState title="No dealer offers yet" description="Offers appear here as soon as a dealer quotes on one of your requests." action={<button type="button" className="button button-secondary" onClick={clearOffersOnly}>Show all requests</button>} /> : <EmptyState title="No requests match" description="Try another filter or create a new buyer request." action={<Link className="button button-primary" to="/requests/new">Start a request</Link>} />}</div> : <div className="grid grid-2 request-card-grid">{items.map((request) => {
       const liveQuoteCount = offerCount(request); const notice = revisionNotice(quotes.filter((quote) => quote.requestId === request.id));
-      return <Link className="card request-card request-card-spec card-hover" key={request.id} to={`/requests/${request.id}`}><div className="request-card-body">{notice && <div className={`request-revised ${notice.direction}`}>{notice.direction === 'down' ? <TrendingDown size={17} /> : <History size={17} />}<span><strong>{notice.title}</strong><small>{notice.detail}</small></span></div>}<div className="request-card-top"><div><span className="eyebrow">Private buying brief</span><h3>{request.brand} {request.model}</h3><div className="request-meta"><span><MapPin size={13} /> {request.area}</span><span>{request.yearMin}–{request.yearMax}</span><span>{request.bodyType || 'Any body style'}</span></div></div><StatusBadge status={request.status === 'open' ? 'live' : request.status} /></div>{request.mustHaves.length > 0 && <div className="request-tags">{request.mustHaves.slice(0, 4).map((item) => <span key={item} className="status status-draft">{item}</span>)}</div>}<div className="request-interest" aria-label="Dealer activity"><span><Eye size={16} /><strong>{request.viewCount}</strong><small>dealers viewed</small></span><span><MessageSquareQuote size={16} /><strong>{liveQuoteCount}</strong><small>quotes received</small></span></div><div className="request-footer"><span className="request-footer-copy"><strong>{liveQuoteCount ? 'Dealer interest is active' : request.viewCount ? 'Dealers are reviewing your brief' : 'Your brief is live'}</strong><small>{liveQuoteCount ? 'Open to compare every itemized quote' : 'We’ll notify you when a dealer responds'}</small></span><span className="request-footer-action">View request <ArrowRight size={16} /></span></div></div></Link>;
+      const closedUnquoted = request.canRepush;
+      const repushed = request.status === 'open' && request.repushedAt != null;
+      const reminded = request.status === 'open' && !liveQuoteCount && request.dealersNotifiedAt != null;
+      const busy = busyId === request.id;
+      const footer = closedUnquoted
+        ? { title: 'Request closed', detail: 'Repush it to send your brief to dealers again' }
+        : request.canNotifyDealers
+          ? { title: 'No quotes in 2 weeks', detail: 'Remind dealers your brief is still open' }
+          : reminded
+            ? { title: 'Dealers have been reminded', detail: `We sent your brief back to dealers on ${formatLongDate(request.dealersNotifiedAt!)}` }
+            : { title: liveQuoteCount ? 'Dealer interest is active' : request.viewCount ? 'Dealers are reviewing your brief' : 'Your brief is live', detail: liveQuoteCount ? 'Open to compare every itemized quote' : 'We’ll notify you when a dealer responds' };
+      return <article className={`card request-card request-card-spec card-hover${closedUnquoted ? ' is-closed' : ''}`} key={request.id}><div className="request-card-body">
+        {notice && <div className={`request-revised ${notice.direction}`}>{notice.direction === 'down' ? <TrendingDown size={17} /> : <History size={17} />}<span><strong>{notice.title}</strong><small>{notice.detail}</small></span></div>}
+        {closedUnquoted && <div className="request-alert closed" role="status"><CircleAlert size={17} /><span><strong>Closed, no quotes in 30 days</strong><small>No dealer quoted on this brief within a month, so we closed it. Repush it to reopen it for dealers.</small></span></div>}
+        {repushed && <div className="request-alert repushed"><RotateCw size={17} /><span><strong>This request was repushed</strong><small>Back in front of dealers since {formatLongDate(request.repushedAt!)}</small></span></div>}
+        <div className="request-card-top"><div><div className="request-card-eyebrow"><span className="eyebrow">Private buying brief</span><span className="request-posted"><CalendarDays size={13} /> Posted {formatLongDate(request.createdAt)}</span></div><h3><Link className="request-card-link" to={`/requests/${request.id}`}>{request.brand} {request.model}</Link></h3><div className="request-meta"><span><MapPin size={13} /> {request.area}</span><span>{request.yearMin}–{request.yearMax}</span><span>{request.bodyType || 'Any body style'}</span></div></div><StatusBadge status={request.status === 'open' ? 'live' : request.status === 'expired' ? 'closed' : request.status} /></div>
+        {request.mustHaves.length > 0 && <div className="request-tags">{request.mustHaves.slice(0, 4).map((item) => <span key={item} className="status status-draft">{item}</span>)}</div>}
+        <div className="request-interest" aria-label="Dealer activity"><span><Eye size={16} /><strong>{request.viewCount}</strong><small>dealers viewed</small></span><span><MessageSquareQuote size={16} /><strong>{liveQuoteCount}</strong><small>quotes received</small></span></div>
+        <div className="request-footer"><span className="request-footer-copy"><strong>{footer.title}</strong><small>{footer.detail}</small></span>{closedUnquoted
+          ? <button type="button" className="button button-primary button-sm request-card-action" disabled={busy} onClick={() => sendBackToDealers(request, 'repush')}><RotateCw size={15} /> {busy ? 'Repushing…' : 'Repush'}</button>
+          : request.canNotifyDealers
+            ? <button type="button" className="button button-primary button-sm request-card-action" disabled={busy} onClick={() => sendBackToDealers(request, 'notify')}><BellRing size={15} /> {busy ? 'Notifying…' : 'Notify dealers'}</button>
+            : <span className="request-footer-action">View request <ArrowRight size={16} /></span>}</div>
+        {actionError?.id === request.id && <p className="request-card-error" role="alert">{actionError.message}</p>}
+      </div></article>;
     })}</div>}
   </div>;
 }

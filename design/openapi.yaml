@@ -63,6 +63,7 @@ tags:
 - name: Chat
 - name: Documents
 - name: Support
+- name: Reports
 - name: Verifications
 - name: Members
 - name: Inventory
@@ -1048,6 +1049,66 @@ paths:
           $ref: '#/components/responses/not_found'
         '409':
           $ref: '#/components/responses/conflict'
+  /requests/{request_id}/notify-dealers:
+    post:
+      summary: Remind dealers about a request with no quotes
+      description: |-
+        Buyer-only. Allowed once per posting, on an `open` request that has had
+        no quotes (withdrawn quotes don't count) for 14 days since it was
+        posted or last repushed. Sets `dealers_notified_at`, which moves the
+        request back to the top of the dealer feed and shows dealers that the
+        buyer is still waiting. Check `can_notify_dealers` on the request
+        before offering it.
+      operationId: notifyDealersAboutRequest
+      tags:
+      - Requests
+      parameters:
+      - $ref: '#/components/parameters/RequestId'
+      responses:
+        '200':
+          description: Dealers reminded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BuyerRequest'
+        '401':
+          $ref: '#/components/responses/unauthorized'
+        '403':
+          $ref: '#/components/responses/forbidden'
+        '404':
+          $ref: '#/components/responses/not_found'
+        '409':
+          $ref: '#/components/responses/conflict'
+  /requests/{request_id}/repush:
+    post:
+      summary: Reopen a request that closed for getting no quotes
+      description: |-
+        Buyer-only. An `open` request with no quotes 30 days after it was
+        posted (or last repushed) closes as `expired` and leaves the dealer
+        feed. Repushing moves it `expired → open`, sets `repushed_at`, clears
+        `dealers_notified_at`, and restarts both the 14-day reminder clock and
+        the 30-day close clock. It does not count against the buyer's request
+        limit. Any other status is 409.
+      operationId: repushRequest
+      tags:
+      - Requests
+      parameters:
+      - $ref: '#/components/parameters/RequestId'
+      responses:
+        '200':
+          description: Request reopened for dealers
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BuyerRequest'
+        '401':
+          $ref: '#/components/responses/unauthorized'
+        '403':
+          $ref: '#/components/responses/forbidden'
+        '404':
+          $ref: '#/components/responses/not_found'
+        '409':
+          $ref: '#/components/responses/conflict'
   /requests/{request_id}/quotes:
     get:
       summary: Live quote leaderboard for a request
@@ -1537,6 +1598,40 @@ paths:
                 $ref: '#/components/schemas/DealList'
         '401':
           $ref: '#/components/responses/unauthorized'
+  /deals/export:
+    get:
+      summary: Download my deals as an Excel workbook
+      description: |-
+        Dealer-only. The same accepted quotes as GET /deals, built into a
+        formatted `.xlsx` on the server from the database, so nothing the
+        browser displays decides the contents. One sheet, `Deals`, with
+        columns Vehicle request, Year from, Year to, Body type, Buyer area and
+        Out-the-door price (USD number format), a frozen header with filters,
+        and a SUM total row. Text typed by buyers or dealers is always written
+        as text, never as a formula. Each export is logged as
+        `deals_exported` with the dealer id and deal count.
+      operationId: exportMyDeals
+      tags:
+      - Deals
+      responses:
+        '200':
+          description: Attachment named deals-YYYY-MM-DD.xlsx
+          headers:
+            Content-Disposition:
+              schema: { type: string }
+              example: attachment; filename="deals-2026-10-22.xlsx"
+            Cache-Control:
+              schema: { type: string }
+              example: no-store
+          content:
+            application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
+              schema:
+                type: string
+                format: binary
+        '401':
+          $ref: '#/components/responses/unauthorized'
+        '403':
+          $ref: '#/components/responses/forbidden'
   /deals/{quote_id}:
     get:
       summary: Get a deal
@@ -2517,6 +2612,217 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/QuoteDetail'
+        '401':
+          $ref: '#/components/responses/unauthorized'
+        '403':
+          $ref: '#/components/responses/forbidden'
+        '404':
+          $ref: '#/components/responses/not_found'
+  /reports:
+    post:
+      summary: Report the other person in one of my conversations
+      description: |-
+        Buyer or dealer only. Sent as `multipart/form-data`. The reported
+        person is never chosen by the client: it is the other party on
+        `quote_id`, and the caller must be the buyer or the dealer on that
+        quote (otherwise 404).
+
+        - `reason` must fit the reported person's role. About a dealer:
+          `scam_fraud`, `off_platform_payment`, `misleading_listing`,
+          `pressure_tactics`, `harassment`, `spam`, `other`. About a buyer:
+          `scam_fraud`, `off_platform_payment`, `fake_buyer`, `no_show`,
+          `harassment`, `spam`, `other`.
+        - With `include_conversation` (default true) every message in the
+          thread is saved with the report, as it stands now, so later edits or
+          unsends don't remove the evidence.
+        - Up to 3 `files`, JPG/PNG/WebP only (checked by the file's real
+          signature), 5 MB each. They are stored privately under
+          `reports/<buyer|dealer>/<reported profile id>/<report reference>/<report reference>-evidence-NN.<ext>`.
+          The report and its files are saved together or not at all.
+        - Only one open (`open` or `under_review`) report per reporter per
+          conversation: a second one is 409 with `details.report_id`.
+
+        The response is a receipt; support notes and the outcome are never
+        returned to the reporter, and the reported person is not told who
+        reported them.
+      operationId: createUserReport
+      tags:
+      - Reports
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [quote_id, reason, details, confirm_accurate]
+              properties:
+                quote_id:
+                  type: string
+                  format: uuid
+                reason:
+                  $ref: '#/components/schemas/ReportReason'
+                details:
+                  type: string
+                  minLength: 20
+                  maxLength: 2000
+                include_conversation:
+                  type: boolean
+                  default: true
+                confirm_accurate:
+                  type: boolean
+                  description: Must be true.
+                files:
+                  type: array
+                  maxItems: 3
+                  items:
+                    type: string
+                    format: binary
+      responses:
+        '201':
+          description: Report received
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReportReceipt'
+        '401':
+          $ref: '#/components/responses/unauthorized'
+        '403':
+          $ref: '#/components/responses/forbidden'
+        '404':
+          $ref: '#/components/responses/not_found'
+        '409':
+          $ref: '#/components/responses/conflict'
+        '422':
+          $ref: '#/components/responses/validation_error'
+        '503':
+          description: Screenshot storage is unavailable (`STORAGE_UNAVAILABLE`); no report was saved.
+  /support/reports:
+    get:
+      summary: List misconduct reports
+      description: Support, support-admin and admin. Newest first. The saved conversation is left out; read one report for it.
+      operationId: listUserReports
+      tags:
+      - Reports
+      responses:
+        '200':
+          description: All reports
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/UserReport'
+        '401':
+          $ref: '#/components/responses/unauthorized'
+        '403':
+          $ref: '#/components/responses/forbidden'
+  /support/reports/{report_id}:
+    get:
+      summary: Get one report with its saved conversation
+      operationId: getUserReport
+      tags:
+      - Reports
+      parameters:
+      - name: report_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '200':
+          description: The report, including `conversation_snapshot` when one was saved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserReport'
+        '401':
+          $ref: '#/components/responses/unauthorized'
+        '403':
+          $ref: '#/components/responses/forbidden'
+        '404':
+          $ref: '#/components/responses/not_found'
+    patch:
+      summary: Change a report's status or outcome, or add a note
+      description: |-
+        Support, support-admin and admin. Every update appends one entry to
+        `notes` naming the support user, and must change something.
+
+        - Closing a report (`action_taken` or `dismissed`) needs a `note`.
+        - `action_taken` needs an `outcome` of `warning_issued`,
+          `account_suspended` or `other`.
+        - `dismissed` always records the outcome `no_violation`.
+        - Moving back to `open` or `under_review` clears the outcome, and an
+          `outcome` sent with those statuses is 422.
+
+        Recording `account_suspended` does not suspend anyone; an admin does
+        that from POST /members/{profile_id}/suspend.
+      operationId: updateUserReport
+      tags:
+      - Reports
+      parameters:
+      - name: report_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReportUpdate'
+      responses:
+        '200':
+          description: Updated report
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserReport'
+        '401':
+          $ref: '#/components/responses/unauthorized'
+        '403':
+          $ref: '#/components/responses/forbidden'
+        '404':
+          $ref: '#/components/responses/not_found'
+        '422':
+          $ref: '#/components/responses/validation_error'
+  /support/reports/{report_id}/attachments/{attachment_id}/view:
+    get:
+      summary: Short-lived link to view a report screenshot
+      description: Support, support-admin and admin. The link opens the image in the browser and expires after 15 minutes.
+      operationId: viewUserReportAttachment
+      tags:
+      - Reports
+      parameters:
+      - name: report_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: attachment_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '200':
+          description: Link to the screenshot
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [url, file_name, content_type]
+                properties:
+                  url:
+                    type: string
+                  file_name:
+                    type: string
+                  content_type:
+                    type: string
         '401':
           $ref: '#/components/responses/unauthorized'
         '403':
@@ -4518,6 +4824,202 @@ components:
                     retry_after: 42
                   request_id: 293a4b5c-6d7e-4f80-8192-9a3b4c5d6e7f
   schemas:
+    ReportReason:
+      type: string
+      enum:
+      - scam_fraud
+      - off_platform_payment
+      - misleading_listing
+      - pressure_tactics
+      - fake_buyer
+      - no_show
+      - harassment
+      - spam
+      - other
+      description: |-
+        `misleading_listing` and `pressure_tactics` apply only to dealers;
+        `fake_buyer` and `no_show` only to buyers. The rest apply to both.
+    ReportStatus:
+      type: string
+      enum: [open, under_review, action_taken, dismissed]
+    ReportOutcome:
+      type: string
+      enum: [no_violation, warning_issued, account_suspended, other]
+    ReportReceipt:
+      type: object
+      required: [id, report_id, status, reason, reported_role, evidence_count, conversation_attached, created_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        report_id:
+          type: string
+          example: RPT-482913A1F0
+        status:
+          $ref: '#/components/schemas/ReportStatus'
+        reason:
+          $ref: '#/components/schemas/ReportReason'
+        reported_role:
+          type: string
+          enum: [buyer, dealer]
+        evidence_count:
+          type: integer
+          minimum: 0
+          maximum: 3
+        conversation_attached:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+    ReportPerson:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          nullable: true
+        dealership_name:
+          type: string
+          nullable: true
+        email:
+          type: string
+          nullable: true
+        phone:
+          type: string
+          nullable: true
+        role:
+          type: string
+          nullable: true
+    ReportMessage:
+      type: object
+      description: One message as it stood when the report was made.
+      properties:
+        id:
+          type: string
+        at:
+          type: string
+          format: date-time
+          nullable: true
+        sender_id:
+          type: string
+        sender_name:
+          type: string
+        sender_role:
+          type: string
+          nullable: true
+        message:
+          type: string
+        edited:
+          type: boolean
+        unsent:
+          type: boolean
+    ReportNote:
+      type: object
+      description: One support action. Carries any of `status`, `outcome` and `note`.
+      required: [at, actor_id]
+      properties:
+        at:
+          type: string
+          format: date-time
+        actor_id:
+          type: string
+        actor_name:
+          type: string
+        status:
+          $ref: '#/components/schemas/ReportStatus'
+        outcome:
+          $ref: '#/components/schemas/ReportOutcome'
+        note:
+          type: string
+    UserReport:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        report_id:
+          type: string
+        quote_id:
+          type: string
+          format: uuid
+        reporter_id:
+          type: string
+        reporter_role:
+          type: string
+        reported_id:
+          type: string
+        reported_role:
+          type: string
+        reason:
+          $ref: '#/components/schemas/ReportReason'
+        details:
+          type: string
+        status:
+          $ref: '#/components/schemas/ReportStatus'
+        outcome:
+          allOf:
+          - $ref: '#/components/schemas/ReportOutcome'
+          nullable: true
+        notes:
+          type: array
+          items:
+            $ref: '#/components/schemas/ReportNote'
+        reporter:
+          $ref: '#/components/schemas/ReportPerson'
+        reported:
+          allOf:
+          - $ref: '#/components/schemas/ReportPerson'
+          - type: object
+            properties:
+              is_active:
+                type: boolean
+                description: False once an admin has suspended the account.
+        vehicle:
+          type: string
+          nullable: true
+        attachments:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+              file_name:
+                type: string
+              content_type:
+                type: string
+              size_bytes:
+                type: integer
+              created_at:
+                type: string
+                format: date-time
+        conversation_attached:
+          type: boolean
+        message_count:
+          type: integer
+        conversation_snapshot:
+          type: array
+          description: Only on GET /support/reports/{report_id}, and only when the reporter included the conversation.
+          items:
+            $ref: '#/components/schemas/ReportMessage'
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    ReportUpdate:
+      type: object
+      properties:
+        status:
+          $ref: '#/components/schemas/ReportStatus'
+        outcome:
+          $ref: '#/components/schemas/ReportOutcome'
+        note:
+          type: string
+          maxLength: 5000
     RgbColor:
       type: array
       minItems: 3
@@ -4926,10 +5428,12 @@ components:
       - open
       - matched
       - closed
+      - expired
       description: |-
         `draft` is written by the AI intake path only. **Only**
         POST /requests/{id}/publish can move a request to `open`; no LangGraph
-        node can reach `open`.
+        node can reach `open`. `expired` means the request went 30 days without
+        a quote and closed on its own; POST /requests/{id}/repush reopens it.
     QuoteStatus:
       type: string
       enum:
@@ -6082,6 +6586,22 @@ components:
           type: integer
           minimum: 0
           description: Unique verified dealers that opened the request. Repeat visits by one dealer count once.
+        dealers_notified_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: When the buyer last reminded dealers about this unquoted request. Cleared by a repush.
+        repushed_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: When the buyer last reopened this request after it expired without quotes.
+        can_notify_dealers:
+          type: boolean
+          description: Whether POST /requests/{id}/notify-dealers is allowed right now.
+        can_repush:
+          type: boolean
+          description: Whether POST /requests/{id}/repush is allowed right now (the request is `expired`).
         sales_tax_rate:
           type: string
           description: |-

@@ -1,11 +1,12 @@
-import type { DealStatus, QuoteStatus, RequestStatus, VerificationStatus } from '@/types/domain';
+import type { DealStatus, QuoteStatus, ReportStatus, RequestStatus, VerificationStatus } from '@/types/domain';
 
-type Status = DealStatus | QuoteStatus | RequestStatus | VerificationStatus | 'live' | 'in_progress' | 'on_hold' | 'resolved' | 'closed' | 'open' | 'quoted';
+type Status = DealStatus | QuoteStatus | ReportStatus | RequestStatus | VerificationStatus | 'live' | 'in_progress' | 'on_hold' | 'resolved' | 'closed' | 'open' | 'quoted';
 
 const labels: Partial<Record<Status, string>> = {
   live: 'Live', quoted: 'Quoted', open: 'New', in_progress: 'In progress', on_hold: 'On hold', resolved: 'Resolved',
   paperwork_going_on: 'Paperwork', funds_arrived: 'Funds arrived', dispatch: 'Dispatch',
   delivery: 'Delivery', completed: 'Completed', cancelled: 'Cancelled',
+  under_review: 'Under review', action_taken: 'Action taken', dismissed: 'Dismissed',
 };
 
 export function StatusBadge({ status }: { status: Status }) {

@@ -1,7 +1,7 @@
 from datetime import UTC, datetime
 from uuid import uuid4
 
-from fastapi import APIRouter, Body, Depends, Query, status
+from fastapi import APIRouter, Body, Depends, Query, Response, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -18,6 +18,7 @@ from src.models.marketplace import (
     RequestCreate,
 )
 from src.repositories.schema import DealChat, DealQuote, Profile
+from src.services.deal_export import XLSX_MEDIA_TYPE
 from src.services.marketplace_service import MarketplaceService
 from src.utils.log_flow import log_flow
 
@@ -54,6 +55,22 @@ async def publish_request(
     request_id: str, profile: Profile = Depends(require_roles("buyer")), session: AsyncSession = Depends(get_session)
 ):
     return await MarketplaceService(session).publish_request(request_id, profile)
+
+
+@router.post("/requests/{request_id}/notify-dealers")
+@log_flow(layer="route")
+async def notify_dealers(
+    request_id: str, profile: Profile = Depends(require_roles("buyer")), session: AsyncSession = Depends(get_session)
+):
+    return await MarketplaceService(session).notify_dealers(request_id, profile)
+
+
+@router.post("/requests/{request_id}/repush")
+@log_flow(layer="route")
+async def repush_request(
+    request_id: str, profile: Profile = Depends(require_roles("buyer")), session: AsyncSession = Depends(get_session)
+):
+    return await MarketplaceService(session).repush_request(request_id, profile)
 
 
 @router.post("/requests/{request_id}/close")
@@ -382,8 +399,21 @@ async def ws_ticket(profile: Profile = Depends(get_current_profile)):
 @router.get("/deals")
 @log_flow(layer="route")
 async def deals(profile: Profile = Depends(get_current_profile), session: AsyncSession = Depends(get_session)):
-    rows = await MarketplaceService(session).list_quotes(profile)
-    return [row for row in rows if row["status"] == "accepted"]
+    return await MarketplaceService(session).list_deals(profile)
+
+
+# Registered before /deals/{quote_id} so "export" is never read as a quote id.
+@router.get("/deals/export")
+@log_flow(layer="route")
+async def export_deals(
+    profile: Profile = Depends(require_roles("dealer")), session: AsyncSession = Depends(get_session)
+):
+    workbook, filename = await MarketplaceService(session).export_deals(profile)
+    return Response(
+        content=workbook,
+        media_type=XLSX_MEDIA_TYPE,
+        headers={"Content-Disposition": f'attachment; filename="{filename}"', "Cache-Control": "no-store"},
+    )
 
 
 @router.get("/deals/{quote_id}")

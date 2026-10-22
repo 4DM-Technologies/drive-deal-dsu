@@ -620,6 +620,15 @@ class AdministrationService:
             "traces": [
                 {**model_dict(trace), "reply_preview": reply_preview(replies.get(trace.id))} for trace in traces
             ],
+            # What Sera remembers about this chat (the newest saved summary), so administrators can check it.
+            "memory": next(
+                (
+                    row.checkpoint["chat_summary"]
+                    for row in reversed(checkpoints)
+                    if isinstance((row.checkpoint or {}).get("chat_summary"), dict)
+                ),
+                None,
+            ),
         }
 
     @log_flow(layer="service")

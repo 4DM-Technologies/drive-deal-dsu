@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { advisorResponseActions, chosenGuidedOption, hasGuidedHistoryOptions, mergeLocalGreeting, normalizeRequestDraft, parseBudget, shouldShowAdvisorComposer } from './AdvisorScreen';
+import { advisorResponseActions, chosenGuidedOption, hasGuidedHistoryOptions, isDraftCollapsed, mergeLocalGreeting, splitDraftFields, normalizeRequestDraft, parseBudget, shouldShowAdvisorComposer } from './AdvisorScreen';
 
 describe('shouldShowAdvisorComposer', () => {
   it('keeps the standard composer out of the guided HITL and review steps', () => {
@@ -135,5 +135,63 @@ describe('mergeLocalGreeting', () => {
   it('falls back to the local copy only when the server has nothing', () => {
     expect(mergeLocalGreeting([greeting], [])).toEqual([greeting]);
     expect(mergeLocalGreeting(undefined, [hey])).toEqual([hey]);
+  });
+});
+
+describe('isDraftCollapsed', () => {
+  const closed = { expanded: false, editing: false, reviewing: false };
+
+  it('shows the full card under the reply that produced it', () => {
+    expect(isDraftCollapsed('reply-1', 'reply-1', closed)).toBe(false);
+  });
+
+  it('collapses the card once a later reply follows, such as an off-topic answer', () => {
+    expect(isDraftCollapsed('reply-1', 'reply-2', closed)).toBe(true);
+  });
+
+  it('keeps the card open while the buyer expands, edits or reviews it', () => {
+    expect(isDraftCollapsed('reply-1', 'reply-2', { ...closed, expanded: true })).toBe(false);
+    expect(isDraftCollapsed('reply-1', 'reply-2', { ...closed, editing: true })).toBe(false);
+    expect(isDraftCollapsed('reply-1', 'reply-2', { ...closed, reviewing: true })).toBe(false);
+  });
+
+  it('never hides a card whose reply is unknown', () => {
+    expect(isDraftCollapsed(null, 'reply-2', closed)).toBe(false);
+  });
+});
+
+describe('advisorResponseActions with a bulleted shortlist', () => {
+  it('offers the shortlist follow-ups when the cars are bullets instead of numbers', () => {
+    const actions = advisorResponseActions([
+      'Chevrolet’s latest US models:',
+      '- **Chevrolet Trax** — A compact SUV.',
+      '- **Chevrolet Equinox** — A versatile family SUV.',
+      '- **Chevrolet Tahoe** — A large SUV.',
+    ].join('\n'));
+    expect(actions.map((action) => action.label)).toContain('Compare the shortlist');
+  });
+
+  it('does not treat a request summary as a shortlist', () => {
+    expect(advisorResponseActions('### Request preview\n- **Vehicle:** 2027 Nissan Kicks\n- **Drive:** FWD\n- **Status:** Ready for cars')).toEqual([]);
+  });
+});
+
+describe('request card optional details', () => {
+  it('reads trim, color, drivetrain, condition, budget range and payment from a Sera card', () => {
+    const draft = normalizeRequestDraft({ brand: 'Honda', model: 'CR-V', color: 'Blue', drivetrain: 'AWD', condition: 'Used', budget_min: '20000', budget_max: '30000', paying_with: 'Cash', trim: 'EX-L' });
+    expect(draft).toMatchObject({ color: 'Blue', drivetrain: 'AWD', condition: 'Used', budgetMin: '20000', budget: '30000', payingWith: 'Cash', trim: 'EX-L' });
+  });
+
+  it('keeps the main fields visible and puts the optional ones under More details', () => {
+    const fields = splitDraftFields({ brand: 'Honda', model: 'CR-V', area: 'Austin', timeline: 'ASAP', budget: '', color: 'Blue' }, false);
+    expect(fields.primary.map(([key]) => key)).toEqual(['brand', 'model', 'area', 'timeline', 'budget']);
+    expect(fields.optional).toEqual([['color', 'Blue']]);
+    expect(fields.filled).toBe(1);
+  });
+
+  it('offers every optional field while editing', () => {
+    const fields = splitDraftFields({ brand: 'Honda', model: 'CR-V' }, true);
+    expect(fields.optional.map(([key]) => key)).toContain('payingWith');
+    expect(fields.optional.every(([, value]) => value === '')).toBe(true);
   });
 });

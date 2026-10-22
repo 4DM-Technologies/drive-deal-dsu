@@ -11,7 +11,15 @@ from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.agents.llm import LlmClient
-from src.agents.requirements import build_requirement_graph
+from src.agents.memory import (
+    apply_soft_memory,
+    bootstrap_summary,
+    make_of,
+    refine_soft_memory,
+    update_summary,
+    vehicle_names,
+)
+from src.agents.requirements import build_requirement_graph, extract_budget
 from src.agents.serra.graph import (
     DIRECT_REPLY_ROUTES,
     is_contextual_image_followup,
@@ -47,6 +55,7 @@ from src.services.trace_status import llm_failure
 from src.settings import get_settings
 from src.utils.exceptions import AppError, error_codes
 from src.utils.log_flow import log_flow
+from src.utils.logger import logger
 from src.utils.serialization import model_dict
 
 _PUBLISH_CONFIRMATION_RE = re.compile(
@@ -58,6 +67,125 @@ _VEHICLE_IMAGE_CACHE: dict[str, tuple[float, dict[str, object]]] = {}
 
 def _is_publish_confirmation(message: str) -> bool:
     return bool(_PUBLISH_CONFIRMATION_RE.fullmatch(message))
+
+
+_MEMORY_TASKS: set[asyncio.Task] = set()
+
+
+async def _refine_chat_memory(thread_id: str, user_id: str, user_message: str, answer: str) -> None:
+    """Background, after the reply: add likes, dislikes, uses and notes to the chat's memory with one small call.
+
+    Runs on its own session. The newest checkpoint is re-read before writing, because the buyer may already have
+    sent another message while this call was running; that turn's code-built facts are kept.
+    """
+
+    def newest_row():
+        return (
+            select(ConversationHistory)
+            .where(ConversationHistory.thread_id == thread_id, ConversationHistory.user_id == user_id)
+            .order_by(ConversationHistory.created_at.desc())
+            .limit(1)
+        )
+
+    try:
+        async with SessionFactory() as session:
+            latest = (await session.execute(newest_row())).scalar_one_or_none()
+            summary = (latest.checkpoint or {}).get("chat_summary") if latest else None
+            if not isinstance(summary, dict):
+                return
+            soft = await refine_soft_memory(LlmClient(session), summary, user_message, answer)
+            if soft is None:
+                return
+            newest = (await session.execute(newest_row())).scalar_one()
+            checkpoint = dict(newest.checkpoint or {})
+            checkpoint["chat_summary"] = apply_soft_memory(checkpoint.get("chat_summary") or summary, soft)
+            newest.checkpoint = checkpoint
+            await session.commit()
+    except Exception as exc:  # memory is best effort; the reply was already delivered
+        logger.warning("chat_memory_update_failed", thread_id=thread_id, error=str(exc)[:200])
+
+
+def _fill_from_memory(requirements: dict, chat_summary: dict | None, message: str = "") -> dict:
+    """Request details the buyer gave earlier in the chat, for fields this turn's extraction left empty.
+
+    A model the extraction missed ("go with the Tesla Model Y" -> brand only) is taken from the cars Sera suggested
+    when the message names one of them.
+    """
+    if not isinstance(chat_summary, dict):
+        return requirements
+    filled = dict(requirements)
+    if not (filled.get("model") or filled.get("model_name")):
+        for car in reversed(chat_summary.get("cars_suggested") or []):
+            name = str(car.get("name") or "")
+            make = make_of(name) or ""
+            model = name[len(make) :].strip()
+            brand_ok = not filled.get("brand") or make.casefold() == str(filled["brand"]).casefold()
+            if make and model and brand_ok and model.casefold() in message.casefold():
+                filled["brand"] = filled.get("brand") or make
+                filled["model"] = model
+                break
+    buyer = chat_summary.get("buyer")
+    if not isinstance(buyer, dict):
+        return filled
+    for key in (
+        "budget_max", "budget_min", "timeline", "color", "drivetrain", "fuel_type", "transmission", "condition",
+        "paying_with",
+    ):  # fmt: skip
+        if not filled.get(key) and buyer.get(key):
+            filled[key] = buyer[key]
+    location = str(buyer.get("location") or "")
+    if location and not filled.get("buyer_area"):
+        city, _, state = location.rpartition(", ")
+        filled["buyer_area"] = city or location
+        if state and city and not filled.get("state"):
+            filled["state"] = state
+    return filled
+
+
+def _catalog_year(main_result: dict, requirements: dict) -> str | None:
+    """The model year the catalog lookup showed for the chosen car this turn, if it looked that car up."""
+    model = str(requirements.get("model") or requirements.get("model_name") or "").casefold()
+    if not model:
+        return None
+    for result in main_result.get("catalog_results") or []:
+        for row in result.get("rows") or []:
+            if str(row.get("model") or "").casefold() == model and row.get("year_shown"):
+                return str(row["year_shown"])
+    return None
+
+
+def _keep_same_car_draft(requirements: dict, request_context: dict | None) -> dict:
+    """A new card for the car already on screen keeps what the buyer has filled in (year, city, timing, budget).
+
+    "Show me a picture of Corvette" can be read as settling on the Corvette again; its card must not drop the
+    2027 and Las Vegas the buyer already has. A card for a different car starts fresh.
+    """
+    if not isinstance(request_context, dict) or request_context.get("publishedRequestId"):
+        return requirements
+    same_car = all(
+        str(requirements.get(key) or "").casefold() == str(request_context.get(key) or "").casefold()
+        for key in ("brand", "model")
+    )
+    if not same_car:
+        return requirements
+    kept = {key: value for key, value in request_context.items() if value not in (None, "")}
+    return {**kept, **{key: value for key, value in requirements.items() if value not in (None, "")}}
+
+
+def _draft_budget_update(message: str, request_context: dict | None) -> dict | None:
+    """The request card on screen with a newly stated budget, or None when nothing changes.
+
+    The requirements graph only runs when a buyer settles on a car, so a budget given on an ordinary advice turn
+    ("my budget is 30K, which is best?") was never captured on the card.
+    """
+    if not isinstance(request_context, dict) or not request_context.get("brand"):
+        return None
+    if request_context.get("publishedRequestId"):
+        return None
+    budget = extract_budget(message)
+    if not budget or budget == str(request_context.get("budget") or ""):
+        return None
+    return {**request_context, "budget": budget, "budget_max": budget}
 
 
 def _money_value(value: object) -> Decimal | None:
@@ -75,41 +203,79 @@ def _money_value(value: object) -> Decimal | None:
     return amount
 
 
+RECENT_CONTEXT_ITEMS = 12  # the last six exchanges are kept close to word for word
+
+
 def _compact_conversation_context(context: list[dict[str, Any]], *, max_chars: int = 6000) -> list[dict[str, Any]]:
-    """Keep the latest ten exchanges useful without replaying long answers and galleries verbatim."""
-    compacted: list[dict[str, Any]] = []
-    used = 0
-    for original in reversed(context[-20:]):
+    """Fit the loaded turns into ``max_chars`` without losing what an older answer recommended.
+
+    The last six exchanges keep their text (long answers trimmed). Older answers shrink to the cars they named
+    ("Suggested: Honda Civic Hybrid, Hyundai Palisade Hybrid, ...") and older questions to a short line. If that is
+    still too long, whole messages are dropped from the oldest end. A long answer is never skipped while the
+    question before it is kept, which is how an old shortlist used to vanish. The chat summary covers the rest.
+    """
+    window = context[-20:]
+    recent_from = max(0, len(window) - RECENT_CONTEXT_ITEMS)
+    items: list[dict[str, Any]] = []
+    originals: list[str | None] = []
+    for index, original in enumerate(window):
         item = dict(original)
-        if isinstance(item.get("body"), str):
-            body = item["body"]
-            limit = 2200 if item.get("role") == "assistant" else 700
-            if len(body) > limit:
-                item["body"] = body[: limit - 40] + " … [earlier text omitted]"
+        body = item.get("body")
+        originals.append(body if isinstance(body, str) else None)
+        if isinstance(body, str):
+            if index < recent_from:
+                item["body"] = _shorten_old_turn(item.get("role"), body)
+            else:
+                item["body"] = _clip(body, 2200 if item.get("role") == "assistant" else 700)
         media = item.get("media")
         if isinstance(media, list):
-            item["media"] = [
-                {
-                    key: str(value)[:500]
-                    for key, value in image.items()
-                    if key in {"image_url", "source_url", "source_name", "vehicle_name", "alt", "thumbnail_url"}
-                }
-                for image in media[:8]
-                if isinstance(image, dict)
-            ]
-        size = len(str(item))
-        if used + size > max_chars:
-            # Keep the most recent user turn intact enough to resolve references; older turns can be omitted.
-            if not compacted:
-                for key in ("body",):
-                    if isinstance(item.get(key), str):
-                        item[key] = item[key][-max(200, max_chars - used - 100) :]
-                size = len(str(item))
-            if used + size > max_chars:
-                continue
-        compacted.append(item)
-        used += size
-    return list(reversed(compacted))
+            item["media"] = (
+                [
+                    {
+                        key: str(value)[:500]
+                        for key, value in image.items()
+                        if key in {"image_url", "source_url", "source_name", "vehicle_name", "alt", "thumbnail_url"}
+                    }
+                    for image in media[:8]
+                    if isinstance(image, dict)
+                ]
+                if index >= recent_from
+                else []
+            )
+        items.append(item)
+
+    def size() -> int:
+        return sum(len(str(item)) for item in items)
+
+    # Over budget: shorten recent turns the same way (oldest first, the last two exchanges stay), then drop.
+    for index in range(recent_from, max(recent_from, len(items) - 4)):
+        if size() <= max_chars:
+            break
+        if originals[index] is not None:
+            items[index]["body"] = _shorten_old_turn(items[index].get("role"), originals[index])
+            items[index].pop("media", None)
+    while len(items) > 2 and size() > max_chars:
+        items.pop(0)
+    # The latest exchange must fit: trim its text from the front if a very long message still overflows.
+    while sum(len(str(item)) for item in items) > max_chars and any(isinstance(i.get("body"), str) for i in items):
+        longest = max((i for i in items if isinstance(i.get("body"), str)), key=lambda i: len(i["body"]))
+        overflow = sum(len(str(item)) for item in items) - max_chars
+        if len(longest["body"]) <= 200:
+            break
+        longest["body"] = longest["body"][: max(200, len(longest["body"]) - overflow - 40)] + " …"
+    return items
+
+
+def _shorten_old_turn(role: str | None, body: str) -> str:
+    """An older answer becomes the cars it named; an older question a short line."""
+    if role == "assistant":
+        names = vehicle_names(body)
+        return ("Suggested: " + ", ".join(names)) if names else _clip(body, 300)
+    return _clip(body, 200)
+
+
+def _clip(text: str, limit: int) -> str:
+    return text if len(text) <= limit else text[: limit - 30] + " … [earlier text omitted]"
 
 
 class AiService:
@@ -189,11 +355,11 @@ class AiService:
         model_name = requirements.get("model") or requirements.get("model_name")
         if not model_name:
             return None
-        brand = await self.session.execute(
-            select(Brand).where(Brand.name.ilike(str(requirements["brand"])))
+        brand = (
+            await self.session.execute(select(Brand).where(Brand.name.ilike(str(requirements["brand"]))))
         ).scalar_one_or_none()
-        state = await self.session.execute(
-            select(State).where(State.name.ilike(str(requirements["state"])))
+        state = (
+            await self.session.execute(select(State).where(State.name.ilike(str(requirements["state"]))))
         ).scalar_one_or_none()
         if brand is None or state is None:
             return None
@@ -331,6 +497,7 @@ class AiService:
             "preference_action": preference_action,
             "chat_preferences": chat_preferences,
             "conversation_context": conversation_context,
+            "chat_summary": memory.get("chat_summary"),
         }
         explicit_web_search = (
             get_settings().ai_enable_web_search
@@ -399,7 +566,7 @@ class AiService:
         if payload.agent != "compare-agent" and not explicit_web_search and first_question:
             match = await match_message(self.session, effective_message)
             if match.opens_card and not match.has_question:
-                guided_step = await GuidedPlanner(self.session).from_match(match)
+                guided_step = await GuidedPlanner(self.session).from_match(match, effective_message)
                 reply = await self._guided_reply(match, guided_step) if match.card_only else None
                 if reply is not None:
                     main_result = {"route": "guided_card", "answer": reply}
@@ -482,6 +649,25 @@ class AiService:
                 agent_profiles=runtime["agent_profiles"],
             ).ainvoke({**state, "vehicle_selection": True})
             requirement_result["vehicle_selection"] = True
+            if not (requirement_result.get("requirements") or {}).get("brand"):
+                # The chosen car is not from a brand Deal&Drive dealers sell (the Renault Filante): there is no
+                # request to send, and any card would replace the buyer's current draft.
+                requirement_result = {}
+        if requirement_result.get("requirements"):
+            # Budget, color or city given many turns earlier still belong on the card.
+            requirement_result["requirements"] = _fill_from_memory(
+                requirement_result["requirements"], memory.get("chat_summary"), effective_message
+            )
+        if requirement_result.get("requirements") and not requirement_result["requirements"].get("years"):
+            # "go with the Nissan Kicks" names no year; the catalog lookup this turn says which one was described.
+            year = _catalog_year(main_result, requirement_result["requirements"])
+            if year:
+                requirement_result["requirements"]["years"] = year
+        draft_update = (
+            None
+            if requirement_result or payload.agent == "compare-agent" or main_result.get("route") in DIRECT_REPLY_ROUTES
+            else _draft_budget_update(effective_message, payload.request_context)
+        )
         if main_result.get("sources") and not explicit_web_search:
             yield {"type": "status", "phase": "crawling", "label": "Searching trusted sources"}
         yield {"type": "status", "phase": "composing", "label": "Preparing response"}
@@ -494,13 +680,25 @@ class AiService:
         gate = await self.posting_gate(buyer)
         if guided_step is not None and main_result.get("route") not in DIRECT_REPLY_ROUTES:
             yield {"type": "card", "kind": "question", "payload": guided_step.model_dump()}
+        elif draft_update:
+            # A budget stated later in the chat ("my budget is 30K") updates the request card already on screen.
+            yield {
+                "type": "card",
+                "kind": "requestPreview",
+                "payload": {
+                    **draft_update,
+                    "confirmation_required": True,
+                    "posting_allowed": gate["posting_allowed"],
+                    "posting_reason": gate["posting_reason"],
+                },
+            }
         elif requirement_result.get("vehicle_selection") and requirement_result.get("requirements"):
             # Shown even with fields missing: the buyer fills in anything else (such as city) on the card itself.
             yield {
                 "type": "card",
                 "kind": "requestPreview",
                 "payload": {
-                    **requirement_result["requirements"],
+                    **_keep_same_car_draft(requirement_result["requirements"], payload.request_context),
                     "confirmation_required": True,
                     "posting_allowed": gate["posting_allowed"],
                     "posting_reason": gate["posting_reason"],
@@ -537,7 +735,15 @@ class AiService:
             thread_id, buyer.id, payload, main_result, requirement_result, memory, trace_id=trace.id
         )
         await self.session.commit()
+        if main_result.get("route") not in DIRECT_REPLY_ROUTES and payload.agent != "compare-agent":
+            # After the reply is saved, so the buyer never waits for it.
+            self._schedule_memory_refine(thread_id, buyer.id, payload.message, answer)
         yield {"type": "done", "threadId": thread_id, "messagesUsed": 1, "expandedUi": False}
+
+    def _schedule_memory_refine(self, thread_id: str, user_id: str, user_message: str, answer: str) -> None:
+        task = asyncio.create_task(_refine_chat_memory(thread_id, user_id, user_message, answer))
+        _MEMORY_TASKS.add(task)
+        task.add_done_callback(_MEMORY_TASKS.discard)
 
     async def _guided_reply(self, match: MatchResult, step: GuidedStep | None) -> str | None:
         """Sera's one sentence alongside the card, or a clear reply for a brand outside the dealer network."""
@@ -753,6 +959,14 @@ class AiService:
                     "entry_mode": previous.get("entry_mode"),
                     "guided_messages": messages,
                     "guided_state": payload.guided_state,
+                    # Picks made on the guided card (car, city, timing) join the chat's memory.
+                    "chat_summary": update_summary(
+                        previous.get("chat_summary"),
+                        user_message=None,
+                        answer=None,
+                        request_context=payload.request_context,
+                        published_request_id=payload.guided_state.get("publishedRequestId"),
+                    ),
                 },
                 metadata_json={"title": title, "agent": "sera-guided", "saved_at": datetime.now(UTC).isoformat()},
             )
@@ -850,7 +1064,12 @@ class AiService:
             if key not in seen:
                 deduped.append(message)
                 seen.add(key)
-        return {**latest, "conversation_context": deduped[-20:]}
+        # Chats saved before memory existed get a summary rebuilt from the turns still loaded.
+        return {
+            **latest,
+            "conversation_context": deduped[-20:],
+            "chat_summary": latest.get("chat_summary") or bootstrap_summary(deduped),
+        }
 
     async def _buyer_preferences(self, user_id: str) -> dict:
         from src.repositories.schema import BuyerPreference
@@ -892,6 +1111,15 @@ class AiService:
         )
         user_message = None if is_control else payload.message
         new_draft = bool(requirements.get("vehicle_selection"))
+        chat_summary = update_summary(
+            memory.get("chat_summary"),
+            user_message=user_message,
+            answer=main.get("answer"),
+            route=main.get("route"),
+            requirements=requirements.get("requirements"),
+            request_context=payload.request_context,
+            published_request_id=(main.get("published_request") or {}).get("id"),
+        )
         # The buyer's answer to the preferences card holds for the rest of the chat, so it is never asked again.
         preference_decision = (
             payload.preference_action
@@ -932,6 +1160,7 @@ class AiService:
                     if payload.preference_action == "customize"
                     else memory.get("chat_preferences"),
                     "preference_card": main.get("preference_card") if preference_choice else None,
+                    "chat_summary": chat_summary,
                 },
                 metadata_json={
                     "title": (

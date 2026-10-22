@@ -295,6 +295,10 @@ class BuyerRequest(AuditMixin, Base):
     request_expire: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     market_brief: Mapped[str | None] = mapped_column(Text)
     status: Mapped[str] = mapped_column(String(20), default="draft", nullable=False, index=True)
+    # Set when the buyer sends an unquoted brief back to dealers as a reminder; cleared by a repush.
+    dealers_notified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Set when the buyer reopens a brief that was closed for getting no quotes; restarts its quote clocks.
+    repushed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class BuyerRequestView(Base):
@@ -425,6 +429,52 @@ class SupportTicketAttachment(AuditMixin, Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
     ticket_id: Mapped[str] = mapped_column(
         ForeignKey("support_tickets.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    object_key: Mapped[str] = mapped_column(String(1024), nullable=False)
+    file_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    content_type: Mapped[str] = mapped_column(String(100), nullable=False)
+    size_bytes: Mapped[int] = mapped_column(Integer, nullable=False)
+
+
+class UserReport(AuditMixin, Base):
+    """A buyer's or dealer's report about the other person in one of their conversations.
+
+    The reported person is always the other party on ``quote_id``, so nobody can report someone they never dealt
+    with. ``conversation_snapshot`` keeps the messages as they stood when the report was made, because the sender
+    can edit or unsend them afterwards. ``notes`` is the support timeline: notes, status changes and the outcome.
+    """
+
+    __tablename__ = "user_reports"
+    __table_args__ = (
+        CheckConstraint("status IN ('open','under_review','action_taken','dismissed')", name="ck_user_reports_status"),
+        CheckConstraint(
+            "outcome IS NULL OR outcome IN ('no_violation','warning_issued','account_suspended','other')",
+            name="ck_user_reports_outcome",
+        ),
+    )
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
+    report_id: Mapped[str] = mapped_column(String(40), unique=True, nullable=False)
+    quote_id: Mapped[str] = mapped_column(ForeignKey("deal_quotes.id"), nullable=False, index=True)
+    reporter_id: Mapped[str] = mapped_column(ForeignKey("profiles.id"), nullable=False, index=True)
+    reporter_role: Mapped[str] = mapped_column(String(20), nullable=False)
+    reported_id: Mapped[str] = mapped_column(ForeignKey("profiles.id"), nullable=False, index=True)
+    reported_role: Mapped[str] = mapped_column(String(20), nullable=False)
+    reason: Mapped[str] = mapped_column(String(40), nullable=False)
+    details: Mapped[str] = mapped_column(Text, nullable=False)
+    conversation_snapshot: Mapped[list[dict] | None] = mapped_column(JSON)
+    status: Mapped[str] = mapped_column(String(20), default="open", nullable=False, index=True)
+    outcome: Mapped[str | None] = mapped_column(String(30))
+    notes: Mapped[list[dict]] = mapped_column(JSON, default=list, nullable=False)
+
+
+class UserReportAttachment(AuditMixin, Base):
+    """A screenshot attached to a report. The file lives in private storage under reports/...; only its key and
+    descriptive metadata are stored here."""
+
+    __tablename__ = "user_report_attachments"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
+    report_id: Mapped[str] = mapped_column(
+        ForeignKey("user_reports.id", ondelete="CASCADE"), nullable=False, index=True
     )
     object_key: Mapped[str] = mapped_column(String(1024), nullable=False)
     file_name: Mapped[str] = mapped_column(String(255), nullable=False)

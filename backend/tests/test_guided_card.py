@@ -217,3 +217,13 @@ async def test_models_elsewhere_in_the_message_still_count(catalog) -> None:
     async with catalog() as session:
         match = await match_message(session, "X5 vs Audi Q7")
     assert {(make.name, found.name) for make, found in match.candidates} == {("BMW", "X5"), ("Audi", "Q7")}
+
+
+async def test_a_city_and_timing_in_the_opening_message_are_not_asked_again(catalog) -> None:
+    """Regression (red-team run): "a 2025 Toyota Camry in Austin, Texas within 2 weeks" still asked for both."""
+    message = "I want a BMW M3 in Austin, Texas within 2 weeks"
+    async with catalog() as session:
+        current = await GuidedPlanner(session).from_match(await match_message(session, message), message)
+
+    assert (current.answers.buyer_area, current.answers.state) == ("Austin", "Texas")
+    assert current.answers.timeline == "Within 2 weeks"

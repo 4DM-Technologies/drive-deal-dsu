@@ -45,7 +45,7 @@ export function advisorResponseActions(body: string): AdvisorResponseAction[] {
       { label: 'Compare these cars', prompt: 'Compare the cars in that shortlist for performance, value, and everyday comfort.' },
     ];
   }
-  const numberedVehicles = [...body.matchAll(/^\s*\d+[.)]\s+\*\*([^*]+)\*\*/gm)];
+  const numberedVehicles = [...body.matchAll(/^\s*(?:\d+[.)]|[-*•])\s+\*\*([^*:]+)\*\*/gm)];
   if (numberedVehicles.length < 3 || !/\b(car|cars|vehicle|vehicles|coupe|sports|suv|sedan|roadster)\b/.test(normalized)) return [];
   return [
     { label: 'Show photos', prompt: 'Show me a photo of each car in that shortlist.' },
@@ -55,7 +55,7 @@ export function advisorResponseActions(body: string): AdvisorResponseAction[] {
 }
 
 function isVehicleRecommendation(body: string): boolean {
-  return [...body.matchAll(/^\s*\d+[.)]\s+\*\*([^*]+)\*\*/gm)].length >= 3
+  return [...body.matchAll(/^\s*(?:\d+[.)]|[-*•])\s+\*\*([^*:]+)\*\*/gm)].length >= 3
     && /\b(car|cars|vehicle|vehicles|coupe|sports|suv|sedan|roadster)\b/i.test(body);
 }
 type PreferenceStage = 'choice' | 'customize' | 'field' | 'update-field' | 'value' | 'remove-select' | 'confirm';
@@ -65,7 +65,9 @@ const HIDDEN_DRAFT_FIELDS = new Set(['stateId', 'brandId']);
 const EDITABLE_DRAFT_FIELDS = ['area', 'timeline', 'budget'];
 // Needed before the request can be sent; an empty one reads "Add before sending" instead of "No preference".
 const REQUIRED_DRAFT_FIELDS = new Set(['brand', 'model', 'area', 'timeline']);
-const DRAFT_LABELS: Record<string, string> = { mustHaves: 'Must-haves', fuelType: 'Fuel', transmission: 'Transmission', drivetrain: 'Drivetrain', additionalInformation: 'Additional details', bodyType: 'Body style', budgetMin: 'Budget from', budgetMax: 'Budget up to', years: 'Model year', area: 'City', timeline: 'Timeline', budget: 'Budget (optional)' };
+// Shown under the card's "More details" section: worth sending to dealers, but never needed to post.
+const OPTIONAL_DRAFT_FIELDS = ['trim', 'color', 'bodyType', 'fuelType', 'drivetrain', 'transmission', 'condition', 'budgetMin', 'payingWith', 'mustHaves', 'additionalInformation'];
+const DRAFT_LABELS: Record<string, string> = { trim: 'Trim', color: 'Color', condition: 'New or used', payingWith: 'Paying with', mustHaves: 'Must-haves', fuelType: 'Fuel', transmission: 'Transmission', drivetrain: 'Drivetrain', additionalInformation: 'Additional details', bodyType: 'Body style', budgetMin: 'Budget from', budgetMax: 'Budget up to', years: 'Model year', area: 'City', timeline: 'Timeline', budget: 'Budget (optional)' };
 const IMAGE_CACHE_PREFIX = 'sera-vehicle-image:';
 
 function preferenceQuestion(id: string, title: string, labels: Array<[string, string, string?]>, allowOther = false, placeholder = 'Type a preference', multiSelect = false, emptyMessage?: string): import('@/types/domain').GuidedQuestion {
@@ -208,7 +210,9 @@ export function normalizeRequestDraft(payload: unknown): RequestDraft | null {
     ['brand', ['brand']], ['model', ['model', 'model_name']], ['years', ['years']],
     ['budget', ['budget', 'budget_max']], ['area', ['area', 'buyer_area']], ['state', ['state']],
     ['timeline', ['timeline']], ['mustHaves', ['mustHaves', 'must_haves']], ['bodyType', ['bodyType', 'body_type']],
-    ['fuelType', ['fuelType', 'fuel_type']], ['transmission', ['transmission']],
+    ['fuelType', ['fuelType', 'fuel_type']], ['transmission', ['transmission']], ['trim', ['trim']],
+    ['color', ['color', 'exterior_color']], ['drivetrain', ['drivetrain']], ['condition', ['condition']],
+    ['budgetMin', ['budgetMin', 'budget_min']], ['payingWith', ['payingWith', 'paying_with']],
     ['additionalInformation', ['additionalInformation', 'additional_information']],
   ];
   const draft: RequestDraft = {};
@@ -234,6 +238,24 @@ export function mergeLocalGreeting(local: AiMessage[] | undefined, server: AiMes
   const opening = (firstBuyerMessage === -1 ? local ?? [] : (local ?? []).slice(0, firstBuyerMessage))
     .filter((message) => message.role === 'assistant' && !server.some((item) => item.id === message.id || item.body === message.body));
   return [...opening, ...server];
+}
+
+/** Whether the request card should shrink to a chip because later replies followed the one that produced it. */
+export function isDraftCollapsed(
+  anchorId: string | null,
+  latestAssistantId: string | undefined,
+  { expanded, editing, reviewing }: { expanded: boolean; editing: boolean; reviewing: boolean },
+): boolean {
+  if (expanded || editing || reviewing || !anchorId || !latestAssistantId) return false;
+  return anchorId !== latestAssistantId;
+}
+
+/** The card's always-visible fields and its optional ones (all of them while editing, otherwise only those filled in). */
+export function splitDraftFields(draft: RequestDraft, editing: boolean): { primary: Array<[string, string]>; optional: Array<[string, string]>; filled: number } {
+  const primary = Object.entries(draft).filter(([key]) => !HIDDEN_DRAFT_FIELDS.has(key) && !OPTIONAL_DRAFT_FIELDS.includes(key)).map(([key, value]) => [key, value ?? ''] as [string, string]);
+  const all = OPTIONAL_DRAFT_FIELDS.map((key) => [key, draft[key] ?? ''] as [string, string]);
+  const filled = all.filter(([, value]) => value).length;
+  return { primary, optional: editing ? all : all.filter(([, value]) => value), filled };
 }
 
 export function hasGuidedHistoryOptions(options: string[] | undefined): boolean {
@@ -326,6 +348,10 @@ export default function AdvisorScreen() {
   const [media, setMedia] = useState<VehicleMedia[]>([]);
   const [sources, setSources] = useState<VehicleSource[]>([]);
   const [editing, setEditing] = useState(false);
+  const [draftAnchorId, setDraftAnchorId] = useState<string | null>(null);
+  const [draftExpanded, setDraftExpanded] = useState(false);
+  const [showMoreDetails, setShowMoreDetails] = useState(false);
+  const latestAssistantIdRef = useRef<string | undefined>(undefined);
   const [published, setPublished] = useState(false);
   const [publishingRequest, setPublishingRequest] = useState(false);
   const [publishError, setPublishError] = useState('');
@@ -810,8 +836,11 @@ export default function AdvisorScreen() {
         yearMax: yearValues[1] || yearValues[0] || null,
         transmission: draft.transmission || null,
         trim: draft.trim || null,
+        color: draft.color || null,
+        condition: draft.condition || null,
+        payingWith: draft.payingWith || null,
         drivetrain: draft.drivetrain || null,
-        budgetMin: draft.budgetMin || null,
+        budgetMin: parseBudget(draft.budgetMin),
         budgetMax: draft.budgetMax || parseBudget(draft.budget),
         buyerArea: area,
         searchRadiusMiles: 50,
@@ -1255,6 +1284,15 @@ export default function AdvisorScreen() {
   const showComposer = shouldShowAdvisorComposer(guidedStep, Boolean(preferenceQuestionCard));
   const showSuggestedPrompts = !streaming && !guidedStep && messages.length === 0;
   const latestAssistantId = [...messages].reverse().find((message) => message.role === 'assistant')?.id;
+  // Runs before the effect below in the same commit, so a new draft anchors to the reply rendered with it.
+  useEffect(() => { latestAssistantIdRef.current = latestAssistantId; });
+  // The request card belongs to the reply that produced it. Once the chat moves on (an off-topic or medical
+  // question, say), it collapses to a chip so a later reply does not look like it came with a request attached.
+  useEffect(() => {
+    setDraftAnchorId(draft ? latestAssistantIdRef.current ?? null : null);
+    setDraftExpanded(false);
+  }, [draft]);
+  const draftCollapsed = isDraftCollapsed(draftAnchorId, latestAssistantId, { expanded: draftExpanded, editing, reviewing: guidedStep === 'review' });
 
   return <div className="advisor-page">
     <section className="shell advisor-shell" aria-label="Ask Sera">
@@ -1316,7 +1354,10 @@ export default function AdvisorScreen() {
           </article>}
           {card.busy && !card.question && <p className="guided-image-loading"><ActivityStatus label="Preparing questions" /></p>}
           {card.error && !card.question && <p className="inline-warning" role="alert">{card.error}</p>}
-          {draft && Object.keys(draft).length > 0 && (guidedStep === null || guidedStep === 'review' || guidedStep === 'complete' || published) && <section className="ai-result-card request-preview">
+          {draft && Object.keys(draft).length > 0 && (guidedStep === null || guidedStep === 'review' || guidedStep === 'complete' || published) && draftCollapsed && <button type="button" className="draft-request-chip" onClick={() => setDraftExpanded(true)} aria-label="Show your request summary">
+            <FileCheck2 size={15} aria-hidden="true" /><span>{published ? 'Shared with dealers' : 'Your draft request'}: <strong>{draft.brand} {draft.model && draft.model !== 'Open to recommendations' ? draft.model : 'Buying request'}</strong></span><span className="draft-request-chip-action">Review</span>
+          </button>}
+          {draft && Object.keys(draft).length > 0 && (guidedStep === null || guidedStep === 'review' || guidedStep === 'complete' || published) && !draftCollapsed && <section className="ai-result-card request-preview">
             <div className="result-card-head">
               <div><span className="eyebrow">{published ? 'Shared with dealers' : 'Request summary'}</span><h3>{draft.brand} {draft.model && draft.model !== 'Open to recommendations' ? draft.model : 'Buying request'}</h3></div>
               <button className="button button-secondary button-sm" onClick={() => setEditing(!editing)} disabled={published}><Pencil size={14} /> {published ? 'Posted' : editing ? 'Done' : 'Edit'}</button>
@@ -1330,7 +1371,18 @@ export default function AdvisorScreen() {
             </section>}
             {guidedStep === 'review' && !imageLoading && imageSearchStatus === 'not_found' && draft.brand && draft.model && draft.model !== 'Open to recommendations' && <div className="guided-image-fallback" role="status"><span>No usable reference photo turned up for this vehicle. You can continue without one.</span><button type="button" className="guided-back" onClick={() => setImageAttempt((attempt) => attempt + 1)}>Try again</button></div>}
             {guidedStep === 'review' && !imageLoading && imageSearchStatus === 'unavailable' && <div className="guided-image-fallback" role="status"><span>Image search is temporarily unavailable. You can continue with your request.</span><button type="button" className="guided-back" onClick={() => setImageAttempt((attempt) => attempt + 1)}>Retry search</button></div>}
-            <div className="request-preview-grid">{Object.entries(draft).filter(([key]) => !HIDDEN_DRAFT_FIELDS.has(key)).map(([key, value]) => <label key={key}><span>{DRAFT_LABELS[key] ?? key.replace(/([A-Z])/g, ' $1')}</span>{editing ? <input value={value} onChange={(event) => setDraft({ ...draft, [key]: event.target.value })} /> : <strong>{value || (REQUIRED_DRAFT_FIELDS.has(key) ? 'Add before sending' : 'No preference')}</strong>}</label>)}</div>
+            {(() => {
+              const fields = splitDraftFields(draft, editing);
+              const field = ([key, value]: [string, string]) => <label key={key}><span>{DRAFT_LABELS[key] ?? key.replace(/([A-Z])/g, ' $1')}</span>{editing ? <input value={value} onChange={(event) => setDraft({ ...draft, [key]: event.target.value })} /> : <strong>{value || (REQUIRED_DRAFT_FIELDS.has(key) ? 'Add before sending' : 'No preference')}</strong>}</label>;
+              const open = showMoreDetails || editing;
+              return <>
+                <div className="request-preview-grid">{fields.primary.map(field)}</div>
+                <div className="request-more-details">
+                  <button type="button" className="request-more-toggle" aria-expanded={open} onClick={() => setShowMoreDetails(!showMoreDetails)} disabled={editing}>{open ? 'Hide more details' : 'More details (optional)'}{fields.filled > 0 && !open ? ` · ${fields.filled} added` : ''}</button>
+                  {open && (fields.optional.length > 0 ? <div className="request-preview-grid">{fields.optional.map(field)}</div> : <p className="request-more-empty">Add trim, color, drivetrain or how you plan to pay with Edit. Dealers quote more precisely with them.</p>)}
+                </div>
+              </>;
+            })()}
             {postBlocked && <UpgradePrompt reason={postGate?.reason ?? 'request_limit_reached'} role="buyer" />}
             {guidedStep === 'complete' || published ? <div className="result-card-actions"><p><CheckCircle2 size={16} /> Request sent to matching dealers.</p><Link className="button button-primary button-sm" to={publishedRequestId ? `/requests/${publishedRequestId}` : '/requests'}>Track Request</Link></div> : <div className="result-card-actions"><p><CheckCircle2 size={16} /> Nothing is posted until you confirm.</p><button className="button button-primary button-sm" onClick={() => void publishDraftRequest()} disabled={published || publishingRequest || postBlocked}><FileCheck2 size={16} /> {publishingRequest ? 'Publishing…' : 'Send to matching dealers'}</button></div>}
             {publishError && <p className="inline-warning" role="alert">{publishError}</p>}

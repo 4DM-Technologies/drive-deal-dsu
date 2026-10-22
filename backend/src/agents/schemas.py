@@ -9,6 +9,8 @@ class OrchestratorPlan(BaseModel):
     model_config = ConfigDict(extra="forbid")
     mode: Literal["kb_only", "web_direct", "web_per_car"]
     reasoning: str = ""
+    # A self-contained web query with references ("these cars", "the two") resolved from the conversation.
+    search_query: str = ""
 
 
 class CarSpecs(BaseModel):

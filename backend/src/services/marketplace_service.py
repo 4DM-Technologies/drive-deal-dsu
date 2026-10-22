@@ -1,4 +1,4 @@
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
 from sqlalchemy import select
@@ -17,6 +17,7 @@ from src.repositories.marketplace_repository import MarketplaceRepository
 from src.repositories.schema import Brand, BuyerRequest, DealChat, DealQuote, Profile
 from src.services.billing_service import BillingService
 from src.services.community_guidelines import violates_chat_guidelines
+from src.services.deal_export import build_deals_workbook
 from src.services.websocket_manager import manager
 from src.settings import MARKETPLACE_DEAL_FLOW
 from src.utils.exceptions import AppError, error_codes
@@ -27,6 +28,9 @@ from src.utils.serialization import model_dict
 CHAT_UNSENT_MARKER = "__dealdrive_message_unsent__"
 CHAT_UNSENT_TEXT = "This message was unsent."
 CHAT_GUIDELINE_MESSAGE = "Please keep messages respectful. This wording violates our community guidelines."
+# Clocks for a request no dealer has quoted, counted from when it was posted or last repushed.
+NOTIFY_DEALERS_AFTER = timedelta(days=14)
+CLOSE_UNQUOTED_AFTER = timedelta(days=30)
 
 
 class MarketplaceService:
@@ -39,7 +43,37 @@ class MarketplaceService:
         brand = await self.session.get(Brand, row.brand_id)
         extra = {} if already_quoted is None else {"already_quoted": already_quoted}
         counts = (await self.repository.request_activity_counts([row.id]))[row.id]
-        return {**model_dict(row), "brand_name": brand.name if brand else None, **counts, **extra}
+        return {
+            **model_dict(row),
+            "brand_name": brand.name if brand else None,
+            **counts,
+            **self._request_lifecycle(row, counts["quote_count"]),
+            **extra,
+        }
+
+    @staticmethod
+    def _posted_at(row: BuyerRequest) -> datetime:
+        posted = row.repushed_at or row.created_at
+        # SQLite hands back naive datetimes; everything here is stored in UTC.
+        return posted if posted.tzinfo else posted.replace(tzinfo=UTC)
+
+    @classmethod
+    def _request_lifecycle(cls, row: BuyerRequest, quote_count: int, now: datetime | None = None) -> dict:
+        """What the buyer can do about a request no dealer has quoted: remind dealers once after two weeks, and
+        repush it once it has closed for going a month without quotes."""
+        now = now or datetime.now(UTC)
+        can_notify = (
+            row.status == "open"
+            and quote_count == 0
+            and row.dealers_notified_at is None
+            and now - cls._posted_at(row) >= NOTIFY_DEALERS_AFTER
+        )
+        return {"can_notify_dealers": can_notify, "can_repush": row.status == "expired"}
+
+    @log_flow(layer="service")
+    async def _expire_unquoted_requests(self) -> None:
+        if await self.repository.expire_unquoted_requests(datetime.now(UTC) - CLOSE_UNQUOTED_AFTER):
+            await self.repository.commit()
 
     @log_flow(layer="service")
     async def quote_dict(self, row: DealQuote) -> dict:
@@ -121,6 +155,7 @@ class MarketplaceService:
 
     @log_flow(layer="service")
     async def list_requests(self, actor: Profile) -> list[dict]:
+        await self._expire_unquoted_requests()
         if actor.role == "buyer":
             rows = await self.repository.buyer_requests(actor.id)
             already_quoted = None
@@ -130,11 +165,13 @@ class MarketplaceService:
             already_quoted = quoted_ids
         brands = await self._brand_map({row.brand_id for row in rows})
         counts = await self.repository.request_activity_counts([row.id for row in rows])
+        now = datetime.now(UTC)
         return [
             {
                 **model_dict(row),
                 "brand_name": brands[row.brand_id].name if row.brand_id in brands else None,
                 **counts[row.id],
+                **self._request_lifecycle(row, counts[row.id]["quote_count"], now),
                 **({} if already_quoted is None else {"already_quoted": row.id in already_quoted}),
             }
             for row in rows
@@ -142,6 +179,7 @@ class MarketplaceService:
 
     @log_flow(layer="service")
     async def get_request(self, request_id: str, actor: Profile) -> dict:
+        await self._expire_unquoted_requests()
         row = await self._request(request_id)
         if actor.role == "buyer" and row.buyer_id != actor.id:
             raise AppError(error_codes.RESOURCE_NOT_FOUND, "Request not found.", 404)
@@ -172,6 +210,41 @@ class MarketplaceService:
         await self.session.commit()
         await self.session.refresh(row)
         logger.info("request_published", request_id=row.id, buyer_id=buyer.id)
+        return await self.request_dict(row)
+
+    @log_flow(layer="service")
+    async def notify_dealers(self, request_id: str, buyer: Profile) -> dict:
+        """Sends an open request that has gone two weeks without quotes back to the top of the dealer feed."""
+        await self._expire_unquoted_requests()
+        row = await self._request(request_id)
+        self._require_owner(row.buyer_id, buyer.id)
+        quote_count = (await self.repository.request_activity_counts([row.id]))[row.id]["quote_count"]
+        if not self._request_lifecycle(row, quote_count)["can_notify_dealers"]:
+            raise AppError(
+                error_codes.CONFLICT,
+                "Dealers can be reminded once, on an open request with no quotes after two weeks.",
+                409,
+            )
+        row.dealers_notified_at = datetime.now(UTC)
+        await self.session.commit()
+        await self.session.refresh(row)
+        logger.info("request_dealers_notified", request_id=row.id, buyer_id=buyer.id)
+        return await self.request_dict(row)
+
+    @log_flow(layer="service")
+    async def repush_request(self, request_id: str, buyer: Profile) -> dict:
+        """Reopens a request that closed for going a month without quotes, with fresh two-week and one-month clocks."""
+        await self._expire_unquoted_requests()
+        row = await self._request(request_id)
+        self._require_owner(row.buyer_id, buyer.id)
+        if row.status != "expired":
+            raise AppError(error_codes.CONFLICT, "Only requests closed for getting no quotes can be repushed.", 409)
+        row.status = "open"
+        row.repushed_at = datetime.now(UTC)
+        row.dealers_notified_at = None
+        await self.session.commit()
+        await self.session.refresh(row)
+        logger.info("request_repushed", request_id=row.id, buyer_id=buyer.id)
         return await self.request_dict(row)
 
     @log_flow(layer="service")
@@ -221,6 +294,20 @@ class MarketplaceService:
         return result
 
     @log_flow(layer="service")
+    async def list_deals(self, actor: Profile) -> list[dict]:
+        """The caller's accepted quotes: a buyer's orders or a dealer's won deals."""
+        return [row for row in await self.list_quotes(actor) if row["status"] == "accepted"]
+
+    @log_flow(layer="service")
+    async def export_deals(self, dealer: Profile) -> tuple[bytes, str]:
+        """The dealer's deals as an Excel workbook, built from the database, and the file name to save it under."""
+        deals = await self.list_deals(dealer)
+        exported_at = datetime.now(UTC)
+        workbook = build_deals_workbook(deals, exported_at)
+        logger.info("deals_exported", dealer_id=dealer.id, deal_count=len(deals))
+        return workbook, f"deals-{exported_at:%Y-%m-%d}.xlsx"
+
+    @log_flow(layer="service")
     async def list_workspace_quotes(self) -> list[dict]:
         """Read-only cross-market quote view for support administrators."""
         rows = list((await self.session.execute(select(DealQuote).order_by(DealQuote.created_at.desc()))).scalars())
@@ -229,6 +316,7 @@ class MarketplaceService:
     @log_flow(layer="service")
     async def create_quote(self, payload: QuoteCreate, dealer: Profile) -> dict:
         await BillingService(self.session).assert_can_quote(dealer)
+        await self._expire_unquoted_requests()
         request = await self._request(payload.buyer_request_id)
         if request.status != "open":
             raise AppError(error_codes.CONFLICT, "Only open requests can receive quotes.", 409)

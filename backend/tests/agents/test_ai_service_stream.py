@@ -494,3 +494,165 @@ async def test_delete_thread_hides_missing_or_unowned_chats() -> None:
 
     assert error.value.status_code == 404
     session.commit.assert_not_awaited()
+
+
+KICKS_DRAFT = {"brand": "Nissan", "model": "Kicks", "area": "Las Vegas", "timeline": "2 weeks", "budget": ""}
+
+
+async def test_a_budget_stated_later_updates_the_request_card() -> None:
+    """Regression: "my budget is 30K" on an advice turn left the card's budget at "No preference"."""
+    _, events, _ = await _drain(
+        "my budget is 30K which is the best car for it?",
+        {"route": "advice", "answer": "The Kicks fits that budget best."},
+        memory=COMPARED_CARS,
+        request_context=KICKS_DRAFT,
+    )
+
+    card = next(event for event in events if event.get("kind") == "requestPreview")
+    assert card["payload"]["budget"] == "30000"
+    assert card["payload"]["area"] == "Las Vegas"
+    assert card["payload"]["confirmation_required"] is True
+
+
+@pytest.mark.parametrize(
+    ("message", "context"),
+    [
+        ("my budget is 30K which is the best car for it?", {**KICKS_DRAFT, "publishedRequestId": "r1"}),
+        ("my budget is 30K which is the best car for it?", {**KICKS_DRAFT, "budget": "30000"}),
+        ("which one is more comfortable?", KICKS_DRAFT),
+    ],
+)
+async def test_no_budget_card_when_nothing_changes_or_the_request_is_posted(message: str, context: dict) -> None:
+    _, events, _ = await _drain(
+        message, {"route": "advice", "answer": "x"}, memory=COMPARED_CARS, request_context=context
+    )
+    assert not any(event.get("kind") == "requestPreview" for event in events)
+
+
+async def test_no_budget_card_on_an_off_topic_turn() -> None:
+    _, events, _ = await _drain(
+        "what is 35K minus 12.67K",
+        {"route": "off_topic", "answer": "x"},
+        memory=COMPARED_CARS,
+        request_context=KICKS_DRAFT,
+    )
+    assert not any(event.get("kind") == "requestPreview" for event in events)
+
+
+async def test_request_card_takes_the_model_year_the_catalog_showed() -> None:
+    """Regression: "okay I will go with Nissan Kicks" described the 2027 Kicks but the card had no year."""
+    _, events, _ = await _drain(
+        "okay I will go with Nissan Kicks",
+        {
+            "route": "requirements",
+            "answer": "You've selected the 2027 Nissan Kicks.",
+            "catalog_results": [
+                {"tool": "get_model_details", "rows": [{"make": "Nissan", "model": "Kicks", "year_shown": 2027}]}
+            ],
+        },
+        memory=COMPARED_CARS,
+        requirement_output={"requirements": {"brand": "Nissan", "model": "Kicks"}, "missing_fields": ["timeline"]},
+    )
+    card = next(event for event in events if event.get("kind") == "requestPreview")
+    assert card["payload"]["years"] == "2027"
+
+
+async def test_publish_confirmation_looks_up_brand_and_state_without_crashing() -> None:
+    """Regression: `.scalar_one_or_none()` was called on the un-awaited coroutine, so "post it" raised."""
+    session = AsyncMock()
+    session.execute = AsyncMock(return_value=MagicMock(scalar_one_or_none=MagicMock(return_value=None)))
+    requirements = {
+        "brand": "Nissan",
+        "model": "Kicks",
+        "buyer_area": "Las Vegas",
+        "state": "Nevada",
+        "timeline": "2 weeks",
+    }
+    assert await AiService(session)._publish_saved_requirements(requirements, SimpleNamespace(id="u1")) is None
+    assert session.execute.await_count == 2
+
+
+async def test_choosing_a_car_from_an_unsupported_brand_shows_no_request_card() -> None:
+    """Regression (live replay): "let's go with Filante" produced a brandless card for a car not sold in the US."""
+    _, events, _ = await _drain(
+        "okay lets go with Filante",
+        {"route": "requirements", "answer": "The Renault Filante is not sold in the US."},
+        memory=COMPARED_CARS,
+        request_context=KICKS_DRAFT,
+        requirement_output={"requirements": {"model": "Filante"}, "missing_fields": ["brand"]},
+    )
+    assert not any(event.get("kind") == "requestPreview" for event in events)
+
+
+async def test_a_repeat_card_for_the_same_car_keeps_what_the_buyer_filled_in() -> None:
+    """Regression (live replay): "Show me a picture of Corvette" re-sent the Corvette card without its 2027 year."""
+    corvette_draft = {"brand": "Chevrolet", "model": "Corvette", "years": "2027", "area": "Las Vegas", "budget": ""}
+    _, events, _ = await _drain(
+        "Show me a picture of Corvette",
+        {"route": "requirements", "answer": "Here's a picture of the 2027 Chevrolet Corvette."},
+        memory=COMPARED_CARS,
+        request_context=corvette_draft,
+        requirement_output={"requirements": {"brand": "Chevrolet", "model": "Corvette"}, "missing_fields": []},
+    )
+    card = next(event for event in events if event.get("kind") == "requestPreview")
+    assert card["payload"]["years"] == "2027"
+    assert card["payload"]["area"] == "Las Vegas"
+
+
+async def test_a_card_for_a_different_car_starts_fresh() -> None:
+    _, events, _ = await _drain(
+        "okay I will go with Nissan Kicks",
+        {"route": "requirements", "answer": "The Kicks is selected."},
+        memory=COMPARED_CARS,
+        request_context={"brand": "Chevrolet", "model": "Corvette", "years": "2027"},
+        requirement_output={"requirements": {"brand": "Nissan", "model": "Kicks"}, "missing_fields": []},
+    )
+    card = next(event for event in events if event.get("kind") == "requestPreview")
+    assert card["payload"]["model"] == "Kicks"
+    assert "years" not in card["payload"]
+
+
+async def test_a_card_made_late_in_the_chat_gets_details_given_much_earlier() -> None:
+    """Budget and color said in turn 2 belong on a card built in turn 20, long after turn 2 left the window."""
+    memory = {
+        **COMPARED_CARS,
+        "chat_summary": {
+            "version": 1,
+            "turn": 19,
+            "buyer": {"budget_max": "40000", "color": "Blue", "location": "Austin, Texas"},
+            "cars_suggested": [],
+        },
+    }
+    _, events, _ = await _drain(
+        "ok I'll go with the Honda CR-V",
+        {"route": "requirements", "answer": "Great choice."},
+        memory=memory,
+        requirement_output={"requirements": {"brand": "Honda", "model": "CR-V"}, "missing_fields": []},
+    )
+    card = next(event for event in events if event.get("kind") == "requestPreview")
+    assert (card["payload"]["budget_max"], card["payload"]["color"]) == ("40000", "Blue")
+    assert (card["payload"]["buyer_area"], card["payload"]["state"]) == ("Austin", "Texas")
+
+
+async def test_a_model_the_extraction_missed_is_taken_from_the_cars_sera_suggested() -> None:
+    """Regression (live run): "ok I'll go with the Tesla Model Y" gave a card with the brand but no model."""
+    memory = {
+        **COMPARED_CARS,
+        "chat_summary": {
+            "version": 1,
+            "turn": 22,
+            "buyer": {},
+            "cars_suggested": [
+                {"n": 1, "name": "Tesla Model Y", "turn": 1},
+                {"n": 2, "name": "Land Rover Defender", "turn": 1},
+            ],
+        },
+    }
+    _, events, _ = await _drain(
+        "ok I'll go with the Tesla Model Y",
+        {"route": "requirements", "answer": "Great choice."},
+        memory=memory,
+        requirement_output={"requirements": {"brand": "Tesla"}, "missing_fields": ["model"]},
+    )
+    card = next(event for event in events if event.get("kind") == "requestPreview")
+    assert (card["payload"]["brand"], card["payload"]["model"]) == ("Tesla", "Model Y")

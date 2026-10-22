@@ -20,10 +20,30 @@ class MarketplaceRepository:
 
     @log_flow(layer="repository")
     async def request_feed(self) -> list[BuyerRequest]:
+        # A reminder or a repush puts the brief back in front of dealers, so it sorts by its latest push.
+        latest_push = func.coalesce(BuyerRequest.dealers_notified_at, BuyerRequest.repushed_at, BuyerRequest.created_at)
         result = await self.session.execute(
-            select(BuyerRequest).where(BuyerRequest.status == "open").order_by(BuyerRequest.created_at.desc())
+            select(BuyerRequest).where(BuyerRequest.status == "open").order_by(latest_push.desc())
         )
         return list(result.scalars())
+
+    @log_flow(layer="repository")
+    async def expire_unquoted_requests(self, posted_before: datetime) -> int:
+        """Closes open requests posted (or last repushed) before ``posted_before`` that never got a live quote."""
+        live_quote = select(DealQuote.id).where(
+            DealQuote.buyer_request_id == BuyerRequest.id, DealQuote.status != "withdrawn"
+        )
+        result = await self.session.execute(
+            update(BuyerRequest)
+            .where(
+                BuyerRequest.status == "open",
+                func.coalesce(BuyerRequest.repushed_at, BuyerRequest.created_at) < posted_before,
+                ~live_quote.exists(),
+            )
+            .values(status="expired")
+            .execution_options(synchronize_session=False)
+        )
+        return result.rowcount or 0
 
     @log_flow(layer="repository")
     async def request_by_id(self, request_id: str) -> BuyerRequest | None:

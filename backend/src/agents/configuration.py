@@ -27,7 +27,7 @@ __all__ = [
 # override is set (see AdministrationService.runtime_bundle).
 AGENT_MAX_OUTPUT_TOKENS: dict[str, int] = {
     "main_agent": 60,  # classifier: a single lowercase route word
-    "orchestrator": 300,  # short JSON plan (mode + brief reasoning)
+    "orchestrator": 600,  # short JSON plan (mode, brief reasoning, standalone search query); reasoning tokens count too
     "kb_agent": 500,  # preference extraction / car-name shortlist JSON array
     "web_search_agent": 1200,  # structured CarSpecs JSON extracted from a full crawled page
     "compose": 2000,  # the final, longest buyer-facing answer
