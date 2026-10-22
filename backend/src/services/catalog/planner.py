@@ -76,6 +76,11 @@ TIMELINE_WORDS = (
     ("Within 1 week", re.compile(r"\b(1|one|a|next) week\b|\bweek\b", re.I)),
     ("Just exploring", re.compile(r"\b(explor\w*|not sure|no rush|later|months?|browsing|just looking)\b", re.I)),
 )
+# "in Austin, Texas" / "near Reno NV" inside a longer sentence.
+LOCATION_IN_SENTENCE_RE = re.compile(
+    r"\b(?:in|near|around)\s+([A-Z][A-Za-z.'-]*(?:\s+[A-Z][A-Za-z.'-]*){0,2}),?\s+"
+    r"([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?|[A-Z]{2})\b"
+)
 STATE_SUFFIX_RE = re.compile(r"(?:,\s*|\s)([A-Za-z]{2})\.?\s*$")
 STRICT_STATE_SUFFIX_RE = re.compile(r"(?:,\s*([A-Za-z]{2})|\s([A-Z]{2}))\.?\s*$")
 FUEL_ORDER = ("Gasoline", "Mild hybrid", "Hybrid", "Plug-in hybrid", "Electric", "Diesel", "Flex fuel", "Hydrogen")
@@ -129,8 +134,12 @@ class GuidedPlanner:
 
     # ----------------------------------------------------------------------------------------------- entry points
 
-    async def from_match(self, match: MatchResult) -> GuidedStep | None:
-        """Start the card from a chat message. None when the message names no requestable vehicle."""
+    async def from_match(self, match: MatchResult, message: str | None = None) -> GuidedStep | None:
+        """Start the card from a chat message. None when the message names no requestable vehicle.
+
+        ``message`` lets the card keep a city and timing the buyer already gave ("a Camry in Austin, Texas within
+        2 weeks"), so it does not ask for them again.
+        """
         answers = GuidedAnswers()
         if match.candidates:
             linked = [(make, model) for make, model in match.candidates if make.linked]
@@ -155,6 +164,14 @@ class GuidedPlanner:
             return None
         answers.model_year = match.model_year
         answers.timeline = match.timeline
+        if message:
+            answers.timeline = answers.timeline or next(
+                (label for label, pattern in TIMELINE_WORDS if pattern.search(message)), None
+            )
+            place = LOCATION_IN_SENTENCE_RE.search(message)
+            location = await self._parse_location(f"{place.group(1)}, {place.group(2)}", strict=True) if place else None
+            if location:
+                answers.buyer_area, answers.state, answers.state_id = location
         answers.must_haves = match.must_haves
         answers.filters = GuidedFilters(**match.filters)
         self._apply_budget(answers, match.budget_min, match.budget_max, match.budget_mentioned, None)
@@ -619,5 +636,5 @@ def opening_message(step: GuidedStep, make: MakeInfo | None, model_count: int, m
     if make and model:
         return f"Good choice, the {make.brand_name or make.name} {model.name}. A few quick questions so dealers can quote the right one."
     if make:
-        return f"{make.brand_name or make.name} has {model_count} models in our catalog. A few quick questions to narrow it down."
+        return f"{make.brand_name or make.name} offers {model_count} models. A few quick questions to narrow it down."
     return "A few quick questions so I can build your request."

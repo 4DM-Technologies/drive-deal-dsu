@@ -351,6 +351,8 @@ export interface RequestCreateInput {
   drivetrain?: string | null;
   transmission?: string | null;
   color?: string | null;
+  condition?: string | null;
+  payingWith?: string | null;
   budgetMin?: string | null;
   budgetMax?: string | null;
   targetOtdPrice?: string | null;
@@ -597,6 +599,20 @@ export interface AiTraceSession {
   last_activity_at: string | null;
   totals: { turns: number; input_tokens: number; output_tokens: number; average_duration_ms: number; failed: number };
   traces: AiTrace[];
+  /** What Sera remembers about the chat: kept up to date after every message. Null for chats with no summary yet. */
+  memory?: ChatMemory | null;
+}
+
+export interface ChatMemory {
+  turn: number;
+  buyer: Record<string, string | number>;
+  cars_suggested: Array<{ n: number; name: string; turn: number }>;
+  chosen_car: string | null;
+  request: { status?: string; id?: string };
+  likes: string[];
+  dislikes: string[];
+  uses: string[];
+  notes: string;
 }
 
 export type PlanName = 'premium' | 'trial' | 'free';

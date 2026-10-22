@@ -40,3 +40,12 @@ def local_uploads(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
 
     monkeypatch.setattr(local_storage, "UPLOAD_DIRECTORY", tmp_path)
     return tmp_path
+
+
+@pytest.fixture(autouse=True)
+def no_background_memory_calls(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The chat-memory refinement runs a real model call in the background after each reply. Tests that stream a
+    chat must not start it; tests of the refinement call ``_refine_chat_memory`` directly with a fake model."""
+    from src.services.ai_service import AiService
+
+    monkeypatch.setattr(AiService, "_schedule_memory_refine", lambda *args, **kwargs: None)

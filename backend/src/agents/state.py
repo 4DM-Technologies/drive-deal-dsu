@@ -7,8 +7,10 @@ class AgentState(TypedDict, total=False):
     trace_id: str
     message: str
     conversation_context: list[dict[str, Any]]
+    chat_summary: dict[str, Any]
     route: str
     mode: str
+    search_query: str
     include_images: bool
     preferences: dict[str, Any]
     preferences_pending: bool

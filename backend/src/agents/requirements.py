@@ -48,25 +48,37 @@ FALLBACK_BRANDS = [
 ]
 
 TIMELINES = ["ASAP", "Within 1 week", "Within 2 weeks", "Just exploring"]
+# "budget 30k", and also "my budget is 30K" / "budget of around $30,000": a few filler words may follow "budget".
 BUDGET_RE = re.compile(
-    r"(?:under|budget|max|around|about|approximately|up\s+to|~)\s*\$?\s*([0-9][0-9,]*(?:\.[0-9]+)?(?:\s*[kKmM])?)",
+    r"(?:under|below|less\s+than|(?:not|no)\s+more\s+than|at\s+most|max(?:imum)?|around|about|approximately"
+    r"|up\s+to|~|budget(?:\s+(?:is|of|was|=|around|about|max|maximum|limit|up\s+to)){0,3}\s*:?)"
+    r"\s*\$?\s*([0-9][0-9,]*(?:\.[0-9]+)?(?:\s*(?:[kKmM]|grand|thousand)\b)?)",
     re.IGNORECASE,
 )
+MODEL_YEAR_RE = re.compile(r"\b(20[1-3]\d)\b")
+
+
+def extract_budget(text: str) -> str | None:
+    """The buyer's stated budget as plain digits, or None."""
+    match = BUDGET_RE.search(text)
+    return _normalize_budget(match.group(1)) if match else None
 
 
 def _normalize_budget(raw: str) -> str | None:
-    """Turn "$45k" / "45,000" / "$1.2M" / "~40000" into plain digits, so the budget is one comparable format."""
+    """Turn "$45k" / "45,000" / "$1.2M" / "~40000" / "25 grand" into plain digits, so the budget is one comparable
+    format. A bare number under 1,000 ("about 2", "under 5") is not a car budget and is ignored."""
     text = re.sub(r"[$,~\s]", "", str(raw))
     multiplier = 1
-    for suffix, factor in (("m", 1_000_000), ("k", 1_000)):
+    for suffix, factor in (("thousand", 1_000), ("grand", 1_000), ("m", 1_000_000), ("k", 1_000)):
         if re.search(rf"{suffix}$", text, re.IGNORECASE):
             multiplier = factor
             text = re.sub(rf"{suffix}$", "", text, flags=re.IGNORECASE)
             break
     try:
-        return str(int(float(text) * multiplier))
+        amount = int(float(text) * multiplier)
     except ValueError:
         return None
+    return str(amount) if amount >= 1_000 else None
 
 
 # "Austin, TX" / "in TX" / "near TX". Codes are matched case-sensitively and only after a comma or a
@@ -85,6 +97,84 @@ class ExtractedRequirements(BaseModel):
     state: str | None = None
     timeline: str | None = None
     budget_max: str | None = None
+    # Optional details a buyer may mention; shown under the request card's "More details".
+    budget_min: str | None = None
+    trim: str | None = None
+    color: str | None = None
+    drivetrain: str | None = None
+    fuel_type: str | None = None
+    transmission: str | None = None
+    condition: str | None = None
+    paying_with: str | None = None
+
+
+# Optional request details read straight from the message. Each list is (stored value, pattern), first match wins.
+COLORS = (
+    "black", "white", "silver", "gray", "grey", "red", "blue", "green", "beige", "brown", "gold", "orange",
+    "yellow", "purple",
+)  # fmt: skip
+# A color word counts when it describes the car ("a red one", "in blue,", "a red Tesla"), not "black interior".
+COLOR_RE = re.compile(
+    rf"\b((?i:{'|'.join(COLORS)}))\b"
+    r"(?=\s+(?i:color|colour|paint|exterior|one|car|suv|sedan|truck|please|pls|or|preferably|ideally)\b"
+    r"|\s+[A-Z]|\s*$|[,.!?])"
+)
+DRIVETRAINS = (
+    ("AWD", re.compile(r"\b(?:awd|all[- ]wheel[- ]drive)\b", re.I)),
+    ("4WD", re.compile(r"\b(?:4wd|4x4|four[- ]wheel[- ]drive)\b", re.I)),
+    ("FWD", re.compile(r"\b(?:fwd|front[- ]wheel[- ]drive)\b", re.I)),
+    ("RWD", re.compile(r"\b(?:rwd|rear[- ]wheel[- ]drive)\b", re.I)),
+)
+FUEL_TYPES = (
+    ("Plug-in hybrid", re.compile(r"\b(?:plug[- ]in(?:\s+hybrid)?|phev)\b", re.I)),
+    ("Hybrid", re.compile(r"\bhybrid\b", re.I)),
+    ("Electric", re.compile(r"\b(?:electric|ev)\b", re.I)),
+    ("Diesel", re.compile(r"\bdiesel\b", re.I)),
+)
+TRANSMISSIONS = (
+    ("Manual", re.compile(r"\b(?:manual|stick[- ]shift|stick)\b", re.I)),
+    ("Automatic", re.compile(r"\bautomatic\b", re.I)),
+)
+CONDITIONS = (
+    ("Certified pre-owned", re.compile(r"\b(?:certified(?:\s+pre[- ]?owned)?|cpo)\b", re.I)),
+    ("Used", re.compile(r"\b(?:used|pre[- ]?owned|second[- ]hand)\b", re.I)),
+    ("New", re.compile(r"\b(?:brand[- ]new|(?:a|buy)\s+new\s+(?:one|car|vehicle|suv|truck))\b", re.I)),
+)
+PAYMENTS = (
+    ("Lease", re.compile(r"\b(?:lease|leasing)\b", re.I)),
+    ("Finance", re.compile(r"\b(?:financ\w*|loan)\b", re.I)),
+    ("Cash", re.compile(r"\b(?:pay(?:ing)?\s+(?:in\s+)?cash|cash\s+(?:buyer|purchase|deal)|all\s+cash)\b", re.I)),
+)
+BUDGET_RANGE_RE = re.compile(
+    r"\b(?:between|from)\s*\$?\s*([0-9][0-9,.]*\s*(?:k|grand|thousand)?)\s*(?:and|to|-)\s*\$?\s*"
+    r"([0-9][0-9,.]*\s*(?:k|grand|thousand)?)",
+    re.I,
+)
+
+
+def _extract_optional(text: str, current: dict) -> dict:
+    """Color, drivetrain, fuel, transmission, condition, payment and a budget range, when the buyer says them."""
+    for key, options in (
+        ("drivetrain", DRIVETRAINS),
+        ("fuel_type", FUEL_TYPES),
+        ("transmission", TRANSMISSIONS),
+        ("condition", CONDITIONS),
+        ("paying_with", PAYMENTS),
+    ):
+        value = next((label for label, pattern in options if pattern.search(text)), None)
+        if value:
+            current[key] = value
+    color = COLOR_RE.search(text)
+    if color:
+        current["color"] = "Gray" if color.group(1).lower() == "grey" else color.group(1).capitalize()
+    budget_range = BUDGET_RANGE_RE.search(text)
+    if budget_range:
+        low = _normalize_budget(budget_range.group(1))
+        high = _normalize_budget(budget_range.group(2))
+        # A range under $5,000 is a year range ("from 2020 to 2023"), not a budget.
+        if low and high and 5_000 <= int(low) < int(high):
+            current["budget_min"], current["budget_max"] = low, high
+    return current
 
 
 async def _reference_data(session: AsyncSession) -> tuple[list[str], list[dict[str, str]]]:
@@ -103,11 +193,12 @@ def _extract_deterministic(text: str, current: dict, brands: list[str], states: 
     for brand in brands:
         if brand.lower() in lowered:
             current["brand"] = brand
-    budget = BUDGET_RE.search(text)
+    budget = extract_budget(text)
     if budget:
-        normalized = _normalize_budget(budget.group(1))
-        if normalized:
-            current["budget_max"] = normalized
+        current["budget_max"] = budget
+    year = MODEL_YEAR_RE.search(text)
+    if year and not current.get("years"):
+        current["years"] = year.group(1)
     for timeline in TIMELINES:
         if timeline.lower() in lowered:
             current["timeline"] = timeline
@@ -117,7 +208,7 @@ def _extract_deterministic(text: str, current: dict, brands: list[str], states: 
         ):
             current["state"] = state["name"]
             break
-    return current
+    return _extract_optional(text, current)
 
 
 def _finish(current: dict, step: int) -> dict:
@@ -166,9 +257,13 @@ def _conversation_block(state: AgentState) -> str:
         for item in state.get("conversation_context") or []
         if isinstance(item, dict) and item.get("role") in {"user", "assistant"} and item.get("body")
     ][-8:]
-    if not turns:
-        return ""
-    return '<conversation_context trust="untrusted">\n' + "\n".join(turns) + "\n</conversation_context>\n\n"
+    from src.agents.memory import summary_text  # memory imports this module's extractors
+
+    memory = summary_text(state.get("chat_summary"))
+    block = f'<chat_memory trust="untrusted">\n{memory}\n</chat_memory>\n\n' if memory else ""
+    if turns:
+        block += '<conversation_context trust="untrusted">\n' + "\n".join(turns) + "\n</conversation_context>\n\n"
+    return block
 
 
 async def _llm_extract(
@@ -204,7 +299,8 @@ async def _llm_extract(
         f"STILL MISSING: {', '.join(missing)}\n"
         f"{selection}"
         "Reply with ONLY a JSON object using the keys brand, model_name, body_type, buyer_area, state, timeline, "
-        "budget_max. Use null for anything the buyer did not say. brand must be one of the allowed brands. state "
+        "budget_max, budget_min, trim, color, drivetrain, fuel_type, transmission, condition, paying_with. "
+        "Use null for anything the buyer did not say. brand must be one of the allowed brands. state "
         "must be one of the full state names listed above, resolved from whatever city or region the buyer "
         "mentioned. Do not guess and do not invent a model the buyer did not name.\n\n"
         f"{_conversation_block(state)}"
@@ -234,7 +330,8 @@ async def _llm_extract(
     else:
         values["state"] = None
     values["model"] = values.pop("model_name")
-    values["budget_max"] = _normalize_budget(str(values["budget_max"])) if values.get("budget_max") else None
+    for key in ("budget_max", "budget_min"):
+        values[key] = _normalize_budget(str(values[key])) if values.get(key) else None
     logger.info("agent_requirement_extraction", thread_id=state.get("thread_id"), extracted=values)
     return values
 

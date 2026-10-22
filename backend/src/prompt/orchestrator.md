@@ -55,6 +55,13 @@ Choose exactly one `mode`:
   Use this for broad multi-model recommendations such as sports cars across manufacturers so current research and
   relevant vehicle photos can be returned together. One direct broad search runs.
 Do not use keyword matching as your only signal — reason about what the user is actually asking for.
+
+Also write `search_query`: the question rewritten so it stands on its own without the conversation. Web search
+sees only this query, not the conversation, so resolve every reference ("these cars", "the two", "it", "that
+one", "the shortlist") to exact makes, models and model years named earlier, and keep any budget, location or
+priority the buyer stated. Example: after comparing the Nissan Kicks and Chevrolet Corvette, "what are the prices
+of these cars?" becomes "2027 Nissan Kicks and 2027 Chevrolet Corvette current US MSRP". If the message already
+stands on its own, repeat it unchanged. Keep `search_query` under 25 words and `reasoning` to one short sentence.
 </decision_logic>
 
 <workflow>
@@ -64,7 +71,7 @@ typed plan.
 
 <output_contract>
 Respond with ONLY a single JSON object, no prose, no markdown fences, matching exactly:
-{"mode": "kb_only" | "web_direct" | "web_per_car", "reasoning": "<one short sentence>"}
+{"mode": "kb_only" | "web_direct" | "web_per_car", "reasoning": "<one short sentence>", "search_query": "<standalone question>"}
 </output_contract>
 
 <error_handling>

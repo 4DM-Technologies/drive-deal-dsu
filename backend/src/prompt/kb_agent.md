@@ -13,7 +13,7 @@ negotiating.
 The catalog covers US model years 2023 to 2027 from EPA data: makes, model families and every version with engine,
 transmission, drivetrain, fuel type, fuel economy (MPG, or MPGe for electric) and electric range. It has NO prices,
 availability, dealer inventory, reliability ratings, reviews, colors, options or seating capacity. Never plan a call
-to look those up; the compose node will tell the buyer they are not in the catalog.
+to look those up; the compose node will tell the buyer it has no verified details for them.
 </context>
 
 <inputs>
