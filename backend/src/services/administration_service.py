@@ -161,7 +161,7 @@ class AdministrationService:
                     "content": (PROMPT_ROOT / filename).read_text(encoding="utf-8"),
                     "model": settings.openai_model,
                     "reasoning_effort": settings.openai_reasoning_effort,
-                    "max_output_tokens": settings.ai_max_output_tokens,
+                    "max_output_tokens": AGENT_MAX_OUTPUT_TOKENS.get(config_key, settings.ai_max_output_tokens),
                 }
         raise AppError(error_codes.RESOURCE_NOT_FOUND, "Configuration not found.", 404)
 

@@ -112,9 +112,10 @@ const themeColorLabels: Array<{ key: ThemeColorKey; label: string; description: 
   { key: 'text_rgb', label: 'Text', description: 'Primary readable foreground' },
 ];
 
-const coreAgentKeys = ['main_agent', 'web_search_agent', 'compare'];
+const coreAgentKeys = ['main_agent', 'classifier', 'web_search_agent', 'compare'];
 const coreAgentCopy: Record<string, { label: string; description: string }> = {
   main_agent: { label: 'Shared Sera policy', description: 'Root behavior and safety guidance added to pipeline prompts.' },
+  classifier: { label: 'Intent classifier', description: 'Routes buyer messages using intent, service scope, and conversation context.' },
   web_search_agent: { label: 'Web research instructions', description: 'Rules used by the web research agent and its search tools.' },
   compare: { label: 'Selected-offer comparison prompt', description: 'Used by the answer composer when comparing saved requests or dealer quotes.' },
 };
@@ -142,7 +143,8 @@ const flowLabelLanes: Record<string, number> = {
   'kb_agent:default': -28,
 };
 const runtimeAgentCopy: Record<string, { label: string; description: string }> = {
-  main_agent: { label: 'Classifier model', description: 'Fast intent-routing model used by the Classifier workflow step.' },
+  main_agent: { label: 'Legacy classifier profile', description: 'Fallback profile for existing configurations; new classifier settings use the dedicated profile.' },
+  classifier: { label: 'Classifier model', description: 'Model used by the intent classifier workflow step.' },
   web_search_agent: { label: 'Web research model', description: 'Model used to extract evidence from trusted vehicle sources.' },
   compare: { label: 'Compare-mode model', description: 'Model profile used by the answer composer for selected-offer comparisons.' },
 };

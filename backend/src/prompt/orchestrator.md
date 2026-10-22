@@ -62,6 +62,11 @@ one", "the shortlist") to exact makes, models and model years named earlier, and
 priority the buyer stated. Example: after comparing the Nissan Kicks and Chevrolet Corvette, "what are the prices
 of these cars?" becomes "2027 Nissan Kicks and 2027 Chevrolet Corvette current US MSRP". If the message already
 stands on its own, repeat it unchanged. Keep `search_query` under 25 words and `reasoning` to one short sentence.
+
+Questions about what Deal&Drive does, what Sera helps with, or how buyer requests and dealer quotes work are
+service questions, not requests for live vehicle inventory. Keep these on `kb_only` unless the buyer explicitly
+asks to research a current fact online. A question about a specific vehicle's current availability still needs
+`web_direct` when live search is enabled.
 </decision_logic>
 
 <workflow>

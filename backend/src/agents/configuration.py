@@ -26,7 +26,7 @@ __all__ = [
 # An administrator can still override any of these per prompt revision; this is only the fallback when no
 # override is set (see AdministrationService.runtime_bundle).
 AGENT_MAX_OUTPUT_TOKENS: dict[str, int] = {
-    "main_agent": 60,  # classifier: a single lowercase route word
+    "classifier": 60,  # a single lowercase route word
     "orchestrator": 600,  # short JSON plan (mode, brief reasoning, standalone search query); reasoning tokens count too
     "kb_agent": 500,  # preference extraction / car-name shortlist JSON array
     "web_search_agent": 1200,  # structured CarSpecs JSON extracted from a full crawled page
@@ -102,6 +102,12 @@ NODE_CATALOG: tuple[dict[str, Any], ...] = (
 )
 
 PROMPT_CATALOG: tuple[dict[str, str], ...] = (
+    {
+        "key": "classifier",
+        "file": "classifier.md",
+        "label": "Intent classifier",
+        "description": "Routes buyer messages using intent, service scope, and conversation context.",
+    },
     {
         "key": "main_agent",
         "file": "main_agent.md",

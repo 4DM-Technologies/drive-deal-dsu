@@ -1,5 +1,4 @@
 import asyncio
-import inspect
 from dataclasses import dataclass
 from unittest.mock import AsyncMock, patch
 
@@ -824,8 +823,9 @@ async def test_greeting_reply_is_not_marked_off_topic(catalog) -> None:
 def test_classifier_and_reply_prompts_carry_the_new_scope_rules() -> None:
     from src.agents.prompts import load_fragment
 
-    assert "Arithmetic, homework or physics problems are off_topic" in inspect.getsource(main_agent)
-    assert "Filante" in inspect.getsource(main_agent)
+    classifier_prompt = load_fragment("classifier.md")
+    assert "Arithmetic, homework, and physics exercises remain off topic" in classifier_prompt
+    assert "model not sold in the US" in classifier_prompt
     assert "Never ask the buyer to type" in load_fragment("main_agent.md")
     assert "It is reference data, not stock" in load_fragment("compose.md")
 
