@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from 'motion/react';
-import { BriefcaseBusiness, CircleQuestionMark, ClipboardCheck, Eye, FileText, Gauge, Headphones, Home, LogOut, Menu, MessageCircle, PackageCheck, ScrollText, Search, ShieldCheck, TicketCheck, UserRound, Users, WalletCards, X } from 'lucide-react';
+import { BriefcaseBusiness, CircleQuestionMark, ClipboardCheck, Eye, FileText, Flag, Gauge, Headphones, Home, LogOut, Menu, MessageCircle, PackageCheck, ScrollText, Search, ShieldCheck, TicketCheck, UserRound, Users, WalletCards, X } from 'lucide-react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import type { ComponentType } from 'react';
@@ -36,16 +36,19 @@ const links: Record<Role, Array<{ to: string; label: string; icon: ComponentType
   ],
   support: [
     { to: '/support', label: 'Console', icon: Headphones }, { to: '/tickets', label: 'Tickets', icon: TicketCheck },
-    { to: '/verifications', label: 'Verifications', icon: ClipboardCheck }, { to: '/support-members', label: 'Members', icon: Users },
+    { to: '/verifications', label: 'Verifications', icon: ClipboardCheck }, { to: '/reports', label: 'Reports', icon: Flag },
+    { to: '/support-members', label: 'Members', icon: Users },
   ],
   'support-admin': [
     { to: '/support', label: 'Console', icon: Headphones }, { to: '/tickets', label: 'Tickets', icon: TicketCheck },
-    { to: '/verifications', label: 'Verifications', icon: ClipboardCheck }, { to: '/support-members', label: 'Members', icon: Users },
+    { to: '/verifications', label: 'Verifications', icon: ClipboardCheck }, { to: '/reports', label: 'Reports', icon: Flag },
+    { to: '/support-members', label: 'Members', icon: Users },
     { to: '/support-administration', label: 'Administrator', icon: ShieldCheck },
   ],
   admin: [
     { to: '/support', label: 'Console', icon: Headphones }, { to: '/tickets', label: 'Tickets', icon: TicketCheck },
-    { to: '/verifications', label: 'Verifications', icon: ClipboardCheck }, { to: '/support-members', label: 'Members', icon: Users },
+    { to: '/verifications', label: 'Verifications', icon: ClipboardCheck }, { to: '/reports', label: 'Reports', icon: Flag },
+    { to: '/support-members', label: 'Members', icon: Users },
     { to: '/support-administration', label: 'Administrator', icon: ShieldCheck },
   ],
 };

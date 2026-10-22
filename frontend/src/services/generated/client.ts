@@ -1,4 +1,4 @@
-import type { QuotePosition, GuidedActionInput, GuidedAnswers, GuidedStepResult, PaymentInput, PaymentReceipt, ActiveTheme, AdministrationAuditEvent, AdminCatalog, AdminConfigBundle, AdminConfigType, AdminPromptBundle, AdminRevision, AiThread, AiTrace, AiTraceSession, AiTraceSummary, BrandRef, BuyerPreferences, BuyerRequest, BuyerSignupInput, CarCreateInput, ChatMessage, DealDocument, DealerSignupInput, InventoryCar, ProfileUpdateInput, PromptDefinition, Quote, QuoteCreateInput, RequestCreateInput, Session, StateRef, SupportMember, SupportSignupInput, SupportTicketCreate, Ticket, Verification, WorkflowDefinition, WorkflowPreview, WorkflowPreviewStreamEvent } from '@/types/domain';
+import type { QuotePosition, GuidedActionInput, GuidedAnswers, GuidedStepResult, PaymentInput, PaymentReceipt, ActiveTheme, AdministrationAuditEvent, AdminCatalog, AdminConfigBundle, AdminConfigType, AdminPromptBundle, AdminRevision, AiThread, AiTrace, AiTraceSession, AiTraceSummary, BrandRef, BuyerPreferences, BuyerRequest, BuyerSignupInput, CarCreateInput, ChatMessage, DealDocument, DealerSignupInput, InventoryCar, ProfileUpdateInput, PromptDefinition, Quote, QuoteCreateInput, ReportCreateInput, ReportOutcome, ReportReceipt, ReportStatus, RequestCreateInput, Session, StateRef, SupportMember, SupportSignupInput, SupportTicketCreate, Ticket, UserReport, Verification, WorkflowDefinition, WorkflowPreview, WorkflowPreviewStreamEvent } from '@/types/domain';
 
 export type AiStreamEvent =
   | { type: 'status'; phase: 'classifying' | 'searching' | 'crawling' | 'composing'; label: string }
@@ -30,6 +30,8 @@ export interface DriveDealClient {
     create(input: RequestCreateInput): Promise<BuyerRequest>;
     publish(id: string): Promise<BuyerRequest>;
     close(id: string): Promise<BuyerRequest>;
+    notifyDealers(id: string): Promise<BuyerRequest>;
+    repush(id: string): Promise<BuyerRequest>;
   };
   feed: {
     list(): Promise<BuyerRequest[]>;
@@ -66,6 +68,8 @@ export interface DriveDealClient {
     list(): Promise<Quote[]>;
     get(quoteId: string): Promise<Quote>;
     updateStatus(quoteId: string, status: NonNullable<Quote['dealStatus']>): Promise<Quote>;
+    /** Dealer-only: downloads the server-built Excel workbook of the dealer's deals. */
+    export(): Promise<{ filename: string; size: number }>;
   };
   cars: {
     list(): Promise<InventoryCar[]>;
@@ -74,6 +78,18 @@ export interface DriveDealClient {
     updateStatus(id: string, status: InventoryCar['status']): Promise<InventoryCar>;
   };
   inventory: { list(): Promise<InventoryCar[]> };
+  reports: {
+    /** A buyer or dealer reports the other person in one of their conversations. The server works out who that is. */
+    create(input: ReportCreateInput): Promise<ReportReceipt>;
+    /** Support only. */
+    list(): Promise<UserReport[]>;
+    /** Support only. Includes the saved conversation. */
+    get(id: string): Promise<UserReport>;
+    /** Support only. Closing (action taken or dismissed) needs a note; action taken also needs an outcome. */
+    update(id: string, change: { status?: ReportStatus; outcome?: ReportOutcome; note?: string }): Promise<UserReport>;
+    /** Support only. A short-lived link that opens the screenshot. */
+    attachmentLink(id: string, attachmentId: string): Promise<{ url: string; fileName: string }>;
+  };
   support: {
     listTickets(): Promise<Ticket[]>;
     createTicket(input: SupportTicketCreate): Promise<Ticket>;

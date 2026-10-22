@@ -22,6 +22,7 @@ from src.routes import (
     payment,
     profiles,
     reference,
+    reports,
     support,
     websocket,
 )
@@ -54,6 +55,7 @@ ROUTER_MODULES = (
     documents,
     cars,
     support,
+    reports,
     administration,
     ai,
     payment,

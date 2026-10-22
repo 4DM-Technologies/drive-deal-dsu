@@ -65,6 +65,14 @@ export interface BuyerRequest {
   image: string;
   mustHaves: string[];
   alreadyQuoted: boolean;
+  /** When the buyer last sent this unquoted brief back to dealers as a reminder. */
+  dealersNotifiedAt: string | null;
+  /** When the buyer reopened this brief after it closed for getting no quotes in a month. */
+  repushedAt: string | null;
+  /** Open, unquoted for two weeks since it was posted (or repushed), and not reminded yet. */
+  canNotifyDealers: boolean;
+  /** Closed (status `expired`) for getting no quotes in a month. */
+  canRepush: boolean;
 }
 
 /** A dealer's standing on one request. rank is null once the offer is out of play (withdrawn, expired, declined, accepted). */
@@ -239,6 +247,82 @@ export interface Ticket {
   rca?: string;
   /** Screenshots or PDFs the requester attached. Downloaded through a short-lived link, never a stored URL. */
   attachments?: TicketAttachment[];
+}
+
+export type ReportReason = 'scam_fraud' | 'off_platform_payment' | 'misleading_listing' | 'pressure_tactics' | 'fake_buyer' | 'no_show' | 'harassment' | 'spam' | 'other';
+export type ReportStatus = 'open' | 'under_review' | 'action_taken' | 'dismissed';
+export type ReportOutcome = 'no_violation' | 'warning_issued' | 'account_suspended' | 'other';
+
+/** What a buyer or dealer sends when reporting the other person in a conversation. */
+export interface ReportCreateInput {
+  quoteId: string;
+  reason: ReportReason;
+  details: string;
+  includeConversation: boolean;
+  confirmAccurate: boolean;
+  /** Up to 3 JPG, PNG or WebP screenshots, 5 MB each. */
+  files: File[];
+}
+
+/** The reporter's receipt. Support notes and the outcome are never sent back to them. */
+export interface ReportReceipt {
+  id: string;
+  reportId: string;
+  status: ReportStatus;
+  evidenceCount: number;
+  conversationAttached: boolean;
+  createdAt: string;
+}
+
+export interface ReportPerson {
+  id: string;
+  name: string | null;
+  dealershipName: string | null;
+  email: string | null;
+  phone: string | null;
+  role: Role | null;
+}
+
+/** One message of the conversation as it stood when the report was made. */
+export interface ReportMessage {
+  id: string;
+  at: string | null;
+  senderId: string;
+  senderName: string;
+  senderRole: Role | null;
+  message: string;
+  edited: boolean;
+  unsent: boolean;
+}
+
+/** One support action on a report: any of a status change, an outcome, and a note. */
+export interface ReportEvent {
+  at: string;
+  author: string;
+  status?: ReportStatus;
+  outcome?: ReportOutcome;
+  note?: string;
+}
+
+/** A report as support sees it. `conversation` is only present when one report is loaded on its own. */
+export interface UserReport {
+  id: string;
+  reportId: string;
+  quoteId: string;
+  reason: ReportReason;
+  details: string;
+  status: ReportStatus;
+  outcome: ReportOutcome | null;
+  reporter: ReportPerson;
+  reported: ReportPerson & { isActive: boolean };
+  vehicle: string | null;
+  attachments: TicketAttachment[];
+  conversationAttached: boolean;
+  messageCount: number;
+  conversation?: ReportMessage[];
+  events: ReportEvent[];
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface TicketAttachment {

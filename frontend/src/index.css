@@ -1554,6 +1554,27 @@ h1, h2, h3, .display { font-family: 'Manrope', 'DM Sans', sans-serif; letter-spa
 .request-revised span, .request-revised strong, .request-revised small { display: block; }
 .request-revised strong { font-size: .86rem; line-height: 1.25; }
 .request-revised small { margin-top: .1rem; color: var(--muted); font-size: .76rem; line-height: 1.35; }
+/* The title link stretches over the whole card; the footer buttons sit above it so they stay clickable. */
+.request-card-spec { position: relative; }
+.request-card-link { color: inherit; text-decoration: none; }
+.request-card-link::after { content: ''; position: absolute; inset: 0; border-radius: inherit; }
+.request-card-link:focus-visible { outline: none; }
+.request-card-spec:has(.request-card-link:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; }
+.request-card-action, .request-card-error { position: relative; z-index: 1; }
+.request-card-action { flex: none; }
+.request-card-error { margin: .6rem 0 0; color: var(--danger); font-size: .78rem; }
+.request-card-eyebrow { display: flex; flex-wrap: wrap; align-items: center; gap: .3rem .75rem; }
+.request-posted { display: inline-flex; align-items: center; gap: .3rem; color: var(--muted); font-size: .74rem; font-weight: 600; }
+.request-alert { display: flex; align-items: center; gap: .65rem; margin: 0 0 .85rem; padding: .6rem .8rem; border: 1px solid #cfe0f5; border-radius: 12px; background: var(--accent-soft); color: var(--accent); }
+.request-alert.closed { border-color: #f1d9b0; background: var(--warning-soft); color: var(--warning); }
+.request-alert svg { flex: none; }
+.request-alert span, .request-alert strong, .request-alert small { display: block; }
+.request-alert strong { font-size: .86rem; line-height: 1.25; }
+.request-alert small { margin-top: .1rem; color: var(--muted); font-size: .76rem; line-height: 1.35; }
+/* Closed for getting no quotes: the brief fades, while the alert and the Repush button stay at full strength. */
+.request-card-spec.is-closed { background: var(--surface); }
+.request-card-spec.is-closed :is(.request-card-top, .request-tags, .request-interest, .request-footer-copy) { opacity: .55; filter: grayscale(1); }
+.demand-card .request-alert { margin: 0 0 .7rem; }
 .request-card-spec .request-footer { margin-top: 0; padding-top: .85rem; gap: 1rem; }
 .request-footer-copy { display: grid; gap: .2rem; min-width: 0; }
 .request-footer-copy strong { font-size: .98rem; line-height: 1.25; }
@@ -2713,3 +2734,84 @@ button.stepper-body:hover .stepper-dot { box-shadow: 0 0 0 4px rgba(var(--accent
     font-size: max(16px, 1em) !important;
   }
 }
+
+/* Reporting a buyer or dealer from a conversation. */
+.chat-report-button { border: 1px solid transparent; background: var(--danger-soft); color: var(--danger); }
+.chat-report-button:hover { border-color: rgba(181,58,58,.35); }
+.chat-report-button svg { flex: none; }
+@media (max-width: 720px) { .chat-report-button span { display: none; } }
+/* The report form is denser than the help & support form it borrows from: short labels, small controls. */
+.report-user-dialog .support-reporter-header { margin-bottom: .7rem; }
+.report-user-dialog .support-reporter-header h2 { margin: 0 0 .3rem; font-size: 1.3rem; }
+.report-user-dialog .support-reporter-header p { font-size: .82rem; line-height: 1.45; }
+.report-user-dialog .support-report-form { gap: .65rem; }
+.report-user-dialog .support-report-form legend, .report-user-dialog .support-report-form .field > label, .report-user-dialog .support-field-label { margin-bottom: .35rem; font-size: .8rem; font-weight: 700; }
+.report-user-dialog .required { font-size: .7rem; font-weight: 600; }
+.report-reason-options { gap: .35rem; }
+.report-user-dialog .report-reason-options label { min-height: 36px; padding: .4rem .65rem; border-color: var(--border); border-radius: 9px; background: var(--raised); color: var(--muted); font-size: .78rem; font-weight: 600; line-height: 1.3; }
+.report-user-dialog .report-reason-options label:hover { border-color: #b9cdeb; color: var(--ink); transform: none; }
+.report-user-dialog .report-reason-options label.selected { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); box-shadow: none; }
+.report-user-dialog .report-reason-options label:focus-within { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
+.report-reason-options label:last-child:nth-child(odd) { grid-column: 1 / -1; }
+.report-user-dialog .support-report-form .support-description { min-height: 84px; padding: .5rem .65rem; font-size: .84rem; }
+.report-count { align-self: flex-end; color: var(--muted); font-size: .7rem; }
+.report-count.is-short { color: var(--warning); }
+.report-user-dialog .support-attach { min-height: 34px; font-size: .8rem; }
+.report-check { display: flex; align-items: flex-start; gap: .55rem; padding: .5rem .65rem; border: 1px solid var(--border); border-radius: 9px; background: var(--surface); cursor: pointer; }
+.report-check input { flex: none; width: 15px; height: 15px; margin-top: .12rem; accent-color: var(--accent); }
+.report-check span, .report-check strong, .report-check small { display: block; }
+.report-check strong { display: inline-flex; align-items: center; gap: .3rem; font-size: .78rem; font-weight: 600; }
+.report-check small { margin-top: .08rem; color: var(--muted); font-size: .7rem; line-height: 1.35; }
+.report-file-chip img { flex: none; width: 30px; height: 30px; border-radius: 6px; object-fit: cover; background: var(--raised); }
+.report-user-dialog .inline-warning { font-size: .8rem; }
+.report-user-dialog .support-report-actions { gap: .5rem; }
+.report-user-dialog .support-report-actions .button, .report-user-dialog .support-report-success .button { min-height: 36px; padding: .4rem 1rem; font-size: .82rem; }
+.report-submit:disabled { cursor: not-allowed; }
+
+.status-under_review { background: var(--warning-soft); color: var(--warning); }
+.status-action_taken { background: var(--danger-soft); color: var(--danger); }
+.status-dismissed { background: var(--surface); color: var(--muted); }
+
+/* Support: the reports queue and a report's case page. */
+.report-person { display: inline-flex; align-items: center; gap: .4rem; flex-wrap: wrap; }
+.report-suspended { display: inline-flex; align-items: center; min-height: 20px; padding: .1rem .45rem; border-radius: 999px; background: var(--danger-soft); color: var(--danger); font-size: .66rem; font-weight: 700; }
+.report-count-pill { display: inline-grid; place-items: center; min-width: 24px; height: 24px; margin-left: .5rem; padding: 0 .45rem; border-radius: 999px; background: var(--danger-soft); color: var(--danger); font-size: .78rem; vertical-align: middle; }
+.report-flag { color: var(--danger); }
+.support-console > .queue-card { margin-top: 1rem; }
+.report-people-summary { margin: 0 0 1rem; color: var(--muted); font-size: .9rem; line-height: 1.55; }
+.report-people-summary strong { color: var(--ink); }
+.report-people { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: stretch; gap: .75rem; }
+.report-people-link { display: grid; justify-items: center; align-content: center; gap: .2rem; max-width: 130px; padding: 0 .2rem; text-align: center; color: var(--muted); }
+.report-people-link span { font-size: .68rem; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; }
+.report-people-link strong { color: var(--danger); font-size: .78rem; line-height: 1.3; }
+.report-people-link svg { color: var(--danger); }
+.report-person-card { display: grid; align-content: start; gap: .7rem; min-width: 0; padding: .9rem 1rem; border: 1px solid var(--border); border-radius: 14px; background: var(--raised); }
+.report-person-card.is-reporter { border-top: 3px solid var(--accent); }
+.report-person-card.is-reported { border-color: rgba(181,58,58,.28); border-top: 3px solid var(--danger); background: linear-gradient(180deg, var(--danger-soft), var(--raised) 70%); }
+.report-person-label { display: inline-flex; align-items: center; gap: .35rem; font-size: .7rem; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; }
+.is-reporter .report-person-label { color: var(--accent); }
+.is-reported .report-person-label { color: var(--danger); }
+.report-person-head { display: flex; align-items: center; gap: .65rem; min-width: 0; }
+.report-person-head > span:last-child { display: grid; gap: .15rem; min-width: 0; }
+.report-person-head strong { font-size: 1rem; overflow-wrap: anywhere; }
+.report-person-avatar { flex: none; display: grid; place-items: center; width: 38px; height: 38px; border-radius: 50%; font-weight: 800; }
+.is-reporter .report-person-avatar { background: var(--accent-soft); color: var(--accent); }
+.is-reported .report-person-avatar { background: var(--danger); color: white; }
+.report-person-role { display: inline-flex; align-items: center; flex-wrap: wrap; gap: .4rem; color: var(--muted); font-size: .78rem; font-weight: 600; }
+.report-active { display: inline-flex; align-items: center; min-height: 20px; padding: .1rem .45rem; border-radius: 999px; background: var(--success-soft); color: var(--success); font-size: .66rem; font-weight: 700; }
+.report-person-facts { display: grid; gap: .35rem; margin: 0; padding-top: .6rem; border-top: 1px solid var(--border); }
+.report-person-facts div { display: grid; grid-template-columns: 82px minmax(0, 1fr); gap: .5rem; font-size: .8rem; }
+.report-person-facts dt { display: inline-flex; align-items: center; gap: .3rem; color: var(--muted); }
+.report-person-facts dd { margin: 0; overflow-wrap: anywhere; }
+.report-people-hint { margin: .85rem 0 0; font-size: .82rem; }
+.report-people-hint a { color: var(--accent); font-weight: 700; }
+.report-transcript { display: grid; gap: .55rem; max-height: 460px; overflow-y: auto; margin: 0; padding: .2rem .2rem .2rem 0; list-style: none; }
+.report-transcript li { justify-self: start; max-width: 85%; padding: .55rem .75rem; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); }
+.report-transcript li.from-reported { justify-self: end; border-color: rgba(181,58,58,.3); background: var(--danger-soft); }
+.report-transcript-meta { display: block; color: var(--muted); font-size: .72rem; }
+.report-transcript-meta em { margin-left: .4rem; font-style: normal; font-weight: 700; }
+.report-transcript p { margin: .2rem 0 0; white-space: pre-wrap; overflow-wrap: anywhere; font-size: .88rem; line-height: 1.45; }
+.report-transcript p.is-unsent { color: var(--muted); font-style: italic; }
+.report-dismiss-hint { display: flex; align-items: center; gap: .35rem; margin: 0 0 .6rem; font-size: .82rem; }
+@media (max-width: 860px) { .report-people { grid-template-columns: 1fr; } .report-people-link { max-width: none; grid-auto-flow: column; justify-content: center; align-items: center; gap: .5rem; } .report-people-link svg { transform: rotate(90deg); } }
+@media (max-width: 720px) { .report-transcript li { max-width: 100%; } }

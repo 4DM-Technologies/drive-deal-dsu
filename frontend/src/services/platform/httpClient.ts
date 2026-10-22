@@ -1,6 +1,6 @@
 import type { DriveDealClient, AiStreamEvent } from '@/services/generated/client';
 import type { GuidedActionInput, GuidedAnswers, GuidedOption, GuidedStepResult } from '@/types/domain';
-import type { ActiveTheme, AdministrationAuditEvent, AdminCatalog, AdminConfigBundle, AdminConfigType, AdminPromptBundle, AdminRevision, AiMessage, AiThread, AiTrace, AiTraceSession, AiTraceSummary, BrandRef, BuyerRequest, CarCreateInput, ChatMessage, DealDocument, InventoryCar, PromptDefinition, Quote, Session, StateRef, SupportMember, Ticket, Verification, WorkflowDefinition, WorkflowPreview, WorkflowPreviewStreamEvent, PaymentReceipt } from '@/types/domain';
+import type { ActiveTheme, AdministrationAuditEvent, AdminCatalog, AdminConfigBundle, AdminConfigType, AdminPromptBundle, AdminRevision, AiMessage, AiThread, AiTrace, AiTraceSession, AiTraceSummary, BrandRef, BuyerRequest, CarCreateInput, ChatMessage, DealDocument, InventoryCar, PromptDefinition, Quote, ReportPerson, ReportReceipt, Session, StateRef, SupportMember, Ticket, UserReport, Verification, WorkflowDefinition, WorkflowPreview, WorkflowPreviewStreamEvent, PaymentReceipt } from '@/types/domain';
 import driveDealHero from '@/assets/vehicles/drivedeal-hero.png';
 import { BROWSER_STORAGE_KEYS, WORKSPACE_VIEW_QUERY_PARAMETER } from '@/config/browser';
 import { environment } from '@/config/environment';
@@ -86,7 +86,7 @@ async function download(path: string, fallbackFilename: string): Promise<{ filen
     ? decodeURIComponent(encodedFilename)
     : disposition.match(/filename="?([^";]+)"?/i)?.[1] ?? fallbackFilename;
   const blob = await response.blob();
-  if (!blob.size) throw new Error('The server returned an empty configuration file. Please try the export again.');
+  if (!blob.size) throw new Error('The server returned an empty file. Please try the export again.');
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement('a');
   anchor.href = url;
@@ -129,6 +129,9 @@ const requestToDomain = (row: Record<string, unknown>): BuyerRequest => ({
   quoteCount: Number(row.quote_count ?? 0), viewCount: Number(row.view_count ?? 0), createdAt: String(row.created_at), expiresAt: String(row.request_expire),
   image: '', mustHaves: (row.must_haves as string[]) ?? [],
   alreadyQuoted: Boolean(row.already_quoted),
+  dealersNotifiedAt: row.dealers_notified_at == null ? null : String(row.dealers_notified_at),
+  repushedAt: row.repushed_at == null ? null : String(row.repushed_at),
+  canNotifyDealers: Boolean(row.can_notify_dealers), canRepush: Boolean(row.can_repush),
 });
 
 const chatMessageToDomain = (row: Record<string, unknown>): ChatMessage => ({
@@ -191,6 +194,37 @@ const ticketToDomain = (row: Record<string, unknown>): Ticket => ({
   })) } : {}),
   ...(row.rca == null ? {} : { rca: String(row.rca) }),
   attachments: ((row.attachments as Array<Record<string, unknown>> | undefined) ?? []).map((item) => ({ id: String(item.id), fileName: String(item.file_name), contentType: String(item.content_type), sizeBytes: Number(item.size_bytes) })),
+});
+
+const reportPersonToDomain = (row: Record<string, unknown>): ReportPerson => ({
+  id: String(row.id), name: row.name == null ? null : String(row.name),
+  dealershipName: row.dealership_name == null ? null : String(row.dealership_name),
+  email: row.email == null ? null : String(row.email), phone: row.phone == null ? null : String(row.phone),
+  role: (row.role ?? null) as ReportPerson['role'],
+});
+const reportToDomain = (row: Record<string, unknown>): UserReport => ({
+  id: String(row.id), reportId: String(row.report_id), quoteId: String(row.quote_id),
+  reason: row.reason as UserReport['reason'], details: String(row.details),
+  status: row.status as UserReport['status'], outcome: (row.outcome ?? null) as UserReport['outcome'],
+  reporter: reportPersonToDomain(row.reporter as Record<string, unknown>),
+  reported: { ...reportPersonToDomain(row.reported as Record<string, unknown>), isActive: (row.reported as Record<string, unknown>).is_active !== false },
+  vehicle: row.vehicle == null ? null : String(row.vehicle),
+  attachments: ((row.attachments as Array<Record<string, unknown>> | undefined) ?? []).map((item) => ({ id: String(item.id), fileName: String(item.file_name), contentType: String(item.content_type), sizeBytes: Number(item.size_bytes) })),
+  conversationAttached: Boolean(row.conversation_attached), messageCount: Number(row.message_count ?? 0),
+  ...(Array.isArray(row.conversation_snapshot) ? { conversation: (row.conversation_snapshot as Array<Record<string, unknown>>).map((message) => ({
+    id: String(message.id), at: message.at == null ? null : String(message.at), senderId: String(message.sender_id),
+    senderName: String(message.sender_name ?? 'Account unavailable'), senderRole: (message.sender_role ?? null) as ReportPerson['role'],
+    message: String(message.message), edited: Boolean(message.edited), unsent: Boolean(message.unsent),
+  })) } : {}),
+  events: ((row.notes as Array<Record<string, unknown>> | undefined) ?? []).map((entry) => ({
+    at: String(entry.at),
+    // The API names whoever acted; an id it cannot resolve is never shown as a name.
+    author: entry.actor_name == null ? 'Support team member' : String(entry.actor_name),
+    ...(entry.status == null ? {} : { status: entry.status as UserReport['status'] }),
+    ...(entry.outcome == null ? {} : { outcome: entry.outcome as NonNullable<UserReport['outcome']> }),
+    ...(entry.note == null ? {} : { note: String(entry.note) }),
+  })),
+  createdAt: String(row.created_at), updatedAt: String(row.updated_at ?? row.created_at),
 });
 
 const verificationToDomain = (row: Record<string, unknown>): Verification => ({
@@ -423,6 +457,8 @@ export const httpClient: DriveDealClient = {
     create: async (input) => requestToDomain(await request('/requests', { method: 'POST', body: JSON.stringify({ brand_id: input.brandId, buyer_area_state_id: input.buyerAreaStateId, model: input.model, body_type: input.bodyType ?? null, fuel_type: input.fuelType ?? null, year_min: input.yearMin ?? null, year_max: input.yearMax ?? null, trim: input.trim ?? null, drivetrain: input.drivetrain ?? null, transmission: input.transmission ?? null, color: input.color ?? null, budget_min: input.budgetMin ?? null, budget_max: input.budgetMax ?? null, target_otd_price: input.targetOtdPrice ?? null, buyer_area: input.buyerArea, search_radius_miles: input.searchRadiusMiles, timeline: input.timeline, must_haves: input.mustHaves ?? [], additional_information: input.additionalInformation ?? null, request_expire: input.requestExpire, status: input.status ?? 'open' }) })),
     publish: async (id) => requestToDomain(await request(`/requests/${id}/publish`, { method: 'POST' })),
     close: async (id) => requestToDomain(await request(`/requests/${id}/close`, { method: 'POST' })),
+    notifyDealers: async (id) => requestToDomain(await request(`/requests/${id}/notify-dealers`, { method: 'POST' })),
+    repush: async (id) => requestToDomain(await request(`/requests/${id}/repush`, { method: 'POST' })),
   },
   feed: {
     list: async () => (await request<Record<string, unknown>[]>(workspaceView() ? `/support/workspaces/${workspaceView()}/requests` : '/feed/requests')).map(requestToDomain),
@@ -488,6 +524,7 @@ export const httpClient: DriveDealClient = {
     list: async () => (await request<Record<string, unknown>[]>('/deals')).map(quoteToDomain),
     get: async (quoteId) => quoteToDomain(await request(`/deals/${quoteId}`)),
     updateStatus: async (quoteId, status) => quoteToDomain(await request(`/deals/${quoteId}/status`, { method: 'PATCH', body: JSON.stringify({ status }) })),
+    export: async () => download('/deals/export', 'deals.xlsx'),
   },
   cars: {
     list: async () => (await request<Record<string, unknown>[]>('/cars')).map(carToDomain),
@@ -496,6 +533,29 @@ export const httpClient: DriveDealClient = {
     updateStatus: async (id, status) => carToDomain(await request(`/cars/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) })),
   },
   inventory: { list: async () => (await request<Record<string, unknown>[]>('/cars')).map(carToDomain) },
+  reports: {
+    create: async (input) => {
+      const form = new FormData();
+      form.append('quote_id', input.quoteId);
+      form.append('reason', input.reason);
+      form.append('details', input.details);
+      form.append('include_conversation', String(input.includeConversation));
+      form.append('confirm_accurate', String(input.confirmAccurate));
+      input.files.forEach((file) => form.append('files', file));
+      const row = await request<Record<string, unknown>>('/reports', { method: 'POST', body: form });
+      return {
+        id: String(row.id), reportId: String(row.report_id), status: row.status as ReportReceipt['status'],
+        evidenceCount: Number(row.evidence_count ?? 0), conversationAttached: Boolean(row.conversation_attached), createdAt: String(row.created_at),
+      };
+    },
+    list: async () => (await request<Record<string, unknown>[]>('/support/reports')).map(reportToDomain),
+    get: async (id) => reportToDomain(await request<Record<string, unknown>>(`/support/reports/${id}`)),
+    update: async (id, change) => reportToDomain(await request<Record<string, unknown>>(`/support/reports/${id}`, { method: 'PATCH', body: JSON.stringify({ status: change.status ?? null, outcome: change.outcome ?? null, note: change.note ?? null }) })),
+    attachmentLink: async (id, attachmentId) => {
+      const row = await request<{ url: string; file_name: string }>(`/support/reports/${id}/attachments/${attachmentId}/view`);
+      return { url: row.url, fileName: row.file_name };
+    },
+  },
   support: {
     listTickets: async () => (await request<Record<string, unknown>[]>('/support/tickets')).map(ticketToDomain),
     createTicket: async (input) => ticketToDomain(await request<Record<string, unknown>>('/support/tickets', { method: 'POST', body: JSON.stringify({ issue_summary: input.issueSummary, issue_description: input.issueDescription, issue_type: input.issueType, page_context: input.pageContext, priority: input.priority }) })),

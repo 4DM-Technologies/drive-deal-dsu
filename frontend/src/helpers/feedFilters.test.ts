@@ -5,7 +5,7 @@ import type { BuyerRequest } from '@/types/domain';
 let nextId = 0;
 const request = (over: Partial<BuyerRequest>): BuyerRequest => ({
   id: `r${++nextId}`, buyerId: 'b', brand: 'Audi', model: 'A4', bodyType: 'Sedan', yearMin: null, yearMax: null, budgetMin: null, budgetMax: null, targetOtdPrice: null,
-  area: 'Frisco, Texas', radiusMiles: 25, timeline: 'ASAP', status: 'open', quoteCount: 0, viewCount: 0, createdAt: '2026-10-01', expiresAt: '2026-11-01', image: '', mustHaves: [], alreadyQuoted: false, ...over,
+  area: 'Frisco, Texas', radiusMiles: 25, timeline: 'ASAP', status: 'open', quoteCount: 0, viewCount: 0, createdAt: '2026-10-01', expiresAt: '2026-11-01', image: '', mustHaves: [], alreadyQuoted: false, dealersNotifiedAt: null, repushedAt: null, canNotifyDealers: false, canRepush: false, ...over,
 });
 
 const feed = [

@@ -135,6 +135,12 @@ HELP_SUPPORT_FOLDERS = {"buyer": "buyer-support", "dealer": "dealer-support"}
 HELP_SUPPORT_STAFF_FOLDER = "staff-support"
 SUPPORT_ATTACHMENT_MAX_BYTES = 10 * 1024 * 1024
 SUPPORT_ATTACHMENT_MAX_FILES = 3
+# Misconduct report evidence, grouped by the person reported so support sees every report against one account together:
+# reports/<buyer|dealer>/<reported profile id>/<report reference>/<report reference>-evidence-01.png
+REPORTS_PREFIX = "reports"
+REPORT_EVIDENCE_MAX_BYTES = 5 * 1024 * 1024
+REPORT_EVIDENCE_MAX_FILES = 3
+REPORT_EVIDENCE_EXTENSIONS = {"image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp"}
 DRIVING_LICENSE_MAX_BYTES = 10 * 1024 * 1024
 DRIVING_LICENSE_EXTENSIONS = {
     "image/jpeg": ".jpg",

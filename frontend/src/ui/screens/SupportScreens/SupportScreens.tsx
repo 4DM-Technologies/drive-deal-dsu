@@ -18,7 +18,8 @@ import { EmptyState } from '@/ui/reusables/EmptyState/EmptyState';
 import { PageLoading } from '@/ui/reusables/PageLoading/PageLoading';
 import { StatusBadge } from '@/ui/reusables/StatusBadge/StatusBadge';
 import { SupportMembers } from '@/ui/screens/SupportScreens/SupportMembers';
-import type { Ticket, Verification, VerificationStatus } from '@/types/domain';
+import { ReportsOverview } from '@/ui/screens/SupportScreens/SupportReports';
+import type { Ticket, UserReport, Verification, VerificationStatus } from '@/types/domain';
 
 const applicantLabel = (category: Verification['category']) => category === 'agent' ? 'Support' : category === 'customer' ? 'Buyer' : 'Dealer';
 const ticketAudience = (ticket: Ticket) => ticket.category === 'dealer' ? 'Dealer' : 'Buyer';
@@ -43,22 +44,26 @@ export default function SupportScreens() {
   const canAdminister = session?.role === 'support-admin' || session?.role === 'admin';
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [verifications, setVerifications] = useState<Verification[]>([]);
+  const [reports, setReports] = useState<UserReport[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [refreshedAt, setRefreshedAt] = useState(() => new Date());
   const [, setClock] = useState(0);
 
-  const applyQueues = useCallback(({ queue, reviews }: { queue: Ticket[] | null; reviews: Verification[] | null }) => {
+  const applyQueues = useCallback(({ queue, reviews, reported }: { queue: Ticket[] | null; reviews: Verification[] | null; reported: UserReport[] | null }) => {
     // A failed refresh keeps what is already on screen instead of blanking the console.
     if (queue) setTickets((current) => sameRows(current, queue) ? current : queue);
     if (reviews) setVerifications((current) => sameRows(current, reviews) ? current : reviews);
-    if (queue || reviews) setRefreshedAt(new Date());
+    if (reported) setReports((current) => sameRows(current, reported) ? current : reported);
+    if (queue || reviews || reported) setRefreshedAt(new Date());
   }, []);
   const needsTickets = path === '/support' || path === '/tickets' || path === '/help-support' || Boolean(ticketId);
   const needsVerifications = path === '/support' || path === '/verifications';
+  const needsReports = path === '/support';
   const refresh = useCallback(() => Promise.all([
     needsTickets ? client.support.queue().catch(() => null) : Promise.resolve(null),
     needsVerifications ? client.verifications.list().catch(() => null) : Promise.resolve(null),
-  ]).then(([queue, reviews]) => applyQueues({ queue, reviews })), [applyQueues, needsTickets, needsVerifications]);
+    needsReports ? client.reports.list().catch(() => null) : Promise.resolve(null),
+  ]).then(([queue, reviews, reported]) => applyQueues({ queue, reviews, reported })), [applyQueues, needsTickets, needsVerifications, needsReports]);
 
   // Every visit to a support page reads the queues afresh, so a card and the list it opens agree.
   useEffect(() => { void refresh().then(() => setLoaded(true)); }, [refresh, path]);
@@ -106,6 +111,7 @@ export default function SupportScreens() {
       <StatCard to={SUPPORT_CARD_LINKS.resolvedToday} label="Resolved today" icon={<Check size={17} />} value={stats.resolvedToday}><span className="stat-note">Since midnight</span></StatCard>
     </div>
     <div className="grid grid-2 support-overview-grid"><Tickets compact tickets={tickets} navigate={navigate} /><Verifications compact verifications={verifications} canAdminister={canAdminister} decide={decide} /></div>
+    <ReportsOverview reports={reports} />
   </div>;
 }
 

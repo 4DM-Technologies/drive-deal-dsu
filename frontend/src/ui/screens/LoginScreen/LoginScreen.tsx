@@ -26,9 +26,9 @@ const demoEmails: Record<Role, string> = {
 const roleRoutes: Record<Role, string[]> = {
   buyer: ['/home', '/requests', '/orders', '/chat', '/chatbot', '/profiles'],
   dealer: ['/home', '/feed', '/quotes', '/deals', '/chat', '/profiles'],
-  support: ['/support', '/help-support', '/tickets', '/verifications', '/support-members', '/profiles'],
-  'support-admin': ['/support', '/help-support', '/tickets', '/verifications', '/support-members', '/support-administration', '/profiles'],
-  admin: ['/support', '/help-support', '/tickets', '/verifications', '/support-members', '/support-administration', '/profiles'],
+  support: ['/support', '/help-support', '/tickets', '/verifications', '/reports', '/support-members', '/profiles'],
+  'support-admin': ['/support', '/help-support', '/tickets', '/verifications', '/reports', '/support-members', '/support-administration', '/profiles'],
+  admin: ['/support', '/help-support', '/tickets', '/verifications', '/reports', '/support-members', '/support-administration', '/profiles'],
 };
 
 function safeDestination(role: Role, requested?: string) {

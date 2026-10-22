@@ -96,6 +96,57 @@ class TicketUpdate(BaseModel):
     rca: str | None = None
 
 
+# What each side can report the other for. Shared reasons come first; the rest only make sense about that role.
+DEALER_REPORT_REASONS = (
+    "scam_fraud",
+    "off_platform_payment",
+    "misleading_listing",
+    "pressure_tactics",
+    "harassment",
+    "spam",
+    "other",
+)
+BUYER_REPORT_REASONS = ("scam_fraud", "off_platform_payment", "fake_buyer", "no_show", "harassment", "spam", "other")
+ReportReason = Literal[
+    "scam_fraud",
+    "off_platform_payment",
+    "misleading_listing",
+    "pressure_tactics",
+    "fake_buyer",
+    "no_show",
+    "harassment",
+    "spam",
+    "other",
+]
+ReportStatus = Literal["open", "under_review", "action_taken", "dismissed"]
+ReportOutcome = Literal["no_violation", "warning_issued", "account_suspended", "other"]
+
+
+class ReportCreate(BaseModel):
+    """Sent as multipart form fields, alongside up to three ``files``."""
+
+    quote_id: str = Field(min_length=1, max_length=36)
+    reason: ReportReason
+    details: str = Field(min_length=20, max_length=2000)
+    include_conversation: bool = True
+    confirm_accurate: bool
+
+    @model_validator(mode="after")
+    def require_confirmation(self) -> "ReportCreate":
+        if not self.confirm_accurate:
+            raise ValueError("Confirm that the information in your report is accurate.")
+        self.details = self.details.strip()
+        if len(self.details) < 20:
+            raise ValueError("Describe what happened in at least 20 characters.")
+        return self
+
+
+class ReportUpdate(BaseModel):
+    status: ReportStatus | None = None
+    outcome: ReportOutcome | None = None
+    note: str | None = Field(default=None, max_length=5000)
+
+
 class VerificationDecision(BaseModel):
     decision: Literal["approved", "denied", "rejected"]
     reason: str = Field(min_length=3, max_length=2000)
