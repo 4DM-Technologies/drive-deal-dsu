@@ -1,15 +1,34 @@
-import { Activity, AlertTriangle, ArrowDownToLine, ArrowLeft, ArrowUpFromLine, MessagesSquare, RefreshCw, Search, Timer, UserRound, X } from 'lucide-react';
+import { Activity, AlertTriangle, ArrowDownToLine, Brain, ArrowLeft, ArrowUpFromLine, MessagesSquare, RefreshCw, Search, Timer, UserRound, X } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { traceStatusClass } from '@/helpers/traceStatus';
 import { client } from '@/services/platform/client';
 import { PageLoading } from '@/ui/reusables/PageLoading/PageLoading';
-import type { AiTrace, AiTraceSession } from '@/types/domain';
+import type { AiTrace, AiTraceSession, ChatMemory } from '@/types/domain';
 import './AdministrationScreen.css';
 import { ThreadIdChip, TraceDrawer } from './TraceDrawer';
 
 const pretty = (value: string) => value.replaceAll('_', ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
 const LOGS_PATH = '/support-administration?tab=logs';
+const MEMORY_LABELS: Record<string, string> = { budget_min: 'Budget from', budget_max: 'Budget up to', paying_with: 'Paying with', condition: 'New or used', fuel_type: 'Fuel', body_type: 'Body style', years: 'Model year' };
+const memoryValue = (key: string, value: string | number) => key.startsWith('budget') && /^\d+$/.test(String(value)) ? `$${Number(value).toLocaleString()}` : String(value);
+
+/** The running summary Sera keeps for a chat: what the buyer said and which cars Sera suggested, across the whole chat. */
+function ChatMemoryPanel({ memory }: { memory: ChatMemory }) {
+  const buyer = Object.entries(memory.buyer ?? {});
+  const soft: Array<[string, string[]]> = [['Will use it for', memory.uses ?? []], ['Likes', memory.likes ?? []], ['Does not want', memory.dislikes ?? []]];
+  return <details className="session-memory" open>
+    <summary><Brain size={16} /> What Sera remembers <small>after message {memory.turn}</small></summary>
+    <div className="session-memory-body">
+      {buyer.length > 0 && <dl>{buyer.map(([key, value]) => <div key={key}><dt>{MEMORY_LABELS[key] ?? pretty(key)}</dt><dd>{memoryValue(key, value)}</dd></div>)}</dl>}
+      {memory.chosen_car && <p><b>Chosen car:</b> {memory.chosen_car}{memory.request?.status ? ` · request ${memory.request.status}` : ''}</p>}
+      {soft.filter(([, items]) => items.length).map(([label, items]) => <p key={label}><b>{label}:</b> {items.join('; ')}</p>)}
+      {memory.notes && <p><b>Notes:</b> {memory.notes}</p>}
+      {memory.cars_suggested?.length > 0 && <div className="session-memory-cars"><b>Cars Sera suggested, in order</b><ol>{memory.cars_suggested.map((car) => <li key={car.n} title={`Message ${car.turn}`}>{car.name}</li>)}</ol></div>}
+      {!buyer.length && !memory.chosen_car && !memory.cars_suggested?.length && <p className="session-empty">Nothing remembered yet.</p>}
+    </div>
+  </details>;
+}
 
 /** Every message of one Sera conversation, newest first. Each row opens the same trace drawer as the AI logs tab. */
 export default function ConversationSessionScreen() {
@@ -76,6 +95,7 @@ export default function ConversationSessionScreen() {
           <article><ArrowUpFromLine size={17} /><span><small>Output tokens</small><strong>{totals.output_tokens.toLocaleString()}</strong></span></article>
           <article><X size={17} /><span><small>Failed</small><strong>{totals.failed.toLocaleString()}</strong></span></article>
         </div>
+        {session.memory && <ChatMemoryPanel memory={session.memory} />}
         <label className="admin-search"><Search size={16} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search this conversation" aria-label="Search this conversation" /></label>
         <div className="trace-table session-trace-table">
           <div className="trace-row trace-head"><span>Message · buyer query and Sera reply</span><span>Route / model</span><span>Tokens</span><span>Duration</span><span>Status</span></div>
