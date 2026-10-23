@@ -1,6 +1,32 @@
+import hashlib
+import hmac
+import time
+from urllib.parse import quote, urlencode
+
 from src.services.storage.storage import Storage, StorageError, StorageObject
-from src.settings import UPLOAD_DIRECTORY
+from src.settings import S3_PRESIGNED_URL_TTL_SECONDS, UPLOAD_DIRECTORY, get_settings
 from src.utils.log_flow import log_flow
+
+
+def local_signature(method: str, key: str, expires: int) -> str:
+    """HMAC of the method, key and expiry, so a local storage link works only as issued, and only until it expires.
+
+    Local links play the role of S3 presigned URLs: whoever holds one may use it, nobody else can make one.
+    """
+    message = f"{method.upper()}\n{key}\n{expires}".encode()
+    return hmac.new(get_settings().jwt_secret_key.encode(), message, hashlib.sha256).hexdigest()
+
+
+def local_link_is_valid(method: str, key: str, expires: int | None, signature: str | None) -> bool:
+    if expires is None or not signature or expires < int(time.time()):
+        return False
+    return hmac.compare_digest(local_signature(method, key, expires), signature)
+
+
+def _signed_url(method: str, key: str, extra: dict[str, str] | None = None) -> str:
+    expires = int(time.time()) + S3_PRESIGNED_URL_TTL_SECONDS
+    query = {**(extra or {}), "expires": str(expires), "signature": local_signature(method, key, expires)}
+    return f"/api/v1/documents/local/{quote(key)}?{urlencode(query)}"
 
 
 class LocalStorage(Storage):
@@ -9,7 +35,7 @@ class LocalStorage(Storage):
         return {
             "driver": "local",
             "method": "PUT",
-            "url": f"/api/v1/documents/local/{key}",
+            "url": _signed_url("PUT", key),
             "key": key,
             "headers": {"content-type": content_type},
         }
@@ -18,8 +44,8 @@ class LocalStorage(Storage):
     def create_download(self, key: str, *, as_attachment: bool = False, filename: str | None = None) -> str:
         if as_attachment:
             safe_name = (filename or key.rsplit("/", 1)[-1]).replace('"', "")
-            return f"/api/v1/documents/local/{key}?download=true&filename={safe_name}"
-        return f"/api/v1/documents/local/{key}"
+            return _signed_url("GET", key, {"download": "true", "filename": safe_name})
+        return _signed_url("GET", key)
 
     @log_flow(layer="service")
     def put_object(self, item: StorageObject) -> None:

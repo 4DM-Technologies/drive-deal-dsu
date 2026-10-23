@@ -12,7 +12,8 @@ from src.database import get_session
 from src.middleware.auth import get_current_profile, require_roles
 from src.repositories.schema import DealDocument, DealQuote, Profile
 from src.services.storage import get_storage
-from src.settings import UPLOAD_DIRECTORY
+from src.services.storage.local_storage import local_link_is_valid
+from src.settings import UPLOAD_DIRECTORY, get_settings
 from src.utils.exceptions import AppError, error_codes
 from src.utils.log_flow import log_flow
 from src.utils.logger import logger
@@ -29,9 +30,21 @@ def _local_path(key: str):
     return resolved
 
 
+def _require_local_link(method: str, key: str, expires: int | None, signature: str | None) -> None:
+    """Local files are reachable only through a link the API signed (like an S3 presigned URL), and only when
+    local storage is in use. Before this, anyone could read a buyer's driving licence or overwrite any file."""
+    if get_settings().storage_driver != "local":
+        raise AppError(error_codes.RESOURCE_NOT_FOUND, "File not found.", 404)
+    if not local_link_is_valid(method, key, expires, signature):
+        raise AppError(error_codes.UNAUTHENTICATED, "This file link is invalid or has expired.", 403)
+
+
 @router.put("/local/{key:path}", status_code=status.HTTP_204_NO_CONTENT)
 @log_flow(layer="route")
-async def upload_local(key: str, request: Request) -> Response:
+async def upload_local(
+    key: str, request: Request, expires: int | None = None, signature: str | None = None
+) -> Response:
+    _require_local_link("PUT", key, expires, signature)
     path = _local_path(key)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_bytes(await request.body())
@@ -41,7 +54,14 @@ async def upload_local(key: str, request: Request) -> Response:
 
 @router.get("/local/{key:path}")
 @log_flow(layer="route")
-async def download_local(key: str, download: bool = False, filename: str | None = None):
+async def download_local(
+    key: str,
+    download: bool = False,
+    filename: str | None = None,
+    expires: int | None = None,
+    signature: str | None = None,
+):
+    _require_local_link("GET", key, expires, signature)
     path = _local_path(key)
     if not path.is_file():
         raise AppError(error_codes.RESOURCE_NOT_FOUND, "File not found.", 404)
@@ -128,6 +148,11 @@ async def confirm(
     expected_prefix = f"deals/{payload.quote_id}/{profile.id}/"
     if not payload.object_key.startswith(expected_prefix):
         raise AppError(error_codes.VALIDATION_ERROR, "The uploaded object does not belong to this quote.", 422)
+    # The document id comes from the client. An existing record may only be replaced by the dealer who owns it,
+    # on the same quote; otherwise any dealer could repoint another dealer's document at their own file.
+    row = await session.get(DealDocument, document_id)
+    if row is not None and (row.dealer_id != profile.id or row.quote_id != payload.quote_id):
+        raise AppError(error_codes.RESOURCE_NOT_FOUND, "Document not found.", 404)
     existing_query = select(func.count(DealDocument.id)).where(
         DealDocument.quote_id == payload.quote_id, DealDocument.id != document_id
     )
@@ -141,7 +166,6 @@ async def confirm(
             raise AppError(
                 error_codes.CONFLICT, "A quote can include one document. Remove it before uploading another.", 409
             )
-    row = await session.get(DealDocument, document_id)
     if row is None:
         row = DealDocument(
             id=document_id,

@@ -1,4 +1,5 @@
 import hashlib
+import hmac
 from datetime import UTC, datetime, timedelta
 from typing import Literal
 
@@ -47,3 +48,31 @@ def decode_token(token: str, expected_type: Literal["access", "refresh"] = "acce
     if payload.get("type") != expected_type:
         raise jwt.InvalidTokenError("Unexpected token type")
     return payload
+
+
+RESET_CODE_MINUTES = 30
+
+
+def _reset_signature(user_id: str, password_hash: str, expires: int) -> str:
+    message = f"password-reset\n{user_id}\n{password_hash}\n{expires}".encode()
+    return hmac.new(get_settings().jwt_secret_key.encode(), message, hashlib.sha256).hexdigest()[:40]
+
+
+def issue_reset_code(user) -> str:
+    """A one-time password reset code: "<expiry>-<signature>".
+
+    Nothing is stored. The signature covers the user and their current password hash, so the code stops working
+    after RESET_CODE_MINUTES or as soon as the password changes, which makes it single-use.
+    """
+    expires = int((datetime.now(UTC) + timedelta(minutes=RESET_CODE_MINUTES)).timestamp())
+    return f"{expires}-{_reset_signature(user.id, user.password_hash, expires)}"
+
+
+def reset_code_is_valid(user, code: str) -> bool:
+    expires_text, _, signature = code.strip().partition("-")
+    if not expires_text.isdigit() or not signature:
+        return False
+    expires = int(expires_text)
+    if expires < int(datetime.now(UTC).timestamp()):
+        return False
+    return hmac.compare_digest(_reset_signature(user.id, user.password_hash, expires), signature)
