@@ -1456,9 +1456,9 @@ def main_agent(
                         if item["vehicle_name"] not in have
                     ]
                     media.sort(
-                        key=lambda item: target_names.index(item["vehicle_name"])
-                        if item.get("vehicle_name") in target_names
-                        else 99
+                        key=lambda item: (
+                            target_names.index(item["vehicle_name"]) if item.get("vehicle_name") in target_names else 99
+                        )
                     )
                 if hosted_answer and not (preview or state.get("preview")):
                     if compare:
