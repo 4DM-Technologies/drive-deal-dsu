@@ -8,6 +8,7 @@ class AgentState(TypedDict, total=False):
     message: str
     conversation_context: list[dict[str, Any]]
     chat_summary: dict[str, Any]
+    buyer_name: str
     route: str
     mode: str
     search_query: str

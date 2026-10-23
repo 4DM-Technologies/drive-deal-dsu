@@ -105,6 +105,12 @@ async def _refine_chat_memory(thread_id: str, user_id: str, user_message: str, a
         logger.warning("chat_memory_update_failed", thread_id=thread_id, error=str(exc)[:200])
 
 
+def _first_name(buyer: Any) -> str:
+    """The buyer's first name from their account, for a personal reply. Only the first name is ever shared."""
+    name = str(getattr(buyer, "first_name", None) or getattr(buyer, "full_name", None) or "").strip()
+    return name.split()[0][:40] if name else ""
+
+
 def _fill_from_memory(requirements: dict, chat_summary: dict | None, message: str = "") -> dict:
     """Request details the buyer gave earlier in the chat, for fields this turn's extraction left empty.
 
@@ -498,6 +504,7 @@ class AiService:
             "chat_preferences": chat_preferences,
             "conversation_context": conversation_context,
             "chat_summary": memory.get("chat_summary"),
+            "buyer_name": _first_name(buyer),
         }
         explicit_web_search = (
             get_settings().ai_enable_web_search
@@ -1031,39 +1038,42 @@ class AiService:
         if not rows:
             return {}
         latest = rows[0].checkpoint
+        chronological = list(reversed(rows))
+        # The browser also saves its whole transcript ("guided_messages") after a turn, beside Sera's own turn row.
+        # The newest such transcript is the base, and only Sera's turns saved after it are appended. Merging every
+        # copy used to put old messages ("Your name is Siri") after the latest shortlist and push it out of view.
+        transcript_at = max(
+            (
+                index
+                for index, row in enumerate(chronological)
+                if isinstance(row.checkpoint.get("guided_messages"), list)
+            ),
+            default=None,
+        )
         context: list[dict[str, Any]] = []
-        for row in reversed(rows):
+        if transcript_at is not None:
+            for message in chronological[transcript_at].checkpoint["guided_messages"]:
+                if isinstance(message, dict) and message.get("role") in {"user", "assistant"} and message.get("body"):
+                    item: dict[str, Any] = {"role": message["role"], "body": str(message["body"])[:4000]}
+                    if message["role"] == "assistant" and isinstance(message.get("media"), list):
+                        item["media"] = message["media"][:8]
+                    context.append(item)
+        for row in chronological[(transcript_at + 1) if transcript_at is not None else 0 :]:
             checkpoint = row.checkpoint
-            guided_messages = checkpoint.get("guided_messages")
-            if isinstance(guided_messages, list):
-                for message in guided_messages:
-                    if (
-                        isinstance(message, dict)
-                        and message.get("role") in {"user", "assistant"}
-                        and message.get("body")
-                    ):
-                        item: dict[str, Any] = {
-                            "role": message["role"],
-                            "body": str(message["body"])[:4000],
-                        }
-                        if message["role"] == "assistant" and isinstance(message.get("media"), list):
-                            item["media"] = message["media"][:8]
-                        context.append(item)
-            else:
-                for role, key in (("user", "user"), ("assistant", "assistant")):
-                    body = checkpoint.get(key)
-                    if body:
-                        item: dict[str, Any] = {"role": role, "body": str(body)[:2000]}
-                        if role == "assistant" and isinstance(checkpoint.get("media"), list):
-                            item["media"] = checkpoint["media"]
-                        context.append(item)
-        deduped: list[dict[str, str]] = []
-        seen: set[tuple[str, str]] = set()
+            if isinstance(checkpoint.get("guided_messages"), list):
+                continue
+            for role, key in (("user", "user"), ("assistant", "assistant")):
+                body = checkpoint.get(key)
+                if body:
+                    item = {"role": role, "body": str(body)[:2000]}
+                    if role == "assistant" and isinstance(checkpoint.get("media"), list):
+                        item["media"] = checkpoint["media"]
+                    context.append(item)
+        # Only back-to-back repeats are duplicates; a buyer saying "ok" twice in different places is not.
+        deduped: list[dict[str, Any]] = []
         for message in context:
-            key = (message["role"], message["body"])
-            if key not in seen:
+            if not deduped or (deduped[-1]["role"], deduped[-1]["body"]) != (message["role"], message["body"]):
                 deduped.append(message)
-                seen.add(key)
         # Chats saved before memory existed get a summary rebuilt from the turns still loaded.
         return {
             **latest,

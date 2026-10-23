@@ -37,7 +37,8 @@ KNOWN_MAKES = sorted(
     key=len,
     reverse=True,
 )  # fmt: skip
-MAKE_RE = re.compile(r"\b(" + "|".join(re.escape(make) for make in KNOWN_MAKES) + r")\b", re.IGNORECASE)
+# A make may run straight into its model number ("Mazda6", "Mazda3"), so a digit also ends it.
+MAKE_RE = re.compile(r"\b(" + "|".join(re.escape(make) for make in KNOWN_MAKES) + r")(?=\b|\d)", re.IGNORECASE)
 _BOLD_RE = re.compile(r"\*\*([^*\n]{3,70})\*\*")
 _LIST_NAME_RE = re.compile(r"^\s*(?:\d{1,2}[.)]|[-*•])\s*\**([^*\n—–|:]{3,70})")
 
@@ -54,6 +55,15 @@ PREFERENCE_CUE_RE = re.compile(
     r"|'?ll\s+(?:pay|go|take))|i'?m\s+after|looking\s+for|prefer(?:ably)?|must\s+(?:be|have)|has\s+to\s+be"
     r"|should\s+be|go(?:ing)?\s+with|ok(?:ay)?\s+(?:a|an|the)\b|make\s+it|paying|budget)",
     re.IGNORECASE,
+)
+# A name is one word, so "my name is Rahul" works but "call me back later" does not ("back" is not a name).
+_NOT_NAMES = r"(?!(?:back|later|soon|tomorrow|now|when|if|please|maybe|anytime|asap|a|an|the|sir|madam)\b)"
+BUYER_NAME_RE = re.compile(
+    rf"\b(?:my\s+name\s+is|my\s+name's|call\s+me)\s+{_NOT_NAMES}([A-Za-z][A-Za-z'-]{{1,30}})\b", re.I
+)
+NICKNAME_RE = re.compile(
+    rf"\b(?:your\s+name\s+is|i(?:'ll|\s+will)\s+call\s+you|call\s+you|name\s+you)\s+{_NOT_NAMES}([A-Za-z][A-Za-z'-]{{1,30}})\b",
+    re.I,
 )
 _ORDINAL_WORDS = {
     "first": 0, "1st": 0, "second": 1, "2nd": 1, "third": 2, "3rd": 2, "fourth": 3, "4th": 3, "fifth": 4, "5th": 4,
@@ -88,7 +98,7 @@ def _clean_vehicle_name(raw: str) -> str | None:
     name = re.sub(r"^(?:19|20)\d{2}\s+", "", name)
     name = re.split(r"\s+[—–|:]\s+|\s+\(", name, maxsplit=1)[0].strip()
     make = make_of(name)
-    if not make or len(name.split()) < 2 or len(name) > 60 or name.casefold() == make.casefold():
+    if not make or len(name) > 60 or len(name.replace(" ", "")) <= len(make.replace(" ", "")):
         return None
     return name
 
@@ -183,6 +193,14 @@ def update_summary(
             _set(stated, "budget_max", extract_budget(user_message))
         for key, value in stated.items():
             _set(buyer, key, value)
+        # "My name is Rahul" / "call me Ron" overrides the account name for this chat; "your name is Siri" is the
+        # nickname the buyer gave Sera.
+        named = BUYER_NAME_RE.search(user_message)
+        if named:
+            summary["preferred_name"] = named.group(1).capitalize()
+        nickname = NICKNAME_RE.search(user_message)
+        if nickname and nickname.group(1).casefold() != "sera":
+            summary["assistant_nickname"] = nickname.group(1).capitalize()
     if published_request_id:
         summary["request"] = {"status": "published", "id": published_request_id}
 
@@ -257,7 +275,54 @@ def summary_text(summary: dict[str, Any] | None) -> str:
         lines.append(f"Request: {request['status']}.")
     if summary.get("notes"):
         lines.append(f"Notes: {summary['notes']}")
+    if summary.get("preferred_name"):
+        lines.insert(0, f"The buyer asked to be called {summary['preferred_name']}.")
+    if summary.get("assistant_nickname"):
+        lines.append(
+            f'The buyer likes to call Sera "{summary["assistant_nickname"]}" (play along; the real name is still Sera).'
+        )
     return "\n".join(lines)
+
+
+_NAME_STOP_RE = re.compile(
+    r"\s+(?:and|or|vs\.?|versus|please|pls|photos?|pictures?|images?|pics?|in|with|for|from|on|of|too|also)\b.*$",
+    re.IGNORECASE,
+)
+
+
+def cars_named_in_message(message: str, limit: int = 6) -> list[str]:
+    """Cars the buyer names with their make: "photos Toyota Camry, Honda Accord, Mazda6" -> those three.
+
+    A model without its make ("a picture of Corvette") is not read here; web search can still find it.
+    """
+    starts = [match.start() for match in MAKE_RE.finditer(message)]
+    names: list[str] = []
+    for index, start in enumerate(starts):
+        end = starts[index + 1] if index + 1 < len(starts) else len(message)
+        chunk = re.split(r"[,;.!?&/()]", message[start:end], maxsplit=1)[0]
+        chunk = _NAME_STOP_RE.sub("", chunk.strip())
+        words = chunk.split()[:4]
+        name = _clean_vehicle_name(" ".join(words))
+        if name:
+            # "toyota camry" -> "Toyota Camry"; "BMW X5" and "Mazda6" keep their own casing.
+            name = " ".join(word if any(c.isupper() for c in word) else word.capitalize() for word in name.split())
+            if name.casefold() not in {item.casefold() for item in names}:
+                names.append(name)
+    return names[:limit]
+
+
+def latest_suggestions(summary: dict[str, Any] | None) -> list[str]:
+    """The cars in the most recent reply that suggested two or more: what "that shortlist" refers to."""
+    cars = (summary or {}).get("cars_suggested") if isinstance(summary, dict) else None
+    if not cars:
+        return []
+    by_turn: dict[int, list[str]] = {}
+    for car in cars:
+        by_turn.setdefault(int(car.get("turn") or 0), []).append(str(car.get("name")))
+    for turn in sorted(by_turn, reverse=True):
+        if len(by_turn[turn]) >= 2:
+            return by_turn[turn]
+    return []
 
 
 def resolve_earlier_reference(message: str, summary: dict[str, Any] | None) -> list[str]:
