@@ -7,6 +7,7 @@ import { DEALER_LICENSE_ACCEPT, DRIVING_LICENSE_ACCEPT, dealerLicenseProblem, dr
 import { client } from '@/services/platform/client';
 import { useDemoStore } from '@/services/platform/demoStore';
 import { Brand } from '@/ui/reusables/Brand/Brand';
+import { BrandPicker } from '@/ui/reusables/BrandPicker/BrandPicker';
 import { Dropdown } from '@/ui/reusables/Dropdown/Dropdown';
 import type { BrandRef, StateRef } from '@/types/domain';
 
@@ -48,7 +49,8 @@ export default function SignupScreen() {
   const [branchName, setBranchName] = useState('');
   const [dealerLicense, setDealerLicense] = useState('');
   const [website, setWebsite] = useState('');
-  const [brandId, setBrandId] = useState('');
+  const [brandIds, setBrandIds] = useState<string[]>([]);
+  const [otherBrands, setOtherBrands] = useState<string[]>([]);
   const [extraInformation, setExtraInformation] = useState('');
   const [licenseFile, setLicenseFile] = useState<File | null>(null);
   const [licenseError, setLicenseError] = useState('');
@@ -107,7 +109,7 @@ export default function SignupScreen() {
         const session = await client.auth.signupBuyer({ ...base, firstName: firstName.trim(), lastName: lastName.trim(), drivingLicense: licenseFile as File });
         setSession(session);
       } else if (type === 'dealer') {
-        await client.auth.signupDealer({ ...base, fullName, dealershipName, branchName, dealerLicense, website, supportedBrandIds: brandId ? [brandId] : [], motorVehicleDealerLicense: dealerLicenseFile as File });
+        await client.auth.signupDealer({ ...base, fullName, dealershipName, branchName, dealerLicense, website, supportedBrandIds: brandIds, otherBrands, motorVehicleDealerLicense: dealerLicenseFile as File });
       } else {
         await client.auth.signupSupport({ ...base, fullName, extraInformation });
       }
@@ -122,8 +124,8 @@ export default function SignupScreen() {
   function advanceDealerStep(form: HTMLFormElement) {
     setError('');
     if (!form.reportValidity()) return;
-    if (dealerStep === 2 && (!stateId || !brandId)) {
-      setError('Select a state and primary brand to continue.');
+    if (dealerStep === 2 && (!stateId || (!brandIds.length && !otherBrands.length))) {
+      setError('Select a state and at least one brand you sell to continue.');
       return;
     }
     if (dealerStep === 2 && !dealerLicenseFile) {
@@ -134,7 +136,7 @@ export default function SignupScreen() {
   }
 
   const stateField = <div className="field"><label htmlFor="signup-state">State</label><Dropdown id="signup-state" ariaLabel="State" align="left" placement="auto" value={stateId} onChange={setStateId} options={[{ value: '', label: 'Select a state' }, ...states.map((item) => ({ value: item.id, label: item.name }))]} /></div>;
-  const missingChoice = !stateId || (type === 'dealer' && !brandId);
+  const missingChoice = !stateId || (type === 'dealer' && !brandIds.length && !otherBrands.length);
 
   if (complete) {
     const nextSteps = type === 'dealer'
@@ -190,7 +192,7 @@ export default function SignupScreen() {
               <div className="field"><label htmlFor="signup-license">Dealer licence number</label><input id="signup-license" className="input" value={dealerLicense} onChange={(event) => setDealerLicense(event.target.value)} required /></div>
               <div className="field"><label htmlFor="signup-website">Website <span className="muted">(optional)</span></label><input id="signup-website" className="input" type="url" autoComplete="url" placeholder="https://example.com…" value={website} onChange={(event) => setWebsite(event.target.value)} /></div>
               {stateField}
-              <div className="field"><label htmlFor="signup-brand">Primary brand</label><Dropdown id="signup-brand" ariaLabel="Primary brand" align="left" value={brandId} onChange={setBrandId} options={[{ value: '', label: 'Select a primary brand' }, ...brands.map((item) => ({ value: item.id, label: item.name }))]} /></div>
+              <div className="field form-span"><label htmlFor="signup-brands">Brands you sell <span className="muted">(choose all that apply)</span></label><BrandPicker id="signup-brands" brands={brands} selectedIds={brandIds} onSelectedIdsChange={setBrandIds} otherBrands={otherBrands} onOtherBrandsChange={setOtherBrands} /></div>
               <div className="field form-span">
                 <label htmlFor="motor-vehicle-dealer-license">Motor Vehicle Dealer License <span className="muted">(PDF only)</span></label>
                 <label className={`upload-zone compact${dealerLicenseFile ? ' has-file' : ''}`} htmlFor="motor-vehicle-dealer-license">

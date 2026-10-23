@@ -1,5 +1,5 @@
-import { ArrowLeft, CheckCircle2, Download, FileCheck2, FileUp, History, Image, ImageOff, MessageCircle, Pencil, ShieldCheck, TrendingDown, Trophy } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
+import { ArrowLeft, CheckCircle2, Download, ExternalLink, FileCheck2, FileUp, History, Image, ImageOff, MessageCircle, Pencil, ShieldCheck, TrendingDown, Trophy } from 'lucide-react';
+import { Fragment, useEffect, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { computeOtd, formatMoney } from '@/helpers/currency';
 import { formatLongDate } from '@/helpers/dateTime';
@@ -160,7 +160,16 @@ export default function QuoteDetailScreen({ deal = false }: { deal?: boolean }) 
     {currentDocument && <div className="document-row is-static"><FileCheck2 size={18} /><span><strong>{currentDocument.name}</strong><small>{newFile ? 'Replaced when you send' : 'Current document'}</small></span></div>}
     <label className="upload-zone compact" htmlFor="revised-document"><FileUp /><span><strong>{newFile ? 'Choose a different file' : currentDocument ? 'Replace this document' : 'Attach a document'}</strong><small>PDF, DOC or DOCX · up to 20 MB</small></span><input id="revised-document" type="file" accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" onChange={(event) => { pickDocument(event.target.files?.[0]); event.target.value = ''; }} /></label>
     {newFile && <span className="uploaded-file"><FileUp size={15} /><span><strong>{newFile.name}</strong><small>{(newFile.size / 1024 / 1024).toFixed(1)} MB · replaces the current document</small></span><button type="button" onClick={() => setNewFile(null)} aria-label={`Remove ${newFile.name}`}>Remove</button></span>}
-  </> : documents.length ? documents.map((document) => <a className="document-row" href={document.downloadUrl} download={document.name} key={document.id} aria-label={`Download ${document.name}`}><FileCheck2 size={18} /><span><strong>{document.name}</strong><small>Secure download · {document.status}</small></span><Download size={17} /></a>) : <div className="document-empty"><FileCheck2 /><p><strong>No document attached</strong><small>The dealer submitted this quote without a downloadable document.</small></p></div>}</section></aside></div>
+  </> : documents.length ? documents.map((document) => <Fragment key={document.id}><a className="document-row" href={document.downloadUrl} download={document.name} aria-label={`Download ${document.name}`}><FileCheck2 size={18} /><span><strong>{document.name}</strong><small>Secure download · {document.status}</small></span><Download size={17} /></a><DocumentPreview document={document} /></Fragment>) : <div className="document-empty"><FileCheck2 /><p><strong>No document attached</strong><small>The dealer submitted this quote without a downloadable document.</small></p></div>}</section></aside></div>
+  </div>;
+}
+
+/** The dealer's PDF shown in place under its download row, with a full-size view in a new tab. */
+function DocumentPreview({ document }: { document: DealDocument }) {
+  if (!document.previewUrl) return null;
+  return <div className="document-preview">
+    <iframe src={`${document.previewUrl}#view=FitH`} title={`Preview of ${document.name}`} loading="lazy" />
+    <a className="document-preview-open" href={document.previewUrl} target="_blank" rel="noopener noreferrer"><ExternalLink size={14} /> Open in new tab</a>
   </div>;
 }
 

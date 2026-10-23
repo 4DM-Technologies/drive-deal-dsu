@@ -697,6 +697,10 @@ h1, h2, h3, .display { font-family: 'Manrope', 'DM Sans', sans-serif; letter-spa
 .search-field:focus-within { border-color: rgba(20,86,184,.45); box-shadow: 0 0 0 3px rgba(20,86,184,.1); }
 .quotes-search { flex: 0 1 340px; background: var(--raised); }
 @media (max-width: 720px) { .quotes-search { flex: 1 1 100%; } }
+/* The search box keeps its width beside the Refresh and Export buttons on the dealer Quotes and Deals pages. */
+.dealer-list-actions { flex: 0 1 auto; justify-content: flex-end; }
+.dealer-list-actions .quotes-search { width: 340px; flex: 0 1 340px; }
+@media (max-width: 720px) { .dealer-list-actions { width: 100%; } .dealer-list-actions .quotes-search { width: 100%; } }
 .filter-pills { display: flex; gap: .4rem; flex-wrap: wrap; }
 .filter-pill { border: 1px solid var(--border); background: var(--raised); border-radius: 999px; min-height: 38px; padding: .45rem .8rem; color: var(--muted); font-weight: 700; font-size: .78rem; }
 .filter-pill.active { border-color: #b8d0f0; background: var(--accent-soft); color: var(--accent); }
@@ -1592,6 +1596,12 @@ h1, h2, h3, .display { font-family: 'Manrope', 'DM Sans', sans-serif; letter-spa
 @media (max-width: 720px) {
   .requests-toolbar { align-items: stretch; }
   .requests-toolbar .filter-pills { width: 100%; }
+  /* In the stacked toolbar the search keeps its normal height; its 300px flex-basis is meant for the width of the row layout. */
+  .list-toolbar > .search-field { flex: none; }
+  /* Refresh and Start a request share one full-width row instead of two uneven stacked buttons. */
+  .requests-page .heading-actions { width: 100%; flex-direction: row; }
+  .requests-page .heading-actions .button { width: auto; }
+  .requests-page .heading-actions > .button-primary { flex: 1; }
   .request-card-spec .request-card-body { padding: 1.05rem; }
 }
 
@@ -2828,3 +2838,72 @@ button.stepper-body:hover .stepper-dot { box-shadow: 0 0 0 4px rgba(var(--accent
 .report-dismiss-hint { display: flex; align-items: center; gap: .35rem; margin: 0 0 .6rem; font-size: .82rem; }
 @media (max-width: 860px) { .report-people { grid-template-columns: 1fr; } .report-people-link { max-width: none; grid-auto-flow: column; justify-content: center; align-items: center; gap: .5rem; } .report-people-link svg { transform: rotate(90deg); } }
 @media (max-width: 720px) { .report-transcript li { max-width: 100%; } }
+
+/* A dealer's PDF shown in place under its download row on the quote page. */
+.document-preview { display: grid; gap: .5rem; margin-top: .25rem; }
+.document-preview iframe { display: block; width: 100%; height: min(560px, 70vh); border: 1px solid var(--border); border-radius: 12px; background: var(--surface) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='20'%3E%3Ctext x='90' y='14' text-anchor='middle' font-family='sans-serif' font-size='12' fill='%236f6b64'%3ELoading preview%E2%80%A6%3C/text%3E%3C/svg%3E") center / 180px 20px no-repeat; }
+.document-preview-open { justify-self: end; display: inline-flex; align-items: center; gap: .3rem; color: var(--accent); font-size: .8rem; font-weight: 700; }
+.document-preview-open:hover { text-decoration: underline; }
+/* A tall preview would leave the bottom of a sticky sidebar out of reach, so that sidebar scrolls with the page. */
+.sticky-card:has(.document-preview) { position: static; }
+
+/* Reusable Refresh button: the icon spins while the page reloads its data; a failed refresh outlines it in red. */
+.refresh-button svg { flex: none; }
+.refresh-button .is-spinning { animation: refresh-spin 800ms linear infinite; }
+.refresh-button:disabled { cursor: progress; }
+.refresh-button.is-failed { border-color: var(--danger); color: var(--danger); }
+@keyframes refresh-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .refresh-button .is-spinning { animation: none; } }
+
+/* Brand multi-select (dealer signup and profile): chips for chosen brands, an inline searchable checklist, and Other. */
+.brand-picker { display: grid; gap: .5rem; min-width: 0; }
+.brand-picker-trigger { display: flex; align-items: center; justify-content: space-between; gap: .6rem; width: 100%; min-height: 44px; padding: .55rem .8rem; border: 1px solid var(--border); border-radius: 12px; background: var(--raised); color: var(--ink); font: inherit; font-size: .9rem; text-align: left; cursor: pointer; }
+.brand-picker-trigger:hover { border-color: var(--border-strong); }
+.brand-picker-trigger:focus-visible { outline: 3px solid var(--focus-ring); outline-offset: 1px; }
+.brand-picker-trigger svg { flex: none; color: var(--muted); transition: transform 160ms var(--ease); }
+.brand-picker.is-open .brand-picker-trigger svg { transform: rotate(180deg); }
+.brand-picker-trigger:disabled { cursor: default; opacity: .7; }
+.brand-chips { display: flex; flex-wrap: wrap; gap: .35rem; margin: 0; padding: 0; list-style: none; }
+.brand-chips li { display: inline-flex; align-items: center; gap: .3rem; min-height: 28px; padding: .15rem .25rem .15rem .6rem; border: 1px solid #cfe0f5; border-radius: 999px; background: var(--accent-soft); color: var(--accent); font-size: .8rem; font-weight: 600; }
+.brand-chips li.is-other { border-color: var(--border); background: var(--surface); color: var(--ink); }
+.brand-chips li small { color: var(--muted); font-size: .66rem; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; }
+.brand-chips button { display: grid; place-items: center; width: 20px; height: 20px; border: 0; border-radius: 50%; background: transparent; color: inherit; cursor: pointer; }
+.brand-chips button:hover { background: rgba(16,35,63,.08); }
+.brand-picker-panel { display: grid; gap: .6rem; padding: .7rem; border: 1px solid var(--border); border-radius: 12px; background: var(--raised); box-shadow: var(--shadow-sm); }
+.brand-picker-search { min-height: 38px; }
+.brand-picker-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: .2rem .5rem; max-height: 220px; overflow-y: auto; padding-right: .2rem; }
+.brand-picker-list label, .brand-picker-other > label { display: flex; align-items: center; gap: .5rem; min-height: 34px; padding: .25rem .45rem; border-radius: 8px; font-size: .85rem; cursor: pointer; }
+.brand-picker-list label:hover, .brand-picker-other > label:hover { background: var(--surface); }
+.brand-picker-list label.is-checked { color: var(--accent); font-weight: 600; }
+.brand-picker-list input, .brand-picker-other input[type="checkbox"] { position: absolute; opacity: 0; pointer-events: none; }
+.brand-check { flex: none; display: grid; place-items: center; width: 16px; height: 16px; border: 1.5px solid var(--border-strong); border-radius: 5px; background: var(--raised); color: white; }
+.is-checked > .brand-check { border-color: var(--accent); background: var(--accent); }
+.brand-picker-list label:focus-within, .brand-picker-other > label:focus-within { outline: 2px solid var(--focus-ring); }
+.brand-picker-empty { grid-column: 1 / -1; margin: .3rem .45rem; color: var(--muted); font-size: .82rem; }
+.brand-picker-other { display: grid; gap: .45rem; padding-top: .55rem; border-top: 1px solid var(--border); }
+.brand-picker-add { display: flex; gap: .45rem; }
+.brand-picker-add .input { flex: 1; min-width: 0; min-height: 36px; }
+.brand-picker-foot { display: flex; justify-content: flex-end; }
+.verification-brands { display: flex; flex-wrap: wrap; gap: .3rem; }
+.verification-brands > span { padding: .1rem .5rem; border-radius: 999px; background: var(--accent-soft); color: var(--accent); font-size: .8rem; }
+.verification-brands > span.is-other { background: var(--warning-soft); color: var(--warning); }
+
+/* Multi-select dropdown (feed Areas and Brands): a checkbox on the left of each choice. */
+.multi-menu li { justify-content: flex-start; gap: .6rem; }
+.multi-menu li.selected { background: transparent; color: var(--ink); font-weight: 600; }
+.multi-menu li.selected.active, .multi-menu li.active { background: var(--surface); }
+.multi-menu li.divider-after { margin-bottom: .3rem; border-radius: 9px 9px 0 0; box-shadow: 0 1px 0 var(--border); }
+.multi-menu .multi-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.multi-check { flex: none; display: grid; place-items: center; width: 17px; height: 17px; border: 1.5px solid var(--border-strong); border-radius: 5px; background: white; }
+.multi-menu li.selected .multi-check { border-color: var(--accent); background: var(--accent); }
+.multi-menu li .multi-check svg { color: white; }
+
+/* Buyer quick messages above the chat composer: one tap fills the message box to edit and send. */
+.chat-quick-replies { flex: none; display: flex; gap: .4rem; overflow-x: auto; padding: .6rem 1.25rem 0; border-top: 1px solid var(--border); background: var(--raised); scrollbar-width: none; }
+.chat-quick-replies::-webkit-scrollbar { display: none; }
+.chat-quick-replies + .chat-composer { border-top: 0; }
+.chat-quick-reply { flex: none; display: inline-flex; align-items: center; gap: .35rem; min-height: 32px; padding: .3rem .75rem; border: 1px solid #cfe0f5; border-radius: 999px; background: var(--accent-soft); color: var(--accent); font: inherit; font-size: .8rem; font-weight: 600; white-space: nowrap; cursor: pointer; transition: background-color 160ms var(--ease), border-color 160ms var(--ease); }
+.chat-quick-reply:hover { border-color: #9bbce9; background: #dde9fa; }
+.chat-quick-reply:focus-visible { outline: 3px solid var(--focus-ring); outline-offset: 1px; }
+.chat-quick-reply svg { flex: none; }
+@media (max-width: 720px) { .chat-quick-replies { padding-inline: .75rem; } }

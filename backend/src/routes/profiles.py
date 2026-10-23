@@ -5,9 +5,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.database import get_session
 from src.middleware.auth import get_current_profile, require_roles
-from src.models.auth import clean_name_part
+from src.models.auth import clean_name_part, clean_other_brands
 from src.repositories.schema import BuyerPreference, Profile, User
 from src.services.billing_service import BillingService
+from src.services.dealer_brands import resolve_dealer_brands
 from src.utils.exceptions import AppError, error_codes
 from src.utils.log_flow import log_flow
 from src.utils.serialization import model_dict
@@ -25,6 +26,14 @@ class ProfileUpdate(BaseModel):
     state_id: str | None = None
     website: str | None = None
     branch_name: str | None = None
+    # Dealers only: catalog brand ids and names typed under "Other". Sending either replaces that list.
+    supported_brands: list[str] | None = Field(default=None, max_length=60)
+    other_brands: list[str] | None = None
+
+    @field_validator("other_brands")
+    @classmethod
+    def validate_other_brands(cls, value: list[str] | None) -> list[str] | None:
+        return None if value is None else clean_other_brands(value)
 
     @field_validator("first_name")
     @classmethod
@@ -85,6 +94,17 @@ async def update_me(
         if not first_name:
             raise AppError(error_codes.VALIDATION_ERROR, "First name is required.", 422)
         changes.update(first_name=first_name, last_name=last_name, full_name=f"{first_name} {last_name or ''}".strip())
+    if "supported_brands" in changes or "other_brands" in changes:
+        if profile.role != "dealer":
+            raise AppError(error_codes.FORBIDDEN_ROLE, "Only dealers have brands on their profile.", 403)
+        # A list that wasn't sent (or was sent as null) keeps its current value; an empty list clears it.
+        sent_ids, sent_others = changes.get("supported_brands"), changes.get("other_brands")
+        brand_ids, other_brands = await resolve_dealer_brands(
+            session,
+            profile.supported_brands if sent_ids is None else sent_ids,
+            profile.other_brands if sent_others is None else sent_others,
+        )
+        changes.update(supported_brands=brand_ids, other_brands=other_brands)
     for field, value in changes.items():
         setattr(profile, field, value)
     profile.updated_by = profile.id

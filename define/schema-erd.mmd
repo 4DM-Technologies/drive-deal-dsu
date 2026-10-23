@@ -1,6 +1,6 @@
 %% Deal&Drive current entity relationship diagram
 %% Source of truth: backend/src/repositories/schema/tables.py
-%% 23 tables. Render with Mermaid Live, VS Code Mermaid preview, or:
+%% 27 tables. Render with Mermaid Live, VS Code Mermaid preview, or:
 %% mmdc -i define/schema-erd.mmd -o define/schema-erd.svg
 %% Tables using AuditMixin also contain created_at, updated_at, created_by and updated_by.
 %% Support Administrator buyer/dealer workspace views are read-only API projections over buyer_requests
@@ -24,6 +24,10 @@ erDiagram
     profiles ||--o{ support_tickets : "raises"
     support_tickets ||--o{ support_ticket_attachments : "carries"
     profiles ||--o{ support_verifications : "applicant"
+    profiles ||--o{ user_reports : "reports"
+    profiles ||--o{ user_reports : "is reported"
+    deal_quotes ||--o{ user_reports : "reported conversation"
+    user_reports ||--o{ user_report_attachments : "evidence"
     profiles ||--o{ support_verifications : "decides"
     profiles ||--o{ error_logs : "associated user"
     profiles ||--o{ payments : "pays"
@@ -66,7 +70,8 @@ erDiagram
         text dealer_license UK
         text website
         json coordinates
-        json supported_brands
+        json supported_brands "catalog brand ids"
+        json other_brands "brands typed under Other, not in the catalog"
         bool terms_accepted
         text terms_version
         timestamptz terms_accepted_at
@@ -186,7 +191,9 @@ erDiagram
         text additional_information
         timestamptz request_expire
         text market_brief
-        text status
+        text status "draft|open|closed|expired|fulfilled; expired = no quotes in 30 days"
+        timestamptz dealers_notified_at "buyer reminded dealers after 2 weeks"
+        timestamptz repushed_at "buyer reopened an expired request"
     }
 
     buyer_request_views {
@@ -260,6 +267,31 @@ erDiagram
         uuid id PK
         uuid ticket_id FK
         text object_key "help-support/<buyer|dealer>-support/<profile id>/<ticket id>/<file>"
+        text file_name
+        text content_type
+        int size_bytes
+    }
+
+    user_reports {
+        uuid id PK
+        text report_id UK "RPT-..."
+        uuid quote_id FK
+        uuid reporter_id FK
+        text reporter_role
+        uuid reported_id FK
+        text reported_role
+        text reason
+        text details
+        json conversation_snapshot "messages as they stood when reported"
+        text status "open|under_review|action_taken|dismissed"
+        text outcome "no_violation|warning_issued|account_suspended|other"
+        json notes
+    }
+
+    user_report_attachments {
+        uuid id PK
+        uuid report_id FK
+        text object_key "reports/<buyer|dealer>/<reported profile id>/<report ref>/<report ref>-evidence-NN.<ext>"
         text file_name
         text content_type
         int size_bytes

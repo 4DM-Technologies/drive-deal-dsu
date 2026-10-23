@@ -12,6 +12,7 @@ from src.models.auth import BuyerSignup, DealerSignup, LoginRequest, SessionProf
 from src.repositories.auth_repository import AuthRepository
 from src.repositories.schema import BuyerDocument, DealerDocument, Profile, SupportVerification, User
 from src.services.billing_service import BillingService
+from src.services.dealer_brands import resolve_dealer_brands
 from src.services.dealer_license import DOCUMENT_LABEL as DEALER_LICENSE_LABEL
 from src.services.dealer_license import DealerLicenseUpload, dealer_license_key
 from src.services.driving_license import DrivingLicenseUpload, driving_license_key
@@ -69,6 +70,9 @@ class AuthService:
 
     @log_flow(layer="service")
     async def signup_dealer(self, payload: DealerSignup, dealer_license: DealerLicenseUpload) -> dict:
+        brand_ids, other_brands = await resolve_dealer_brands(
+            self.session, payload.supported_brand_ids, payload.other_brands
+        )
         profile = await self._create_profile(
             payload,
             "dealer",
@@ -77,7 +81,8 @@ class AuthService:
             branch_name=payload.branch_name,
             dealer_license=payload.dealer_license,
             website=str(payload.website) if payload.website else None,
-            supported_brands=payload.supported_brand_ids,
+            supported_brands=brand_ids,
+            other_brands=other_brands,
         )
         verification = SupportVerification(
             ticket_id=_verification_ticket_id("DV", str(int(time()))),

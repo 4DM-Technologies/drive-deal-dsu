@@ -16,6 +16,7 @@ from src.repositories.schema import (
     SupportVerification,
     User,
 )
+from src.services.dealer_brands import brand_names
 from src.services.dealer_license import DOCUMENT_LABEL as DEALER_LICENSE_LABEL
 from src.services.storage import Storage, StorageError, StorageObject, get_storage
 from src.services.support_attachments import SupportUpload, support_attachment_key
@@ -100,8 +101,9 @@ class SupportService:
         decider = await self.session.get(Profile, row.decided_by) if row.decided_by else None
         documents = await self._dealer_document_map({row.profile_id})
         [notes] = await self._name_note_authors([row.notes])
+        names = await brand_names(self.session, profile.supported_brands if profile else [])
         return {
-            **self._verification_payload(row, profile, state, decider, documents.get(row.profile_id, [])),
+            **self._verification_payload(row, profile, state, decider, documents.get(row.profile_id, []), names),
             "notes": notes,
         }
 
@@ -138,6 +140,7 @@ class SupportService:
         state: State | None,
         decider: Profile | None,
         documents: list[dict] | None = None,
+        names: dict[str, str] | None = None,
     ) -> dict:
         return {
             **model_dict(row),
@@ -154,6 +157,11 @@ class SupportService:
             "dealer_license": profile.dealer_license if profile else None,
             "website": profile.website if profile else None,
             "supported_brands": profile.supported_brands if profile else [],
+            # Names for people to read; an id no longer in the catalog is left out.
+            "supported_brand_names": [
+                names[i] for i in (profile.supported_brands if profile else []) if i in (names or {})
+            ],
+            "other_brands": profile.other_brands if profile else [],
             "terms_accepted": profile.terms_accepted if profile else False,
             "terms_version": profile.terms_version if profile else None,
             "terms_accepted_at": profile.terms_accepted_at.isoformat()
@@ -308,6 +316,9 @@ class SupportService:
         deciders = await self._profile_map({row.decided_by for row in rows if row.decided_by})
         documents = await self._dealer_document_map({row.profile_id for row in rows})
         named_notes = await self._name_note_authors([row.notes for row in rows])
+        names = await brand_names(
+            self.session, {brand for profile in profiles.values() for brand in profile.supported_brands}
+        )
         return [
             {
                 **self._verification_payload(
@@ -316,6 +327,7 @@ class SupportService:
                     states.get(profiles[row.profile_id].state_id) if row.profile_id in profiles else None,
                     deciders.get(row.decided_by) if row.decided_by else None,
                     documents.get(row.profile_id, []),
+                    names,
                 ),
                 "notes": notes,
             }
