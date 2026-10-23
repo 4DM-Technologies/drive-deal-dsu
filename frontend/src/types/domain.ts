@@ -87,6 +87,28 @@ export interface QuotePosition {
   behindBy: number | null;
 }
 
+/** Market insights for the dealer overview (GET /dealer/analytics). Rates are 0–1, or null until there is data. */
+export interface DealerAnalytics {
+  openRequests: number;
+  newRequests: { last7Days: number; previous7Days: number };
+  /** Oldest first, one entry per day for 14 days ending today (UTC). */
+  dailyNewRequests: Array<{ date: string; count: number }>;
+  byState: Array<{ state: string; code: string; count: number }>;
+  byBrand: Array<{ brand: string; count: number; mine: boolean }>;
+  /** The dealer's own brands that no open request asks for. */
+  myBrandsWithoutRequests: string[];
+  byTimeline: Array<{ timeline: BuyerRequest['timeline']; count: number }>;
+  performance: {
+    quotesSent: number;
+    accepted: number;
+    declined: number;
+    winRate: number | null;
+    buyerViewRate: number | null;
+    medianResponseHours: number | null;
+    acceptedValue: string;
+  };
+}
+
 export interface Quote {
   id: string;
   requestId: string;

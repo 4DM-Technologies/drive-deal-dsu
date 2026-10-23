@@ -1599,6 +1599,123 @@ paths:
                 $ref: '#/components/schemas/DealList'
         '401':
           $ref: '#/components/responses/unauthorized'
+  /dealer/analytics:
+    get:
+      summary: Market insights for the dealer overview
+      description: |-
+        Dealer-only. Market figures cover every open buyer request (the same
+        set as the buyer feed; requests past their no-quote month are closed
+        first). Location is the request's state from the states list, not the
+        free-text area. Performance covers only the caller's own quotes
+        (withdrawn quotes excluded).
+
+        - `daily_new_requests`: 14 entries, oldest first, ending today (UTC),
+          counting every non-draft request created that day.
+        - `win_rate`: accepted / (accepted + declined); null until a buyer has
+          decided on one of the dealer's quotes.
+        - `buyer_view_rate`: share of the dealer's quotes the buyer has opened
+          (an accepted or declined quote counts as opened).
+        - `median_response_hours`: median time from a request being posted to
+          the dealer's quote on it.
+        - `by_brand[].mine`: the brand is on the dealer's profile (a catalog
+          brand id or a name typed under Other).
+      operationId: getDealerAnalytics
+      tags:
+      - Deals
+      responses:
+        '200':
+          description: Market insights
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  generated_at:
+                    type: string
+                    format: date-time
+                  open_requests:
+                    type: integer
+                  new_requests:
+                    type: object
+                    properties:
+                      last_7_days:
+                        type: integer
+                      previous_7_days:
+                        type: integer
+                  daily_new_requests:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        date:
+                          type: string
+                          format: date
+                        count:
+                          type: integer
+                  by_state:
+                    type: array
+                    description: Largest first.
+                    items:
+                      type: object
+                      properties:
+                        state:
+                          type: string
+                        code:
+                          type: string
+                        count:
+                          type: integer
+                  by_brand:
+                    type: array
+                    description: Largest first.
+                    items:
+                      type: object
+                      properties:
+                        brand:
+                          type: string
+                        count:
+                          type: integer
+                        mine:
+                          type: boolean
+                  my_brands_without_requests:
+                    type: array
+                    description: The dealer's own brands (catalog or typed under Other) that no open request asks for, A-Z.
+                    items:
+                      type: string
+                  by_timeline:
+                    type: array
+                    description: Always the four timelines, in the order ASAP, Within 1 week, Within 2 weeks, Just exploring.
+                    items:
+                      type: object
+                      properties:
+                        timeline:
+                          type: string
+                        count:
+                          type: integer
+                  performance:
+                    type: object
+                    properties:
+                      quotes_sent:
+                        type: integer
+                      accepted:
+                        type: integer
+                      declined:
+                        type: integer
+                      win_rate:
+                        type: number
+                        nullable: true
+                      buyer_view_rate:
+                        type: number
+                        nullable: true
+                      median_response_hours:
+                        type: number
+                        nullable: true
+                      accepted_value:
+                        type: string
+                        example: '174866.00'
+        '401':
+          $ref: '#/components/responses/unauthorized'
+        '403':
+          $ref: '#/components/responses/forbidden'
   /deals/export:
     get:
       summary: Download my deals as an Excel workbook

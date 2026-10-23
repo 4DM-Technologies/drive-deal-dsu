@@ -1,6 +1,6 @@
 import type { DriveDealClient, AiStreamEvent } from '@/services/generated/client';
 import type { GuidedActionInput, GuidedAnswers, GuidedOption, GuidedStepResult } from '@/types/domain';
-import type { ActiveTheme, AdministrationAuditEvent, AdminCatalog, AdminConfigBundle, AdminConfigType, AdminPromptBundle, AdminRevision, AiMessage, AiThread, AiTrace, AiTraceSession, AiTraceSummary, BrandRef, BuyerRequest, CarCreateInput, ChatMessage, DealDocument, InventoryCar, PromptDefinition, Quote, ReportPerson, ReportReceipt, Session, StateRef, SupportMember, Ticket, UserReport, Verification, WorkflowDefinition, WorkflowPreview, WorkflowPreviewStreamEvent, PaymentReceipt } from '@/types/domain';
+import type { DealerAnalytics, ActiveTheme, AdministrationAuditEvent, AdminCatalog, AdminConfigBundle, AdminConfigType, AdminPromptBundle, AdminRevision, AiMessage, AiThread, AiTrace, AiTraceSession, AiTraceSummary, BrandRef, BuyerRequest, CarCreateInput, ChatMessage, DealDocument, InventoryCar, PromptDefinition, Quote, ReportPerson, ReportReceipt, Session, StateRef, SupportMember, Ticket, UserReport, Verification, WorkflowDefinition, WorkflowPreview, WorkflowPreviewStreamEvent, PaymentReceipt } from '@/types/domain';
 import driveDealHero from '@/assets/vehicles/drivedeal-hero.png';
 import { BROWSER_STORAGE_KEYS, WORKSPACE_VIEW_QUERY_PARAMETER } from '@/config/browser';
 import { environment } from '@/config/environment';
@@ -591,6 +591,28 @@ export const httpClient: DriveDealClient = {
       const row = await request<{ url: string; file_name: string }>(`/verifications/${verificationId}/documents/${documentId}/download`);
       // S3 links are absolute; the local storage driver returns an API path, which must resolve against the API host.
       return { url: new URL(row.url, baseUrl).toString(), fileName: row.file_name };
+    },
+  },
+  dealer: {
+    analytics: async () => {
+      const row = await request<Record<string, unknown>>('/dealer/analytics');
+      const newRequests = row.new_requests as Record<string, number>;
+      const performance = row.performance as Record<string, unknown>;
+      const nullableNumber = (value: unknown) => (value == null ? null : Number(value));
+      return {
+        openRequests: Number(row.open_requests ?? 0),
+        newRequests: { last7Days: Number(newRequests.last_7_days ?? 0), previous7Days: Number(newRequests.previous_7_days ?? 0) },
+        dailyNewRequests: (row.daily_new_requests as Array<{ date: string; count: number }>) ?? [],
+        byState: (row.by_state as DealerAnalytics['byState']) ?? [],
+        byBrand: (row.by_brand as DealerAnalytics['byBrand']) ?? [],
+        myBrandsWithoutRequests: (row.my_brands_without_requests as string[] | undefined) ?? [],
+        byTimeline: (row.by_timeline as DealerAnalytics['byTimeline']) ?? [],
+        performance: {
+          quotesSent: Number(performance.quotes_sent ?? 0), accepted: Number(performance.accepted ?? 0), declined: Number(performance.declined ?? 0),
+          winRate: nullableNumber(performance.win_rate), buyerViewRate: nullableNumber(performance.buyer_view_rate),
+          medianResponseHours: nullableNumber(performance.median_response_hours), acceptedValue: String(performance.accepted_value ?? '0'),
+        },
+      } satisfies DealerAnalytics;
     },
   },
   reference: {

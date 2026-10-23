@@ -10,6 +10,7 @@ import { SerraLogo } from '@/ui/reusables/SerraLogo/SerraLogo';
 import { Reveal } from '@/ui/reusables/Reveal/Reveal';
 import { StatusBadge } from '@/ui/reusables/StatusBadge/StatusBadge';
 import { TrialBanner } from '@/ui/reusables/TrialBanner/TrialBanner';
+import { DealerInsights } from '@/ui/screens/HomeScreen/DealerInsights';
 import type { BuyerRequest, Quote } from '@/types/domain';
 import { ACTIVE_QUOTE_STATUSES } from '@/helpers/quoteStatus';
 import { previewQuery, useEffectiveSession } from '@/ui/navigations/previewSession';
@@ -85,6 +86,7 @@ export default function HomeScreen() {
       <Reveal><section className="card card-pad activity-card dealer-activity-card"><div className="section-head"><div><span className="eyebrow">Needs attention</span><h2>Recent quote activity</h2></div><Link to="/quotes">View all <ArrowRight size={15} /></Link></div>{recentQuotes.map((quote) => { const vehicle = [quote.yearMax ?? quote.yearMin, quote.brand, quote.model].filter(Boolean).join(' ') || 'Vehicle request'; const status = quote.status === 'pending' ? 'Offer is live' : quote.status === 'negotiating' ? 'Buyer is negotiating' : quote.status === 'accepted' ? 'Offer accepted' : prettyStatus(quote.status); return <Link key={quote.id} to={`/quotes/${quote.id}`} className="dashboard-request-row"><span><strong>{vehicle}</strong><small>{quote.buyerArea || 'Local buyer'} · {status}</small></span><strong className="price">{formatMoney(quote.finalPrice)}</strong></Link>; })}{recentQuotes.length === 0 && <p className="compact-empty">No quotes need attention right now.</p>}</section></Reveal>
       <Reveal delay={.08}><section className="card card-pad revenue-card dealer-deal-summary"><span className="eyebrow">Accepted deals</span><div className="deal-summary-head"><span><strong>{acceptedQuotes.length}</strong><small>Active fulfillments</small></span><h2>{formatMoney(acceptedQuotes.reduce((sum, item) => sum + Number(item.finalPrice), 0))}</h2></div><p>Accepted out-the-door value currently moving through your pipeline.</p><Link className="button button-secondary" to="/deals"><DollarSign size={16} /> Review deals <ArrowRight size={16} /></Link></section></Reveal>
     </div>
+    <Reveal><DealerInsights /></Reveal>
     <Reveal><section className="card dashboard-next"><div><span className="eyebrow">Buyer intent nearby</span><h2>{liveRequests.length} matching requests are open.</h2><p>Open the buyer feed to review the latest demand.</p></div><Link className="button button-primary" to="/feed">Review live demand</Link></section></Reveal>
   </div>;
 }
