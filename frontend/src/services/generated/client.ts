@@ -1,4 +1,4 @@
-import type { QuotePosition, GuidedActionInput, GuidedAnswers, GuidedStepResult, PaymentInput, PaymentReceipt, ActiveTheme, AdministrationAuditEvent, AdminCatalog, AdminConfigBundle, AdminConfigType, AdminPromptBundle, AdminRevision, AiThread, AiTrace, AiTraceSession, AiTraceSummary, BrandRef, BuyerPreferences, BuyerRequest, BuyerSignupInput, CarCreateInput, ChatMessage, DealDocument, DealerSignupInput, InventoryCar, ProfileUpdateInput, PromptDefinition, Quote, QuoteCreateInput, ReportCreateInput, ReportOutcome, ReportReceipt, ReportStatus, RequestCreateInput, Session, StateRef, SupportMember, SupportSignupInput, SupportTicketCreate, Ticket, UserReport, Verification, WorkflowDefinition, WorkflowPreview, WorkflowPreviewStreamEvent } from '@/types/domain';
+import type { DealerAnalytics, QuotePosition, GuidedActionInput, GuidedAnswers, GuidedStepResult, PaymentInput, PaymentReceipt, ActiveTheme, AdministrationAuditEvent, AdminCatalog, AdminConfigBundle, AdminConfigType, AdminPromptBundle, AdminRevision, AiThread, AiTrace, AiTraceSession, AiTraceSummary, BrandRef, BuyerPreferences, BuyerRequest, BuyerSignupInput, CarCreateInput, ChatMessage, DealDocument, DealerSignupInput, InventoryCar, ProfileUpdateInput, PromptDefinition, Quote, QuoteCreateInput, ReportCreateInput, ReportOutcome, ReportReceipt, ReportStatus, RequestCreateInput, Session, StateRef, SupportMember, SupportSignupInput, SupportTicketCreate, Ticket, UserReport, Verification, WorkflowDefinition, WorkflowPreview, WorkflowPreviewStreamEvent } from '@/types/domain';
 
 export type AiStreamEvent =
   | { type: 'status'; phase: 'classifying' | 'searching' | 'crawling' | 'composing'; label: string }
@@ -107,6 +107,10 @@ export interface DriveDealClient {
     list(): Promise<Verification[]>;
     decide(id: string, decision: 'approved' | 'denied' | 'rejected', reason: string): Promise<Verification>;
     documentLink(verificationId: string, documentId: string): Promise<{ url: string; fileName: string }>;
+  };
+  dealer: {
+    /** Dealer only: demand by state, brand and timing, the 14-day trend, and the dealer's own quote performance. */
+    analytics(): Promise<DealerAnalytics>;
   };
   reference: {
     states(): Promise<StateRef[]>;

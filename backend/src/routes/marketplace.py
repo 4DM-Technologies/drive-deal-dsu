@@ -19,6 +19,7 @@ from src.models.marketplace import (
 )
 from src.repositories.schema import DealChat, DealQuote, Profile
 from src.services.deal_export import XLSX_MEDIA_TYPE
+from src.services.dealer_analytics import DealerAnalyticsService
 from src.services.marketplace_service import MarketplaceService
 from src.utils.log_flow import log_flow
 
@@ -99,6 +100,16 @@ async def request_quotes(
 @log_flow(layer="route")
 async def feed(profile: Profile = Depends(require_roles("dealer")), session: AsyncSession = Depends(get_session)):
     return await MarketplaceService(session).list_requests(profile)
+
+
+@router.get("/dealer/analytics")
+@log_flow(layer="route")
+async def dealer_analytics(
+    profile: Profile = Depends(require_roles("dealer")), session: AsyncSession = Depends(get_session)
+):
+    """Market insights for the dealer overview: demand by state, brand and buying timeline, the 14-day trend of new
+    requests, and the dealer's own quote performance."""
+    return await DealerAnalyticsService(session).overview(profile)
 
 
 @router.get("/feed/requests/{request_id}")
