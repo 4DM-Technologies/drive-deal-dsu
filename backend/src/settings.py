@@ -173,6 +173,9 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"
     access_token_minutes: int = 60
     refresh_token_days: int = 14
+    # There is no email sender yet, so a password reset code reaches nobody. For local testing only, set this to
+    # true to write issued codes to the server log. Never enable it on a shared or deployed server.
+    password_reset_log_codes: bool = False
     cors_origins: list[str]
     aws_region: str | None = None
     s3_bucket: str | None = None

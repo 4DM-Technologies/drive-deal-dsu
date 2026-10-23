@@ -4,7 +4,7 @@ from pydantic import BaseModel, EmailStr, Field, ValidationError
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.auth.security import hash_password
+from src.auth.security import hash_password, issue_reset_code, reset_code_is_valid
 from src.database import get_session
 from src.middleware.auth import get_current_profile
 from src.models.auth import BuyerSignup, DealerSignup, LoginRequest, RefreshRequest, SupportSignup, TokenResponse
@@ -13,6 +13,7 @@ from src.services.auth_service import AuthService
 from src.services.billing_service import BillingService
 from src.services.dealer_license import read_dealer_license
 from src.services.driving_license import read_driving_license
+from src.settings import get_settings
 from src.utils.exceptions import AppError, error_codes
 from src.utils.log_flow import log_flow
 from src.utils.logger import logger
@@ -156,22 +157,33 @@ async def logout(
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
+async def _user_by_email(session: AsyncSession, email: str) -> User | None:
+    return (
+        await session.execute(select(User).join(Profile).where(Profile.email == email.lower()))
+    ).scalar_one_or_none()
+
+
 @router.post("/forgot-password", status_code=status.HTTP_202_ACCEPTED)
 @log_flow(layer="route")
-async def forgot_password(_: ForgotPasswordRequest) -> dict:
-    # Production adapters can deliver a signed code through the configured mail provider.
+async def forgot_password(payload: ForgotPasswordRequest, session: AsyncSession = Depends(get_session)) -> dict:
+    user = await _user_by_email(session, payload.email)
+    if user is not None:
+        code = issue_reset_code(user)
+        # No mail sender exists yet. The same reply is returned whether or not the account exists, so this endpoint
+        # cannot be used to discover accounts.
+        if get_settings().password_reset_log_codes:
+            logger.warning("password_reset_code_issued_for_local_testing", profile_id=user.profile_id, code=code)
+        else:
+            logger.info("password_reset_code_issued", profile_id=user.profile_id)
     return {"accepted": True, "message": "If the account exists, reset instructions will be sent."}
 
 
 @router.post("/reset-password")
 @log_flow(layer="route")
 async def reset_password(payload: ResetPasswordRequest, session: AsyncSession = Depends(get_session)) -> dict:
-    if payload.reset_code != "DEMO-RESET":
-        raise AppError(error_codes.INVALID_CREDENTIALS, "The reset code is invalid or expired.", 400)
-    user = (
-        await session.execute(select(User).join(Profile).where(Profile.email == payload.email.lower()))
-    ).scalar_one_or_none()
-    if user is None:
+    # Before this, the fixed code "DEMO-RESET" reset any account's password.
+    user = await _user_by_email(session, payload.email)
+    if user is None or not reset_code_is_valid(user, payload.reset_code):
         raise AppError(error_codes.INVALID_CREDENTIALS, "The reset code is invalid or expired.", 400)
     user.password_hash = hash_password(payload.new_password)
     user.refresh_token_hash = None
