@@ -92,6 +92,7 @@ async def dealer_signup_form(
     branch_name: str = Form(),
     dealer_license: str = Form(),
     supported_brand_ids: list[str] = Form(default_factory=list),
+    other_brands: list[str] = Form(default_factory=list),
     address: str | None = Form(None),
     website: str | None = Form(None),
 ) -> DealerSignup:
@@ -111,6 +112,7 @@ async def dealer_signup_form(
             dealer_license=dealer_license,
             website=website,
             supported_brand_ids=supported_brand_ids,
+            other_brands=other_brands,
         )
     except ValidationError as exc:
         raise _form_validation_error(exc) from exc

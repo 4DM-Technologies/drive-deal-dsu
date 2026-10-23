@@ -1,9 +1,12 @@
 import { ArrowRight, Building2, Check, Globe, LockKeyhole, Mail, MapPin, Phone, Plus, Save, ShieldCheck, UserRound, WalletCards, X } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { sameBrands } from '@/helpers/dealerBrands';
 import { planLabel, planStatusClass, planTone, usageSummary } from '@/helpers/subscription';
 import { client } from '@/services/platform/client';
 import { useDemoStore } from '@/services/platform/demoStore';
+import { BrandPicker } from '@/ui/reusables/BrandPicker/BrandPicker';
+import type { BrandRef } from '@/types/domain';
 
 const roleLabels = { buyer: 'Buyer', dealer: 'Verified dealer', support: 'Support specialist', 'support-admin': 'Support administrator', admin: 'Administrator' } as const;
 
@@ -17,6 +20,9 @@ export default function ProfileScreen() {
   const [address, setAddress] = useState(session?.address ?? '');
   const [branchName, setBranchName] = useState(session?.branchName ?? '');
   const [website, setWebsite] = useState(session?.website ?? '');
+  const [brandIds, setBrandIds] = useState<string[]>(session?.supportedBrands ?? []);
+  const [otherBrands, setOtherBrands] = useState<string[]>(session?.otherBrands ?? []);
+  const [brandCatalog, setBrandCatalog] = useState<BrandRef[]>([]);
   const [syncedSession, setSyncedSession] = useState(session);
   const [savingProfile, setSavingProfile] = useState(false);
   const [profileSaved, setProfileSaved] = useState(false);
@@ -30,7 +36,7 @@ export default function ProfileScreen() {
   const isDealer = session?.role === 'dealer';
   const [prefsLoading, setPrefsLoading] = useState(isBuyer);
   const dirty = JSON.stringify(draft) !== JSON.stringify(saved);
-  const profileDirty = useMemo(() => session ? ((isBuyer ? firstName !== (session.firstName ?? '') || lastName !== (session.lastName ?? '') : fullName !== session.fullName) || phone !== (session.phone ?? '') || address !== (session.address ?? '') || branchName !== (session.branchName ?? '') || website !== (session.website ?? '')) : false, [address, branchName, firstName, fullName, isBuyer, lastName, phone, session, website]);
+  const profileDirty = useMemo(() => session ? ((isBuyer ? firstName !== (session.firstName ?? '') || lastName !== (session.lastName ?? '') : fullName !== session.fullName) || phone !== (session.phone ?? '') || address !== (session.address ?? '') || branchName !== (session.branchName ?? '') || website !== (session.website ?? '') || (isDealer && (!sameBrands(brandIds, session.supportedBrands ?? []) || !sameBrands(otherBrands, session.otherBrands ?? [])))) : false, [address, brandIds, branchName, firstName, fullName, isBuyer, isDealer, lastName, otherBrands, phone, session, website]);
 
   useEffect(() => {
     void client.auth.me().then(setSession).catch(() => undefined);
@@ -50,7 +56,14 @@ export default function ProfileScreen() {
     setAddress(session?.address ?? '');
     setBranchName(session?.branchName ?? '');
     setWebsite(session?.website ?? '');
+    setBrandIds(session?.supportedBrands ?? []);
+    setOtherBrands(session?.otherBrands ?? []);
   }
+
+  useEffect(() => {
+    if (!isDealer) return;
+    void client.reference.brands().then(setBrandCatalog).catch(() => setBrandCatalog([]));
+  }, [isDealer]);
 
   useEffect(() => {
     if (!isBuyer) return;
@@ -70,12 +83,13 @@ export default function ProfileScreen() {
 
   async function saveProfile() {
     if (isBuyer ? !firstName.trim() : !fullName.trim()) { setProfileError(isBuyer ? 'Enter your first name.' : 'Enter your full name.'); return; }
+    if (isDealer && !brandIds.length && !otherBrands.length) { setProfileError('Choose at least one brand your dealership sells.'); return; }
     setSavingProfile(true);
     setProfileError('');
     try {
       // Buyers send the name parts and the API rebuilds the display name from them.
       const name = isBuyer ? { firstName: firstName.trim(), lastName: lastName.trim() || null } : { fullName: fullName.trim() };
-      const updated = await client.profiles.update({ ...name, phone: phone.trim(), address: address.trim(), ...(isDealer ? { branchName: branchName.trim(), website: website.trim() } : {}) });
+      const updated = await client.profiles.update({ ...name, phone: phone.trim(), address: address.trim(), ...(isDealer ? { branchName: branchName.trim(), website: website.trim(), supportedBrands: brandIds, otherBrands } : {}) });
       // PATCH /profiles/me returns no subscription block, so keep the plan we already have.
       setSession({ ...updated, subscription: updated.subscription ?? session?.subscription ?? null });
       setProfileSaved(true);
@@ -118,7 +132,8 @@ export default function ProfileScreen() {
           <div className="field"><label htmlFor="profile-email">Email address</label><div className="input-with-icon"><Mail /><input id="profile-email" name="email" className="input" value={session.email} type="email" autoComplete="email" readOnly /></div><small>Contact support to change your sign-in email.</small></div>
           <div className="field"><label htmlFor="profile-phone">Phone number</label><div className="input-with-icon"><Phone /><input id="profile-phone" name="tel" className="input" type="tel" autoComplete="tel" value={phone} onChange={(event) => setPhone(event.target.value)} placeholder="(469) 555-0142" /></div></div>
           <div className="field"><label htmlFor="profile-address">Location or mailing address</label><div className="input-with-icon"><MapPin /><input id="profile-address" name="street-address" className="input" autoComplete="street-address" value={address} onChange={(event) => setAddress(event.target.value)} placeholder="Frisco, TX" /></div></div>
-          {isDealer && <><div className="field"><label htmlFor="profile-branch">Branch name</label><div className="input-with-icon"><Building2 /><input id="profile-branch" name="organization" className="input" autoComplete="organization" value={branchName} onChange={(event) => setBranchName(event.target.value)} /></div></div><div className="field"><label htmlFor="profile-website">Dealership website</label><div className="input-with-icon"><Globe /><input id="profile-website" name="url" className="input" type="url" autoComplete="url" value={website} onChange={(event) => setWebsite(event.target.value)} placeholder="https://" /></div></div></>}
+          {isDealer && <><div className="field"><label htmlFor="profile-branch">Branch name</label><div className="input-with-icon"><Building2 /><input id="profile-branch" name="organization" className="input" autoComplete="organization" value={branchName} onChange={(event) => setBranchName(event.target.value)} /></div></div><div className="field"><label htmlFor="profile-website">Dealership website</label><div className="input-with-icon"><Globe /><input id="profile-website" name="url" className="input" type="url" autoComplete="url" value={website} onChange={(event) => setWebsite(event.target.value)} placeholder="https://" /></div></div>
+            <div className="field profile-form-wide"><label htmlFor="profile-brands">My brands</label><BrandPicker id="profile-brands" brands={brandCatalog} selectedIds={brandIds} onSelectedIdsChange={setBrandIds} otherBrands={otherBrands} onOtherBrandsChange={setOtherBrands} disabled={savingProfile} /><small>The brands your dealership sells. If one isn’t listed, add it under Other.</small></div></>}
           {profileError && <div className="inline-warning profile-form-wide" role="alert">{profileError}</div>}
           <div className="profile-form-actions profile-form-wide"><span aria-live="polite">{profileSaved ? <><Check size={16} /> Changes saved</> : profileDirty ? 'You have unsaved changes' : 'Profile is up to date'}</span><button className="button button-primary" disabled={savingProfile || !profileDirty}><Save size={17} />{savingProfile ? 'Saving…' : 'Save changes'}</button></div>
         </form>

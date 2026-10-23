@@ -276,7 +276,8 @@ paths:
         Only a real PDF (by file signature) is accepted. If storage is
         unavailable the application fails with 503 and no account is created;
         if the application cannot be saved the stored file is removed.
-        `supported_brand_ids` is repeated once per brand.
+        `supported_brand_ids` and `other_brands` are repeated once per brand.
+        At least one brand is required between them.
       operationId: signupDealer
       tags:
       - Auth
@@ -5620,13 +5621,27 @@ components:
           format: uri
           maxLength: 300
           nullable: true
-        brand_ids:
+        supported_brand_ids:
           type: array
-          description: Brands this branch carries. Feeds the feed's brand filter; no FK on the array elements
-            (Postgres cannot), so orphans are possible and ignored.
+          maxItems: 60
+          description: |-
+            Catalog brands the dealership sells (ids from GET /reference/brands).
+            Each must be an active brand (otherwise 422); duplicates are dropped.
           items:
             type: string
             format: uuid
+        other_brands:
+          type: array
+          maxItems: 10
+          description: |-
+            Brands typed under "Other" because they aren't in the catalog, 2-60
+            characters each. Trimmed and de-duplicated ignoring case; a name that
+            matches a catalog brand is stored as that brand's id instead. Kept on
+            the profile, never added to the brands table.
+          items:
+            type: string
+            minLength: 2
+            maxLength: 60
         terms_accepted:
           type: boolean
           enum:
@@ -6019,6 +6034,16 @@ components:
           description: False for a dealer or agent awaiting approval.
         verification_status:
           $ref: '#/components/schemas/VerificationStatus'
+        supported_brands:
+          type: array
+          description: Dealers. Catalog brand ids the dealership sells.
+          items:
+            type: string
+        other_brands:
+          type: array
+          description: Dealers. Brands typed under "Other", not in the catalog.
+          items:
+            type: string
         verified_at:
           type: string
           format: date-time
@@ -6140,6 +6165,25 @@ components:
           type: string
           format: uri
           nullable: true
+        supported_brands:
+          type: array
+          description: |-
+            Dealers only (403 for anyone else). Catalog brand ids; sending the
+            list replaces it. Same rules as signup's `supported_brand_ids`.
+          items:
+            type: string
+            format: uuid
+        other_brands:
+          type: array
+          maxItems: 10
+          description: |-
+            Dealers only. Brands typed under "Other"; sending the list replaces it,
+            and an empty list clears it. A list left out keeps its current value.
+            The dealer must keep at least one brand across both lists (422).
+          items:
+            type: string
+            minLength: 2
+            maxLength: 60
     BuyerPreference:
       type: object
       description: |-
@@ -7396,6 +7440,15 @@ components:
           format: uri
           nullable: true
           description: Short-lived presigned GET URL returned to an authorized quote participant.
+        preview_url:
+          type: string
+          format: uri
+          nullable: true
+          description: |-
+            PDFs only. The same short-lived link without the download
+            disposition, so the browser shows the file in the page instead of
+            saving it. Null for images (their download_url already opens
+            inline) and for Word files, which browsers can't display.
         size_bytes:
           type: integer
           nullable: true
@@ -7755,6 +7808,16 @@ components:
           nullable: true
         supported_brands:
           type: array
+          items:
+            type: string
+        supported_brand_names:
+          type: array
+          description: Catalog names of `supported_brands`, in the same order, for people to read.
+          items:
+            type: string
+        other_brands:
+          type: array
+          description: Brands the dealer typed under "Other"; not in the catalog.
           items:
             type: string
         terms_accepted:

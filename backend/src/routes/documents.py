@@ -211,6 +211,8 @@ async def list_documents(
         stored_name = row.document_path.rsplit("/", 1)[-1]
         display_name = stored_name.split("--", 1)[-1] if "--" in stored_name else stored_name
         is_image = row.document_type == "vehicle_image"
+        # Browsers can show a PDF inline, so it also gets a link without the download disposition; Word files can't.
+        is_pdf = not is_image and display_name.lower().endswith(".pdf")
         result.append(
             {
                 **model_dict(row),
@@ -218,6 +220,7 @@ async def list_documents(
                 "download_url": storage.create_download(
                     row.document_path, as_attachment=not is_image, filename=display_name
                 ),
+                "preview_url": storage.create_download(row.document_path) if is_pdf else None,
             }
         )
     return result

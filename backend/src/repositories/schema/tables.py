@@ -84,6 +84,8 @@ class Profile(AuditMixin, Base):
     website: Mapped[str | None] = mapped_column(String(500))
     coordinates: Mapped[dict | None] = mapped_column(JSON)
     supported_brands: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
+    # Brands the dealer typed under "Other" because they aren't in the catalog (see services/dealer_brands.py).
+    other_brands: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
     terms_accepted: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     terms_version: Mapped[str | None] = mapped_column(String(40))
     terms_accepted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

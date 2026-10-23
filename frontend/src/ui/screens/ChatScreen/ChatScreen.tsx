@@ -1,7 +1,8 @@
-import { ArrowLeft, ArrowUp, CheckCheck, Flag, LockKeyhole, MessageCircle, Phone, Search, ShieldCheck, UserCheck, X } from 'lucide-react';
+import { ArrowLeft, ArrowUp, CalendarCheck, Car, CheckCheck, Flag, HandCoins, Landmark, LockKeyhole, MessageCircle, PackageCheck, Phone, Repeat2, Search, ShieldCheck, UserCheck, X, type LucideIcon } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { KeyboardEvent } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
+import { buyerQuickReplies, withQuickReply, type QuickReplyId } from '@/helpers/chatQuickReplies';
 import { relativeTime } from '@/helpers/dateTime';
 import { CHAT_GUIDELINES_NOTICE, violatesChatGuidelines } from '@/helpers/communityGuidelines';
 import { revealWithinScrollArea } from '@/helpers/scrollWithin';
@@ -18,6 +19,7 @@ import type { BuyerRequest, ChatMessage, Quote } from '@/types/domain';
 
 /** Grows the composer up to roughly 5 lines before it starts scrolling instead of pushing the thread up. */
 const COMPOSER_MAX_HEIGHT = 120;
+const QUICK_REPLY_ICONS: Record<QuickReplyId, LucideIcon> = { visit: CalendarCheck, negotiate: HandCoins, 'test-drive': Car, availability: PackageCheck, financing: Landmark, 'trade-in': Repeat2 };
 /** Without a live connection the open thread is polled this often, and the conversation list less often. */
 const THREAD_POLL_MS = 4_000;
 const LIST_POLL_MS = 20_000;
@@ -158,6 +160,18 @@ export default function ChatScreen() {
     revealWithinScrollArea(scrollRef.current?.querySelector<HTMLElement>(`[data-message-id="${CSS.escape(editingMessageId)}"]`));
   }, [editingMessageId]);
 
+  // A quick reply fills the composer to edit and send; it never sends on its own.
+  function applyQuickReply(message: string) {
+    const next = withQuickReply(input, message);
+    setInput(next);
+    setMessageError('');
+    window.requestAnimationFrame(() => {
+      const field = inputRef.current;
+      field?.focus();
+      field?.setSelectionRange(next.length, next.length);
+    });
+  }
+
   // The composer grows with the message (up to a few lines, then scrolls) instead of staying a fixed single-line box.
   useEffect(() => {
     const field = inputRef.current;
@@ -267,7 +281,7 @@ export default function ChatScreen() {
               {mine && !message.unsent && <ChatMessageMenu onEdit={() => beginEdit(message)} onUnsend={() => void unsend(message)} />}
             </div>
           </div>;
-        })}<div ref={endRef} /></div><form className={`chat-composer modern-composer${editingMessageId ? ' is-editing' : ''}`} onSubmit={(event) => { event.preventDefault(); if (editingMessageId) void saveEdit(); else void send(); }}><textarea className="input" ref={inputRef} rows={1} value={input} onChange={(event) => { setInput(event.target.value); setMessageError(''); }} onKeyDown={onComposerKeyDown} placeholder={editingMessageId ? 'Edit your message' : 'Write a message about this offer'} aria-label={editingMessageId ? 'Edit message' : 'Message'} />{editingMessageId && <button type="button" className="button button-secondary composer-text-action" onClick={cancelEdit}>Cancel</button>}{editingMessageId ? <button type="submit" className="button button-secondary composer-text-action composer-save-action" disabled={!input.trim()} aria-label="Save edit">Save</button> : <button className="button button-primary" disabled={!input.trim()} aria-label="Send message"><ArrowUp size={18} /></button>}</form>{messageError && <p className="chat-guideline-notice" role="alert">{messageError}</p>}</>
+        })}<div ref={endRef} /></div>{!isDealer && !editingMessageId && <div className="chat-quick-replies" role="group" aria-label="Quick messages">{buyerQuickReplies(formatVehicle(quote.brand, quote.model), quote.finalPrice).map((reply) => { const Icon = QUICK_REPLY_ICONS[reply.id]; return <button type="button" key={reply.id} className="chat-quick-reply" onClick={() => applyQuickReply(reply.message)} title={reply.message}><Icon size={14} aria-hidden="true" />{reply.label}</button>; })}</div>}<form className={`chat-composer modern-composer${editingMessageId ? ' is-editing' : ''}`} onSubmit={(event) => { event.preventDefault(); if (editingMessageId) void saveEdit(); else void send(); }}><textarea className="input" ref={inputRef} rows={1} value={input} onChange={(event) => { setInput(event.target.value); setMessageError(''); }} onKeyDown={onComposerKeyDown} placeholder={editingMessageId ? 'Edit your message' : 'Write a message about this offer'} aria-label={editingMessageId ? 'Edit message' : 'Message'} />{editingMessageId && <button type="button" className="button button-secondary composer-text-action" onClick={cancelEdit}>Cancel</button>}{editingMessageId ? <button type="submit" className="button button-secondary composer-text-action composer-save-action" disabled={!input.trim()} aria-label="Save edit">Save</button> : <button className="button button-primary" disabled={!input.trim()} aria-label="Send message"><ArrowUp size={18} /></button>}</form>{messageError && <p className="chat-guideline-notice" role="alert">{messageError}</p>}</>
           : <div className="chat-waiting"><div className="empty-icon"><LockKeyhole /></div><h3>{isDealer ? 'Buyer requested a negotiation' : 'Negotiation request sent'}</h3><p>{isDealer ? 'Review the buyer’s opening note. Contact details and messaging open only after you accept.' : 'The dealer can read your opening note. Contact and messages unlock only if they accept.'}</p><div className="opening-note"><span>{isDealer ? 'Buyer’s opening note' : 'Your opening note'}</span><p>“{quote.chatRequestMessage ?? 'I would like to discuss this offer before deciding.'}”</p></div>{isDealer ? <div className="chat-request-actions"><button className="button button-primary" onClick={() => void acceptRequest(quote.id)}><UserCheck size={17} /> Accept &amp; open chat</button><button className="button button-secondary" onClick={() => { const reason = window.prompt('Brief reason shown to the buyer'); if (reason?.trim()) void declineRequest(quote.id, reason.trim()); }}><X size={17} /> Decline</button></div> : <StatusBadge status="pending" />}</div>}
         {!quote.contactAvailable && <form className="chat-composer modern-composer" onSubmit={(event) => event.preventDefault()}><input className="input" disabled placeholder={isDealer ? 'Accept the request to start messaging' : 'Messaging unlocks when the dealer accepts'} aria-label="Message (locked)" /><button className="button button-primary" disabled aria-label="Send message"><ArrowUp size={18} /></button></form>}
       {reportingQuoteId === quote.id && <ReportUserDialog quoteId={quote.id} reportedRole={isDealer ? 'buyer' : 'dealer'} reportedName={isDealer ? quote.buyerFirstName ?? 'this buyer' : quote.dealerName ?? 'this dealer'} vehicle={formatVehicle(quote.brand, quote.model)} onClose={() => setReportingQuoteId('')} />}

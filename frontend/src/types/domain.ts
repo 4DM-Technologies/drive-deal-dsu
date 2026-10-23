@@ -22,6 +22,8 @@ export interface Session {
   dealerLicense?: string | null;
   website?: string | null;
   supportedBrands?: string[];
+  /** Dealers: brands typed under "Other" because they aren't in the catalog. */
+  otherBrands?: string[];
   subscription?: Subscription | null;
 }
 
@@ -212,6 +214,8 @@ export interface DealDocument {
   name: string;
   status: string;
   downloadUrl: string;
+  /** A link that shows the file in the page instead of saving it. PDFs only; browsers can't show Word files. */
+  previewUrl: string | null;
   /** Where the file lives in storage; needed to put a document back if a replacement upload fails. */
   objectKey: string;
 }
@@ -365,6 +369,9 @@ export interface Verification {
   dealerLicense?: string;
   website?: string;
   supportedBrands?: string[];
+  /** Catalog names of supportedBrands, for people to read. */
+  supportedBrandNames?: string[];
+  otherBrands?: string[];
   address?: string;
   proofDocuments?: string[];
   /** Files the applicant supplied (such as the Motor Vehicle Dealer License); opened through a short-lived link. */
@@ -414,6 +421,8 @@ export interface DealerSignupInput extends SignupInput {
   dealerLicense: string;
   website?: string | null;
   supportedBrandIds: string[];
+  /** Brands typed under "Other" because they aren't in the catalog. */
+  otherBrands: string[];
   /** PDF of the dealership's Motor Vehicle Dealer License; sent with the application and stored privately. */
   motorVehicleDealerLicense: File;
 }
@@ -478,6 +487,9 @@ export interface ProfileUpdateInput {
   stateId?: string;
   website?: string;
   branchName?: string;
+  /** Dealers only. Sending a list replaces it. */
+  supportedBrands?: string[];
+  otherBrands?: string[];
 }
 
 export interface InventoryCar {

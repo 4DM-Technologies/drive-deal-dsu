@@ -1,23 +1,24 @@
 import type { BuyerRequest } from '@/types/domain';
 
-/** The "no filter" value every dropdown starts on. */
-export const ALL = 'all';
 /** The "All matched areas" distance: no limit. */
 export const ANY_DISTANCE = '250';
 
 export interface FeedFilters {
   search: string;
-  area: string;
-  brand: string;
+  /** Ticked choices in each dropdown; an empty list means no filter. Within one dropdown any tick matches. */
+  areas: string[];
+  brands: string[];
+  /** Also show the brands on the dealer's profile. Combines with `brands`: either one lets a request through. */
+  myBrands: boolean;
   /** `brand model`, so a model always belongs to one brand. */
-  model: string;
-  bodyType: string;
-  timeline: string;
-  /** Maximum miles the buyer will travel, or `ANY_DISTANCE`. */
+  models: string[];
+  bodyTypes: string[];
+  timelines: string[];
+  /** Maximum miles the buyer will travel, or `ANY_DISTANCE`. One choice: a maximum can't usefully be combined. */
   distance: string;
 }
 
-export const DEFAULT_FEED_FILTERS: Readonly<FeedFilters> = { search: '', area: ALL, brand: ALL, model: ALL, bodyType: ALL, timeline: ALL, distance: '50' };
+export const DEFAULT_FEED_FILTERS: Readonly<FeedFilters> = { search: '', areas: [], brands: [], myBrands: false, models: [], bodyTypes: [], timelines: [], distance: '50' };
 
 export type FeedFacet = 'area' | 'brand' | 'model' | 'bodyType' | 'timeline';
 
@@ -32,11 +33,27 @@ const facetValue: Record<FeedFacet, (request: BuyerRequest) => string> = {
   timeline: (request) => request.timeline,
 };
 const FACETS = Object.keys(facetValue) as FeedFacet[];
+const FACET_KEY = { area: 'areas', brand: 'brands', model: 'models', bodyType: 'bodyTypes', timeline: 'timelines' } as const satisfies Record<FeedFacet, keyof FeedFilters>;
+
+/** The names of the brands on the dealer's profile, matched ignoring case (catalog brands and ones typed under Other). */
+export type MyBrandNames = readonly string[];
+
+const isMine = (brand: string, myBrandNames: MyBrandNames) => myBrandNames.some((name) => name.toLowerCase() === brand.toLowerCase());
+
+/** Whether `request` passes one dropdown's filter. */
+function passes(request: BuyerRequest, filters: FeedFilters, facet: FeedFacet, myBrandNames: MyBrandNames): boolean {
+  const ticked = filters[FACET_KEY[facet]];
+  if (facet === 'brand') {
+    if (ticked.length === 0 && !filters.myBrands) return true;
+    return ticked.includes(request.brand) || (filters.myBrands && isMine(request.brand, myBrandNames));
+  }
+  return ticked.length === 0 || ticked.includes(facetValue[facet](request));
+}
 
 /** Whether the request passes every active filter; `ignore` leaves one dropdown out, to count what its options would give. */
-function matches(request: BuyerRequest, filters: FeedFilters, ignore?: FeedFacet): boolean {
+function matches(request: BuyerRequest, filters: FeedFilters, myBrandNames: MyBrandNames, ignore?: FeedFacet): boolean {
   if (filters.distance !== ANY_DISTANCE && request.radiusMiles > Number(filters.distance)) return false;
-  if (FACETS.some((facet) => facet !== ignore && filters[facet] !== ALL && facetValue[facet](request) !== filters[facet])) return false;
+  if (FACETS.some((facet) => facet !== ignore && !passes(request, filters, facet, myBrandNames))) return false;
   // Every word typed has to match somewhere, so "audi sedan" narrows to Audi sedans.
   const terms = filters.search.trim().toLowerCase().split(/\s+/).filter(Boolean);
   if (terms.length === 0) return true;
@@ -44,36 +61,53 @@ function matches(request: BuyerRequest, filters: FeedFilters, ignore?: FeedFacet
   return terms.every((term) => haystack.includes(term));
 }
 
-export function filterFeed(requests: readonly BuyerRequest[], filters: FeedFilters): BuyerRequest[] {
-  return requests.filter((request) => matches(request, filters));
+export function filterFeed(requests: readonly BuyerRequest[], filters: FeedFilters, myBrandNames: MyBrandNames = []): BuyerRequest[] {
+  return requests.filter((request) => matches(request, filters, myBrandNames));
 }
 
 export interface FacetOption { value: string; count: number }
 
 /**
- * The choices for one dropdown, each with how many requests picking it would show given the other filters, so no
- * choice ever leads to an empty feed. The current choice stays listed even when it would show nothing.
+ * The choices for one dropdown, each with how many requests ticking it would add given the other filters. Choices
+ * already ticked stay listed even when they would show nothing.
  */
-export function facetOptions(requests: readonly BuyerRequest[], filters: FeedFilters, facet: FeedFacet, order?: readonly string[]): FacetOption[] {
+export function facetOptions(requests: readonly BuyerRequest[], filters: FeedFilters, facet: FeedFacet, order?: readonly string[], myBrandNames: MyBrandNames = []): FacetOption[] {
   const counts = new Map<string, number>();
   for (const request of requests) {
-    if (!matches(request, filters, facet)) continue;
+    if (!matches(request, filters, myBrandNames, facet)) continue;
     const value = facetValue[facet](request);
     if (value) counts.set(value, (counts.get(value) ?? 0) + 1);
   }
-  if (filters[facet] !== ALL && !counts.has(filters[facet])) counts.set(filters[facet], 0);
+  for (const value of filters[FACET_KEY[facet]]) if (!counts.has(value)) counts.set(value, 0);
   const rank = (value: string) => (order ? order.indexOf(value) : 0);
   return [...counts].map(([value, count]) => ({ value, count })).sort((a, b) => rank(a.value) - rank(b.value) || a.value.localeCompare(b.value));
 }
 
-/** Applies a change, dropping a model that no longer belongs to the chosen brand. */
-export function updateFeedFilters(filters: FeedFilters, patch: Partial<FeedFilters>): FeedFilters {
+/** How many requests "My brands" would show given the other filters. */
+export function myBrandsCount(requests: readonly BuyerRequest[], filters: FeedFilters, myBrandNames: MyBrandNames): number {
+  return requests.filter((request) => matches(request, filters, myBrandNames, 'brand') && isMine(request.brand, myBrandNames)).length;
+}
+
+/** Applies a change, unticking models whose brand the brand filter no longer lets through. */
+export function updateFeedFilters(filters: FeedFilters, patch: Partial<FeedFilters>, myBrandNames: MyBrandNames = []): FeedFilters {
   const next = { ...filters, ...patch };
-  if (next.brand !== ALL && next.model !== ALL && !next.model.startsWith(`${next.brand} `)) next.model = ALL;
+  if (next.models.length && (next.brands.length > 0 || next.myBrands)) {
+    const allowed = (model: string) => next.brands.some((brand) => model.startsWith(`${brand} `))
+      || (next.myBrands && myBrandNames.some((name) => model.toLowerCase().startsWith(`${name.toLowerCase()} `)));
+    next.models = next.models.filter(allowed);
+  }
   return next;
 }
 
-/** How many filters differ from the defaults, for the Reset button. */
+/** How many filters differ from the defaults, for the Reset button. Brands and My brands count as one filter. */
 export function activeFilterCount(filters: FeedFilters): number {
-  return (Object.keys(DEFAULT_FEED_FILTERS) as (keyof FeedFilters)[]).filter((key) => (key === 'search' ? filters.search.trim() !== '' : filters[key] !== DEFAULT_FEED_FILTERS[key])).length;
+  return [
+    filters.search.trim() !== '',
+    filters.areas.length > 0,
+    filters.brands.length > 0 || filters.myBrands,
+    filters.models.length > 0,
+    filters.bodyTypes.length > 0,
+    filters.timelines.length > 0,
+    filters.distance !== DEFAULT_FEED_FILTERS.distance,
+  ].filter(Boolean).length;
 }

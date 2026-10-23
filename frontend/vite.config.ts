@@ -1,3 +1,4 @@
+/// <reference types="vitest/config" />
 import { fileURLToPath, URL } from 'node:url';
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
@@ -9,4 +10,6 @@ export default defineConfig({
   build: { sourcemap: false, minify: 'esbuild' },
   server: { port: 5173, host: '0.0.0.0' },
   preview: { port: 4173, host: '0.0.0.0' },
+  // Component tests start a jsdom per file; on a busy machine the first test in a file can pass the 5s default.
+  test: { testTimeout: 15_000 },
 });

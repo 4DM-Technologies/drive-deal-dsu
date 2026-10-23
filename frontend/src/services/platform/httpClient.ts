@@ -115,6 +115,7 @@ const profileToSession = (row: Record<string, unknown>): Session => ({
   dealerLicense: row.dealer_license == null ? null : String(row.dealer_license),
   website: row.website == null ? null : String(row.website),
   supportedBrands: (row.supported_brands as string[]) ?? [],
+  otherBrands: (row.other_brands as string[] | undefined) ?? [],
   subscription: parseSubscription(row.subscription),
 });
 
@@ -239,6 +240,8 @@ const verificationToDomain = (row: Record<string, unknown>): Verification => ({
   ...(row.dealer_license == null ? {} : { dealerLicense: String(row.dealer_license) }),
   ...(row.website == null ? {} : { website: String(row.website) }),
   supportedBrands: (row.supported_brands as string[] | undefined) ?? [],
+  supportedBrandNames: (row.supported_brand_names as string[] | undefined) ?? [],
+  otherBrands: (row.other_brands as string[] | undefined) ?? [],
   proofDocuments: (row.proof_docs as string[] | undefined) ?? [],
   documents: ((row.documents as Array<Record<string, unknown>> | undefined) ?? []).map((item) => ({ id: String(item.id), documentType: String(item.document_type), label: String(item.label ?? 'Supporting document'), fileName: String(item.file_name), contentType: String(item.content_type), sizeBytes: Number(item.size_bytes) })),
   termsAccepted: Boolean(row.terms_accepted),
@@ -390,7 +393,7 @@ async function uploadQuoteFile(quoteId: string, file: File, type: 'vehicle_image
   const documentId = createId();
   const row = await request<Record<string, unknown>>(`/documents/${documentId}/confirm`, { method: 'POST', body: JSON.stringify({ quote_id: quoteId, document_type: type, object_key: presigned.key }) });
   const confirmed = (await request<Record<string, unknown>[]>(`/documents/${quoteId}`)).find((item) => String(item.id) === String(row.id));
-  return { id: String(row.id), quoteId: String(row.quote_id), type: String(row.document_type), name: file.name, status: String(row.status), downloadUrl: String(confirmed?.download_url ?? ''), objectKey: presigned.key };
+  return { id: String(row.id), quoteId: String(row.quote_id), type: String(row.document_type), name: file.name, status: String(row.status), downloadUrl: String(confirmed?.download_url ?? ''), previewUrl: confirmed?.preview_url == null ? null : String(confirmed.preview_url), objectKey: presigned.key };
 }
 
 export const httpClient: DriveDealClient = {
@@ -421,6 +424,7 @@ export const httpClient: DriveDealClient = {
         if (value !== null && value !== undefined && value !== '') form.append(name, String(value));
       }
       input.supportedBrandIds.forEach((brandId) => form.append('supported_brand_ids', brandId));
+      input.otherBrands.forEach((name) => form.append('other_brands', name));
       form.append('motor_vehicle_dealer_license', input.motorVehicleDealerLicense);
       await request('/auth/signup/dealer', { method: 'POST', body: form });
       return { pending: true as const };
@@ -441,7 +445,7 @@ export const httpClient: DriveDealClient = {
     },
   },
   profiles: {
-    update: async (input) => profileToSession(await request('/profiles/me', { method: 'PATCH', body: JSON.stringify({ full_name: input.fullName, first_name: input.firstName, last_name: input.lastName, phone: input.phone, address: input.address, state_id: input.stateId, website: input.website, branch_name: input.branchName }) })),
+    update: async (input) => profileToSession(await request('/profiles/me', { method: 'PATCH', body: JSON.stringify({ full_name: input.fullName, first_name: input.firstName, last_name: input.lastName, phone: input.phone, address: input.address, state_id: input.stateId, website: input.website, branch_name: input.branchName, supported_brands: input.supportedBrands, other_brands: input.otherBrands }) })),
     getPreferences: async () => {
       const row = await request<Record<string, unknown>>('/profiles/me/preferences');
       return { brandId: row.brand_id as string | null, otherBrandIds: (row.other_brand_ids as string[]) ?? [], modelPreference: row.model_preference as string | null, bodyType: row.body_type as string | null, seaterCount: row.seater_count as number | null, transmission: row.transmission as string | null, drivetrain: row.drivetrain as string | null, fuelType: row.fuel_type as string | null, condition: row.condition as string | null, exteriorColor: row.exterior_color as string | null, minYear: row.min_year as number | null, maxMileage: row.max_mileage as number | null, budgetMin: row.budget_min as number | null, budgetMax: row.budget_max as number | null, mustHaveFeatures: (row.must_have_features as string[]) ?? [], neverWantFeatures: (row.never_want_features as string[]) ?? [] };
@@ -496,7 +500,7 @@ export const httpClient: DriveDealClient = {
     },
   },
   documents: {
-    list: async (quoteId) => (await request<Record<string, unknown>[]>(`/documents/${quoteId}`)).map((row): DealDocument => ({ id: String(row.id), quoteId: String(row.quote_id), type: String(row.document_type), name: String(row.file_name ?? 'Attachment'), status: String(row.status), downloadUrl: String(row.download_url), objectKey: String(row.document_path ?? '') })),
+    list: async (quoteId) => (await request<Record<string, unknown>[]>(`/documents/${quoteId}`)).map((row): DealDocument => ({ id: String(row.id), quoteId: String(row.quote_id), type: String(row.document_type), name: String(row.file_name ?? 'Attachment'), status: String(row.status), downloadUrl: String(row.download_url), previewUrl: row.preview_url == null ? null : String(row.preview_url), objectKey: String(row.document_path ?? '') })),
     upload: (quoteId, file, type) => uploadQuoteFile(quoteId, file, type),
     replace: async (quoteId, file, previous) => {
       // A quote holds one document, so the old one goes first. If the new upload fails, the old one is put back.
