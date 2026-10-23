@@ -16,7 +16,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.agents.configuration import default_workflow
 from src.agents.errors import OrchestratorPlanError
 from src.agents.llm import LlmClient
-from src.agents.memory import resolve_earlier_reference, summary_text
+from src.agents.memory import (
+    cars_named_in_message,
+    latest_suggestions,
+    make_of,
+    resolve_earlier_reference,
+    summary_text,
+)
 from src.agents.observability import log_agent_step
 from src.agents.prompts import load_fragment, load_prompt
 from src.agents.schemas import CarSpecs, OrchestratorPlan
@@ -266,6 +272,8 @@ EXPLICIT_IMAGE_SEARCH_RE = re.compile(
     re.IGNORECASE,
 )
 PHOTO_REQUEST_RE = re.compile(r"\b(?:image|images|photo|photos|picture|pictures|pics|gallery)\b", re.IGNORECASE)
+# "Try the missing photos again", "the remaining cars", "the rest", "the other ones".
+PHOTO_RETRY_RE = re.compile(r"\b(?:remaining|rest|missing|other|others|again|retry)\b", re.IGNORECASE)
 SPORTS_CAR_RECOMMENDATION_RE = re.compile(
     r"\bsports?\s+cars?\b.*\b(?:top|good|best|recommend|companies|company|brands?|automakers?|manufacturers?)\b|"
     r"\b(?:top|good|best|recommend)\b.*\bsports?\s+cars?\b",
@@ -380,15 +388,76 @@ def _vehicle_names_from_shortlist(text: str) -> list[str]:
     return names[:8]
 
 
+# Sera's own photo replies list the cars it found as bullets; they report results and are never "that shortlist".
+PHOTO_REPLY_RE = re.compile(
+    r"^\s*(?:Here are photos of|Here[’']s a photo of|I found (?:a )?matching photos? for|"
+    r"I couldn[’']t find (?:reliable photos|a reliable photo)|I still couldn[’']t find|I[’']ve already shown photos)",
+    re.IGNORECASE,
+)
+STILL_MISSING_RE = re.compile(r"still missing photos? for (.+?)(?:\.\s|\.$|\s+Want\b|$)", re.IGNORECASE)
+
+
 def _shortlist_from_context(context: list[dict[str, str]]) -> list[str]:
     """Use the latest assistant recommendation as the source of truth for follow-up image requests."""
     for item in reversed(context):
-        if item.get("role") != "assistant":
+        if item.get("role") != "assistant" or PHOTO_REPLY_RE.match(str(item.get("body") or "")):
             continue
         names = _vehicle_names_from_shortlist(str(item.get("body") or ""))
         if len(names) >= 2:
             return names
     return []
+
+
+def _still_missing_photos(context: list[dict[str, Any]]) -> list[str]:
+    """The cars Sera's latest photo reply said it was still missing ("I'm still missing photos for A, B")."""
+    for item in reversed(context):
+        body = str(item.get("body") or "")
+        if item.get("role") != "assistant" or not PHOTO_REPLY_RE.match(body):
+            continue
+        match = STILL_MISSING_RE.search(body)
+        if not match:
+            return []
+        return [name.strip(" *") for name in re.split(r",\s*|\s+and\s+", match.group(1)) if name.strip(" *")]
+    return []
+
+
+def _photos_already_shown(context: list[dict[str, Any]]) -> set[str]:
+    """Every car Sera has already shown a photo of in this chat, from any reply, not just the latest one."""
+    shown: set[str] = set()
+    for item in context:
+        if item.get("role") != "assistant":
+            continue
+        for image in item.get("media") or []:
+            if isinstance(image, dict) and image.get("vehicle_name"):
+                shown.add(str(image["vehicle_name"]).casefold())
+        body = str(item.get("body") or "")
+        if PHOTO_REPLY_RE.match(body):
+            found_part = re.split(r"I[’']m still missing|I still couldn[’']t", body, maxsplit=1)[0]
+            shown.update(name.casefold() for name in re.findall(r"\*\*([^*]+)\*\*", found_part))
+    return shown
+
+
+def _photo_answer(found: list[str], missing: list[str], *, retry: bool = False) -> str:
+    """What Sera says with a photo result. Never prints an empty car list (an empty one used to read "****")."""
+    if found:
+        text = (
+            f"Here’s a photo of the **{found[0]}**."
+            if len(found) == 1
+            else "Here are photos of:\n\n" + "\n".join(f"- **{name}**" for name in found)
+        )
+    else:
+        text = ""
+    if missing and retry:
+        # A second miss: say so plainly instead of offering the same retry again.
+        text += (
+            f"{chr(10) * 2 if text else ''}I still couldn’t find a reliable photo of the {', '.join(missing)}. "
+            "Tell me a model year and I can look again, or I can show a similar model."
+        )
+    elif missing and found:
+        text += f"\n\nI’m still missing photos for {', '.join(missing)}. Want me to try those again?"
+    elif missing:
+        text = f"I couldn’t find reliable photos for **{', '.join(missing)}** just yet, so I haven’t attached unrelated cars."
+    return text or "I’ve already shown photos for all of those cars. Want photos of another car?"
 
 
 def _previously_found_image_names(context: list[dict[str, Any]], vehicle_names: list[str]) -> list[str]:
@@ -548,6 +617,59 @@ def no_web_evidence_answer(requirements: dict[str, Any] | None = None) -> str:
     return "I couldn’t find a reliable current source for that just now. Want me to try again?"
 
 
+def _image_shows(name: str, evidence: str) -> bool:
+    """Whether an image's caption or paths name this car: "toyota camry", or its model alone when the model is
+    distinctive ("camry", "model y", "mazda6"). A bare one-letter or short model ("Z", "M3"?) needs the make too."""
+    identity = re.sub(r"[^a-z0-9]+", " ", name.casefold()).strip()
+    if not identity:
+        return False
+    if re.search(rf"\b{re.escape(identity)}\b", evidence):
+        return True
+    compact_identity = identity.replace(" ", "")
+    if len(compact_identity) >= 5 and compact_identity in evidence.replace(" ", ""):
+        return True  # "mazda6" in "mazda 6" or "mazda-6"
+    make = make_of(name)
+    model = re.sub(r"[^a-z0-9]+", " ", name[len(make) :].casefold()).strip() if make else ""
+    return len(model.replace(" ", "")) >= 4 and bool(re.search(rf"\b{re.escape(model)}\b", evidence))
+
+
+IMAGE_LINK_RE = re.compile(r"\[([^\]]*)\]\((https?://[^)\s]+)\)")
+IMAGE_URL_RE = re.compile(r"\.(?:jpe?g|png|webp|avif)(?:[?#]|$)|/\.image/|/images?/", re.IGNORECASE)
+
+
+def _photos_in_answer(answer: str, vehicle_names: list[str]) -> list[dict[str, str]]:
+    """Photos the web answer wrote as links ("1. **Toyota Camry** — [View photo](…camry.jpg)"), one per car.
+
+    The answer text loses every link, so without this a photo the search did find never reached the buyer.
+    """
+    found: list[dict[str, str]] = []
+    taken: set[str] = set()
+    for line in answer.splitlines():
+        for text, url in IMAGE_LINK_RE.findall(line):
+            if not IMAGE_URL_RE.search(url):
+                continue
+            name = next(
+                (
+                    item
+                    for item in vehicle_names
+                    if item.casefold() not in taken
+                    and (
+                        item.casefold() in line.casefold()
+                        or _image_shows(item, re.sub(r"[^a-z0-9]+", " ", url.casefold()))
+                    )
+                ),
+                None,
+            )
+            if name is None:
+                continue
+            domain = urlparse(url).netloc.removeprefix("www.")
+            found.append(
+                {"image_url": url, "source_url": url, "source_name": domain, "vehicle_name": name, "alt": text or name}
+            )
+            taken.add(name.casefold())
+    return found
+
+
 def _label_matching_images(media: list[dict[str, str]], vehicle_names: list[str]) -> list[dict[str, str]]:
     """Match at most one image per vehicle, requiring the full make/model identity as evidence.
 
@@ -558,15 +680,16 @@ def _label_matching_images(media: list[dict[str, str]], vehicle_names: list[str]
     matched_names: set[str] = set()
     for image in media:
         # The source hostname is not vehicle evidence (for example, a Nissan fan site can host a
-        # discussion containing photos of another make). Search captions and URL paths only.
+        # discussion containing photos of another make). Search captions and URL paths only: the page's path and
+        # the image file's own path ("…/2026_camry_xle_awd.jpg").
         source_path = urlparse(image.get("source_url", "")).path
-        evidence = re.sub(r"[^a-z0-9]+", " ", f"{image.get('alt', '')} {source_path}".casefold()).strip()
+        image_path = urlparse(image.get("image_url", "")).path
+        evidence = re.sub(r"[^a-z0-9]+", " ", f"{image.get('alt', '')} {source_path} {image_path}".casefold()).strip()
         for name in vehicle_names:
             key = re.sub(r"[^a-z0-9]+", " ", name.casefold()).strip()
             if not key or key in matched_names:
                 continue
-            identity = re.sub(r"[^a-z0-9]+", " ", name.casefold()).strip()
-            if re.search(rf"\b{re.escape(identity)}\b", evidence):
+            if _image_shows(name, evidence):
                 # Keep the provider caption as useful accessibility text; the canonical shortlist
                 # label is a separate field for the UI.
                 labeled.append({**image, "vehicle_name": name})
@@ -727,7 +850,14 @@ def main_agent(
         """The chat's memory (whole chat, summarised) and its recent turns (word for word) for a node's prompt."""
         memory = summary_text(state.get("chat_summary"))
         context = state.get("conversation_context") or []
+        # The buyer's first name from their account (SERRA-009 says how to use it). A name the buyer gave in this
+        # chat ("call me Ron") is in the memory and wins.
         block = (
+            f'<buyer_profile trust="internal">\nFirst name: {state["buyer_name"]}\n</buyer_profile>\n\n'
+            if state.get("buyer_name")
+            else ""
+        )
+        block += (
             '<chat_memory trust="untrusted">\nWhat this buyer has said and what Sera suggested across the whole '
             f"chat (older turns are not repeated below):\n{memory}\n</chat_memory>\n\n"
             if memory
@@ -1124,6 +1254,42 @@ def main_agent(
             return configured_target("kb_agent", "kb_miss", "web_search_agent")
         return configured_target("kb_agent", "default", "compose")
 
+    async def _retry_photos(names: list[str], state: AgentState, step: int) -> AgentState:
+        """Look for each missing car's photo with its own search. The first try searched them together, and the
+        same query again would come back unchanged (search results are cached), so a retry must differ."""
+        trace_id = state.get("trace_id") or state.get("thread_id")
+
+        async def one(name: str) -> list[dict[str, str]]:
+            candidates = await get_urls(
+                f"Official exterior photo of the {name}. Return only an image whose caption or source page names the "
+                f"{name}; never a different model.",
+                limit=get_settings().web_search_max_crawl_sites,
+                llm=llm,
+                thread_id=trace_id,
+                prompt_overrides=prompt_overrides,
+                include_images=True,
+                image_queries=[name],
+                image_only=True,
+            )
+            raw = next((c.get("hosted_media") for c in candidates if c.get("hosted_media")), "[]")
+            answer = next((c.get("hosted_answer") for c in candidates if c.get("hosted_answer")), "") or ""
+            try:
+                media = json.loads(raw) if isinstance(raw, str) else list(raw or [])
+            except json.JSONDecodeError:
+                media = []
+            return (_label_matching_images(media, [name]) or _photos_in_answer(answer, [name]))[:1]
+
+        results = await asyncio.gather(*[one(name) for name in names], return_exceptions=True)
+        media = [item for result in results if isinstance(result, list) for item in result]
+        found = [item["vehicle_name"] for item in media]
+        return {
+            "answer": _photo_answer(found, [name for name in names if name not in found], retry=True),
+            "direct_web_answer": True,
+            "media": media,
+            "sources": [],
+            "step": step,
+        }
+
     async def search_web(state: AgentState) -> AgentState:
         step = log_agent_step("serra", "web_search_agent", state, mode=state.get("mode"))
         thread_id = state.get("thread_id")
@@ -1176,28 +1342,32 @@ def main_agent(
         # forward the exact names from the latest numbered shortlist instead of sending the entire
         # transcript to web search (which was wasting tokens and losing the list in long answers).
         context = state.get("conversation_context", [])
-        prior_names = _shortlist_from_context(context)
-        # "Show me a picture of Corvette" after a Chevrolet shortlist is about the Corvette alone, not a
-        # follow-up for the whole list.
-        target_names = shortlist_targets(state["message"], prior_names) or (
-            prior_names if _is_bare_photo_request(state["message"]) else []
-        )
-        is_image_followup = (
-            bool(state.get("include_images"))
-            and is_contextual_image_followup(state["message"], context)
-            and bool(target_names)
-        )
-        if is_image_followup and re.search(
-            r"\b(?:other|remaining|rest|missing|last)\b", state["message"], re.IGNORECASE
-        ):
-            previously_found = _previously_found_image_names(context, prior_names)
-            if previously_found:
-                target_names = [
-                    name
-                    for name in prior_names
-                    if name.casefold() not in {value.casefold() for value in previously_found}
-                ]
-        if is_image_followup and prior_names:
+        # Sera's latest list: from the recent turns, or from the chat's memory when those turns have scrolled away.
+        prior_names = _shortlist_from_context(context) or latest_suggestions(state.get("chat_summary"))
+        photo_request = bool(state.get("include_images")) and bool(PHOTO_REQUEST_RE.search(state["message"]))
+        # Which cars to show: the ones the buyer names ("photos of Toyota Camry, Honda Accord, Mazda6"), else the
+        # ones they point at in Sera's list ("each car in that shortlist", "the second one"). "Show me a picture
+        # of Corvette" after a Chevrolet shortlist names no make, so it is not a follow-up for the whole list.
+        target_names = (
+            (cars_named_in_message(state["message"]) if photo_request else [])
+            or shortlist_targets(state["message"], prior_names)
+            or (prior_names if _is_bare_photo_request(state["message"]) else [])
+        )[:6]
+        is_image_followup = photo_request and bool(target_names)
+        # "Try the remaining / missing / other cars again": the cars the last photo reply was missing, else the
+        # shortlist minus the cars already shown. Searched one car at a time, so a retry is not the same search.
+        photo_retry = photo_request and bool(PHOTO_RETRY_RE.search(state["message"]))
+        if photo_retry and not cars_named_in_message(state["message"]):
+            missing = _still_missing_photos(context)
+            if missing:
+                target_names = missing
+            elif is_image_followup:
+                shown = _photos_already_shown(context)
+                target_names = [name for name in prior_names if name.casefold() not in shown]
+            if not target_names:
+                return {"answer": _photo_answer([], []), "direct_web_answer": True, "media": [], "step": step}
+            return await _retry_photos(target_names, state, step)
+        if is_image_followup:
             full_query = (
                 f"Find one real, attributable photo for each exact vehicle requested: "
                 f"{'; '.join(target_names)}. The buyer asks: {state['message']}. "
@@ -1274,6 +1444,22 @@ def main_agent(
                 image_names = target_names if is_image_followup and target_names else recommended_names
                 if image_names:
                     media = _label_matching_images(media, image_names)
+                elif photo_request:
+                    # No car could be identified, so no picture can be shown as a match (a website screenshot was).
+                    media = []
+                if is_image_followup:
+                    # Photos the answer wrote as links count too; then list them in the order the buyer asked.
+                    have = {item.get("vehicle_name") for item in media}
+                    media += [
+                        item
+                        for item in _photos_in_answer(hosted_answer, target_names)
+                        if item["vehicle_name"] not in have
+                    ]
+                    media.sort(
+                        key=lambda item: target_names.index(item["vehicle_name"])
+                        if item.get("vehicle_name") in target_names
+                        else 99
+                    )
                 if hosted_answer and not (preview or state.get("preview")):
                     if compare:
                         await kb_insert(
@@ -1289,26 +1475,12 @@ def main_agent(
                             ],
                             state["user_id"],
                         )
-                if is_image_followup and prior_names:
+                if is_image_followup:
                     found_names = list(
                         dict.fromkeys(item["vehicle_name"] for item in media if item.get("vehicle_name"))
                     )
                     missing_names = [name for name in target_names if name not in found_names]
-                    if found_names:
-                        readable_answer = (
-                            f"I found a matching photo for **{found_names[0]}**."
-                            if len(found_names) == 1
-                            else "I found matching photos for:\n\n" + "\n".join(f"- **{name}**" for name in found_names)
-                        )
-                    else:
-                        readable_answer = (
-                            f"I couldn’t find reliable photos for **{', '.join(target_names)}** just yet, "
-                            "so I haven’t attached unrelated cars."
-                        )
-                    if missing_names and found_names:
-                        readable_answer += (
-                            f"\n\nI’m still missing photos for {', '.join(missing_names)}. Want me to try those again?"
-                        )
+                    readable_answer = _photo_answer(found_names, missing_names)
                 else:
                     readable_answer = re.sub(r"\[[^\]]*\]\(https?://[^)]+\)|https?://\S+", " ", hosted_answer)
                     readable_answer = re.sub(r"(?m)^\s*!\s*$", "", readable_answer)
