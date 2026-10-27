@@ -1,15 +1,16 @@
-# Local/container topology that mirrors the EC2 deployment: the API is published
-# on 8000 and the built frontend is published on 80. In day-to-day development you
-# do not need this file - run the Vite dev server on 5173 and uvicorn on 8080.
+# Local-only container topology: the API is published on 8000 and the built
+# frontend is published on 80. AWS deployment uses S3/CloudFront for the frontend
+# and ECS/Fargate for the API; it does not upload this local env file.
 name: drive-deal-dsu
 
 services:
   backend:
     build:
       context: ./backend
-    # Provides DATABASE_URL, JWT_SECRET_KEY, CORS_ORIGINS and every other setting
-    # the app reads. Values here are intentionally not repeated under
-    # `environment:` because compose would let them win over env_file.
+    # Local development only. ECS receives production settings from its task
+    # definition and Secrets Manager; do not upload this file during deployment.
+    # Values are not repeated under `environment:` because compose would let
+    # those override env_file.
     env_file:
       - ./backend/.env
     volumes:
@@ -39,11 +40,8 @@ services:
         condition: service_healthy
 
 volumes:
-  # `name:` is pinned to the exact volume names the CI/CD pipeline creates with
-  # `docker volume create`. Without it Compose derives names from the project
-  # directory (drive-deal-dsu_drivedeal-data), which would be a *different*
-  # volume from the one production mounts -- so running `docker compose up` on
-  # EC2 would silently start against an empty database and empty uploads folder.
+  # Explicit names keep local development data stable across Compose project
+  # directory renames. These volumes are local and are not used by ECS.
   drivedeal-data:
     name: drive-deal-dsu-data
   drivedeal-uploads:

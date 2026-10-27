@@ -1,10 +1,10 @@
 FROM node:22-alpine AS build
 WORKDIR /app
 
-# Build args are optional overrides. When they are absent, the values are read
-# from .env.production, which CI generates with scripts/generate_env.py before
-# this build runs. Either source must supply both keys or the build fails here
-# instead of shipping a bundle whose VITE_* values are blank at runtime.
+# Build args are optional overrides. Local container builds read values from
+# .env.production; AWS CI builds the static bundle directly and supplies public
+# URLs through scripts/generate_env.py. Both keys are required to avoid shipping
+# a bundle with blank VITE_* values.
 ARG VITE_API_BASE_URL
 ARG VITE_WS_BASE_URL
 

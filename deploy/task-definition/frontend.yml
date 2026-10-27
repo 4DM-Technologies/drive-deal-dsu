@@ -1,8 +1,8 @@
 # Env contract for the DriveDeal web container.
 #
-# scripts/generate_env.py resolves these keys from GitHub Secrets, then GitHub
-# repo Variables. The result is written to frontend/.env.production, which the
-# Vite build inside frontend/Dockerfile picks up.
+# scripts/generate_env.py reads these public GitHub repository variables and
+# writes frontend/.env.production for the Vite build. These are URLs, never
+# credentials; Vite embeds them in the browser bundle.
 #
 # These are URLs, not secrets, so set them as repository variables rather than
 # repository secrets. Both are required: frontend/src/config/environment.ts
@@ -10,12 +10,12 @@
 # point the browser at the visitor's own machine.
 
 env:
-  # Full path to the API, reachable from the browser. Backend is published on
-  # host port 8000, e.g. http://your-ec2-host:8000/api/v1
+  # Full API path through the public CloudFront distribution.
+  # e.g. https://your-cloudfront-domain/api/v1
   - key: VITE_API_BASE_URL
     required: true
 
-  # Same host, websocket scheme, ending at the ws path:
-  # e.g. ws://your-ec2-host:8000/api/v1/ws
+  # Same CloudFront distribution using the secure WebSocket scheme:
+  # e.g. wss://your-cloudfront-domain/api/v1/ws
   - key: VITE_WS_BASE_URL
     required: true

@@ -1,10 +1,8 @@
 # Env contract for the DriveDeal API container.
 #
-# scripts/generate_env.py reads this file and, for every key below, resolves a
-# value in the order: GitHub Secret -> GitHub repo Variable -> `default`.
-# A key with no `default` and no `required` is simply omitted when it cannot be
-# resolved, so pydantic-settings falls back to its own default in
-# backend/src/settings.py.
+# Backend runtime environment contract. Terraform supplies non-secret settings
+# in the ECS task definition and injects secret values from AWS Secrets Manager.
+# scripts/generate_env.py deliberately does not generate backend env files.
 #
 # This file is safe to commit: it declares key names and non-sensitive defaults
 # only. Never put an actual secret here.
@@ -20,7 +18,7 @@ env:
   - key: CORS_ORIGINS
     required: true
     # MUST be a JSON array of exact browser origins, with double quotes:
-    #   ["http://your-ec2-host","https://your-ec2-host"]
+    #   ["https://your-cloudfront-domain"]
     # pydantic-settings JSON-decodes list fields before the split_origins
     # validator runs, so a plain comma-separated value is rejected at startup.
     # No trailing slash, no path.
@@ -52,8 +50,6 @@ env:
   - key: STORAGE_DRIVER
   - key: AWS_REGION
   - key: S3_BUCKET
-  - key: AWS_ACCESS_KEY_ID
-  - key: AWS_SECRET_ACCESS_KEY
 
   # --- AI / Serra provider --------------------------------------------------
   - key: OPENAI_MODEL
@@ -103,3 +99,17 @@ env:
     default: INFO
   - key: LOG_FLOW_ENABLED
     default: "true"
+
+# ECS resolves these at task startup. The openai secret is a JSON object whose
+# CODEX_OAUTH_* keys are selected individually by the Terraform task definition.
+secrets:
+  - key: DATABASE_URL
+    secret_name: deal-and-drive/dev/database-url
+  - key: JWT_SECRET_KEY
+    secret_name: deal-and-drive/dev/jwt
+  - key: CODEX_OAUTH_CLIENT_ID
+    secret_name: deal-and-drive/dev/openai
+    json_key: CODEX_OAUTH_CLIENT_ID
+  - key: CODEX_OAUTH_REFRESH_TOKEN
+    secret_name: deal-and-drive/dev/openai
+    json_key: CODEX_OAUTH_REFRESH_TOKEN

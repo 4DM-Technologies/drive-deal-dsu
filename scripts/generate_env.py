@@ -1,16 +1,14 @@
-"""Generate a runtime .env file from a task-definition YAML + GitHub secrets/vars.
+"""Generate the public Vite environment file for a frontend build.
 
 Usage:
-    python scripts/generate_env.py <backend|frontend> --out <path>
+    python scripts/generate_env.py frontend --out <path>
 
-For every key declared in deploy/task-definition/<app>.yml the value is
-resolved in order: GitHub Secrets -> GitHub repo Variables -> `default`.
-Keys marked `required: true` that resolve to nothing fail the build (exit 1),
-while other unresolvable keys are simply omitted (pydantic-settings defaults apply).
+The frontend receives only public URLs at build time. Backend credentials are
+injected into ECS containers from AWS Secrets Manager by the task definition;
+they must never be serialized into a CI-generated .env file or frontend bundle.
 """
 
 import argparse
-import json
 import os
 import re
 import sys
@@ -31,17 +29,9 @@ def _quote(value: str) -> str:
     return f'"{escaped}"'
 
 
-def _resolve(key: str, secrets: dict, variables: dict) -> str | None:
-    if secrets.get(key):
-        return str(secrets[key])
-    if variables.get(key):
-        return str(variables[key])
-    return None
-
-
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("app", choices=["backend", "frontend"])
+    parser.add_argument("app", choices=["frontend"])
     parser.add_argument("--out", required=True, help="output env file path")
     args = parser.parse_args()
 
@@ -53,9 +43,6 @@ def main() -> int:
     with open(template_path, "r", encoding="utf-8") as handle:
         template = yaml.safe_load(handle) or {}
 
-    secrets = json.loads(os.environ.get("SECRETS_JSON", "{}") or "{}")
-    variables = json.loads(os.environ.get("VARS_JSON", "{}") or "{}")
-
     lines: list[str] = []
     missing: list[str] = []
 
@@ -64,7 +51,9 @@ def main() -> int:
         if not key:
             continue
 
-        value = _resolve(key, secrets, variables)
+        value = os.environ.get(key)
+        if value == "":
+            value = None
         if value is None:
             default = entry.get("default")
             if default is None:
@@ -79,7 +68,7 @@ def main() -> int:
         print(
             "error: no value found for required env keys."
             + os.linesep
-            + "Set them as GitHub Actions secrets or repo variables (repo level): "
+            + "Set them as GitHub repository variables (public configuration only): "
             + ", ".join(sorted(set(missing))),
             file=sys.stderr,
         )
