@@ -27,6 +27,7 @@ from src.routes import (
     websocket,
 )
 from src.services.administration_service import AdministrationService
+from src.services.websocket_manager import manager as websocket_manager
 from src.settings import (
     API_CORS_HEADERS,
     API_CORS_METHODS,
@@ -121,6 +122,7 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     try:
         await create_schema()
         logger.info("database_ready", driver=database_driver())
+        await websocket_manager.start(settings.database_url)
         async with SessionFactory() as session:
             synced = await AdministrationService(session).sync_code_baselines()
             logger.info("developer_configuration_synced", revision_count=len(synced))
@@ -140,6 +142,7 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
         if warm_up_task and not warm_up_task.done():
             warm_up_task.cancel()
         logger.info("app_shutting_down", uptime_ms=round((time.perf_counter() - started_at) * 1000, 3))
+        await websocket_manager.stop()
         await dispose_engine()
 
 

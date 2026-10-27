@@ -1,8 +1,40 @@
+import asyncio
 from uuid import uuid4
 
 from fastapi.testclient import TestClient
 
 from main import app
+from src.services.websocket_manager import WebSocketManager
+
+
+class RecordingSocket:
+    def __init__(self) -> None:
+        self.frames: list[dict] = []
+
+    async def send_json(self, frame: dict) -> None:
+        self.frames.append(frame)
+
+
+def test_postgres_notification_reaches_socket_owned_by_another_task() -> None:
+    async def scenario() -> None:
+        task_a = WebSocketManager()
+        task_b = WebSocketManager()
+        remote_socket = RecordingSocket()
+        task_b.connections["profile-1"].add(remote_socket)  # type: ignore[arg-type]
+
+        # The repository decodes a PostgreSQL notification and forwards its values to the manager.
+        task_b._on_notification("task-a", "profile-1", {"seq": 1, "type": "chat.updated"})
+        await asyncio.sleep(0)
+        assert remote_socket.frames == [{"seq": 1, "type": "chat.updated"}]
+
+        # The publishing task handles its local sockets directly and ignores its own DB echo.
+        local_socket = RecordingSocket()
+        task_a.connections["profile-1"].add(local_socket)  # type: ignore[arg-type]
+        task_a._on_notification(task_a.instance_id, "profile-1", {"seq": 2, "type": "chat.updated"})
+        await asyncio.sleep(0)
+        assert local_socket.frames == []
+
+    asyncio.run(scenario())
 
 
 def login(client: TestClient, email: str) -> tuple[str, dict[str, str]]:
