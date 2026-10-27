@@ -27,9 +27,9 @@ jobs:
   pr-validation:
     name: "Stage 1: PR Description Format Check"
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request'
     steps:
       - name: Validate Markdown Template Structural Anchors
+        if: github.event_name == 'pull_request'
         uses: actions/github-script@v7
         with:
           script: |
@@ -64,11 +64,16 @@ jobs:
               );
             }
 
+      - name: Mark pull request check not applicable
+        if: github.event_name != 'pull_request'
+        run: echo "Pull request description validation is not applicable to this branch push."
+
   # =========================================================================
   # STAGE 2: COMPLIANCE CHECK (FOLDER STRUCTURE VALIDATION)
   # =========================================================================
   compliance-check:
     name: "Stage 2: Directory Structure Compliance"
+    needs: [pr-validation]
     runs-on: ubuntu-latest
 
     steps:
@@ -606,7 +611,7 @@ jobs:
           fi
           subnet_ids_csv="$(IFS=,; echo "${subnet_ids[*]}")"
           api_security_group="$(aws ec2 describe-security-groups \
-            --filters 'Name=group-name,Values=deal-and-drive-dev-api' \
+            --filters 'Name=group-name,Values=deal-and-drive-dev-api-sg' \
             --query 'SecurityGroups[0].GroupId' --output text)"
           if [[ -z "$api_security_group" || "$api_security_group" == "None" ]]; then
             echo "Could not find the ECS API security group for the migration task." >&2
@@ -660,10 +665,20 @@ jobs:
             --distribution-id "${{ steps.targets.outputs.distribution_id }}" \
             --paths '/*' >/dev/null
 
-  deployment-notice:
-    name: "Stage 9: Pull request deployment note"
-    if: github.event_name == 'pull_request'
+  deployment-summary:
+    name: "Stage 9: Deployment summary"
+    needs: [aws-ecs-deployment]
+    if: always() && github.event_name == 'push' && github.ref == 'refs/heads/pre-dev'
     runs-on: ubuntu-latest
     steps:
-      - name: Explain deployment timing
-        run: echo "Pull requests validate the application; AWS deployment runs after a successful push to pre-dev."
+      - name: Report deployment result
+        shell: bash
+        env:
+          DEPLOY_RESULT: ${{ needs.aws-ecs-deployment.result }}
+        run: |
+          if [[ "$DEPLOY_RESULT" == "success" ]]; then
+            echo "The pre-dev application deployment completed successfully." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "The pre-dev application deployment failed. Review Stage 8 logs before retrying." >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
