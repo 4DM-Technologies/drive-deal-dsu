@@ -582,9 +582,13 @@ jobs:
             --query 'services[0].taskDefinition' --output text)"
           aws ecs describe-task-definition \
             --task-definition "$current_task_definition" \
-            --query taskDefinition --output json > "$RUNNER_TEMP/current-task-definition.json"
+            --include TAGS --output json > "$RUNNER_TEMP/current-task-definition.json"
           jq --arg image "$API_IMAGE" '
-            del(.taskDefinitionArn, .revision, .status, .requiresAttributes,
+            (.taskDefinition) as $task_definition
+            | (.tags // []) as $tags
+            | $task_definition
+            | .tags = $tags
+            | del(.taskDefinitionArn, .revision, .status, .requiresAttributes,
                 .compatibilities, .registeredAt, .registeredBy,
                 .deregisteredAt, .deregisteredBy)
             | .containerDefinitions |= map(if .name == "api" then .image = $image else . end)
