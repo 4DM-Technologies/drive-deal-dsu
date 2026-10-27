@@ -638,7 +638,7 @@ jobs:
             --paths '/*' >/dev/null
 
   deployment-notice:
-    name: "Stage 8: Deployment runs after merge to pre-dev"
+    name: "Stage 9: Pull request deployment note"
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
