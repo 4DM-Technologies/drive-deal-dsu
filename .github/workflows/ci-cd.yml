@@ -535,7 +535,26 @@ jobs:
       - name: Log in to Amazon ECR
         uses: aws-actions/amazon-ecr-login@v2
 
+      - name: Check whether this immutable API image already exists
+        id: api-image
+        shell: bash
+        env:
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          if aws ecr describe-images \
+            --repository-name deal-and-drive-dev-api \
+            --image-ids "imageTag=${IMAGE_TAG}" >/dev/null 2>"$RUNNER_TEMP/ecr-check-error"; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          elif grep -q 'ImageNotFoundException' "$RUNNER_TEMP/ecr-check-error"; then
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          else
+            cat "$RUNNER_TEMP/ecr-check-error" >&2
+            exit 1
+          fi
+
       - name: Build and push API image
+        if: steps.api-image.outputs.exists != 'true'
         uses: docker/build-push-action@v6
         with:
           context: ./backend
