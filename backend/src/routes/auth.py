@@ -68,8 +68,14 @@ async def signup_buyer(
     driving_license: UploadFile | None = File(None),
     session: AsyncSession = Depends(get_session),
 ):
-    """Creates a buyer from a multipart form: the signup fields plus a ``driving_license`` photo or PDF."""
-    upload = await read_driving_license(driving_license)
+    """Creates a buyer from a multipart form: the signup fields, plus an optional ``driving_license`` photo or PDF.
+
+    The signup screen no longer asks for a licence. One that is sent is still checked and stored privately, so the
+    field can come back on screen without any change here.
+    """
+    upload = (
+        None if driving_license is None or not driving_license.filename else await read_driving_license(driving_license)
+    )
     return await AuthService(session).signup_buyer(payload, upload)
 
 

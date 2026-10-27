@@ -195,8 +195,10 @@ paths:
         Creates a `profiles` row (role=buyer) and a `users` row with an Argon2id
         password hash, in one transaction. Returns access + refresh tokens.
 
-        The request is `multipart/form-data`: the signup fields plus a required
-        `driving_license` file. The file is stored privately in S3 (server-side
+        The request is `multipart/form-data`: the signup fields plus an
+        optional `driving_license` file. The signup screen no longer asks for
+        it; a buyer without one is created normally and nothing is stored.
+        When a file is sent it is stored privately in S3 (server-side
         encrypted, `no-store`) at
         `buyer/<profile id>/personal-details/driving-licence/driving-licence.<ext>` and recorded
         in `buyer_documents`. The file type is decided from its signature, not
@@ -217,16 +219,15 @@ paths:
               allOf:
               - $ref: '#/components/schemas/BuyerSignupRequest'
               - type: object
-                required:
-                - driving_license
                 properties:
                   driving_license:
                     type: string
                     format: binary
                     description: |-
-                      Photo or scan of the buyer's driving licence. JPG, PNG, WebP
-                      or PDF, 1 byte to 10 MB. A missing, empty, oversized or
-                      unrecognised file is a 422 `VALIDATION_ERROR`.
+                      Optional photo or scan of the buyer's driving licence. JPG,
+                      PNG, WebP or PDF, 1 byte to 10 MB. Leaving it out is fine; a
+                      sent file that is empty, oversized or unrecognised is a 422
+                      `VALIDATION_ERROR`.
             encoding:
               driving_license:
                 contentType: image/jpeg, image/png, image/webp, application/pdf
