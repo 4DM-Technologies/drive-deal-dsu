@@ -97,14 +97,15 @@ def test_signup_accepts_pdf_and_names_it_by_content_not_by_upload_name(local_upl
     assert buyer_documents(profile_id)[0].content_type == "application/pdf"
 
 
-def test_signup_without_a_driving_license_is_rejected_and_creates_no_account(local_uploads: Path) -> None:
+def test_signup_without_a_driving_license_creates_the_account_and_stores_nothing(local_uploads: Path) -> None:
+    """The signup screen no longer asks for a licence, so a buyer can join without one."""
     email = new_email()
     with TestClient(app) as client:
         response = client.post(SIGNUP_URL, data=signup_fields(email))
-        assert response.status_code == 422
-        assert response.json()["error"]["code"] == "VALIDATION_ERROR"
-        assert "driving licence" in response.json()["error"]["message"]
-        assert not can_sign_in(client, email)
+        assert response.status_code == 201, response.text
+        assert can_sign_in(client, email)
+        profile_id = response.json()["profile"]["id"]
+    assert buyer_documents(profile_id) == []
     assert stored_files(local_uploads) == []
 
 

@@ -39,31 +39,37 @@ class AuthService:
         self.repository = AuthRepository(session)
 
     @log_flow(layer="service")
-    async def signup_buyer(self, payload: BuyerSignup, driving_license: DrivingLicenseUpload) -> TokenResponse:
+    async def signup_buyer(
+        self, payload: BuyerSignup, driving_license: DrivingLicenseUpload | None = None
+    ) -> TokenResponse:
+        """Creates a buyer. The driving licence is optional; when one is sent it is stored privately as before."""
         profile = await self._create_profile(
             payload, "buyer", is_active=True, first_name=payload.first_name, last_name=payload.last_name
         )
         storage = get_storage()
-        stored_key = await self._store_document(
-            storage,
-            BuyerDocument(
-                profile_id=profile.id,
-                document_type=DRIVING_LICENSE_DOCUMENT_TYPE,
-                object_key=driving_license_key(profile.id, driving_license.extension),
-                file_name=driving_license.file_name,
-                content_type=driving_license.content_type,
-                size_bytes=driving_license.size_bytes,
-            ),
-            driving_license.content,
-            "driving licence",
-        )
+        stored_key = None
+        if driving_license is not None:
+            stored_key = await self._store_document(
+                storage,
+                BuyerDocument(
+                    profile_id=profile.id,
+                    document_type=DRIVING_LICENSE_DOCUMENT_TYPE,
+                    object_key=driving_license_key(profile.id, driving_license.extension),
+                    file_name=driving_license.file_name,
+                    content_type=driving_license.content_type,
+                    size_bytes=driving_license.size_bytes,
+                ),
+                driving_license.content,
+                "driving licence",
+            )
         try:
             response = self._tokens(profile, True)
             profile.user.refresh_token_hash = token_hash(response.refresh_token)
             await self.repository.commit()
         except Exception:
-            # The account was not saved, so the licence must not be left behind in storage.
-            await self._discard_stored_object(storage, stored_key)
+            # The account was not saved, so a stored licence must not be left behind in storage.
+            if stored_key is not None:
+                await self._discard_stored_object(storage, stored_key)
             raise
         logger.info("buyer_signup", profile_id=profile.id, role="buyer", driving_license_key=stored_key)
         return response

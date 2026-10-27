@@ -2,8 +2,8 @@ import { AlertCircle, ArrowRight, Building2, CheckCircle2, FileUp, UserRound } f
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import heroImage from '@/assets/vehicles/drivedeal-hero.png';
-import { DEALER_LICENSE_UPLOAD, DRIVING_LICENSE_UPLOAD } from '@/config/uploads';
-import { DEALER_LICENSE_ACCEPT, DRIVING_LICENSE_ACCEPT, dealerLicenseProblem, drivingLicenseProblem, formatFileSize } from '@/helpers/drivingLicense';
+import { DEALER_LICENSE_UPLOAD } from '@/config/uploads';
+import { DEALER_LICENSE_ACCEPT, dealerLicenseProblem, formatFileSize } from '@/helpers/drivingLicense';
 import { client } from '@/services/platform/client';
 import { useDemoStore } from '@/services/platform/demoStore';
 import { Brand } from '@/ui/reusables/Brand/Brand';
@@ -52,8 +52,6 @@ export default function SignupScreen() {
   const [brandIds, setBrandIds] = useState<string[]>([]);
   const [otherBrands, setOtherBrands] = useState<string[]>([]);
   const [extraInformation, setExtraInformation] = useState('');
-  const [licenseFile, setLicenseFile] = useState<File | null>(null);
-  const [licenseError, setLicenseError] = useState('');
   const [dealerLicenseFile, setDealerLicenseFile] = useState<File | null>(null);
   const [dealerLicenseError, setDealerLicenseError] = useState('');
   const [terms, setTerms] = useState(false);
@@ -76,13 +74,6 @@ export default function SignupScreen() {
     if (type === 'dealer') void client.reference.brands().then(setBrands).catch(() => setBrands([]));
   }, [type]);
 
-  function pickLicense(file: File | undefined) {
-    if (!file) return;
-    const problem = drivingLicenseProblem(file);
-    setLicenseError(problem ?? '');
-    if (!problem) setLicenseFile(file);
-  }
-
   function pickDealerLicense(file: File | undefined) {
     if (!file) return;
     const problem = dealerLicenseProblem(file);
@@ -99,14 +90,13 @@ export default function SignupScreen() {
       return;
     }
     if (type === 'buyer' && (!firstName.trim() || !lastName.trim())) { setError('Enter your first and last name.'); return; }
-    if (type === 'buyer' && !licenseFile) { setLicenseError('Upload a PDF of your driving licence.'); return; }
     if (type === 'dealer' && !dealerLicenseFile) { setDealerStep(2); setDealerLicenseError('Upload a PDF of your Motor Vehicle Dealer License.'); return; }
     setSubmitting(true);
     setError('');
     try {
       const base = { email, phone, password, stateId, address, termsAccepted: terms, termsVersion: '2026-01' };
       if (type === 'buyer') {
-        const session = await client.auth.signupBuyer({ ...base, firstName: firstName.trim(), lastName: lastName.trim(), drivingLicense: licenseFile as File });
+        const session = await client.auth.signupBuyer({ ...base, firstName: firstName.trim(), lastName: lastName.trim(), });
         setSession(session);
       } else if (type === 'dealer') {
         await client.auth.signupDealer({ ...base, fullName, dealershipName, branchName, dealerLicense, website, supportedBrandIds: brandIds, otherBrands, motorVehicleDealerLicense: dealerLicenseFile as File });
@@ -211,16 +201,6 @@ export default function SignupScreen() {
             {type === 'buyer' && <>
               {stateField}
               <div className="field"><label htmlFor="signup-area">Home area <span className="muted">(optional)</span></label><input id="signup-area" className="input" value={address} onChange={(event) => setAddress(event.target.value)} /></div>
-              <div className="field form-span">
-                <label htmlFor="driving-license">Driving licence <span className="muted">(PDF only)</span></label>
-                <label className={`upload-zone compact${licenseFile ? ' has-file' : ''}`} htmlFor="driving-license">
-                  {licenseFile ? <CheckCircle2 /> : <FileUp />}
-                  <span><strong>{licenseFile ? licenseFile.name : 'Upload your driving licence'}</strong><small>{licenseFile ? `${formatFileSize(licenseFile.size)} · click to choose a different PDF` : `${DRIVING_LICENSE_UPLOAD.formatsLabel} · up to ${DRIVING_LICENSE_UPLOAD.maxBytes / 1024 / 1024} MB · kept private`}</small></span>
-                  <input id="driving-license" type="file" accept={DRIVING_LICENSE_ACCEPT} required={!licenseFile} onChange={(event) => { pickLicense(event.target.files?.[0]); event.target.value = ''; }} />
-                  {licenseFile && <button type="button" className="upload-remove" onClick={() => { setLicenseFile(null); setLicenseError(''); }} aria-label={`Remove ${licenseFile.name}`}>Remove</button>}
-                </label>
-                {licenseError && <span className="field-error" role="alert">{licenseError}</span>}
-              </div>
             </>}
             {type === 'support' && <><div className="field"><label htmlFor="signup-address">Location address</label><input id="signup-address" className="input" value={address} onChange={(event) => setAddress(event.target.value)} required /></div>{stateField}<div className="field form-span"><label>Verification note <span className="muted">(optional)</span></label><textarea className="textarea" rows={3} value={extraInformation} onChange={(event) => setExtraInformation(event.target.value)} placeholder="Add anything that helps us verify your request" /></div></>}
             {type !== 'dealer' && <label className="checkbox-row form-span"><input type="checkbox" checked={terms} onChange={(event) => setTerms(event.target.checked)} required /><span>I agree to Deal&amp;Drive’s <Link to="/terms" target="_blank">Terms of Service</Link> and <Link to="/privacy" target="_blank">Privacy Policy</Link>.</span></label>}

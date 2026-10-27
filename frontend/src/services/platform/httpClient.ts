@@ -406,12 +406,13 @@ export const httpClient: DriveDealClient = {
     },
     me: async () => profileToSession(await request('/auth/me')),
     signupBuyer: async (input) => {
-      // The driving licence travels with the signup as multipart; the API stores it privately, then creates the account.
+      // Multipart, so a driving licence can travel with the signup. The signup screen no longer asks for one; when a
+      // licence is given, the API still stores it privately.
       const form = new FormData();
       for (const [name, value] of Object.entries(signupBody(input as unknown as Record<string, unknown>))) {
         if (value !== null && value !== undefined && value !== '') form.append(name, String(value));
       }
-      form.append('driving_license', input.drivingLicense);
+      if (input.drivingLicense) form.append('driving_license', input.drivingLicense);
       const response = await request<{ access_token: string; refresh_token: string; profile: Record<string, unknown> }>('/auth/signup/buyer', { method: 'POST', body: form });
       storeTokens(response);
       return profileToSession(response.profile);

@@ -432,8 +432,9 @@ export interface SignupInput {
 export interface BuyerSignupInput extends SignupInput {
   firstName: string;
   lastName: string;
-  /** PDF of the buyer's driving licence; sent with the signup and stored privately. */
-  drivingLicense: File;
+  /** PDF of the buyer's driving licence. Optional: the signup screen no longer asks for it, but one that is sent is
+   *  still stored privately by the API. */
+  drivingLicense?: File;
 }
 
 export interface DealerSignupInput extends SignupInput {
