@@ -100,16 +100,18 @@ env:
   - key: LOG_FLOW_ENABLED
     default: "true"
 
-# ECS resolves these at task startup. The openai secret is a JSON object whose
-# CODEX_OAUTH_* keys are selected individually by the Terraform task definition.
+# ECS resolves these at task startup. Backend values are stored in one JSON
+# Secrets Manager secret, and the task definition selects the required keys.
 secrets:
   - key: DATABASE_URL
-    secret_name: deal-and-drive/dev/database-url
+    secret_name: deal-and-drive/dev/backend
+    json_key: DATABASE_URL
   - key: JWT_SECRET_KEY
-    secret_name: deal-and-drive/dev/jwt
+    secret_name: deal-and-drive/dev/backend
+    json_key: JWT_SECRET_KEY
   - key: CODEX_OAUTH_CLIENT_ID
-    secret_name: deal-and-drive/dev/openai
+    secret_name: deal-and-drive/dev/backend
     json_key: CODEX_OAUTH_CLIENT_ID
   - key: CODEX_OAUTH_REFRESH_TOKEN
-    secret_name: deal-and-drive/dev/openai
+    secret_name: deal-and-drive/dev/backend
     json_key: CODEX_OAUTH_REFRESH_TOKEN

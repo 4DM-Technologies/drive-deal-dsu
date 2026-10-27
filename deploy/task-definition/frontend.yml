@@ -1,11 +1,10 @@
 # Env contract for the DriveDeal web container.
 #
-# scripts/generate_env.py reads these public GitHub repository variables and
-# writes frontend/.env.production for the Vite build. These are URLs, never
-# credentials; Vite embeds them in the browser bundle.
+# The deployment workflow loads these public URLs from the frontend-config
+# Secrets Manager JSON secret and passes them directly to the Vite build.
+# They are public configuration; Vite embeds them in the browser bundle.
 #
-# These are URLs, not secrets, so set them as repository variables rather than
-# repository secrets. Both are required: frontend/src/config/environment.ts
+# These are URLs, not credentials. Both are required: frontend/src/config/environment.ts
 # throws at module load if either is blank, and a wrong localhost value would
 # point the browser at the visitor's own machine.
 

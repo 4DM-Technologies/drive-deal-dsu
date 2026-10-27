@@ -1,23 +1,23 @@
-name: Secure DevOps CI/CD Pipeline (dev)
+name: Secure DevOps CI/CD Pipeline (pre-dev)
 
 on:
   pull_request:
-    branches: [ dev ]
+    branches: [ dev, pre-dev ]
   push:
-    branches: [ dev ]
+    branches: [ pre-dev ]
 
 concurrency:
-  # Group by the TARGET branch so every run aimed at dev shares one group:
+  # Group by the TARGET branch so every run aimed at pre-dev shares one group:
   #
-  #   pull_request -> github.base_ref = "dev"  -> ci-cd-dev
-  #   push to dev  -> github.ref_name = "dev"  -> ci-cd-dev
+  #   pull_request -> github.base_ref = "pre-dev"  -> ci-cd-pre-dev
+  #   push to pre-dev -> github.ref_name = "pre-dev" -> ci-cd-pre-dev
   #
   # With github.ref instead, a PR run used refs/pull/N/merge and a push used
-  # refs/heads/dev -- two different groups, so merging or approving a PR let
+  # refs/heads/pre-dev -- two different groups, so merging or approving a PR let
   # both pipelines run side by side (the duplicate-pipeline problem).
   group: ci-cd-${{ github.base_ref || github.ref_name }}
   # A merge/approve push cancels the superseded PR run; a new commit cancels
-  # the older one. Only one dev pipeline runs at a time.
+  # the older one. Only one pre-dev pipeline runs at a time.
   cancel-in-progress: true
 
 jobs:
@@ -478,35 +478,19 @@ jobs:
   # =========================================================================
   # STAGE 8: AWS DEPLOYMENT
   #
-  # Backend credentials never enter this workflow. ECS injects values from
-  # AWS Secrets Manager when tasks start. The frontend receives only public
-  # API/WebSocket URLs, which are embedded in its browser bundle.
+  # Deploy credentials are scoped to the `development` GitHub environment,
+  # which is restricted to pre-dev. ECS receives backend values from its
+  # Secrets Manager JSON secret; frontend URLs are public configuration.
   # =========================================================================
-  deployment-prerequisite:
-    name: "Stage 8: AWS OIDC prerequisite (dev)"
-    if: github.event_name == 'push' && github.ref == 'refs/heads/dev' && vars.AWS_DEPLOY_ROLE_ARN == ''
-    needs: [security-scans]
-    runs-on: ubuntu-latest
-    steps:
-      - name: Explain why deployment is not configured
-        run: |
-          echo "AWS deployment is skipped because repository variable AWS_DEPLOY_ROLE_ARN is not configured."
-          echo "The organization must allow the GitHub OIDC provider and the deployment role must exist before AWS deployment can run."
-          {
-            echo '### AWS deployment not configured'
-            echo 'CI validation completed. Deployment needs the GitHub OIDC provider and `AWS_DEPLOY_ROLE_ARN` repository variable.'
-          } >> "$GITHUB_STEP_SUMMARY"
-
   aws-ecs-deployment:
-    name: "Stage 8: Build and deploy to AWS (dev)"
-    if: github.event_name == 'push' && github.ref == 'refs/heads/dev' && vars.AWS_DEPLOY_ROLE_ARN != ''
+    name: "Stage 8: Build and deploy to AWS (pre-dev)"
+    if: github.event_name == 'push' && github.ref == 'refs/heads/pre-dev'
     needs: [security-scans]
     runs-on: ubuntu-latest
     timeout-minutes: 45
     environment: development
     permissions:
       contents: read
-      id-token: write
 
     env:
       AWS_REGION: us-east-2
@@ -517,12 +501,12 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Configure AWS credentials with GitHub OIDC
+      - name: Configure AWS credentials from the protected environment
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
-          role-session-name: DealAndDriveDevDeploy-${{ github.run_id }}
 
       - name: Resolve AWS deployment targets
         id: targets
@@ -536,9 +520,7 @@ jobs:
           distribution_domain="$(aws cloudfront list-distributions \
             --query "DistributionList.Items[?Comment=='deal-and-drive dev'].DomainName | [0]" \
             --output text)"
-          frontend_bucket="$(aws s3api list-buckets \
-            --query "Buckets[?starts_with(Name, 'deal-and-drive-dev-frontend-')].Name | [0]" \
-            --output text)"
+          frontend_bucket="deal-and-drive-dev-frontend-c6401ee23784ed2c8e80fbd788"
           if [[ -z "$distribution_id" || "$distribution_id" == "None" || \
                 -z "$distribution_domain" || "$distribution_domain" == "None" || \
                 -z "$frontend_bucket" || "$frontend_bucket" == "None" ]]; then
@@ -572,8 +554,8 @@ jobs:
             --services "$ECS_SERVICE" \
             --query 'services[0].status' --output text)"
           if [[ "$service_status" != "ACTIVE" ]]; then
-            echo "ECS service $ECS_SERVICE is not provisioned. Publish the image, then enable deploy_api in Terraform after the database is available." >&2
-            exit 1
+            echo "::warning::ECS service $ECS_SERVICE is not provisioned yet. The API image was published; frontend deployment will continue. Provision the service through Terraform after this first image push."
+            exit 0
           fi
           current_task_definition="$(aws ecs describe-services \
             --cluster "$ECS_CLUSTER" \
@@ -632,13 +614,16 @@ jobs:
             --task-definition "$task_definition_arn" >/dev/null
           aws ecs wait services-stable --cluster "$ECS_CLUSTER" --services "$ECS_SERVICE"
 
-      - name: Generate public frontend configuration and build
-        env:
-          VITE_API_BASE_URL: https://${{ steps.targets.outputs.distribution_domain }}/api/v1
-          VITE_WS_BASE_URL: wss://${{ steps.targets.outputs.distribution_domain }}/api/v1/ws
+      - name: Load public frontend configuration from Secrets Manager
         run: |
-          python -m pip install --quiet pyyaml
-          python scripts/generate_env.py frontend --out frontend/.env.production
+          config="$(aws secretsmanager get-secret-value \
+            --secret-id deal-and-drive/dev/frontend-config \
+            --query SecretString --output text)"
+          echo "VITE_API_BASE_URL=$(jq -r '.VITE_API_BASE_URL' <<< "$config")" >> "$GITHUB_ENV"
+          echo "VITE_WS_BASE_URL=$(jq -r '.VITE_WS_BASE_URL' <<< "$config")" >> "$GITHUB_ENV"
+
+      - name: Build frontend
+        run: |
           npm ci --prefix frontend
           npm run build --prefix frontend
 
@@ -653,9 +638,9 @@ jobs:
             --paths '/*' >/dev/null
 
   deployment-notice:
-    name: "Stage 8: Deployment runs after merge to dev"
+    name: "Stage 8: Deployment runs after merge to pre-dev"
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
       - name: Explain deployment timing
-        run: echo "Pull requests validate the application; AWS deployment runs after a successful push to dev."
+        run: echo "Pull requests validate the application; AWS deployment runs after a successful push to pre-dev."

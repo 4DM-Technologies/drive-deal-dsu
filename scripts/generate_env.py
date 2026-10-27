@@ -1,11 +1,12 @@
-"""Generate the public Vite environment file for a frontend build.
+"""Generate the public Vite environment file for a local frontend build.
 
 Usage:
     python scripts/generate_env.py frontend --out <path>
 
-The frontend receives only public URLs at build time. Backend credentials are
-injected into ECS containers from AWS Secrets Manager by the task definition;
-they must never be serialized into a CI-generated .env file or frontend bundle.
+The CI/CD workflow supplies public URLs directly from AWS Secrets Manager and
+does not call this script. Backend credentials are injected into ECS from the
+single backend secret by its task definition; never serialize those values into
+an .env file or the frontend bundle.
 """
 
 import argparse
@@ -68,7 +69,7 @@ def main() -> int:
         print(
             "error: no value found for required env keys."
             + os.linesep
-            + "Set them as GitHub repository variables (public configuration only): "
+            + "Set them in the local shell (public configuration only): "
             + ", ".join(sorted(set(missing))),
             file=sys.stderr,
         )
