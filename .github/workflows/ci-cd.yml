@@ -470,41 +470,24 @@ jobs:
           fi
 
   # =========================================================================
-  # STAGE 8: BUILD AND PUBLISH THE API CONTAINER
+  # STAGE 8: BUILD THE API IMAGE
   #
-  # This is deliberately separate from deployment, matching the established
-  # dev pipeline shape. The static React frontend is not containerized.
-  # Pull requests build the image without pushing it; pushes to dev publish an
-  # immutable Git-SHA tag to ECR for Stage 9.
+  # One visible job handles both event types. Pull requests build locally and
+  # never publish. A push to dev authenticates to ECR and publishes an
+  # immutable commit-SHA tag for Stage 9. The static React frontend is not
+  # containerized.
   # =========================================================================
-  docker-image-validation:
-    name: "Stage 8: Validate API Docker build (pull request)"
-    if: github.event_name == 'pull_request'
+  api-image:
+    name: "Stage 8: Build API Docker image and push to ECR on dev"
+    if: github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/dev')
     needs: [security-scans]
     runs-on: ubuntu-latest
+    environment:
+      name: ${{ github.event_name == 'push' && 'development' || 'ci-validation' }}
     permissions:
       contents: read
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Build API image without publishing
-        uses: docker/build-push-action@v6
-        with:
-          context: ./backend
-          file: ./backend/Dockerfile
-          push: false
-          tags: deal-and-drive-dev-api:${{ github.sha }}
-
-  docker-build-push:
-    name: "Stage 8: Build and push API image to ECR (dev)"
-    if: github.event_name == 'push' && github.ref == 'refs/heads/dev'
-    needs: [security-scans]
-    runs-on: ubuntu-latest
-    environment: development
-    permissions:
-      contents: read
+    outputs:
+      image: ${{ steps.image.outputs.uri }}
     env:
       AWS_REGION: us-east-2
       ECR_REPOSITORY: deal-and-drive-dev-api
@@ -513,46 +496,64 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Configure AWS credentials for ECR publish
+      - name: Configure AWS credentials for dev ECR publish
+        if: github.event_name == 'push' && github.ref == 'refs/heads/dev'
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: us-east-2
+          aws-region: ${{ env.AWS_REGION }}
 
-      - name: Log in to Amazon ECR
+      - name: Log in to Amazon ECR for dev publish
+        if: github.event_name == 'push' && github.ref == 'refs/heads/dev'
         uses: aws-actions/amazon-ecr-login@v2
 
-      - name: Resolve ECR registry and check immutable image tag
+      - name: Resolve the image tag and check ECR for an existing immutable tag
         id: image
         shell: bash
         run: |
           set -euo pipefail
-          account_id="$(aws sts get-caller-identity --query Account --output text)"
-          if [[ "$account_id" != "778850687736" ]]; then
-            echo "GitHub deployment credentials resolved to an unexpected AWS account." >&2
-            exit 1
-          fi
-          echo "registry=${account_id}.dkr.ecr.${AWS_REGION}.amazonaws.com" >> "$GITHUB_OUTPUT"
-          if aws ecr describe-images \
-            --repository-name "$ECR_REPOSITORY" \
-            --image-ids "imageTag=${GITHUB_SHA}" >/dev/null 2>"$RUNNER_TEMP/ecr-check-error"; then
-            echo "exists=true" >> "$GITHUB_OUTPUT"
-          elif grep -q 'ImageNotFoundException' "$RUNNER_TEMP/ecr-check-error"; then
-            echo "exists=false" >> "$GITHUB_OUTPUT"
+          if [[ "$GITHUB_EVENT_NAME" == "push" ]]; then
+            account_id="$(aws sts get-caller-identity --query Account --output text)"
+            if [[ "$account_id" != "778850687736" ]]; then
+              echo "GitHub deployment credentials resolved to an unexpected AWS account." >&2
+              exit 1
+            fi
+            image_uri="${account_id}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPOSITORY}:${GITHUB_SHA}"
+            if aws ecr describe-images \
+              --repository-name "$ECR_REPOSITORY" \
+              --image-ids "imageTag=${GITHUB_SHA}" >/dev/null 2>"$RUNNER_TEMP/ecr-check-error"; then
+              exists=true
+            elif grep -q 'ImageNotFoundException' "$RUNNER_TEMP/ecr-check-error"; then
+              exists=false
+            else
+              cat "$RUNNER_TEMP/ecr-check-error" >&2
+              exit 1
+            fi
           else
-            cat "$RUNNER_TEMP/ecr-check-error" >&2
-            exit 1
+            image_uri="deal-and-drive-dev-api:${GITHUB_SHA}"
+            exists=false
           fi
+          echo "uri=$image_uri" >> "$GITHUB_OUTPUT"
+          echo "exists=$exists" >> "$GITHUB_OUTPUT"
 
-      - name: Build and push the immutable API image
+      - name: Build API Docker image (publish only on dev)
         if: steps.image.outputs.exists != 'true'
         uses: docker/build-push-action@v6
         with:
           context: ./backend
           file: ./backend/Dockerfile
-          push: true
-          tags: ${{ steps.image.outputs.registry }}/deal-and-drive-dev-api:${{ github.sha }}
+          push: ${{ github.event_name == 'push' && github.ref == 'refs/heads/dev' }}
+          tags: ${{ steps.image.outputs.uri }}
+
+      - name: Summarize Stage 8 behavior
+        if: success()
+        run: |
+          if [[ "$GITHUB_EVENT_NAME" == "pull_request" ]]; then
+            echo 'API Docker image built for validation; it was not published.' >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo 'API Docker image published to ECR with the commit SHA tag.' >> "$GITHUB_STEP_SUMMARY"
+          fi
 
   # =========================================================================
   # STAGE 9: DEPLOY THE API TO ECS AND THE STATIC SITE TO S3 / CLOUDFRONT
@@ -564,7 +565,7 @@ jobs:
   aws-deployment:
     name: "Stage 9: Deploy to ECS and S3/CloudFront (dev)"
     if: github.event_name == 'push' && github.ref == 'refs/heads/dev'
-    needs: [docker-build-push]
+    needs: [api-image]
     runs-on: ubuntu-latest
     timeout-minutes: 45
     environment: development
@@ -625,7 +626,7 @@ jobs:
         id: task-definition
         shell: bash
         env:
-          API_IMAGE: 778850687736.dkr.ecr.us-east-2.amazonaws.com/deal-and-drive-dev-api:${{ github.sha }}
+          API_IMAGE: ${{ needs.api-image.outputs.image }}
         run: |
           set -euo pipefail
           current_task_definition="$(aws ecs describe-services \
