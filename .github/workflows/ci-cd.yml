@@ -1,23 +1,20 @@
-name: Secure DevOps CI/CD Pipeline (pre-dev)
+name: Secure DevOps CI/CD Pipeline (dev)
 
 on:
   pull_request:
-    branches: [ dev, pre-dev ]
+    branches: [ dev ]
   push:
-    branches: [ pre-dev ]
+    branches: [ dev ]
 
 concurrency:
-  # Group by the TARGET branch so every run aimed at pre-dev shares one group:
+  # Group runs by their target branch. A PR validation event and the later
+  # merge push are separate runs; this only cancels an older overlapping run.
   #
-  #   pull_request -> github.base_ref = "pre-dev"  -> ci-cd-pre-dev
-  #   push to pre-dev -> github.ref_name = "pre-dev" -> ci-cd-pre-dev
+  #   pull_request -> github.base_ref = "dev"  -> ci-cd-dev
+  #   push to dev   -> github.ref_name = "dev" -> ci-cd-dev
   #
-  # With github.ref instead, a PR run used refs/pull/N/merge and a push used
-  # refs/heads/pre-dev -- two different groups, so merging or approving a PR let
-  # both pipelines run side by side (the duplicate-pipeline problem).
   group: ci-cd-${{ github.base_ref || github.ref_name }}
-  # A merge/approve push cancels the superseded PR run; a new commit cancels
-  # the older one. Only one pre-dev pipeline runs at a time.
+  # When two runs for the same target overlap, keep the latest commit's run.
   cancel-in-progress: true
 
 jobs:
@@ -73,7 +70,6 @@ jobs:
   # =========================================================================
   compliance-check:
     name: "Stage 2: Directory Structure Compliance"
-    needs: [pr-validation]
     runs-on: ubuntu-latest
 
     steps:
@@ -383,20 +379,13 @@ jobs:
 
           sudo chmod +x /usr/local/bin/hadolint
 
-      - name: Scan Dockerfiles for Structural Formatting Flaws
+      - name: Scan the API Dockerfile for Structural Formatting Flaws
         run: |
           if [ -f backend/Dockerfile ]; then
             echo "Scanning backend/Dockerfile..."
             hadolint backend/Dockerfile --failure-threshold error
           else
             echo "⚠️ Notice: Dockerfile not found in backend/ directory. Skipping."
-          fi
-
-          if [ -f frontend/Dockerfile ]; then
-            echo "Scanning frontend/Dockerfile..."
-            hadolint frontend/Dockerfile --failure-threshold error
-          else
-            echo "⚠️ Notice: Dockerfile not found in frontend/ directory. Skipping."
           fi
 
   # =========================================================================
@@ -481,16 +470,101 @@ jobs:
           fi
 
   # =========================================================================
-  # STAGE 8: AWS DEPLOYMENT
+  # STAGE 8: BUILD AND PUBLISH THE API CONTAINER
   #
-  # Deploy credentials are scoped to the `development` GitHub environment,
-  # which is restricted to pre-dev. ECS receives backend values from its
-  # Secrets Manager JSON secret; frontend URLs are public configuration.
+  # This is deliberately separate from deployment, matching the established
+  # dev pipeline shape. The static React frontend is not containerized.
+  # Pull requests build the image without pushing it; pushes to dev publish an
+  # immutable Git-SHA tag to ECR for Stage 9.
   # =========================================================================
-  aws-ecs-deployment:
-    name: "Stage 8: Build and deploy to AWS (pre-dev)"
-    if: github.event_name == 'push' && github.ref == 'refs/heads/pre-dev'
+  docker-image-validation:
+    name: "Stage 8: Validate API Docker build (pull request)"
+    if: github.event_name == 'pull_request'
     needs: [security-scans]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Build API image without publishing
+        uses: docker/build-push-action@v6
+        with:
+          context: ./backend
+          file: ./backend/Dockerfile
+          push: false
+          tags: deal-and-drive-dev-api:${{ github.sha }}
+
+  docker-build-push:
+    name: "Stage 8: Build and push API image to ECR (dev)"
+    if: github.event_name == 'push' && github.ref == 'refs/heads/dev'
+    needs: [security-scans]
+    runs-on: ubuntu-latest
+    environment: development
+    permissions:
+      contents: read
+    env:
+      AWS_REGION: us-east-2
+      ECR_REPOSITORY: deal-and-drive-dev-api
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials for ECR publish
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-2
+
+      - name: Log in to Amazon ECR
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Resolve ECR registry and check immutable image tag
+        id: image
+        shell: bash
+        run: |
+          set -euo pipefail
+          account_id="$(aws sts get-caller-identity --query Account --output text)"
+          if [[ "$account_id" != "778850687736" ]]; then
+            echo "GitHub deployment credentials resolved to an unexpected AWS account." >&2
+            exit 1
+          fi
+          echo "registry=${account_id}.dkr.ecr.${AWS_REGION}.amazonaws.com" >> "$GITHUB_OUTPUT"
+          if aws ecr describe-images \
+            --repository-name "$ECR_REPOSITORY" \
+            --image-ids "imageTag=${GITHUB_SHA}" >/dev/null 2>"$RUNNER_TEMP/ecr-check-error"; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          elif grep -q 'ImageNotFoundException' "$RUNNER_TEMP/ecr-check-error"; then
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          else
+            cat "$RUNNER_TEMP/ecr-check-error" >&2
+            exit 1
+          fi
+
+      - name: Build and push the immutable API image
+        if: steps.image.outputs.exists != 'true'
+        uses: docker/build-push-action@v6
+        with:
+          context: ./backend
+          file: ./backend/Dockerfile
+          push: true
+          tags: ${{ steps.image.outputs.registry }}/deal-and-drive-dev-api:${{ github.sha }}
+
+  # =========================================================================
+  # STAGE 9: DEPLOY THE API TO ECS AND THE STATIC SITE TO S3 / CLOUDFRONT
+  #
+  # Runs only after a commit reaches dev. Backend values are injected by the
+  # ECS task definition from Secrets Manager. Frontend API and WebSocket URLs
+  # are public build configuration and are read from frontend-config.
+  # =========================================================================
+  aws-deployment:
+    name: "Stage 9: Deploy to ECS and S3/CloudFront (dev)"
+    if: github.event_name == 'push' && github.ref == 'refs/heads/dev'
+    needs: [docker-build-push]
     runs-on: ubuntu-latest
     timeout-minutes: 45
     environment: development
@@ -501,6 +575,8 @@ jobs:
       AWS_REGION: us-east-2
       ECS_CLUSTER: deal-and-drive-dev
       ECS_SERVICE: deal-and-drive-dev-api
+      ECR_REPOSITORY: deal-and-drive-dev-api
+      FRONTEND_BUCKET: deal-and-drive-dev-frontend-c6401ee23784ed2c8e80fbd788
 
     steps:
       - name: Checkout code
@@ -513,77 +589,47 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Resolve AWS deployment targets
+      - name: Resolve and verify the AWS deployment targets
         id: targets
         shell: bash
         run: |
           set -euo pipefail
           account_id="$(aws sts get-caller-identity --query Account --output text)"
+          if [[ "$account_id" != "778850687736" ]]; then
+            echo "Configured AWS account does not match the expected account." >&2
+            exit 1
+          fi
           distribution_id="$(aws cloudfront list-distributions \
             --query "DistributionList.Items[?Comment=='deal-and-drive dev'].Id | [0]" \
             --output text)"
-          distribution_domain="$(aws cloudfront list-distributions \
-            --query "DistributionList.Items[?Comment=='deal-and-drive dev'].DomainName | [0]" \
-            --output text)"
-          frontend_bucket="deal-and-drive-dev-frontend-c6401ee23784ed2c8e80fbd788"
-          if [[ -z "$distribution_id" || "$distribution_id" == "None" || \
-                -z "$distribution_domain" || "$distribution_domain" == "None" || \
-                -z "$frontend_bucket" || "$frontend_bucket" == "None" ]]; then
-            echo "Could not find the Deal and Drive dev CloudFront distribution or frontend bucket." >&2
+          if [[ -z "$distribution_id" || "$distribution_id" == "None" ]]; then
+            echo "Could not find the Deal and Drive dev CloudFront distribution." >&2
             exit 1
           fi
-          echo "ecr_registry=${account_id}.dkr.ecr.${AWS_REGION}.amazonaws.com" >> "$GITHUB_OUTPUT"
           echo "distribution_id=$distribution_id" >> "$GITHUB_OUTPUT"
-          echo "distribution_domain=$distribution_domain" >> "$GITHUB_OUTPUT"
-          echo "frontend_bucket=$frontend_bucket" >> "$GITHUB_OUTPUT"
 
-      - name: Log in to Amazon ECR
-        uses: aws-actions/amazon-ecr-login@v2
-
-      - name: Check whether this immutable API image already exists
-        id: api-image
+      - name: Confirm ECS service is provisioned
         shell: bash
-        env:
-          IMAGE_TAG: ${{ github.sha }}
         run: |
           set -euo pipefail
-          if aws ecr describe-images \
-            --repository-name deal-and-drive-dev-api \
-            --image-ids "imageTag=${IMAGE_TAG}" >/dev/null 2>"$RUNNER_TEMP/ecr-check-error"; then
-            echo "exists=true" >> "$GITHUB_OUTPUT"
-          elif grep -q 'ImageNotFoundException' "$RUNNER_TEMP/ecr-check-error"; then
-            echo "exists=false" >> "$GITHUB_OUTPUT"
-          else
-            cat "$RUNNER_TEMP/ecr-check-error" >&2
-            exit 1
-          fi
-
-      - name: Build and push API image
-        if: steps.api-image.outputs.exists != 'true'
-        uses: docker/build-push-action@v6
-        with:
-          context: ./backend
-          file: ./backend/Dockerfile
-          push: true
-          tags: ${{ steps.targets.outputs.ecr_registry }}/deal-and-drive-dev-api:${{ github.sha }}
-
-      - name: Register task definition with this commit's image and deploy API
-        shell: bash
-        env:
-          API_IMAGE: ${{ steps.targets.outputs.ecr_registry }}/deal-and-drive-dev-api:${{ github.sha }}
-        run: |
-          set -euo pipefail
-          service_status="$(aws ecs describe-services \
+          status="$(aws ecs describe-services \
             --cluster "$ECS_CLUSTER" \
             --services "$ECS_SERVICE" \
             --query 'services[0].status' --output text)"
-          if [[ "$service_status" != "ACTIVE" ]]; then
-            echo "::warning::ECS service $ECS_SERVICE is not provisioned yet. The API image was published; frontend deployment will continue. Provision the service through Terraform after this first image push."
-            exit 0
+          if [[ "$status" != "ACTIVE" ]]; then
+            echo "ECS service $ECS_SERVICE is missing or inactive. Apply the Terraform infrastructure first." >&2
+            exit 1
           fi
+
+      - name: Register this commit's API image with the current task definition
+        id: task-definition
+        shell: bash
+        env:
+          API_IMAGE: 778850687736.dkr.ecr.us-east-2.amazonaws.com/deal-and-drive-dev-api:${{ github.sha }}
+        run: |
+          set -euo pipefail
           current_task_definition="$(aws ecs describe-services \
-            --cluster "$ECS_CLUSTER" \
-            --services "$ECS_SERVICE" \
+            --cluster "$ECS_CLUSTER" --services "$ECS_SERVICE" \
             --query 'services[0].taskDefinition' --output text)"
           aws ecs describe-task-definition \
             --task-definition "$current_task_definition" \
@@ -601,84 +647,91 @@ jobs:
           task_definition_arn="$(aws ecs register-task-definition \
             --cli-input-json "file://$RUNNER_TEMP/next-task-definition.json" \
             --query 'taskDefinition.taskDefinitionArn' --output text)"
+          echo "task_definition_arn=$task_definition_arn" >> "$GITHUB_OUTPUT"
+
+      - name: Run database migrations as a one-off Fargate task
+        id: migration
+        shell: bash
+        env:
+          TASK_DEFINITION_ARN: ${{ steps.task-definition.outputs.task_definition_arn }}
+        run: |
+          set -euo pipefail
           subnet_ids_text="$(aws ec2 describe-subnets \
             --filters 'Name=tag:Name,Values=deal-and-drive-dev-app-*' \
             --query 'Subnets[].SubnetId' --output text)"
           read -r -a subnet_ids <<< "$subnet_ids_text"
           if [[ "${#subnet_ids[@]}" -lt 2 ]]; then
-            echo "Could not find the two private application subnets for the migration task." >&2
+            echo "Could not find the two private application subnets." >&2
             exit 1
           fi
           subnet_ids_csv="$(IFS=,; echo "${subnet_ids[*]}")"
-          api_security_group="$(aws ec2 describe-security-groups \
+          security_group="$(aws ec2 describe-security-groups \
             --filters 'Name=group-name,Values=deal-and-drive-dev-api-sg' \
             --query 'SecurityGroups[0].GroupId' --output text)"
-          if [[ -z "$api_security_group" || "$api_security_group" == "None" ]]; then
-            echo "Could not find the ECS API security group for the migration task." >&2
+          if [[ -z "$security_group" || "$security_group" == "None" ]]; then
+            echo "Could not find the ECS API security group." >&2
             exit 1
           fi
-          migration_task_arn="$(aws ecs run-task \
-            --cluster "$ECS_CLUSTER" \
-            --launch-type FARGATE \
-            --task-definition "$task_definition_arn" \
-            --network-configuration "awsvpcConfiguration={subnets=[$subnet_ids_csv],securityGroups=[$api_security_group],assignPublicIp=DISABLED}" \
+          task_arn="$(aws ecs run-task \
+            --cluster "$ECS_CLUSTER" --launch-type FARGATE \
+            --task-definition "$TASK_DEFINITION_ARN" \
+            --network-configuration "awsvpcConfiguration={subnets=[$subnet_ids_csv],securityGroups=[$security_group],assignPublicIp=DISABLED}" \
             --overrides '{"containerOverrides":[{"name":"api","command":["alembic","upgrade","head"]}]}' \
             --query 'tasks[0].taskArn' --output text)"
-          if [[ -z "$migration_task_arn" || "$migration_task_arn" == "None" ]]; then
-            echo "ECS did not start the Alembic migration task." >&2
+          if [[ -z "$task_arn" || "$task_arn" == "None" ]]; then
+            echo "ECS did not start the database migration task." >&2
             exit 1
           fi
-          aws ecs wait tasks-stopped --cluster "$ECS_CLUSTER" --tasks "$migration_task_arn"
-          migration_exit_code="$(aws ecs describe-tasks \
-            --cluster "$ECS_CLUSTER" --tasks "$migration_task_arn" \
+          aws ecs wait tasks-stopped --cluster "$ECS_CLUSTER" --tasks "$task_arn"
+          exit_code="$(aws ecs describe-tasks --cluster "$ECS_CLUSTER" --tasks "$task_arn" \
             --output json | jq -r '.tasks[0].containers[] | select(.name == "api") | .exitCode')"
-          if [[ "$migration_exit_code" != "0" ]]; then
-            echo "Database migration failed (container exit code: $migration_exit_code); ECS service was not updated." >&2
+          if [[ "$exit_code" != "0" ]]; then
+            echo "Database migration failed with exit code $exit_code; the service was not updated." >&2
             exit 1
           fi
+
+      - name: Deploy API task definition and wait for ECS stability
+        env:
+          TASK_DEFINITION_ARN: ${{ steps.task-definition.outputs.task_definition_arn }}
+        run: |
+          set -euo pipefail
           aws ecs update-service \
             --cluster "$ECS_CLUSTER" \
             --service "$ECS_SERVICE" \
-            --task-definition "$task_definition_arn" >/dev/null
+            --task-definition "$TASK_DEFINITION_ARN" >/dev/null
           aws ecs wait services-stable --cluster "$ECS_CLUSTER" --services "$ECS_SERVICE"
 
       - name: Load public frontend configuration from Secrets Manager
+        shell: bash
         run: |
+          set -euo pipefail
           config="$(aws secretsmanager get-secret-value \
             --secret-id deal-and-drive/dev/frontend-config \
             --query SecretString --output text)"
           echo "VITE_API_BASE_URL=$(jq -r '.VITE_API_BASE_URL' <<< "$config")" >> "$GITHUB_ENV"
           echo "VITE_WS_BASE_URL=$(jq -r '.VITE_WS_BASE_URL' <<< "$config")" >> "$GITHUB_ENV"
 
-      - name: Build frontend
+      - name: Build static React frontend
         run: |
           npm ci --prefix frontend
           npm run build --prefix frontend
 
-      - name: Publish frontend to private S3 origin
-        run: |
-          aws s3 sync frontend/dist/ "s3://${{ steps.targets.outputs.frontend_bucket }}/" --delete
+      - name: Publish frontend files to the private S3 origin
+        run: aws s3 sync frontend/dist/ "s3://${FRONTEND_BUCKET}/" --delete
 
-      - name: Invalidate CloudFront frontend cache
+      - name: Invalidate CloudFront cache
         run: |
           aws cloudfront create-invalidation \
             --distribution-id "${{ steps.targets.outputs.distribution_id }}" \
             --paths '/*' >/dev/null
 
-  deployment-summary:
-    name: "Stage 9: Deployment summary"
-    needs: [aws-ecs-deployment]
-    if: always() && github.event_name == 'push' && github.ref == 'refs/heads/pre-dev'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Report deployment result
-        shell: bash
-        env:
-          DEPLOY_RESULT: ${{ needs.aws-ecs-deployment.result }}
+      - name: Summarize the deployment
+        if: success()
         run: |
-          if [[ "$DEPLOY_RESULT" == "success" ]]; then
-            echo "The pre-dev application deployment completed successfully." >> "$GITHUB_STEP_SUMMARY"
-          else
-            echo "The pre-dev application deployment failed. Review Stage 8 logs before retrying." >> "$GITHUB_STEP_SUMMARY"
-            exit 1
-          fi
+          {
+            echo '## Dev deployment completed'
+            echo '- API image: ECR, tagged with this commit SHA'
+            echo '- API runtime: ECS Fargate'
+            echo '- Frontend: private S3 origin with CloudFront invalidation'
+            echo '- Database migration: completed before ECS service rollout'
+          } >> "$GITHUB_STEP_SUMMARY"

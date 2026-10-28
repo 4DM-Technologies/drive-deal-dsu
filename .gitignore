@@ -90,3 +90,6 @@ uploads/*
 .codex_oauth_state/
 
 DEPLOY_LOCAL.md
+# Pytest/Codex temporary workspaces
+.pytest*/
+**/.pytest*/
