@@ -643,7 +643,12 @@ jobs:
             | del(.taskDefinitionArn, .revision, .status, .requiresAttributes,
                 .compatibilities, .registeredAt, .registeredBy,
                 .deregisteredAt, .deregisteredBy)
-            | .containerDefinitions |= map(if .name == "api" then .image = $image else . end)
+            | .containerDefinitions |= map(if .name == "api" then
+                .image = $image
+                | .environment = ((.environment // [])
+                    | map(select(.name != "CORS_ORIGINS"))
+                    + [{name: "CORS_ORIGINS", value: "[\"https://d1i7lg9bsuzvn8.cloudfront.net\",\"https://dealndrive.ai\",\"https://www.dealndrive.ai\"]"}])
+              else . end)
           ' "$RUNNER_TEMP/current-task-definition.json" > "$RUNNER_TEMP/next-task-definition.json"
           task_definition_arn="$(aws ecs register-task-definition \
             --cli-input-json "file://$RUNNER_TEMP/next-task-definition.json" \
