@@ -515,7 +515,7 @@ jobs:
           set -euo pipefail
           if [[ "$GITHUB_EVENT_NAME" == "push" ]]; then
             account_id="$(aws sts get-caller-identity --query Account --output text)"
-            if [[ "$account_id" != "778850687736" ]]; then
+            if [[ "$account_id" != "215361861886" ]]; then
               echo "GitHub deployment credentials resolved to an unexpected AWS account." >&2
               exit 1
             fi
@@ -596,7 +596,7 @@ jobs:
         run: |
           set -euo pipefail
           account_id="$(aws sts get-caller-identity --query Account --output text)"
-          if [[ "$account_id" != "778850687736" ]]; then
+          if [[ "$account_id" != "215361861886" ]]; then
             echo "Configured AWS account does not match the expected account." >&2
             exit 1
           fi
@@ -647,7 +647,7 @@ jobs:
                 .image = $image
                 | .environment = ((.environment // [])
                     | map(select(.name != "CORS_ORIGINS"))
-                    + [{name: "CORS_ORIGINS", value: "[\"https://d1i7lg9bsuzvn8.cloudfront.net\",\"https://dealndrive.ai\",\"https://www.dealndrive.ai\"]"}])
+                    + [{name: "CORS_ORIGINS", value: "[\"https://d30110er8l1qwn.cloudfront.net\",\"https://dealndrive.ai\",\"https://www.dealndrive.ai\"]"}])
               else . end)
           ' "$RUNNER_TEMP/current-task-definition.json" > "$RUNNER_TEMP/next-task-definition.json"
           task_definition_arn="$(aws ecs register-task-definition \

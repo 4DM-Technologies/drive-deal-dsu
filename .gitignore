@@ -93,3 +93,6 @@ DEPLOY_LOCAL.md
 # Pytest/Codex temporary workspaces
 .pytest*/
 **/.pytest*/
+
+# Terraform repo checked out alongside the app; it has its own git history.
+Deal-Drive-cloud/
